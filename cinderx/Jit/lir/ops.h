@@ -57,7 +57,6 @@ namespace cinderx::jit::lir {
   X(LoadThreadState)                                            \
   X(MovConstPool)                                               \
   X(Move)                                                       \
-  X(MoveRelaxed)                                                \
   X(Mul)                                                        \
   X(MulAdd)                                                     \
   X(Negate)                                                     \
@@ -120,6 +119,18 @@ enum class Opcode : uint16_t {
 #undef DECLARE_OPCODE
 };
 
+// The memory order of a Load or Store, modelling the C/C++ memory orders.
+// kNone is a plain, non-atomic access.
+#define FOREACH_LIR_MEMORY_ORDER(X) \
+  X(None)                           \
+  X(Relaxed)
+
+enum class MemoryOrder : uint8_t {
+#define DECLARE_MEMORY_ORDER(NAME) k##NAME,
+  FOREACH_LIR_MEMORY_ORDER(DECLARE_MEMORY_ORDER)
+#undef DECLARE_MEMORY_ORDER
+};
+
 // The conditions a comparison can test, and that a conditional branch can read
 // back out of the machine's status flags.
 //
@@ -169,7 +180,7 @@ enum class Opcode : uint16_t {
   X(GreaterThanUnsigned, UnsignedGT)   \
   X(GreaterThanEqualUnsigned, UnsignedGE)
 
-enum class Condition : uint16_t {
+enum class Condition : uint8_t {
 #define DECLARE_CONDITION(NAME, ...) k##NAME,
   FOREACH_LIR_CONDITION(DECLARE_CONDITION)
 #undef DECLARE_CONDITION
@@ -192,11 +203,24 @@ bool isSignedCompare(Condition cond);
 // Whether instructions with this opcode carry a condition.
 bool carriesCondition(Opcode opcode);
 
+// Whether instructions with this opcode carry a memory order.
+bool carriesMemoryOrder(Opcode opcode);
+
+// Get the string name of a memory order.  This is a null-terminated literal
+// value.
+std::string_view memoryOrderName(MemoryOrder order);
+
 // The names a BranchCC and a Compare carrying the given condition are spelled
 // with.  These are the old per-condition opcode names, kept so that LIR reads
 // and parses the same as it did before the condition became a field.
 std::string_view branchCCName(Condition cond);
 std::string_view compareName(Condition cond);
+
+// The names a Load and a Store carrying the given memory order are spelled
+// with.  A "None" order prints and parses as plain Load/Store; any other
+// order is suffixed, e.g. LoadRelaxed or StoreRelaxed.
+std::string_view loadName(MemoryOrder order);
+std::string_view storeName(MemoryOrder order);
 
 // Describes how an LIR instruction's operand sizes are determined.
 enum class OperandSizeType {

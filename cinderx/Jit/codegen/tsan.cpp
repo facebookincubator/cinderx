@@ -221,7 +221,7 @@ SavedCallerState saveCallerSavedState(
 
   SavedCallerState state;
 
-  // Preserve flags so Move/MoveRelaxed keep their FlagEffects::kNone contract.
+  // Preserve flags so Load/Store keep their FlagEffects::kNone contract.
   env.as->pushfq();
 
   for (PhyLocation reg : CALLER_SAVE_GP_REGS) {

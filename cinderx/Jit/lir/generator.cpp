@@ -1857,7 +1857,8 @@ void LIRGenerator::makeIncrefFreeThreaded(
   // Load ob_ref_local (32-bit thread-local refcount) with relaxed semantics.
   Instruction* ref_local = bbb.appendInstr(
       OutVReg{Operand::k32bit},
-      Opcode::kMoveRelaxed,
+      Opcode::kLoad,
+      MemoryOrder::kRelaxed,
       Ind{instr,
           static_cast<int>(offsetof(PyObject, ob_ref_local)),
           DataType::k32bit});
@@ -1872,7 +1873,8 @@ void LIRGenerator::makeIncrefFreeThreaded(
   bbb.appendBlock(check_owner);
   Instruction* ob_tid = bbb.appendInstr(
       OutVReg{DataType::k64bit},
-      Opcode::kMoveRelaxed,
+      Opcode::kLoad,
+      MemoryOrder::kRelaxed,
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
   Instruction* thread_id = bbb.appendInstr(
       OutVReg{DataType::k64bit},
@@ -1891,7 +1893,8 @@ void LIRGenerator::makeIncrefFreeThreaded(
           instr,
           static_cast<int>(offsetof(PyObject, ob_ref_local)),
           DataType::k32bit},
-      Opcode::kMoveRelaxed,
+      Opcode::kStore,
+      MemoryOrder::kRelaxed,
       ref_local);
   updateRefTotal(bbb, Opcode::kInc);
   // Jump past the slow path to end_incref.
@@ -1918,7 +1921,8 @@ void LIRGenerator::makeTagIfDeferred(
   Instruction* src = bbb.getDefInstr(input);
   Instruction* gc_bits = bbb.appendInstr(
       OutVReg{DataType::k8bit},
-      Opcode::kMoveRelaxed,
+      Opcode::kLoad,
+      MemoryOrder::kRelaxed,
       Ind{src,
           static_cast<int>(offsetof(PyObject, ob_gc_bits)),
           DataType::k8bit});
@@ -2065,7 +2069,8 @@ void LIRGenerator::makeDecrefFreeThreaded(
   // Load ob_ref_local (32-bit) with relaxed semantics.
   Instruction* ref_local = bbb.appendInstr(
       OutVReg{Operand::k32bit},
-      Opcode::kMoveRelaxed,
+      Opcode::kLoad,
+      MemoryOrder::kRelaxed,
       Ind{instr,
           static_cast<int>(offsetof(PyObject, ob_ref_local)),
           DataType::k32bit});
@@ -2080,7 +2085,8 @@ void LIRGenerator::makeDecrefFreeThreaded(
   bbb.appendBlock(check_owner);
   Instruction* ob_tid = bbb.appendInstr(
       OutVReg{DataType::k64bit},
-      Opcode::kMoveRelaxed,
+      Opcode::kLoad,
+      MemoryOrder::kRelaxed,
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
   Instruction* thread_id = bbb.appendInstr(
       OutVReg{DataType::k64bit},
@@ -2100,7 +2106,8 @@ void LIRGenerator::makeDecrefFreeThreaded(
           instr,
           static_cast<int>(offsetof(PyObject, ob_ref_local)),
           DataType::k32bit},
-      Opcode::kMoveRelaxed,
+      Opcode::kStore,
+      MemoryOrder::kRelaxed,
       ref_local);
   // Re-test zero flag after the store (the store may clobber flags).
   bbb.appendInstr(Opcode::kTest32, ref_local, ref_local);
@@ -3885,7 +3892,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             Py_TYPE(builtins)->tp_name);
         env_->addReference(builtins);
         bbb.appendInstr(
-            instr->output(), Opcode::kMoveRelaxed, MemImm{instr->cache()});
+            instr->output(),
+            Opcode::kLoad,
+            MemoryOrder::kRelaxed,
+            MemImm{instr->cache()});
         break;
       }
       case hir::Opcode::kLoadGlobal: {
@@ -4699,7 +4709,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Eval breaker is not a 8 byte value");
         bbb.appendInstr(
             dest,
-            Opcode::kMoveRelaxed,
+            Opcode::kLoad,
+            MemoryOrder::kRelaxed,
             Ind{tstate, offsetof(PyThreadState, eval_breaker)});
 #else
         // eval_breaker is in the runtime, which the code is generated against,
@@ -4710,7 +4721,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Eval breaker is not a 4 byte value");
         bbb.appendInstr(
             dest,
-            Opcode::kMoveRelaxed,
+            Opcode::kLoad,
+            MemoryOrder::kRelaxed,
             MemImm{reinterpret_cast<int*>(
                 &ThreadedCompileContext::interpreter()->ceval.eval_breaker)});
 #endif

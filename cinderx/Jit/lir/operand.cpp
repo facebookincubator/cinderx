@@ -155,7 +155,7 @@ bool Operand::isFp() const {
 }
 
 bool Operand::isVecD() const {
-  return getPhyRegister().isFpRegister();
+  return isReg() && getPhyRegister().isFpRegister();
 }
 
 bool Operand::isLastUse() const {

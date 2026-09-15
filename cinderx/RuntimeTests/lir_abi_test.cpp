@@ -1499,28 +1499,33 @@ TEST_F(LIRABITest, TestkIntToBool_OutPhyReg_Imm) {
 }
 #endif
 
-// kMoveRelaxed R m
-TEST_F(LIRABITest, TestkMoveRelaxed_OutPhyReg_Mem) {
-  translateInstr(Opcode::kMoveRelaxed, makeOutPhyReg(), makeStk());
-  translateInstr(Opcode::kMoveRelaxed, makeOutPhyReg(), makeInd(1, 16));
+// LoadRelaxed R m
+TEST_F(LIRABITest, TestLoadRelaxed_OutPhyReg_Mem) {
+  translateInstr(
+      Opcode::kLoad, makeOutPhyReg(), MemoryOrder::kRelaxed, makeStk());
+  translateInstr(
+      Opcode::kLoad, makeOutPhyReg(), MemoryOrder::kRelaxed, makeInd(1, 16));
 }
 
-// kMoveRelaxed M r
-TEST_F(LIRABITest, TestkMoveRelaxed_Mem_PhyReg) {
-  translateInstr(Opcode::kMoveRelaxed, makeOutStk(), makePhyReg());
-  translateInstr(Opcode::kMoveRelaxed, makeOutInd(1, 16), makePhyReg());
+// StoreRelaxed M r
+TEST_F(LIRABITest, TestStoreRelaxed_Mem_PhyReg) {
+  translateInstr(
+      Opcode::kStore, makeOutStk(), MemoryOrder::kRelaxed, makePhyReg());
+  translateInstr(
+      Opcode::kStore, makeOutInd(1, 16), MemoryOrder::kRelaxed, makePhyReg());
 }
 
-// kMoveRelaxed M i
-TEST_F(LIRABITest, TestkMoveRelaxed_Mem_Imm) {
-  translateInstr(Opcode::kMoveRelaxed, makeOutInd(1, 16), Imm{0});
+// StoreRelaxed M i
+TEST_F(LIRABITest, TestStoreRelaxed_Mem_Imm) {
+  translateInstr(
+      Opcode::kStore, makeOutInd(1, 16), MemoryOrder::kRelaxed, Imm{0});
 }
 
-// kMoveRelaxed rejects reg <- reg (no memory operand)
-TEST_F(LIRABITest, TestkMoveRelaxed_RejectsRegReg) {
+// Load rejects reg <- reg (no memory operand)
+TEST_F(LIRABITest, TestLoad_RejectsRegReg) {
   EXPECT_DEATH(
-      translateInstr(Opcode::kMoveRelaxed, makeOutPhyReg(), makePhyReg()),
-      "kMoveRelaxed only supports");
+      translateInstr(Opcode::kLoad, makeOutPhyReg(), makePhyReg()),
+      "Load input must be memory");
 }
 
 } // namespace cinderx::jit::lir

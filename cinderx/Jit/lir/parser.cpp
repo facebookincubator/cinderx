@@ -255,6 +255,9 @@ std::unique_ptr<Function> Parser::parse(const std::string& code) {
           if (kind.cond != Condition::kInvalid) {
             instr_->setCondition(kind.cond);
           }
+          if (carriesMemoryOrder(kind.opcode)) {
+            instr_->setMemoryOrder(kind.mem_order);
+          }
           state = INSTR_INPUT;
           break;
         }
@@ -414,23 +417,42 @@ DataType Parser::getOperandDataType(const std::string& name) const {
 }
 
 // BranchCC and Compare are spelled with the per-condition names their opcodes
-// used to have, so the same LIR text still parses.
+// used to have, so the same LIR text still parses. Load and Store are spelled
+// with per-memory-order names, e.g. LoadRelaxed.
 Parser::InstrKind Parser::getInstrKind(const std::string& name) const {
   static const std::unordered_map<std::string, InstrKind> instr_name_to_kind =
       [] {
         std::unordered_map<std::string, InstrKind> map;
 #define INSTR_NAME_TO_OPCODE(v, ...) \
-  map.emplace(#v, InstrKind{Opcode::k##v, Condition::kInvalid});
+  map.emplace(                       \
+      #v, InstrKind{Opcode::k##v, Condition::kInvalid, MemoryOrder::kNone});
         FOREACH_LIR_OPCODE(INSTR_NAME_TO_OPCODE)
 #undef INSTR_NAME_TO_OPCODE
 #define BRANCH_NAME_TO_KIND(NAME, NEGATED, SWAPPED, BRANCH) \
-  map.emplace(#BRANCH, InstrKind{Opcode::kBranchCC, Condition::k##NAME});
+  map.emplace(                                              \
+      #BRANCH,                                              \
+      InstrKind{Opcode::kBranchCC, Condition::k##NAME, MemoryOrder::kNone});
         FOREACH_LIR_CONDITION(BRANCH_NAME_TO_KIND)
 #undef BRANCH_NAME_TO_KIND
 #define COMPARE_NAME_TO_KIND(COMPARE, CONDITION) \
-  map.emplace(#COMPARE, InstrKind{Opcode::kCompare, Condition::k##CONDITION});
+  map.emplace(                                   \
+      #COMPARE,                                  \
+      InstrKind{                                 \
+          Opcode::kCompare, Condition::k##CONDITION, MemoryOrder::kNone});
         FOREACH_LIR_COMPARE(COMPARE_NAME_TO_KIND)
 #undef COMPARE_NAME_TO_KIND
+#define LOAD_NAME_TO_KIND(NAME)                                             \
+  map.emplace(                                                              \
+      loadName(MemoryOrder::k##NAME).data(),                                \
+      InstrKind{Opcode::kLoad, Condition::kInvalid, MemoryOrder::k##NAME}); \
+  map.emplace(                                                              \
+      storeName(MemoryOrder::k##NAME).data(),                               \
+      InstrKind{Opcode::kStore, Condition::kInvalid, MemoryOrder::k##NAME});
+        FOREACH_LIR_MEMORY_ORDER(LOAD_NAME_TO_KIND)
+#undef LOAD_NAME_TO_KIND
+        // The old MoveRelaxed spelling is intentionally not accepted: a
+        // relaxed load vs. store is ambiguous without operands, so stale LIR
+        // text fails in map_get_throw instead of silently changing meaning.
         return map;
       }();
 

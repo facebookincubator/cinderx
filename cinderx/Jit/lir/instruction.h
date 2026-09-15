@@ -137,6 +137,10 @@ class Instruction {
   Condition condition() const;
   void setCondition(Condition cond);
 
+  // The memory order a Load or Store accesses memory with.
+  MemoryOrder memoryOrder() const;
+  void setMemoryOrder(MemoryOrder order);
+
   // Get the name of this instruction's opcode.  This is a null-terminated
   // literal value.
   std::string_view opname() const;
@@ -203,9 +207,11 @@ class Instruction {
     (
         [&] {
           using Arg = std::decay_t<Args>;
-          // A Condition is not an operand, so it doesn't count as coming
-          // "before" the output.
-          if constexpr (!std::is_same_v<Arg, Condition>) {
+          // A Condition or MemoryOrder is not an operand, so it doesn't count
+          // as coming "before" the output.
+          if constexpr (
+              !std::is_same_v<Arg, Condition> &&
+              !std::is_same_v<Arg, MemoryOrder>) {
             if (isOutputArg<Arg>() && saw_non_condition_arg) {
               valid = false;
             }
@@ -235,6 +241,8 @@ class Instruction {
       allocateLabelInput(arg.value);
     } else if constexpr (std::is_same_v<ArgType, Condition>) {
       setCondition(arg);
+    } else if constexpr (std::is_same_v<ArgType, MemoryOrder>) {
+      setMemoryOrder(arg);
     } else if constexpr (std::is_same_v<ArgType, AsmLbl>) {
       allocateAsmLabelInput(arg.value);
     } else if constexpr (std::is_same_v<ArgType, VReg>) {
@@ -273,6 +281,7 @@ class Instruction {
   int id_;
   Opcode opcode_;
   Condition cond_{Condition::kInvalid};
+  MemoryOrder mem_order_{MemoryOrder::kNone};
   Operand output_;
   BasicBlock* basic_block_;
   const hir::Instr* origin_;

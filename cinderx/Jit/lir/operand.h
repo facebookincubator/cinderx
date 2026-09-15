@@ -298,8 +298,9 @@ struct OperandArg<void, true> {
   static constexpr bool is_output = true;
 };
 
-// A Condition can be passed alongside the operands to set the instruction's
-// condition, and is not an operand itself, so it has no is_output.
+// A Condition or MemoryOrder can be passed alongside the operands to set the
+// instruction's condition or memory order, and is not an operand itself, so it
+// has no is_output.
 template <typename T>
 constexpr bool isOutputArg() {
   if constexpr (requires { T::is_output; }) {

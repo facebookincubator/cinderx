@@ -62,25 +62,6 @@ bool isMemoryMoveOperand(const lir::Operand* operand) {
   return operand->isStack() || operand->isMem() || operand->isInd();
 }
 
-void checkMoveRelaxedOperandShape(const Instruction* instr) {
-  JIT_DCHECK(
-      instr->isMoveRelaxed(), "Expected kMoveRelaxed, got {}", instr->opname());
-
-  auto* output = instr->output();
-  auto* input = instr->getInput(0);
-
-  bool is_valid_load = output->isReg() && isMemoryMoveOperand(input);
-  bool is_valid_store =
-      isMemoryMoveOperand(output) && (input->isReg() || input->isImm());
-
-  JIT_CHECK(
-      is_valid_load || is_valid_store,
-      "kMoveRelaxed only supports memory->register loads and "
-      "register/immediate->memory stores, got {} <- {}",
-      output->type(),
-      input->type());
-}
-
 } // namespace
 
 arch::Mem AsmIndirectOperandBuilder(const lir::Operand* operand) {
@@ -1853,23 +1834,14 @@ void translateMove(Environ* env, const Instruction* instr) {
   const lir::Operand* output = instr->output();
   const lir::Operand* input = instr->getInput(0);
 
-  // MoveRelaxed still supports memory, keep its old validation but for plain
-  // Move we enforce register-only.
-  if (instr->isMoveRelaxed()) {
-    checkMoveRelaxedOperandShape(instr);
-    // For MoveRelaxed we fall through to the generic memory-capable path
-    // implemented in translateLoad/Store helpers below, but keep a quick
-    // reg-reg path here for efficiency.
-  } else {
-    JIT_CHECK(
-        output->isReg(),
-        "Move output must be a register, got {} (use Store for memory)",
-        output->type());
-    JIT_CHECK(
-        input->isReg() || input->isImm(),
-        "Move input must be Reg or Imm, got {} (use Load for memory)",
-        input->type());
-  }
+  JIT_CHECK(
+      output->isReg(),
+      "Move output must be a register, got {} (use Store for memory)",
+      output->type());
+  JIT_CHECK(
+      input->isReg() || input->isImm(),
+      "Move input must be Reg or Imm, got {} (use Load for memory)",
+      input->type());
 
   // Register-to-register / immediate-to-register.
   if (output->type() == lir::OperandType::kReg) {
@@ -1909,133 +1881,6 @@ void translateMove(Environ* env, const Instruction* instr) {
       }
       default:
         break;
-    }
-  }
-
-  // If we reach here and it's MoveRelaxed with memory operands, handle via
-  // the shared Load/Store logic below to avoid duplication.
-  if (instr->isMoveRelaxed()) {
-    if (output->isReg() && isMemoryMoveOperand(input)) {
-      // Load path for MoveRelaxed (relaxed atomic load).
-      if (output->isVecD()) {
-        if (input->isStack()) {
-          as->ldr(
-              AT::getVecD(output),
-              getStackSlotPtr(env, input->getStackSlot().loc));
-        } else if (input->isInd()) {
-          auto ptr = ptrIndirect(
-              as,
-              arch::reg_scratch_0,
-              arch::reg_scratch_1,
-              input->getMemoryIndirect(),
-              output->dataType());
-          loadToReg(as, output, ptr);
-        } else {
-          JIT_ABORT(
-              "Unsupported operand type for MoveRelaxed load: Reg + {}",
-              input->type());
-        }
-      } else {
-        if (input->isStack()) {
-          auto dst = a64::x(output->getPhyRegister().loc);
-          auto ptr = getStackSlotPtr(env, input->getStackSlot().loc, dst);
-          switch (output->dataType()) {
-            case lir::Operand::k8bit:
-              as->ldrb(AT::getGpOutput(output), ptr);
-              break;
-            case lir::Operand::k16bit:
-              as->ldrh(AT::getGpOutput(output), ptr);
-              break;
-            default:
-              as->ldr(AT::getGp(output), ptr);
-              break;
-          }
-        } else if (input->isInd()) {
-          auto ptr = ptrIndirect(
-              as,
-              arch::reg_scratch_0,
-              arch::reg_scratch_1,
-              input->getMemoryIndirect(),
-              output->dataType());
-          loadToReg(as, output, ptr);
-        } else {
-          JIT_ABORT(
-              "Unsupported operand type for MoveRelaxed load: Reg + {}",
-              input->type());
-        }
-      }
-      return;
-    } else if (isMemoryMoveOperand(output)) {
-      auto scratch0 = arch::reg_scratch_0;
-      auto scratch1 = arch::reg_scratch_1;
-      if (output->type() == lir::OperandType::kStack) {
-        auto scratch = input->getPhyRegister() == arch::reg_scratch_0_loc
-            ? arch::reg_scratch_1
-            : arch::reg_scratch_0;
-        storeFromReg(
-            as,
-            input,
-            output,
-            getStackSlotPtr(env, output->getStackSlot().loc, scratch));
-        return;
-      } else if (output->type() == lir::OperandType::kMem) {
-        as->load_addr(scratch0, output->getMemoryAddress());
-        if (input->isReg()) {
-          if (input->isVecD()) {
-            as->str(AT::getVecD(input), a64::ptr(scratch0));
-          } else {
-            as->str(AT::getGpWiden(input), a64::ptr(scratch0));
-          }
-        } else if (input->isImm()) {
-          as->mov(scratch1, input->getConstant());
-          as->str(scratch1, a64::ptr(scratch0));
-        } else {
-          JIT_ABORT(
-              "Unsupported operand type for MoveRelaxed store: Mem + {}",
-              input->type());
-        }
-        return;
-      } else if (output->type() == lir::OperandType::kInd) {
-        if (input->isReg()) {
-          auto ptr = ptrIndirect(
-              as,
-              scratch0,
-              scratch1,
-              output->getMemoryIndirect(),
-              output->dataType());
-          storeFromReg(as, input, output, ptr);
-        } else if (input->isImm()) {
-          auto ptr = ptrIndirect(
-              as,
-              scratch0,
-              scratch1,
-              output->getMemoryIndirect(),
-              output->dataType());
-          switch (output->dataType()) {
-            case lir::Operand::k8bit:
-              as->mov(a64::w(scratch1.id()), input->getConstant());
-              as->strb(a64::w(scratch1.id()), ptr);
-              break;
-            case lir::Operand::k16bit:
-              as->mov(a64::w(scratch1.id()), input->getConstant());
-              as->strh(a64::w(scratch1.id()), ptr);
-              break;
-            case lir::Operand::k32bit:
-              as->mov(a64::w(scratch1.id()), input->getConstant());
-              as->str(a64::w(scratch1.id()), ptr);
-              break;
-            default:
-              as->mov(scratch1, input->getConstant());
-              as->str(scratch1, ptr);
-              break;
-          }
-        } else {
-          JIT_ABORT(
-              "Unsupported operand type for MoveRelaxed store: Ind + {}",
-              input->type());
-        }
-        return;
-      }
     }
   }
 
@@ -2852,36 +2697,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kMoveRelaxed: {
-      checkMoveRelaxedOperandShape(instr);
-
-      auto* output = instr->output();
-      auto* input = instr->getInput(0);
-
-      if (output->isReg()) {
-        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
-        if (!kCinderJitTsanEnabled ||
-            !tryEmitTsanRelaxedAtomicRead(
-                *env, output, input, access_size_in_bytes)) {
-          env->as->mov(getReg(instr, output), getMem(instr, input));
-        }
-      } else if (input->isReg()) {
-        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
-        if (!kCinderJitTsanEnabled ||
-            !tryEmitTsanRelaxedAtomicWrite(
-                *env, output, input, access_size_in_bytes)) {
-          env->as->mov(getMem(instr, output), getReg(instr, input));
-        }
-      } else {
-        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
-        if (!kCinderJitTsanEnabled ||
-            !tryEmitTsanRelaxedAtomicWrite(
-                *env, output, input, access_size_in_bytes)) {
-          env->as->mov(getMem(instr, output), getImm(input));
-        }
-      }
-      return;
-    }
     case Opcode::kZext: {
       auto* output = instr->output();
       auto* input = instr->getInput(0);
@@ -3399,19 +3214,32 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
           "Load input must be memory (Stk/Mem/Ind), got {} in {}",
           input->type(),
           *instr);
-      if (output->isVecD()) {
-        if constexpr (kCinderJitTsanEnabled) {
-          int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+      auto mem_order = instr->memoryOrder();
+
+      JIT_THROW_IF(
+          output->isVecD() && mem_order != lir::MemoryOrder::kNone,
+          "Load with float value is not supported for memory order {}",
+          mem_order);
+
+      // TSAN and relaxed memory order handling.
+      if constexpr (kCinderJitTsanEnabled) {
+        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+        if (mem_order == lir::MemoryOrder::kRelaxed) {
+          if (tryEmitTsanRelaxedAtomicRead(
+                  *env, output, input, access_size_in_bytes)) {
+            return;
+          }
+        } else {
           emitTsanRead(*env, input, access_size_in_bytes);
         }
+      }
+
+      if (output->isVecD()) {
         env->as->movsd(getVecD(output), getMem(instr, input));
       } else {
-        if constexpr (kCinderJitTsanEnabled) {
-          int access_size_in_bytes = getOperandSizeInBytes(instr, output);
-          emitTsanRead(*env, input, access_size_in_bytes);
-        }
         env->as->mov(getReg(instr, output), getMem(instr, input));
       }
+
       return;
     }
     case Opcode::kStore: {
@@ -3421,10 +3249,26 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
           isMemoryMoveOperand(output),
           "Store output must be memory (Stk/Mem/Ind), got {}",
           output->type());
+      auto mem_order = instr->memoryOrder();
+
+      JIT_THROW_IF(
+          input->isVecD() && mem_order != lir::MemoryOrder::kNone,
+          "Store with float value is not supported for memory order {}",
+          mem_order);
+
+      // TSAN handling and relaxed memory order handling.
       if constexpr (kCinderJitTsanEnabled) {
         int access_size_in_bytes = getOperandSizeInBytes(instr, output);
-        emitTsanWrite(*env, output, access_size_in_bytes);
+        if (mem_order == lir::MemoryOrder::kRelaxed) {
+          if (tryEmitTsanRelaxedAtomicWrite(
+                  *env, output, input, access_size_in_bytes)) {
+            return;
+          }
+        } else {
+          emitTsanWrite(*env, output, access_size_in_bytes);
+        }
       }
+
       if (input->isReg() && input->isVecD()) {
         env->as->movsd(getMem(instr, output), getVecD(input));
       } else if (input->isReg()) {
@@ -3432,8 +3276,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       } else if (input->isImm()) {
         env->as->mov(getMem(instr, output), getImm(input));
       } else {
-        JIT_ABORT("Store input must be Reg or Imm, got {}", input->type());
+        JIT_THROW("Store input must be Reg or Imm, have '{}'", *instr);
       }
+
       return;
     }
     case Opcode::kReserveStack:
@@ -3480,9 +3325,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kMoveRelaxed:
-      translateMove(env, instr);
-      return;
     case Opcode::kZext:
       translateZext(env, instr);
       return;

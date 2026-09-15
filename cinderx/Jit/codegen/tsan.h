@@ -24,10 +24,10 @@ struct Environ;
 
 inline constexpr bool kCinderJitTsanEnabled = CINDER_JIT_TSAN_ENABLED;
 
-// Current coverage scope: these helpers are only wired into kMove and
-// kMoveRelaxed lowering. Other LIR opcodes that can touch memory (for example
-// arithmetic, cmp/test, push/pop, div/idiv, and indirect calls) are not TSAN
-// instrumented yet.
+// Current coverage scope: these helpers are only wired into Load and Store
+// lowering. Other LIR opcodes that can touch memory (for example arithmetic,
+// cmp/test, push/pop, div/idiv, and indirect calls) are not TSAN instrumented
+// yet.
 
 #if CINDER_JIT_TSAN_ENABLED
 
@@ -46,8 +46,8 @@ void emitTsanWrite(
     size_t access_size_in_bytes);
 
 // Try to emit a replacement TSAN atomic read for relaxed atomic loads.
-// access_size_in_bytes must match the memory width of the original LIR move.
-// Returns false when the caller should emit the move.
+// access_size_in_bytes must match the memory width of the original LIR load.
+// Returns false when the caller should emit the load.
 bool tryEmitTsanRelaxedAtomicRead(
     Environ& env,
     const jit::lir::Operand* output_operand,
@@ -55,8 +55,8 @@ bool tryEmitTsanRelaxedAtomicRead(
     size_t access_size_in_bytes);
 
 // Try to emit a replacement TSAN atomic write for relaxed atomic stores.
-// access_size_in_bytes must match the memory width of the original LIR move.
-// Returns false when the caller should emit the move.
+// access_size_in_bytes must match the memory width of the original LIR store.
+// Returns false when the caller should emit the store.
 bool tryEmitTsanRelaxedAtomicWrite(
     Environ& env,
     const jit::lir::Operand* mem_operand,

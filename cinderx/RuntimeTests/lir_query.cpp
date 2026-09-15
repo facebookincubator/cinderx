@@ -52,6 +52,10 @@ Query& Query::condition(Condition cond) {
   condition_ = cond;
   return *this;
 }
+Query& Query::memoryOrder(MemoryOrder order) {
+  mem_order_ = order;
+  return *this;
+}
 Query& Query::outType(DataType dt) {
   out_type_ = dt;
   return *this;
@@ -150,6 +154,11 @@ bool Query::matches(const Instruction& ins) const {
   }
   if (condition_ && ins.condition() != *condition_) {
     return false;
+  }
+  if (mem_order_) {
+    if (!carriesMemoryOrder(ins.opcode()) || ins.memoryOrder() != *mem_order_) {
+      return false;
+    }
   }
   return matchesOutput(ins) && matchesInputs(ins) && (!extra_ || extra_(&ins));
 }

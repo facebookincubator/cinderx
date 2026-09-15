@@ -77,6 +77,23 @@ bool carriesCondition(Opcode opcode) {
   return opcode == Opcode::kBranchCC || opcode == Opcode::kCompare;
 }
 
+bool carriesMemoryOrder(Opcode opcode) {
+  return opcode == Opcode::kLoad || opcode == Opcode::kStore;
+}
+
+std::string_view memoryOrderName(MemoryOrder order) {
+  switch (order) {
+#define STRINGIFY(NAME)      \
+  case MemoryOrder::k##NAME: \
+    return #NAME;
+    FOREACH_LIR_MEMORY_ORDER(STRINGIFY)
+#undef STRINGIFY
+    default:
+      break;
+  }
+  return "<invalid memory order>";
+}
+
 std::string_view branchCCName(Condition cond) {
   switch (cond) {
 #define BRANCH_NAME(NAME, NEGATED, SWAPPED, BRANCH) \
@@ -101,6 +118,30 @@ std::string_view compareName(Condition cond) {
       break;
   }
   JIT_THROW("Condition {} cannot be compared for", conditionName(cond));
+}
+
+std::string_view loadName(MemoryOrder order) {
+  switch (order) {
+    case MemoryOrder::kNone:
+      return "Load";
+    case MemoryOrder::kRelaxed:
+      return "LoadRelaxed";
+    default:
+      break;
+  }
+  return "<invalid memory order>";
+}
+
+std::string_view storeName(MemoryOrder order) {
+  switch (order) {
+    case MemoryOrder::kNone:
+      return "Store";
+    case MemoryOrder::kRelaxed:
+      return "StoreRelaxed";
+    default:
+      break;
+  }
+  return "<invalid memory order>";
 }
 
 bool isCompare(Opcode opcode) {
@@ -182,7 +223,6 @@ bool writesFlags(Opcode opcode) {
     case Opcode::kLoadSecondCallResult:
     case Opcode::kMovConstPool:
     case Opcode::kMove:
-    case Opcode::kMoveRelaxed:
     case Opcode::kMulAdd:
     case Opcode::kNop:
     case Opcode::kPhi:
@@ -237,7 +277,6 @@ bool isEssential(Opcode opcode) {
     case Opcode::kLoadThreadState:
     case Opcode::kMovConstPool:
     case Opcode::kMove:
-    case Opcode::kMoveRelaxed:
     case Opcode::kMul:
     case Opcode::kMulAdd:
     case Opcode::kNegate:
@@ -396,7 +435,6 @@ OperandSizeType operandSizeType(Opcode opcode) {
     case Opcode::kLShift:
     case Opcode::kMovConstPool:
     case Opcode::kMove:
-    case Opcode::kMoveRelaxed:
     case Opcode::kMul:
     case Opcode::kNegate:
     case Opcode::kOr:

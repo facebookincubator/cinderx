@@ -1103,7 +1103,7 @@ TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
   EXPECT_EQ(expected, dst);
 }
 
-TEST_F(BackendTest, TsanMoveRelaxedUsesAtomicAccesses) {
+TEST_F(BackendTest, TsanRelaxedLoadStoreUsesAtomicAccesses) {
   // Pseudo-code:
   //   value = 0
   //   rdi = expected
@@ -1112,8 +1112,8 @@ TEST_F(BackendTest, TsanMoveRelaxedUsesAtomicAccesses) {
   //   atomic_relaxed_store((uint8_t*)&byte_dst, byte)
   //   return atomic_relaxed_load(&value)
   //
-  // kMoveRelaxed TSAN helpers replace the memory access, so the original mov
-  // must not run a second load/store.
+  // Relaxed Load/Store TSAN helpers replace the memory access, so the original
+  // mov must not run a second load/store.
   constexpr uint64_t expected = 0x8877665544332211ULL;
   uint64_t value = 0;
   uint8_t byte_src = 0x07;
@@ -1126,26 +1126,30 @@ TEST_F(BackendTest, TsanMoveRelaxedUsesAtomicAccesses) {
   // RDI is also TSAN's address argument; the store must still use its value.
   bb0->allocateInstr(Opcode::kMove, nullptr, OutPhyReg{RDI}, Imm{expected});
   bb0->allocateInstr(
-      Opcode::kMoveRelaxed,
+      Opcode::kStore,
       nullptr,
       OutMemImm{&value, Operand::k64bit},
+      MemoryOrder::kRelaxed,
       PhyReg{RDI});
 
   auto byte = bb0->allocateInstr(
-      Opcode::kMoveRelaxed,
+      Opcode::kLoad,
       nullptr,
       OutVReg(Operand::k8bit),
+      MemoryOrder::kRelaxed,
       MemImm{&byte_src, Operand::k8bit});
   bb0->allocateInstr(
-      Opcode::kMoveRelaxed,
+      Opcode::kStore,
       nullptr,
       OutMemImm{&byte_dst, Operand::k8bit},
+      MemoryOrder::kRelaxed,
       VReg(byte));
 
   auto word = bb0->allocateInstr(
-      Opcode::kMoveRelaxed,
+      Opcode::kLoad,
       nullptr,
       OutVReg(Operand::k64bit),
+      MemoryOrder::kRelaxed,
       MemImm{&value, Operand::k64bit});
   bb0->allocateInstr(
       Opcode::kMove,

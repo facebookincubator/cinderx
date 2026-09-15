@@ -15,9 +15,11 @@
 #include <unordered_map>
 
 namespace cinderx::jit::lir {
+
 namespace {
 
 #if defined(CINDER_X86_64)
+
 /* x86-64 can materialize an imm64 in a register, but cannot encode an imm64
  * directly as the source of a store to memory. Convert from:
  *
@@ -28,17 +30,11 @@ namespace {
  *     movabs tmp, imm64
  *     mov [base + offset], tmp
  */
-void selectX64MoveToMemoryLargeConstant(
-    BasicBlock* block,
-    instr_iter_t instr_iter) {
+void selectX64StoreLargeConstant(BasicBlock* block, instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
-  JIT_DCHECK(
-      instr->isMove() || instr->isMoveRelaxed() || instr->isStore(),
-      "Expected Move, MoveRelaxed or Store, got {}",
-      instr->opname());
+  JIT_DCHECK(instr->isStore(), "Expected Store, got {}", instr->opname());
 
   Operand* out = instr->output();
-
   if (!out->isInd()) {
     return;
   }
@@ -64,19 +60,15 @@ void selectX64Opcodes(Function* func) {
     BasicBlock::InstrList& instrs = block->instructions();
     for (instr_iter_t iter = instrs.begin(); iter != instrs.end();) {
       instr_iter_t cur_iter = iter++;
-      switch (cur_iter->get()->opcode()) {
-        case Opcode::kMove:
-        case Opcode::kMoveRelaxed:
-        case Opcode::kStore:
-          selectX64MoveToMemoryLargeConstant(block, cur_iter);
-          break;
-        default:
-          break;
+      if (cur_iter->get()->opcode() == Opcode::kStore) {
+        selectX64StoreLargeConstant(block, cur_iter);
       }
     }
   }
 }
+
 #elif defined(CINDER_AARCH64)
+
 using UseCounts = std::unordered_map<const Instruction*, size_t>;
 
 void countOperandUse(UseCounts& use_counts, const Operand* operand) {
@@ -573,10 +565,13 @@ void selectA64Opcodes(Function* func) {
     }
   }
 }
+
 #else
+
 void selectUnknownTargetOpcodes(Function* func) {
   (void)func;
 }
+
 #endif
 
 } // namespace

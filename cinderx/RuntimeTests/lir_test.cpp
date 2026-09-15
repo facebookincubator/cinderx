@@ -1833,10 +1833,10 @@ def func(o):
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kLoadSecondCallResult));
 }
 
-TEST_F(LIRGeneratorTest, LoadEvalBreakerUsesMoveRelaxed) {
+TEST_F(LIRGeneratorTest, LoadEvalBreakerUsesRelaxedLoad) {
   // Backward jumps (loop back-edges) emit LoadEvalBreaker in HIR to check
   // whether the interpreter needs to handle pending events. This should lower
-  // to MoveRelaxed in LIR.
+  // to a relaxed Load in LIR.
   const char* src = R"(
 def func():
   x = 0
@@ -1849,8 +1849,9 @@ def func():
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
   auto lir_func = getLIRFunction(pyfunc.get());
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kMoveRelaxed))
-      << "LoadEvalBreaker should lower to MoveRelaxed";
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Opcode::kLoad).memoryOrder(MemoryOrder::kRelaxed))
+      << "LoadEvalBreaker should lower to a relaxed Load";
 }
 
 TEST_F(LIRGeneratorTest, ListDynamicIndexLoadStoreUsesScaledArrayLIR) {

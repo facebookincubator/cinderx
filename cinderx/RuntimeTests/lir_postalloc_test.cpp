@@ -21,6 +21,7 @@ using namespace cinderx::jit;
 using namespace cinderx::jit::codegen;
 
 namespace cinderx::jit::lir {
+
 class LIRPostAllocRewriteTest : public RuntimeTest {};
 
 TEST_F(LIRPostAllocRewriteTest, TestInsertBranchForSuccessorsInCondBranch) {
@@ -362,7 +363,7 @@ TEST_F(LIRPostAllocRewriteTest, MoveSequenceLooksPastWideningMoves) {
   auto* bb = func.allocateBasicBlock();
 
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutStk{kSlot, DataType::k64bit},
       PhyReg{kSpilled, DataType::k64bit});
@@ -372,7 +373,7 @@ TEST_F(LIRPostAllocRewriteTest, MoveSequenceLooksPastWideningMoves) {
       OutPhyReg{kWidenOut, DataType::k64bit},
       PhyReg{kWidenIn, DataType::k32bit});
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{kReloaded, DataType::k64bit},
       Stk{kSlot, DataType::k64bit});
@@ -767,17 +768,18 @@ BB %0
       store_pair->getInput(1)->getPhyRegister(), arch::reg_stack_pointer_loc);
   ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
 }
+
 TEST_F(LIRPostAllocRewriteTest, AdjacentFrameSlotStoresBecomeStorePair) {
   Function func;
   auto* bb = func.allocateBasicBlock();
 
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutStk{PhyLocation(-24, 64), DataType::k64bit},
       PhyReg{X0, DataType::k64bit});
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kStore,
       nullptr,
       OutStk{PhyLocation(-16, 64), DataType::k64bit},
       PhyReg{X1, DataType::k64bit});
@@ -804,12 +806,12 @@ TEST_F(LIRPostAllocRewriteTest, DescendingFrameSlotLoadsBecomeLoadPair) {
 
   // Written high address first, so the pair has to swap the register order.
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{X0, DataType::k64bit},
       Stk{PhyLocation(-16, 64), DataType::k64bit});
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{X1, DataType::k64bit},
       Stk{PhyLocation(-24, 64), DataType::k64bit});
@@ -835,12 +837,12 @@ TEST_F(LIRPostAllocRewriteTest, LoadPairSkippedWhenDestinationIsBase) {
   auto* bb = func.allocateBasicBlock();
 
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{X2, DataType::k64bit},
       Ind(X2, static_cast<int32_t>(0)));
   bb->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutPhyReg{X3, DataType::k64bit},
       Ind(X2, static_cast<int32_t>(8)));

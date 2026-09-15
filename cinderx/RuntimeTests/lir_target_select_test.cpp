@@ -81,11 +81,11 @@ static std::unique_ptr<Function> runTargetSelectFunc(
 #endif
 
 #if defined(CINDER_X86_64)
-TEST_F(LIRTargetSelectTest, SelectsRegInputForLargeConstantMemoryMove) {
+TEST_F(LIRTargetSelectTest, SelectsRegInputForLargeConstantStore) {
   const char* lir_input_str = R"(Function:
 BB %0
   %1:Object = Move 1
-  [%1:Object + 0x8]:Object = Move 4294967296
+  [%1:Object + 0x8]:Object = Store 4294967296
   Return %1
 )";
 
@@ -97,12 +97,12 @@ BB %0
                  .outType(DataType::kObject)
                  .inImm(0, 4294967296ULL));
   EXPECT_LIR(Query(*lir_func)
-                 .opcode(Opcode::kMove)
+                 .opcode(Opcode::kStore)
                  .outInd(1, 0x8)
                  .inDefOpcode(0, Opcode::kMove)
                  .inDefImm(0, 0, 4294967296ULL));
   EXPECT_NO_LIR(Query(*lir_func)
-                    .opcode(Opcode::kMove)
+                    .opcode(Opcode::kStore)
                     .outInd(1, 0x8)
                     .inImm(0, 4294967296ULL));
 }

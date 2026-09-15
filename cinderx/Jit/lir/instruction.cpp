@@ -6,7 +6,6 @@
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/function.h"
 
-#include <array>
 #include <utility>
 
 namespace cinderx::jit::lir {
@@ -47,6 +46,7 @@ Instruction::Instruction(
     : id_(bb->function()->allocateId()),
       opcode_(instr->opcode_),
       cond_(instr->cond_),
+      mem_order_(instr->mem_order_),
       output_(this, &instr->output_),
       basic_block_(bb),
       origin_(origin) {}
@@ -255,14 +255,35 @@ void Instruction::setCondition(Condition cond) {
   cond_ = cond;
 }
 
+MemoryOrder Instruction::memoryOrder() const {
+  JIT_DCHECK(
+      carriesMemoryOrder(opcode_),
+      "{} carries no memory order",
+      lir::opname(opcode_));
+  return mem_order_;
+}
+
+void Instruction::setMemoryOrder(MemoryOrder order) {
+  JIT_DCHECK(
+      carriesMemoryOrder(opcode_),
+      "{} carries no memory order",
+      lir::opname(opcode_));
+  mem_order_ = order;
+}
+
 std::string_view Instruction::opname() const {
   // BranchCC and Compare print under the per-condition names the opcodes used
   // to have, so LIR dumps read the same as before the condition became a field.
+  // Load and Store print under per-memory-order names, e.g. LoadRelaxed.
   switch (opcode_) {
     case Opcode::kBranchCC:
       return branchCCName(cond_);
     case Opcode::kCompare:
       return compareName(cond_);
+    case Opcode::kLoad:
+      return loadName(mem_order_);
+    case Opcode::kStore:
+      return storeName(mem_order_);
     default:
       break;
   }
@@ -312,7 +333,7 @@ bool Instruction::getInputPhyRegUse(size_t i) const {
   // input needs to be a physical register. Otherwise we might generate a
   // mem->mem move, which we can't safely handle for all bit widths in codegen
   // (since push/pop aren't available for all bit widths).
-  if ((isMove() || isMoveRelaxed() || isStore()) && output_.isInd()) {
+  if ((isMove() || isStore()) && output_.isInd()) {
     return true;
   }
 

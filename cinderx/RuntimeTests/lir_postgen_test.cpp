@@ -12,6 +12,7 @@
 #include "cinderx/RuntimeTests/lir_query.h"
 
 namespace cinderx::jit::lir {
+
 class LIRPostGenerationRewriteTest : public RuntimeTest {};
 
 static std::unique_ptr<Function> runPostGenRewrite(const char* lir_input_str) {
@@ -372,13 +373,13 @@ BB %0
 }
 
 #if defined(CINDER_AARCH64)
-TEST_F(LIRPostGenerationRewriteTest, MoveAbsoluteAddressUsesObjectDataType) {
+TEST_F(LIRPostGenerationRewriteTest, LoadAbsoluteAddressUsesObjectDataType) {
 #ifdef Py_GIL_DISABLED
   SKIP("Doesn't have expected LIR for deferred-refcount tag stripping yet");
 #else
   const char* lir_input_str = R"(Function:
 BB %0
-  %10:Object = Move [0x12345]
+  %10:Object = Load [0x12345]
   Return %10
 )";
 

@@ -8,7 +8,6 @@
 #include "cinderx/Jit/lir/printer.h"
 
 #include <unordered_map>
-#include <variant>
 
 namespace cinderx::jit::rt {
 void batchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
@@ -493,14 +492,14 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   return kChanged;
 }
 
-// On AArch64, lower Move/MoveRelaxed with an absolute memory address (kMem)
-// input into Move(Imm{addr} → vreg) + Move(Ind{vreg, 0} → output). ARM64
-// cannot encode a 64-bit absolute address inline, so translateMove used a
-// scratch register. This rewrite lets register allocation handle it instead.
-[[maybe_unused]] RewriteResult rewriteMoveAbsoluteAddress(
+// On AArch64, lower Load with an absolute memory address (kMem) input into
+// Move(Imm{addr} → vreg) + Load(Ind{vreg, 0} → output). ARM64 cannot encode a
+// 64-bit absolute address inline, so translateLoad used a scratch register.
+// This rewrite lets register allocation handle it instead.
+[[maybe_unused]] RewriteResult rewriteLoadAbsoluteAddress(
     instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  if (!instr->isMove() && !instr->isMoveRelaxed()) {
+  if (!instr->isLoad()) {
     return kUnchanged;
   }
 
@@ -522,14 +521,9 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   // Replace the Mem input with Ind{addr_vreg, offset=0}. For a simple
   // Ind with no index and offset 0, ptrIndirect resolves to ptr(base)
   // without needing any scratch registers.
-  bool was_move = instr->isMove();
   instr->removeInput(0);
   instr->allocateMemoryIndirectInput(
       static_cast<Instruction*>(addr_move), PhyLocation::REG_INVALID, 0, 0);
-  if (was_move) {
-    // Move with memory is now Load
-    instr->setOpcode(Opcode::kLoad);
-  }
 
   return kChanged;
 }
@@ -540,7 +534,7 @@ RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
 // the stack input with a linked reference to the new vreg.
 //
 // NOT handled here:
-//   - Move/MoveRelaxed "Rm": IS the canonical load (the lowering target)
+//   - Load "Rm": IS the canonical load (the lowering target)
 //   - Zext/Sext: specialized sign/zero-extending loads from stack
 //   - Lea: takes the ADDRESS of a stack slot, not the value
 //   - Call: late-created by PostRegAllocRewrite via setOpcode()
@@ -637,7 +631,7 @@ RewriteResult rewriteSelectFalseImmediateToVreg(instr_iter_t instr_iter) {
   return lowerImmediateInputToVreg(instr_iter, 2) ? kChanged : kUnchanged;
 }
 
-RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
+RewriteResult rewriteStoreImmediateToVreg(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto output = instr->output();
   if (!output->isInd() && !output->isStack()) {
@@ -655,12 +649,8 @@ RewriteResult rewriteMemoryMoveImmediateToVreg(instr_iter_t instr_iter) {
       return rewritePushImmediateToVreg(instr_iter);
     case Opcode::kSelect:
       return rewriteSelectFalseImmediateToVreg(instr_iter);
-    case Opcode::kMove:
-    case Opcode::kMoveRelaxed:
-      // Lower immediate input ONLY when the output is memory (Ind or Stack).
-      // Do NOT lower "Ri" (register = immediate) — that's the load-immediate
-      // instruction and is the target of all other lowerings.
-      return rewriteMemoryMoveImmediateToVreg(instr_iter);
+    case Opcode::kStore:
+      return rewriteStoreImmediateToVreg(instr_iter);
     default:
       return kUnchanged;
   }
@@ -983,6 +973,7 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
   }
   return changed ? kChanged : kUnchanged;
 }
+
 } // namespace
 
 void PostGenerationRewrite::registerRewrites() {
@@ -997,7 +988,7 @@ void PostGenerationRewrite::registerRewrites() {
 
   if constexpr (kBuildArch == Arch::kAarch64) {
     registerOneRewriteFunction(rewriteGuardHasType, 1);
-    registerOneRewriteFunction(rewriteMoveAbsoluteAddress, 1);
+    registerOneRewriteFunction(rewriteLoadAbsoluteAddress, 1);
     registerOneRewriteFunction(rewriteStackInputToVreg, 1);
     registerOneRewriteFunction(rewriteNonBinaryImmediateToVreg, 1);
     registerOneRewriteFunction(rewriteCallInput, 1);

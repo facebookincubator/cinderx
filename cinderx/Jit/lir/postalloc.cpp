@@ -172,11 +172,21 @@ std::optional<std::pair<PhyLocation, int32_t>> pairMemoryLocation(
 }
 
 std::optional<PairCandidate> describePairCandidate(const Instruction* instr) {
-  if (!(instr->isMove() || instr->isLoad() || instr->isStore()) ||
-      instr->getNumInputs() != 1 || instr->getNumOutputs() != 1) {
+  // Can only pair Load-Load and Store-Store.
+  if (!instr->isLoad() && !instr->isStore()) {
     return std::nullopt;
   }
 
+  // Pairing two accesses into a single ldp/stp is only valid for plain
+  // accesses.  Atomic loads and stores must stay separate.
+  if (instr->memoryOrder() != MemoryOrder::kNone) {
+    return std::nullopt;
+  }
+
+  JIT_THROW_IF(
+      instr->getNumInputs() != 1 || instr->getNumOutputs() != 1,
+      "Expect Load/Store to have exactly one output and one input, got '{}'",
+      *instr);
   const Operand* out = instr->output();
   const Operand* in = instr->getInput(0);
 
@@ -1048,8 +1058,8 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
 RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
-  if (!(instr->isMoveRelaxed() || instr->isLoad()) ||
-      instr->getNumInputs() != 1 || !instr->getInput(0)->isMem()) {
+  if (!instr->isLoad() || instr->getNumInputs() != 1 ||
+      !instr->getInput(0)->isMem()) {
     return kUnchanged;
   }
 
@@ -1460,7 +1470,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kLoadThreadState:
     case Opcode::kMovConstPool:
     case Opcode::kMove:
-    case Opcode::kMoveRelaxed:
     case Opcode::kMulAdd:
     case Opcode::kNop:
     case Opcode::kPhi:
@@ -1894,9 +1903,13 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
             old_opnd,
             *opnd,
             *instr);
-        // If we turned a Load from stack into a reg-reg copy, change opcode
-        // to Move.
+        // If we turned a plain Load from stack into a reg-reg copy, change
+        // opcode to Move.
         if (instr->isLoad()) {
+          JIT_THROW_IF(
+              instr->memoryOrder() != MemoryOrder::kNone,
+              "Can only optimize non-atomic loads, got '{}'",
+              *instr);
           instr->setOpcode(Opcode::kMove);
         }
         changed = kChanged;
@@ -1920,8 +1933,9 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
         instr->isPush() || instr->isPop() || instr->isZext() ||
         instr->isSext()) {
       Operand* out = instr->output();
-      if ((instr->isMove() || instr->isStore()) && out->isStack() &&
-          instr->getInput(0)->isReg()) {
+      // Track non-atomic stores to the stack.
+      if (instr->isStore() && instr->memoryOrder() == MemoryOrder::kNone &&
+          out->isStack() && instr->getInput(0)->isReg()) {
         registerMemoryMoves.addRegisterToMemoryMove(
             instr->getInput(0)->getPhyRegister(),
             out->getStackSlot(),
@@ -1937,6 +1951,7 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
       registerMemoryMoves.clear();
     }
   }
+
   return changed;
 }
 

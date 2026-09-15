@@ -48,10 +48,12 @@ class Parser {
   DataType getOperandDataType(const std::string& name) const;
 
   // An instruction name resolves to an opcode and, for BranchCC and Compare,
-  // the condition its name encodes.
+  // the condition its name encodes, or, for Load and Store, the memory order
+  // its name encodes.
   struct InstrKind {
     Opcode opcode;
     Condition cond;
+    MemoryOrder mem_order;
   };
   InstrKind getInstrKind(const std::string& name) const;
 
