@@ -16,6 +16,17 @@ set(PGO_PROFILE_FILE "" CACHE STRING "Path to PGO profile data")
 
 option(BUILD_RUNTIME_TESTS "Build the cinderx/RuntimeTests C++ GoogleTest binary" OFF)
 option(ENABLE_TSAN "Build with ThreadSanitizer instrumentation" OFF)
+option(ENABLE_CCACHE "Enable ccache for faster compilation (requires Ninja or Makefiles)" OFF)
+
+if(ENABLE_CCACHE)
+  if(NOT CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
+    message(FATAL_ERROR "ccache requires Ninja or Makefiles (found '${CMAKE_GENERATOR}')")
+  endif()
+  find_program(CCACHE_PROGRAM ccache REQUIRED)
+  message(STATUS "ccache: Enabled (${CCACHE_PROGRAM})")
+  set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+endif()
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(MACOS 1)
