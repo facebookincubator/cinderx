@@ -82,22 +82,38 @@ void HugePageArena::allocateChunk(size_t size, size_t alignment) {
 
 void HugePageArena::afterForkChild() {
 #ifndef WIN32
-  void* tmp = nullptr;
+  std::unique_ptr<void, decltype(&free)> tmp{nullptr, free};
   size_t tmp_size = 0;
   std::lock_guard<std::mutex> lock{mutex_};
   for (const Chunk& chunk : chunks_) {
+    void* chunk_ptr = chunk.ptr;
+    if (chunk_ptr == nullptr || chunk.size == 0) {
+      continue;
+    }
     // we can theoretically have chunks that are larger than 2MB but don't
     // really
-    if (tmp == nullptr || tmp_size < chunk.size) {
-      tmp = realloc(tmp, chunk.size);
+    void* scratch = tmp.get();
+    if (scratch == nullptr || tmp_size < chunk.size) {
+      // A successful realloc invalidates the old pointer, so release ownership
+      // before adopting whichever pointer remains valid.
+      void* previous = tmp.release();
+      void* resized = realloc(previous, chunk.size);
+      if (resized == nullptr) {
+        tmp.reset(previous);
+        JIT_LOG("Failed to allocate {} bytes", chunk.size);
+        return;
+      }
+      tmp.reset(resized);
       tmp_size = chunk.size;
-      JIT_CHECK(tmp != nullptr, "Failed to allocate {} bytes", chunk.size);
+      scratch = resized;
     }
 
     // Fault every page in so the child gets its own private physical pages
     // instead of copy-on-write references to the parent. A volatile write
     // forces the fault without the compiler optimizing it away.
-    memcpy(tmp, chunk.ptr, chunk.size);
+    // Both copies are bounded by chunk.size; tmp_size is at least chunk.size.
+    memcpy( // NOLINT(facebook-security-vulnerable-memcpy)
+        scratch, chunk_ptr, chunk.size);
     if (madvise(chunk.ptr, chunk.size, MADV_DONTNEED) != 0) {
       JIT_DLOG(
           "CINDERX: MADV_DONTNEED failed for {} bytes at {} after fork: {}\n",
@@ -114,9 +130,9 @@ void HugePageArena::afterForkChild() {
           strerror(errno));
     }
 #endif
-    memcpy(chunk.ptr, tmp, chunk.size);
+    memcpy( // NOLINT(facebook-security-vulnerable-memcpy)
+        chunk_ptr, scratch, chunk.size);
   }
-  free(tmp);
 #endif
 }
 
