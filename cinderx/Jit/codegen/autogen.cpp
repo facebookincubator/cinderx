@@ -2178,20 +2178,36 @@ void translateStore(Environ* env, const Instruction* instr) {
             output->dataType());
         switch (output->dataType()) {
           case lir::Operand::k8bit:
-            as->mov(a64::w(scratch1.id()), input->getConstant());
-            as->strb(a64::w(scratch1.id()), ptr);
+            if (input->getConstant()) {
+              as->mov(a64::w(scratch1.id()), input->getConstant());
+              as->strb(a64::w(scratch1.id()), ptr);
+            } else {
+              as->strb(a64::wzr, ptr);
+            }
             break;
           case lir::Operand::k16bit:
-            as->mov(a64::w(scratch1.id()), input->getConstant());
-            as->strh(a64::w(scratch1.id()), ptr);
+            if (input->getConstant()) {
+              as->mov(a64::w(scratch1.id()), input->getConstant());
+              as->strh(a64::w(scratch1.id()), ptr);
+            } else {
+              as->strh(a64::wzr, ptr);
+            }
             break;
           case lir::Operand::k32bit:
-            as->mov(a64::w(scratch1.id()), input->getConstant());
-            as->str(a64::w(scratch1.id()), ptr);
+            if (input->getConstant()) {
+              as->mov(a64::w(scratch1.id()), input->getConstant());
+              as->str(a64::w(scratch1.id()), ptr);
+            } else {
+              as->str(a64::wzr, ptr);
+            }
             break;
           default:
-            as->mov(scratch1, input->getConstant());
-            as->str(scratch1, ptr);
+            if (input->getConstant()) {
+              as->mov(scratch1, input->getConstant());
+              as->str(scratch1, ptr);
+            } else {
+              as->str(a64::xzr, ptr);
+            }
             break;
         }
       }
