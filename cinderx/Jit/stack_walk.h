@@ -109,7 +109,13 @@ struct StackBounds {
 // How a walk ended.
 enum class WalkResult {
   // The chain was followed to its end, or the callback asked to stop early.
+  // When the callback never stops early, this means the complete stack was
+  // observed.
   Completed,
+  // The walk started, but a non-null frame pointer could not be followed.
+  // Callers which require a complete view of the stack must treat this as an
+  // incomplete result.
+  Truncated,
   // The target could not be sampled at all, and no frames were delivered.
   Failed,
   // The target stopped waiting and resumed before the walk was finished.
@@ -329,6 +335,9 @@ class StackWalk {
   // pointer into a stack that has resumed. A suspended target waits for nobody,
   // so a suspending walk never reports this.
   //
+  // Reports WalkResult::Truncated if the target was sampled but its frame
+  // chain could not be followed to a natural end.
+  //
   // Both addresses arrive as `const void*`, the frame pointer deliberately so.
   // It is only ever a plausible address, never one known to be readable - a
   // chain that has left the stack can point into a guard page - and the walker
@@ -385,7 +394,7 @@ class StackWalk {
       // exactly on a batch boundary therefore costs one more round trip, to
       // collect the empty batch that says so.
       if (num_frames_ < kBatchSize) {
-        return WalkResult::Completed;
+        return targetAbandonedWalk() ? WalkResult::TimedOut : walk_result_;
       }
       if (!nextBatch()) {
         return targetAbandonedWalk() ? WalkResult::TimedOut
@@ -407,8 +416,10 @@ class StackWalk {
     while (true) {
       const void* return_address = cursor.returnAddress();
       const StackFrame* caller = cursor.step();
-      if (caller == nullptr ||
-          !callback(static_cast<const void*>(caller), return_address)) {
+      if (caller == nullptr) {
+        return cursor.result();
+      }
+      if (!callback(static_cast<const void*>(caller), return_address)) {
         return WalkResult::Completed;
       }
     }
@@ -453,12 +464,26 @@ class StackWalk {
       return record_.return_address;
     }
 
-    // Moves to the caller, or returns null at the end of the chain.
+    // Moves to the caller, or returns null when the chain ends or is truncated.
     const StackFrame* step();
 
+    // After step() returns null, reports whether the cursor reached the natural
+    // end of the chain or had to stop because the next frame record was invalid
+    // or unreadable.
+    WalkResult result() const {
+      return state_ == CursorState::Truncated ? WalkResult::Truncated
+                                              : WalkResult::Completed;
+    }
+
    private:
-    // Copies the record at `addr`, directly when the stack bounds prove that
-    // cannot fault and through the fault-safe read otherwise.
+    enum class CursorState : uint8_t {
+      Active,
+      Completed,
+      Truncated,
+    };
+
+    // Copies the aligned record at `addr`, directly when the stack bounds prove
+    // that cannot fault and through the fault-safe read otherwise.
     bool readRecord(const StackFrame* addr, StackFrame* out) const;
 
     // Whether `frame` is a believable caller of the frame at `anchor_`: a
@@ -474,9 +499,7 @@ class StackWalk {
     const StackFrame* frame_ = nullptr;
     const StackFrame* anchor_ = nullptr;
     StackBounds bounds_ = {};
-    // Whether `record_` was actually read. A cursor that never got a first
-    // record has no chain to follow.
-    bool valid_ = false;
+    CursorState state_ = CursorState::Completed;
   };
 
   // The native thread `tstate` is running on.
@@ -633,8 +656,10 @@ class StackWalk {
     while (true) {
       const void* return_address = cursor.returnAddress();
       const StackFrame* caller = cursor.step();
-      if (caller == nullptr ||
-          !callback(static_cast<const void*>(caller), return_address)) {
+      if (caller == nullptr) {
+        return cursor.result();
+      }
+      if (!callback(static_cast<const void*>(caller), return_address)) {
         return WalkResult::Completed;
       }
     }
@@ -795,11 +820,13 @@ class StackWalk {
   // the target is parked, and vice versa for `stop_requested_`. The semaphores
   // supply the happens-before edges.
   //
-  // A count below kBatchSize doubles as the end-of-walk signal, which is why
-  // the target publishes an empty batch rather than just returning when a
-  // chain happens to end on a batch boundary.
+  // A count below kBatchSize doubles as the end-of-walk signal. walk_result_
+  // distinguishes a complete chain from a truncated one. The target publishes
+  // an empty batch rather than just returning when a chain happens to end on a
+  // batch boundary.
   std::array<StackFrame, kBatchSize> frames_ = {};
   size_t num_frames_ = 0;
+  WalkResult walk_result_ = WalkResult::Completed;
 
   // The target's stack, measured by the sampler before signalling and read by
   // the target inside the handler. pthread_kill orders the two.

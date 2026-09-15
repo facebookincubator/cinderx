@@ -404,6 +404,7 @@ TEST(StackWalkCursorTest, AnOnStackChainIsWalkedWithoutAnySafeReads) {
   EXPECT_EQ(cursor.step(), &chain[2]);
   EXPECT_EQ(cursor.step(), &chain[3]);
   EXPECT_EQ(cursor.step(), nullptr);
+  EXPECT_EQ(cursor.result(), WalkResult::Completed);
 
   EXPECT_EQ(StackWalk::safeReadCount(), before);
 }
@@ -419,6 +420,7 @@ TEST(StackWalkCursorTest, TheSameChainWithoutBoundsFallsBackToSafeReads) {
   StackWalk::Cursor cursor{&chain[0]};
   while (cursor.step() != nullptr) {
   }
+  EXPECT_EQ(cursor.result(), WalkResult::Completed);
 
   // One for the starting record and one for each step that found a caller.
   EXPECT_EQ(StackWalk::safeReadCount() - before, uint64_t{3});
@@ -440,6 +442,8 @@ TEST(StackWalkCursorTest, AnOffStackRecordStillGoesThroughTheSafeRead) {
   StackWalk::Cursor cursor{&on_stack[0], bounds};
   EXPECT_EQ(cursor.step(), &heap[0]);
   EXPECT_EQ(cursor.step(), &on_stack[1]);
+  EXPECT_EQ(cursor.step(), nullptr);
+  EXPECT_EQ(cursor.result(), WalkResult::Completed);
 
   // Exactly one: the heap record. The two around it were loaded directly.
   EXPECT_EQ(StackWalk::safeReadCount() - before, uint64_t{1});
@@ -462,6 +466,7 @@ TEST(StackWalkCursorTest, BoundsRejectAReadableRecordThatIsOffTheStack) {
   // Perfectly readable, but off-stack, so it is only acceptable as a generator
   // record - and its own caller is null, so the chain does not rejoin.
   EXPECT_EQ(cursor.step(), nullptr);
+  EXPECT_EQ(cursor.result(), WalkResult::Truncated);
 
   // Widening the bounds to include it makes it an ordinary caller again.
   const StackBounds wider{
@@ -469,6 +474,8 @@ TEST(StackWalkCursorTest, BoundsRejectAReadableRecordThatIsOffTheStack) {
       reinterpret_cast<uintptr_t>(&r[1]) + sizeof(r[1])};
   StackWalk::Cursor included{&r[0], wider};
   EXPECT_EQ(included.step(), &r[1]);
+  EXPECT_EQ(included.step(), nullptr);
+  EXPECT_EQ(included.result(), WalkResult::Completed);
 }
 
 // Addresses a corrupted or unwound stack can leave in a frame slot, which the
@@ -626,6 +633,11 @@ TEST_F(HostileAddressTest, StepStopsAtARecordInAGuardPage) {
   // mincore() and msync() answer - would have said yes and the load would
   // still have died. Only an attempted read rejects this.
   EXPECT_GT(StackWalk::unreadableFrameCount(), before);
+
+  StackFrame record = {asRecord(guarded_ + page_), nullptr};
+  StackWalk::Cursor cursor{&record};
+  EXPECT_EQ(cursor.step(), nullptr);
+  EXPECT_EQ(cursor.result(), WalkResult::Truncated);
 }
 
 TEST_F(HostileAddressTest, StepStopsAtARecordStraddlingAMappingBoundary) {
@@ -642,6 +654,11 @@ TEST_F(HostileAddressTest, StepStopsAtARecordStraddlingAMappingBoundary) {
   // Reading only the `frame_pointer` word would have succeeded here and left
   // the cursor sitting on a record whose return address cannot be loaded.
   EXPECT_GT(StackWalk::unreadableFrameCount(), before);
+
+  StackFrame record = {straddling, nullptr};
+  StackWalk::Cursor cursor{&record};
+  EXPECT_EQ(cursor.step(), nullptr);
+  EXPECT_EQ(cursor.result(), WalkResult::Truncated);
 }
 
 TEST_F(HostileAddressTest, StepStopsAtARecordInUnmappedMemory) {
@@ -651,6 +668,11 @@ TEST_F(HostileAddressTest, StepStopsAtARecordInUnmappedMemory) {
   EXPECT_EQ(stepOnto(asRecord(hole_)), nullptr);
 
   EXPECT_GT(StackWalk::unreadableFrameCount(), before);
+
+  StackFrame record = {asRecord(hole_), nullptr};
+  StackWalk::Cursor cursor{&record};
+  EXPECT_EQ(cursor.step(), nullptr);
+  EXPECT_EQ(cursor.result(), WalkResult::Truncated);
 }
 
 TEST_F(HostileAddressTest, AnUnreadableStartingFrameLeavesTheCursorExhausted) {
@@ -662,6 +684,7 @@ TEST_F(HostileAddressTest, AnUnreadableStartingFrameLeavesTheCursorExhausted) {
 
   EXPECT_EQ(cursor.step(), nullptr);
   EXPECT_EQ(cursor.returnAddress(), nullptr);
+  EXPECT_EQ(cursor.result(), WalkResult::Truncated);
 }
 
 TEST_F(HostileAddressTest, StepStopsAtAlignedNonPointerGarbage) {
@@ -681,12 +704,17 @@ TEST_F(HostileAddressTest, StepStopsAtNullAndMisalignedRecordsWithoutReading) {
   for (uintptr_t rejected : {uintptr_t{0}, ~uintptr_t{0}}) {
     const uint64_t before = StackWalk::unreadableFrameCount();
 
+    StackFrame record = {
+        asRecord(reinterpret_cast<const void*>(rejected)), nullptr};
+    StackWalk::Cursor cursor{&record};
+    EXPECT_EQ(cursor.step(), nullptr) << "at " << rejected;
     EXPECT_EQ(
-        stepOnto(asRecord(reinterpret_cast<const void*>(rejected))), nullptr)
+        cursor.result(),
+        rejected == 0 ? WalkResult::Completed : WalkResult::Truncated)
         << "at " << rejected;
 
-    // Arithmetic disqualifies these, so no read is attempted and the walk
-    // ending here is an ordinary end-of-chain rather than a truncation.
+    // Arithmetic disqualifies these, so no read is attempted. Null is a
+    // natural end; a non-null invalid pointer is a truncated chain.
     EXPECT_EQ(StackWalk::unreadableFrameCount(), before) << "at " << rejected;
   }
 }
@@ -700,6 +728,7 @@ TEST_F(HostileAddressTest, ReadableChainsAreUnaffected) {
     EXPECT_EQ(cursor.step(), stack.at(i + 1)) << "at frame " << i;
   }
   EXPECT_EQ(cursor.step(), nullptr);
+  EXPECT_EQ(cursor.result(), WalkResult::Completed);
 
   // A chain that simply ran out is not a truncation: the outermost record
   // holds a null caller, which needs no read to recognise.
@@ -1562,10 +1591,11 @@ TEST(
         case WalkResult::Completed:
           ASSERT_GT(frames, 1u) << "step " << step << " attempt " << i;
           break;
+        case WalkResult::Truncated:
         case WalkResult::TimedOut:
-          // The target stopped waiting part way through. Whatever it handed
-          // over came off a real stack; with a bound this short there is no
-          // saying how much of it there was, including none.
+          // The stack walk ended early. Whatever it handed over came off a
+          // real stack; with a bound this short there is no saying how much of
+          // it there was, including none.
           break;
       }
     }

@@ -422,6 +422,9 @@ StackBounds StackWalk::currentStackBounds() {
 
 bool StackWalk::Cursor::readRecord(const StackFrame* addr, StackFrame* out)
     const {
+  if (reinterpret_cast<uintptr_t>(addr) % sizeof(void*) != 0) {
+    return false;
+  }
   if (bounds_.contains(addr, sizeof(*out))) {
     // Inside a live stack, so the load cannot fault and the syscall would be
     // pure overhead.
@@ -453,25 +456,30 @@ StackWalk::Cursor::Cursor(const StackFrame* frame, StackBounds bounds)
   // The starting frame is the least trustworthy one in the chain: it comes
   // from the frame-pointer register of an interrupted thread, and code built
   // without frame pointers uses that register for whatever it likes.
-  valid_ = frame != nullptr &&
-      reinterpret_cast<uintptr_t>(frame) % sizeof(void*) == 0 &&
-      readRecord(frame, &record_);
+  if (frame == nullptr) {
+    return;
+  }
+  if (!readRecord(frame, &record_)) {
+    state_ = CursorState::Truncated;
+    return;
+  }
+  state_ = CursorState::Active;
 }
 
 const StackFrame* StackWalk::Cursor::step() {
-  if (!valid_) {
+  if (state_ != CursorState::Active) {
     return nullptr;
   }
   const StackFrame* next = record_.frame_pointer;
-  if (next == nullptr ||
-      reinterpret_cast<uintptr_t>(next) % sizeof(void*) != 0) {
+  if (next == nullptr) {
+    state_ = CursorState::Completed;
     return nullptr;
   }
-
   // One read serves both the generator test below and every load made from
   // this record once the cursor moves onto it.
   StackFrame next_record{};
   if (!readRecord(next, &next_record)) {
+    state_ = CursorState::Truncated;
     return nullptr;
   }
 
@@ -481,6 +489,7 @@ const StackFrame* StackWalk::Cursor::step() {
     // Neither a step up the stack nor a resumed JIT generator's off-stack
     // record, which garbage that merely happens to be aligned effectively
     // never looks like. Treat it as the end of the chain.
+    state_ = CursorState::Truncated;
     return nullptr;
   }
   frame_ = next;
@@ -1006,6 +1015,7 @@ bool StackWalk::startWalk(ThreadId thread) {
   // signal handler may do, and the target is about to be parked anyway.
   target_bounds_ = stackBoundsFor(thread);
   stop_requested_ = false;
+  walk_result_ = WalkResult::Completed;
   // Clears whatever the previous walk ended on. No target is parked yet, so
   // nothing else is looking at this.
   state_.store(State::Running, std::memory_order_release);
@@ -1197,9 +1207,9 @@ void StackWalk::captureFrames(const void* ucontext) {
   // some other thread cost only speed.
   const StackBounds bounds = target_bounds_.clampedToStackPointer(sp);
 
-  // The interrupted PC is not stored in any frame record, so it is emitted
-  // once up front alongside the frame that is executing it.
-  bool emit_pc = frame != nullptr;
+  // The interrupted PC is not stored in any frame record, so the initial frame
+  // is emitted once up front even when the PC is unavailable.
+  bool emit_initial_frame = frame != nullptr;
   bool at_end = frame == nullptr;
   Cursor cursor{frame, bounds};
 
@@ -1213,9 +1223,9 @@ void StackWalk::captureFrames(const void* ucontext) {
 
   while (true) {
     size_t count = 0;
-    if (emit_pc) {
+    if (emit_initial_frame) {
       frames_[count++] = {frame, pc};
-      emit_pc = false;
+      emit_initial_frame = false;
     }
 
     while (!at_end && count < kBatchSize) {
@@ -1223,6 +1233,7 @@ void StackWalk::captureFrames(const void* ucontext) {
       const StackFrame* caller = cursor.step();
       if (caller == nullptr) {
         at_end = true;
+        walk_result_ = cursor.result();
         break;
       }
       frames_[count++] = {caller, return_address};
