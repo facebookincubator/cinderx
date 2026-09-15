@@ -38,9 +38,9 @@ using RegUses = std::unordered_map<Register*, std::unordered_set<Instr*>>;
 Register* chaseAssignOperand(Register* value);
 
 // Take a phi instruction and try to collapse it into a new assignment
-// instruction if it is trivial (merges in only one other value).  If it's not
-// trivial return nullptr.  If it would turn into a malformed assignment
-// (`A = Phi A`), then return a load of TBottom instead.
+// instruction if it is trivial (merges in only one other runtime value).  If
+// it's not trivial return nullptr.  If it would turn into a malformed
+// assignment (`A = Phi A`), then return a load of TBottom instead.
 //
 // The caller owns the returned instruction and is responsible for linking it
 // into a block.

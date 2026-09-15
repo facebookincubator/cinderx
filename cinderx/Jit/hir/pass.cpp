@@ -102,6 +102,18 @@ Register* chaseAssignOperand(Register* value) {
 Instr* collapseTrivialPhi(Phi& phi) {
   Register* value = phi.isTrivial();
   if (value == nullptr) {
+    for (std::size_t i = 0; i < phi.numOperands(); i++) {
+      Register* operand = phi.getOperand(i);
+      if (modelReg(operand) == phi.output()) {
+        continue;
+      }
+      if (value != nullptr && operand != value) {
+        return nullptr;
+      }
+      value = operand;
+    }
+  }
+  if (value == nullptr) {
     return nullptr;
   }
   Register* output = phi.output();

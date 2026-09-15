@@ -157,6 +157,127 @@ fun test {
   }
 }
 --- Test Name ---
+EliminatesTrivialPhiWithPassthroughSelfInput
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    Branch<1>
+  }
+  bb 1 {
+    v1 = Phi<0, 2> v0 v2
+    CondBranch<2, 3> v1
+  }
+  bb 2 {
+    v2 = RefineType<Object> v1
+    Branch<1>
+  }
+  bb 3 {
+    Return v1
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    CondBranch<2, 3> v0
+  }
+
+  bb 2 (preds 1) {
+    v2:Object = RefineType<Object> v0
+    Branch<1>
+  }
+
+  bb 3 (preds 1) {
+    Return v0
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    CondBranch<2, 3> v0
+  }
+
+  bb 2 (preds 1) {
+    v2:Object = RefineType<Object> v0
+    Branch<1>
+  }
+
+  bb 3 (preds 1) {
+    Return v0
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    CondBranch<2, 3> v0
+  }
+
+  bb 2 (preds 1) {
+    v2:Object = RefineType<Object> v0
+    Branch<1>
+  }
+
+  bb 3 (preds 1) {
+    Return v0
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    CondBranch<2, 3> v0
+  }
+
+  bb 2 (preds 1) {
+    v2:Object = RefineType<Object> v0
+    Branch<1>
+  }
+
+  bb 3 (preds 1) {
+    Return v0
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    CondBranch<2, 3> v0
+  }
+
+  bb 2 (preds 1) {
+    v2:Object = RefineType<Object> v0
+    Branch<1>
+  }
+
+  bb 3 (preds 1) {
+    Return v0
+  }
+}
+--- Test Name ---
 EliminatesCascadingTrivialPhis
 --- Input ---
 # HIR
