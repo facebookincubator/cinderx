@@ -4335,50 +4335,57 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   if (!isJitUsable() || isJitCompiled(func)) {
     return;
   }
-  FreeThreadedJITEntrypointGuard guard;
 
-  CompilerContext<Compiler>* jit_ctx = jitCtx();
-  if (jit_ctx == nullptr) {
-    return;
-  }
-
+  CompilerContext<Compiler>* jit_ctx;
   BorrowedRef<PyCodeObject> code{func->func_code};
-
-  // Don't background-compile functions with prohibited code flags (e.g.,
-  // async generators), mirroring the check in compileFunction().  Otherwise
-  // Compiler::compile() will run on unsupported bytecode and generate
-  // incorrect code -- e.g., an async_generator function compiled as a regular
-  // generator, causing anext() to fail with "'generator' object is not an
-  // async iterator".
-  constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
-  if (code->co_flags & forbidden_flags) {
-    return;
-  }
-
-  BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
-
-  // Admit the compile here, while we still hold the GIL.  This both reserves
-  // the key against duplicate/concurrent compiles and finalizes the function
-  // outright if the code turns out to already be compiled -- the worker cannot
-  // do either, because it runs with the GIL released.
   CompilationKey key{func};
+  BackgroundCompileRegistry* reg;
+  hir::IsolatedPreloaders isolated_preloaders;
   {
-    std::lock_guard<std::mutex> lock(reg.mutex);
-    if (reg.shutdown) {
+    // Don't hold this while we preload, we can deadlock easily
+    FreeThreadedJITEntrypointGuard guard;
+
+    jit_ctx = jitCtx();
+    if (jit_ctx == nullptr) {
       return;
     }
-  }
-  auto admitted = admitCompile(jit_ctx, func);
-  if (admitted.admission != CompileAdmission::kCompile) {
-    return;
-  }
-  {
-    std::lock_guard<std::mutex> lock(reg.mutex);
-    if (reg.shutdown) {
-      jit_ctx->removeActiveCompile(key);
+
+    // Don't background-compile functions with prohibited code flags (e.g.,
+    // async generators), mirroring the check in compileFunction().  Otherwise
+    // Compiler::compile() will run on unsupported bytecode and generate
+    // incorrect code -- e.g., an async_generator function compiled as a regular
+    // generator, causing anext() to fail with "'generator' object is not an
+    // async iterator".
+    constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
+    if (code->co_flags & forbidden_flags) {
       return;
     }
-    reg.in_flight_count++;
+
+    reg = &jit_ctx->backgroundCompileRegistry();
+
+    // Admit the compile here, while we still hold the GIL.  This both reserves
+    // the key against duplicate/concurrent compiles and finalizes the function
+    // outright if the code turns out to already be compiled -- the worker
+    // cannot do either, because it runs with the GIL released.
+    {
+      std::lock_guard<std::mutex> lock(reg->mutex);
+      if (reg->shutdown) {
+        return;
+      }
+    }
+    auto admitted = admitCompile(jit_ctx, func);
+    if (admitted.admission != CompileAdmission::kCompile) {
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(reg->mutex);
+      if (reg->shutdown) {
+        jit_ctx->removeActiveCompile(key);
+        return;
+      }
+      reg->in_flight_count++;
+    }
+    trackEligibleCodeObjects(func, func->func_code);
   }
 
   // The reservation above has to be released exactly once on every path out of
@@ -4389,11 +4396,11 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   bool reservation_released = false;
   SCOPE_EXIT({
     if (!reservation_released) {
-      std::lock_guard<std::mutex> lock(reg.mutex);
-      if (reg.in_flight_count) {
-        reg.in_flight_count--;
+      std::lock_guard<std::mutex> lock(reg->mutex);
+      if (reg->in_flight_count) {
+        reg->in_flight_count--;
       }
-      reg.drain_cv.notify_all();
+      reg->drain_cv.notify_all();
     }
   });
 
@@ -4401,14 +4408,13 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   // preloaders so they outlive this call.
   hir::PreloaderMap preloaders;
   {
-    hir::IsolatedPreloaders isolated_preloaders;
-    trackEligibleCodeObjects(func, func->func_code);
     std::vector<BorrowedRef<PyFunctionObject>> targets =
         preloadFuncAndDeps(func);
     if (targets.empty()) {
       // Preloading hit a Python error; clear it and give up on this function.
       // Only drop the active compile here -- finishBackgroundCompile() would
       // also release the reservation, which the SCOPE_EXIT above owns.
+      FreeThreadedJITEntrypointGuard guard;
       setVectorcall(func, getInterpretedVectorcall(func));
       jit_ctx->removeActiveCompile(key);
       throw CAPIError();
@@ -4429,23 +4435,35 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   // can't be started, release the task's Python references under the guard we
   // already hold and leave the function interpreted.
   {
-    std::lock_guard<std::mutex> lock(reg.mutex);
+    FreeThreadedJITEntrypointGuard guard;
+    // Revalidate everything preloading may have invalidated while running
+    // arbitrary Python without the entrypoint mutex: teardown may have been
+    // requested, the JIT disabled, our admission withdrawn, or func's code
+    // replaced underneath us.  Abandoning leaves the function interpreted;
+    // its vectorcall is untouched so a later call simply schedules afresh.
+    CompilationKey current{func};
+    if (reg->shutdown || !isJitUsable() || !(current == key) ||
+        !jit_ctx->hasActiveCompile(key)) {
+      jit_ctx->removeActiveCompile(key);
+      return;
+    }
+    std::lock_guard<std::mutex> lock(reg->mutex);
     // Re-check for shutdown: preloading above ran without the registry lock, so
     // a drain could have completed in the meantime.  Starting a worker now
     // would resurrect the thread that drain just joined.
-    if (reg.shutdown) {
+    if (reg->shutdown) {
       jit_ctx->removeActiveCompile(key);
       return;
     }
-    if (!reg.worker_started && !startBackgroundWorkerThread(jit_ctx, reg)) {
+    if (!reg->worker_started && !startBackgroundWorkerThread(jit_ctx, *reg)) {
       jit_ctx->removeActiveCompile(key);
       return;
     }
-    reg.queue.push_back(std::move(task));
+    reg->queue.push_back(std::move(task));
     // The worker owns the reservation now and releases it when the compile
     // ends.
     reservation_released = true;
-    reg.queue_cv.notify_one();
+    reg->queue_cv.notify_one();
 
     // Just interpret the function until the compile succeeds
     setVectorcall(func, getInterpretedVectorcall(func));
@@ -4608,6 +4626,9 @@ void cancelBackgroundCompiles() {
   BackgroundCompileRegistry& reg = ctx->backgroundCompileRegistry();
 
   std::thread worker_to_join;
+  // Tasks pulled out of the queue below.  Destroyed after the GIL is
+  // reacquired: each task holds Python references
+  std::deque<std::unique_ptr<BackgroundCompileTask>> abandoned;
   // Release the GIL so the worker (which holds its own dedicated thread state
   // and acquires the GIL to compile and finalize) can make progress while we
   // drain.
@@ -4624,23 +4645,29 @@ void cancelBackgroundCompiles() {
     if (worker_to_join.joinable()) {
       worker_to_join.join();
     }
+    // The joined worker never took the tasks still sitting in the queue, but
+    // each one still holds the in-flight reservation its scheduler handed
+    // over.  Reclaim those here so the drain below only waits for threads
+    // that are still preloading.
+    {
+      std::unique_lock<std::mutex> lock(reg.mutex);
+      abandoned.swap(reg.queue);
+      if (reg.in_flight_count >= abandoned.size()) {
+        reg.in_flight_count -= abandoned.size();
+      } else {
+        reg.in_flight_count = 0;
+      }
+      reg.drain_cv.notify_all();
+    }
+    // Wait for threads that admitted a compile and are still preloading it.
+    {
+      std::unique_lock<std::mutex> lock(reg.mutex);
+      reg.drain_cv.wait(lock, [&reg] { return reg.in_flight_count == 0; });
+    }
   }
-  // Take the remaining work out of the registry, but destroy it further down
-  // with the lock released.  Dropping a task's references can run a __del__,
-  // which calls back into jitVectorcall() and deadlocks on reg.mutex.
-  std::deque<std::unique_ptr<BackgroundCompileTask>> abandoned;
-  {
-    // `shutdown` deliberately stays set: this only runs while the interpreter
-    // is going away, and re-enabling background compilation here would let the
-    // Python code that runs during the rest of shutdown start a fresh worker.
-    // Once the runtime marks itself finalizing that worker hangs forever in
-    // PyThread_hang_thread() the moment it re-acquires the GIL, and the join()
-    // above would never return.
-    std::unique_lock<std::mutex> lock(reg.mutex);
-    reg.in_flight_count = 0;
-    reg.drain_cv.notify_all();
-    abandoned.swap(reg.queue);
-  }
+  // `shutdown` deliberately stays set: this only runs while the interpreter
+  // is going away, and re-enabling background compilation here would let the
+  // Python code that runs during the rest of shutdown start a fresh worker.
 }
 
 void finalize() {
