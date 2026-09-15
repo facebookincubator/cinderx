@@ -286,6 +286,35 @@ BB %2 - preds: %0
       Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
 }
 
+TEST_F(LIRTargetSelectTest, LegalizesSignedSubWordInputs) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:8bit = Move 255
+  %2:16bit = Move 1
+  %3:8bit = LessThanSigned %1, %2
+  Return %3
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func)
+          .opcode(Opcode::kSext)
+          .outType(DataType::k32bit)
+          .inVreg(0, 1),
+      Query(*lir_func)
+          .opcode(Opcode::kSext)
+          .outType(DataType::k32bit)
+          .inVreg(0, 2),
+      Query(*lir_func)
+          .opcode(Opcode::kCompare)
+          .condition(Condition::kSignedLT)
+          .outType(DataType::k32bit)
+          .inDefOpcode(0, Opcode::kSext)
+          .inDefOpcode(1, Opcode::kSext));
+}
+
 TEST_F(LIRTargetSelectTest, SelectsA64GuardCCForSingleUseCompareGuard) {
   const char* lir_input_str = R"(Function:
 BB %0

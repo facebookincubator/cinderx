@@ -149,7 +149,7 @@ void legalizeA64SignedSubWordInputs(
 
   for (size_t i = 0; i < instr->getNumInputs(); i++) {
     Operand* input = instr->getInput(i);
-    if (!input->isReg()) {
+    if (!input->isVreg() && !input->isReg()) {
       continue;
     }
 
