@@ -1,19 +1,13 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
-import sys
 import unittest
+from collections.abc import Callable
 
-import cinderx.test_support as cinder_support
+from cinderx.test_support import failUnlessJITCompiled
 
 from .common import failUnlessHasOpcodes
-
-
-POST_311 = sys.version_info >= (3, 11)
-
-# Opcode to look for when inspecting code objects that use try/except/finally.
-EXN_OPCODE = "PUSH_EXC_INFO" if POST_311 else "SETUP_FINALLY"
 
 
 class Err1(Exception):
@@ -25,13 +19,13 @@ class Err2(Exception):
 
 
 class DummyContainer:
-    def __len__(self):
+    def __len__(self) -> int:
         raise Exception("hello!")
 
 
 class ExceptionInConditional(unittest.TestCase):
-    @cinder_support.failUnlessJITCompiled
-    def doit(self, x):
+    @failUnlessJITCompiled
+    def doit(self, x: object) -> int:
         if x:
             return 1
         return 2
@@ -42,9 +36,9 @@ class ExceptionInConditional(unittest.TestCase):
 
 
 class ExceptionHandlingTests(unittest.TestCase):
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def try_except(self, func):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def try_except(self, func: Callable[[], None]) -> bool:
         try:
             func()
         except:  # noqa: B001
@@ -52,19 +46,19 @@ class ExceptionHandlingTests(unittest.TestCase):
         return False
 
     def test_raise_and_catch(self) -> None:
-        def f():
+        def f() -> None:
             raise Exception("hello")
 
         self.assertTrue(self.try_except(f))
 
-        def g():
+        def g() -> None:
             pass
 
         self.assertFalse(self.try_except(g))
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def catch_multiple(self, func):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def catch_multiple(self, func: Callable[[], None]) -> int | None:
         try:
             func()
         except Err1:
@@ -73,34 +67,34 @@ class ExceptionHandlingTests(unittest.TestCase):
             return 2
 
     def test_multiple_except_blocks(self) -> None:
-        def f():
+        def f() -> None:
             raise Err1("err1")
 
         self.assertEqual(self.catch_multiple(f), 1)
 
-        def g():
+        def g() -> None:
             raise Err2("err2")
 
         self.assertEqual(self.catch_multiple(g), 2)
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def reraise(self, func):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def reraise(self, func: Callable[[], None]) -> None:
         try:
             func()
         except:  # noqa: B001
             raise
 
     def test_reraise(self) -> None:
-        def f():
+        def f() -> None:
             raise Exception("hello")
 
         with self.assertRaisesRegex(Exception, "hello"):
             self.reraise(f)
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def try_except_in_loop(self, niters, f):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def try_except_in_loop(self, niters: int, f: Callable[[int], None]) -> int:
         for i in range(niters):
             try:
                 try:
@@ -112,15 +106,15 @@ class ExceptionHandlingTests(unittest.TestCase):
         return i
 
     def test_try_except_in_loop(self) -> None:
-        def f(i):
+        def f(i: int) -> None:
             if i == 10:
                 raise Err1("hello")
 
         self.assertEqual(self.try_except_in_loop(20, f), 10)
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def nested_try_except(self, f):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def nested_try_except(self, f: Callable[[], None]) -> int | None:
         try:
             try:
                 try:
@@ -133,12 +127,12 @@ class ExceptionHandlingTests(unittest.TestCase):
             return 100
 
     def test_nested_try_except(self) -> None:
-        def f():
+        def f() -> None:
             raise Exception("hello")
 
         self.assertEqual(self.nested_try_except(f), 100)
 
-    @cinder_support.failUnlessJITCompiled
+    @failUnlessJITCompiled
     def try_except_in_generator(self, f):
         try:
             yield f(0)
@@ -148,7 +142,7 @@ class ExceptionHandlingTests(unittest.TestCase):
             yield 123
 
     def test_except_in_generator(self) -> None:
-        def f(i):
+        def f(i: int) -> None:
             if i == 1:
                 raise Exception("hello")
             return
@@ -157,9 +151,9 @@ class ExceptionHandlingTests(unittest.TestCase):
         next(g)
         self.assertEqual(next(g), 123)
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE, "RERAISE")
-    def try_finally(self, should_raise):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO", "RERAISE")
+    def try_finally(self, should_raise: bool) -> int | None:
         result = None
         try:
             if should_raise:
@@ -173,8 +167,8 @@ class ExceptionHandlingTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "testing 123"):
             self.try_finally(True)
 
-    @cinder_support.failUnlessJITCompiled
-    def try_except_finally(self, should_raise):
+    @failUnlessJITCompiled
+    def try_except_finally(self, should_raise: bool) -> int | None:
         result = None
         try:
             if should_raise:
@@ -190,39 +184,43 @@ class ExceptionHandlingTests(unittest.TestCase):
         self.assertEqual(self.try_except_finally(False), 100)
         self.assertEqual(self.try_except_finally(True), 200)
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def return_in_finally(self, v):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def return_in_finally(self, v: int) -> int:
         try:
             pass
         finally:
+            # pyrefly: ignore [invalid-syntax]
             return v  # noqa: B012
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def return_in_finally2(self, v):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def return_in_finally2(self, v: int) -> int:
         try:
             return v
         finally:
+            # pyrefly: ignore [invalid-syntax]
             return 100  # noqa: B012
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def return_in_finally3(self, v):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def return_in_finally3(self, v: int) -> int:
         try:
             1 / 0
         finally:
+            # pyrefly: ignore [invalid-syntax]
             return v  # noqa: B012
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def return_in_finally4(self, v):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def return_in_finally4(self, v: int) -> int:
         try:
             return 100
         finally:
             try:
                 1 / 0
             finally:
+                # pyrefly: ignore [invalid-syntax]
                 return v  # noqa: B012
 
     def test_return_in_finally(self) -> None:
@@ -231,8 +229,8 @@ class ExceptionHandlingTests(unittest.TestCase):
         self.assertEqual(self.return_in_finally3(300), 300)
         self.assertEqual(self.return_in_finally4(400), 400)
 
-    @cinder_support.failUnlessJITCompiled
-    def break_in_finally_after_return(self, x):
+    @failUnlessJITCompiled
+    def break_in_finally_after_return(self, x: bool) -> int | tuple[str, int, int]:
         for count in [0, 1]:
             count2 = 0
             while count2 < 20:
@@ -241,17 +239,19 @@ class ExceptionHandlingTests(unittest.TestCase):
                     return count + count2
                 finally:
                     if x:
+                        # pyrefly: ignore [invalid-syntax]
                         break  # noqa: B012
         return "end", count, count2
 
-    @cinder_support.failUnlessJITCompiled
-    def break_in_finally_after_return2(self, x):
+    @failUnlessJITCompiled
+    def break_in_finally_after_return2(self, x: bool) -> int | tuple[str, int, int]:
         for count in [0, 1]:
             for count2 in [10, 20]:
                 try:
                     return count + count2
                 finally:
                     if x:
+                        # pyrefly: ignore [invalid-syntax]
                         break  # noqa: B012
         return "end", count, count2
 
@@ -261,8 +261,8 @@ class ExceptionHandlingTests(unittest.TestCase):
         self.assertEqual(self.break_in_finally_after_return2(False), 10)
         self.assertEqual(self.break_in_finally_after_return2(True), ("end", 1, 10))
 
-    @cinder_support.failUnlessJITCompiled
-    def continue_in_finally_after_return(self, x):
+    @failUnlessJITCompiled
+    def continue_in_finally_after_return(self, x: bool) -> int | tuple[str, int]:
         count = 0
         while count < 100:
             count += 1
@@ -270,16 +270,18 @@ class ExceptionHandlingTests(unittest.TestCase):
                 return count
             finally:
                 if x:
+                    # pyrefly: ignore [invalid-syntax]
                     continue  # noqa: B012
         return "end", count
 
-    @cinder_support.failUnlessJITCompiled
-    def continue_in_finally_after_return2(self, x):
+    @failUnlessJITCompiled
+    def continue_in_finally_after_return2(self, x: bool) -> int | tuple[str, int]:
         for count in [0, 1]:
             try:
                 return count
             finally:
                 if x:
+                    # pyrefly: ignore [invalid-syntax]
                     continue  # noqa: B012
         return "end", count
 
@@ -289,9 +291,9 @@ class ExceptionHandlingTests(unittest.TestCase):
         self.assertEqual(self.continue_in_finally_after_return2(False), 0)
         self.assertEqual(self.continue_in_finally_after_return2(True), ("end", 1))
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def return_in_loop_in_finally(self, x):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def return_in_loop_in_finally(self, x: bool) -> bool | int:
         try:
             for _ in [1, 2, 3]:
                 if x:
@@ -304,9 +306,11 @@ class ExceptionHandlingTests(unittest.TestCase):
         self.assertEqual(self.return_in_loop_in_finally(True), True)
         self.assertEqual(self.return_in_loop_in_finally(False), 100)
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def conditional_return_in_finally(self, x, y, z):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def conditional_return_in_finally(
+        self, x: int | bool, y: int | bool, z: int | bool
+    ) -> int | bool:
         try:
             if x:
                 return x
@@ -321,9 +325,9 @@ class ExceptionHandlingTests(unittest.TestCase):
         self.assertEqual(self.conditional_return_in_finally(False, 200, False), 200)
         self.assertEqual(self.conditional_return_in_finally(False, False, 300), 300)
 
-    @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes(EXN_OPCODE)
-    def nested_finally(self, x):
+    @failUnlessJITCompiled
+    @failUnlessHasOpcodes("PUSH_EXC_INFO")
+    def nested_finally(self, x: int | bool) -> int | bool:
         try:
             if x:
                 return x
