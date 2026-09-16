@@ -6,12 +6,24 @@ import sys
 import threading
 import unittest
 from types import CodeType, FrameType
-from typing import Generator
+from typing import Callable, Generator
 
 from cinderx.jit import force_compile, is_jit_compiled
-from cinderx.test_support import skip_module_if_oss, skip_unless_jit
+from cinderx.test_support import (
+    is_emulated,
+    passIf,
+    run_in_fresh_process,
+    skip_unless_jit,
+)
 
-skip_module_if_oss()
+
+def run_with_instrumentation(
+    func: Callable[..., None],
+) -> Callable[..., None]:
+    return run_in_fresh_process(
+        func,
+        additional_env={"CINDERX_JIT_SUPPORT_INSTRUMENTATION": "1"},
+    )
 
 
 def dummy_callback(
@@ -35,6 +47,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
     4. Not interfere with callback invocation
     """
 
+    @run_with_instrumentation
     def test_new_functions_not_compiled_while_callback_registered(self) -> None:
         sys.monitoring.use_tool_id(sys.monitoring.DEBUGGER_ID, "test_debugger")
         sys.monitoring.register_callback(
@@ -55,6 +68,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_compiled_functions_deoptimized_on_callback_registration(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -76,6 +90,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_functions_reoptimized_after_callback_removed(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -104,6 +119,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_functions_reoptimized_after_free_tool_id(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -127,6 +143,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
             "Function should be re-JIT compiled after free_tool_id is called",
         )
 
+    @run_with_instrumentation
     def test_free_tool_id_with_multiple_tools(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -163,6 +180,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
             "JIT should re-enable after all tools are freed via free_tool_id",
         )
 
+    @run_with_instrumentation
     def test_all_callbacks_must_be_removed_for_reoptimization(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -210,6 +228,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
         sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
 
+    @run_with_instrumentation
     def test_reregistering_same_callback_only_needs_one_removal(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -243,6 +262,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_removing_callback_twice_is_harmless(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -293,6 +313,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
         sys.monitoring.free_tool_id(sys.monitoring.PROFILER_ID)
 
+    @run_with_instrumentation
     def test_callbacks_invoked_for_deoptimized_functions(self) -> None:
         calls_seen: list[str] = []
 
@@ -335,6 +356,7 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_function_results_correct_across_jit_state_transitions(self) -> None:
         def compute(n: int) -> int:
             result = 0
@@ -387,6 +409,7 @@ class JitSetProfileIntegrationTest(unittest.TestCase):
     def tearDown(self) -> None:
         sys.setprofile(None)
 
+    @run_with_instrumentation
     def test_compiled_functions_deoptimized_on_setprofile(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -410,6 +433,7 @@ class JitSetProfileIntegrationTest(unittest.TestCase):
         foo(1, 2)
         self.assertIn("foo", calls_seen, "Profile callback should have been invoked")
 
+    @run_with_instrumentation
     def test_functions_reoptimized_after_setprofile_cleared(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -442,6 +466,7 @@ class JitSetProfileIntegrationTest(unittest.TestCase):
             calls_seen, [], "Profile callback should not be invoked after clearing"
         )
 
+    @run_with_instrumentation
     def test_new_functions_not_compiled_while_profiler_active(self) -> None:
         calls_seen: list[str] = []
 
@@ -481,6 +506,8 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
     def tearDown(self) -> None:
         sys.settrace(None)
 
+    @passIf(is_emulated(), "QEMU doesn't support process_vm_readv")
+    @run_with_instrumentation
     def test_looping_thread_deopted_on_instrumentation(self) -> None:
         # A worker thread in a tight JIT loop should have its topmost frame
         # deopted when instrumentation activates from another thread.
@@ -566,6 +593,7 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
             except ValueError:
                 pass
 
+    @run_with_instrumentation
     def test_compiled_functions_deoptimized_on_settrace(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -591,6 +619,7 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         foo(1, 2)
         self.assertIn("foo", calls_seen, "Trace callback should have been invoked")
 
+    @run_with_instrumentation
     def test_functions_reoptimized_after_settrace_cleared(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -625,6 +654,7 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
             calls_seen, [], "Trace callback should not be invoked after clearing"
         )
 
+    @run_with_instrumentation
     def test_new_functions_not_compiled_while_tracer_active(self) -> None:
         calls_seen: list[str] = []
 
@@ -660,6 +690,7 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
     The JIT should only re-enable when ALL instrumentation mechanisms are cleared.
     """
 
+    @run_with_instrumentation
     def test_profiling_and_tracing_callbacks_must_be_cleared_for_reoptimization(
         self,
     ) -> None:
@@ -693,6 +724,7 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
             "JIT should re-enable after all callbacks are cleared",
         )
 
+    @run_with_instrumentation
     def test_monitoring_and_setprofile_combined(self) -> None:
         def foo(a: int, b: int) -> int:
             return a + b
@@ -745,6 +777,7 @@ class JitStackFrameDeoptTest(unittest.TestCase):
     deopted via function-object deopt, and cross-thread frame patching.
     """
 
+    @run_with_instrumentation
     def test_grandparent_frame_receives_line_events_after_parent_returns(self) -> None:
         # The grandparent frame should receive LINE events after the parent
         # (which called register_callback) returns through deopt trampoline
@@ -814,6 +847,7 @@ class JitStackFrameDeoptTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_deeply_nested_stack_grandparent_receives_events(self) -> None:
         # With deeply nested calls, grandparent frames should receive LINE events
         line_events: list[str] = []
@@ -886,6 +920,7 @@ class JitStackFrameDeoptTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_return_event_fires_for_parent_frame(self) -> None:
         # PY_RETURN event should fire when the parent frame returns through deopt
         return_events: list[str] = []
@@ -935,6 +970,7 @@ class JitStackFrameDeoptTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_suspended_generator_deopted_on_instrumentation_attach(self) -> None:
         # Suspended generators should be deopted when instrumentation attaches
         line_events: list[str] = []
@@ -986,6 +1022,7 @@ class JitStackFrameDeoptTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_multiple_suspended_generators_all_deopted(self) -> None:
         # Multiple suspended generators should all be deopted
         line_events: list[str] = []
@@ -1036,6 +1073,7 @@ class JitStackFrameDeoptTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @run_with_instrumentation
     def test_compound_expression_frame_deopted(self) -> None:
         """
         Test that frames with compound expressions (non-empty operand stack)
@@ -1104,6 +1142,8 @@ class JitStackFrameDeoptTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
+    @passIf(is_emulated(), "QEMU doesn't support process_vm_readv")
+    @run_with_instrumentation
     def test_multithread_grandparent_frame_deopted(self) -> None:
         # Worker thread's grandparent frame should receive LINE events
         worker_line_events: list[str] = []
@@ -1196,6 +1236,7 @@ class JitStackFrameDeoptTest(unittest.TestCase):
             except ValueError:
                 pass
 
+    @run_with_instrumentation
     def test_settrace_grandparent_receives_line_events(self) -> None:
         # sys.settrace should also cause grandparent frames to receive LINE events
         line_events: list[tuple[str, str]] = []

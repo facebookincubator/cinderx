@@ -14,6 +14,7 @@ import tempfile
 import types
 import unittest
 import warnings
+from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Generator, Iterable, TypeVar
@@ -337,11 +338,17 @@ def is_sanitizer_build() -> bool:
     )
 
 
+def is_emulated() -> bool:
+    """Check if the program is running under an emulator like QEMU."""
+    # Assumes that people only use emulators to run different CPU architectures.  It's
+    # the best we have for now.
+    processor = platform.processor()
+    return processor != "" and processor != platform.machine()
+
+
 # This is long because ASAN + JIT + subprocess + the Python compiler can be
 # pretty slow in CI. Also we run aarch64 tests in QEMU which is slow too.
-SUBPROCESS_TIMEOUT_SEC = (
-    100 if (is_sanitizer_build() or platform.processor() != platform.machine()) else 5
-)
+SUBPROCESS_TIMEOUT_SEC = 100 if (is_sanitizer_build() or is_emulated()) else 5
 
 
 @contextmanager
@@ -415,7 +422,11 @@ def run_in_fork(func: Callable[..., None]) -> Callable[..., None]:
 _FRESH_PROCESS_TEST_ENV_VAR = "CINDERX_FRESH_PROCESS_TEST"
 
 
-def run_in_fresh_process(func: Callable[..., None]) -> Callable[..., None]:
+def run_in_fresh_process(
+    func: Callable[..., None],
+    *,
+    additional_env: Mapping[str, str] | None = None,
+) -> Callable[..., None]:
     """Run a test method in a new Python interpreter."""
     test_name = f"{func.__module__}.{func.__qualname__}"
 
@@ -432,6 +443,7 @@ def run_in_fresh_process(func: Callable[..., None]) -> Callable[..., None]:
             env={
                 **os.environ,
                 **subprocess_env(),
+                **(additional_env or {}),
                 _FRESH_PROCESS_TEST_ENV_VAR: test_name,
             },
             timeout=SUBPROCESS_TIMEOUT_SEC,
