@@ -11,6 +11,7 @@
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/preload.h"
+#include "cinderx/Jit/threaded_compile.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -61,6 +62,8 @@ struct AbstractCall {
   size_t score{0};
   // Discover order, used to break ranking ties in a stable manner.
   uint64_t seq{0};
+  // Stable callee metadata, populated before this call enters the queue.
+  Preloader* preloader{nullptr};
 };
 
 // Whether a call passes keyword arguments (kwnames tuple as last operand).
@@ -193,9 +196,8 @@ std::optional<MappedCallArgs> mapCallArgs(
 
 void logInlineFailure(
     Function& caller,
-    BorrowedRef<PyFunctionObject> callee,
+    const std::string& callee_name,
     InlineFailureType failure_type) {
-  std::string callee_name = funcFullname(callee);
   Function::InlineFailureStats& inline_failure_stats =
       caller.inline_function_stats.failure_stats;
   inline_failure_stats[failure_type].insert(callee_name);
@@ -208,10 +210,9 @@ void logInlineFailure(
 
 void logInlineFailure(
     Function& caller,
-    BorrowedRef<PyFunctionObject> callee,
+    const std::string& callee_name,
     InlineFailureType failure_type,
     const char* tp_name) {
-  std::string callee_name = funcFullname(callee);
   Function::InlineFailureStats& inline_failure_stats =
       caller.inline_function_stats.failure_stats;
   inline_failure_stats[failure_type].insert(callee_name);
@@ -241,24 +242,25 @@ size_t codeCost(BorrowedRef<PyCodeObject> code) {
 std::optional<MappedCallArgs> canInline(
     Function& caller,
     const AbstractCall& call_instr,
-    BorrowedRef<PyTupleObject> func_defaults) {
+    const Preloader& preloader) {
   BorrowedRef<PyFunctionObject> callee = call_instr.func;
+  const std::string& callee_name = preloader.fullname();
 
-  BorrowedRef<> globals = callee->func_globals;
+  BorrowedRef<> globals = preloader.globals();
   if (!PyDict_Check(globals)) {
     logInlineFailure(
         caller,
-        callee,
+        callee_name,
         InlineFailureType::kGlobalsNotDict,
         Py_TYPE(globals)->tp_name);
     return std::nullopt;
   }
 
-  BorrowedRef<> builtins = callee->func_builtins;
+  BorrowedRef<> builtins = preloader.builtins();
   if (!PyDict_CheckExact(builtins)) {
     logInlineFailure(
         caller,
-        callee,
+        callee_name,
         InlineFailureType::kBuiltinsNotDict,
         Py_TYPE(builtins)->tp_name);
     return std::nullopt;
@@ -266,9 +268,18 @@ std::optional<MappedCallArgs> canInline(
 
   auto fail =
       [&](InlineFailureType failure_type) -> std::optional<MappedCallArgs> {
-    logInlineFailure(caller, callee, failure_type);
+    logInlineFailure(caller, callee_name, failure_type);
     return std::nullopt;
   };
+
+  if (call_instr.instr->isVectorCall() &&
+      (preloader.code()->co_flags & CI_CO_STATICALLY_COMPILED) &&
+      (preloader.returnType() <= TPrimitive || preloader.hasPrimitiveArgs())) {
+    // TASK(T122371281) remove this constraint
+    logInlineFailure(
+        caller, callee_name, InlineFailureType::kIsVectorCallWithPrimitives);
+    return std::nullopt;
+  }
 
   // kwdefaults are only read when a kwonly parameter lacks a value; with a
   // fully-provided kwargs call (see below) they are never consulted.
@@ -277,7 +288,7 @@ std::optional<MappedCallArgs> canInline(
     return fail(InlineFailureType::kHasKwdefaults);
   }
 
-  BorrowedRef<PyCodeObject> code{callee->func_code};
+  BorrowedRef<PyCodeObject> code{preloader.code()};
   JIT_CHECK(PyCode_Check(code), "Expected PyCodeObject");
 
   JIT_DCHECK(code->co_argcount >= 0, "argcount must be positive");
@@ -312,9 +323,9 @@ std::optional<MappedCallArgs> canInline(
     // (captured with the GIL held and kept alive); reading it off the
     // function here would race with concurrent reassignment on a
     // background compile without the GIL.
-    const size_t num_defaults = func_defaults == nullptr
+    const size_t num_defaults = preloader.funcDefaults() == nullptr
         ? 0
-        : static_cast<size_t>(PyTuple_GET_SIZE(func_defaults));
+        : static_cast<size_t>(PyTuple_GET_SIZE(preloader.funcDefaults()));
     if (mapping->num_pos + num_defaults < co_argcount) {
       // Function was called with too few arguments.
       return fail(InlineFailureType::kCalledWithMismatchedArgs);
@@ -334,22 +345,16 @@ std::optional<MappedCallArgs> canInline(
   return mapping;
 }
 
-// As canInline() for checks which require a preloader.
-bool canInlineWithPreloader(
-    Function& caller,
-    const AbstractCall& call_instr,
-    const Preloader& preloader) {
-  if (call_instr.instr->isVectorCall() &&
-      (preloader.code()->co_flags & CI_CO_STATICALLY_COMPILED) &&
-      (preloader.returnType() <= TPrimitive || preloader.hasPrimitiveArgs())) {
-    // TASK(T122371281) remove this constraint
+bool ensurePreloader(Function& irfunc, AbstractCall& call) {
+  Preloader* preloader = preloaderManager().find(call.func);
+  if (!preloader) {
+    ThreadedCompileGILHolder gil;
     logInlineFailure(
-        caller,
-        call_instr.func,
-        InlineFailureType::kIsVectorCallWithPrimitives);
+        irfunc, funcFullname(call.func), InlineFailureType::kNeedsPreload);
     return false;
   }
 
+  call.preloader = preloader;
   return true;
 }
 
@@ -360,7 +365,7 @@ Register* populateVarArgs(
     size_t num_pos) {
   // When defaults fill missing positionals there are no surplus
   // arguments; the tuple is empty.
-  BorrowedRef<PyCodeObject> code{call_instr.func->func_code};
+  BorrowedRef<PyCodeObject> code{call_instr.preloader->code()};
   const size_t co_argcount = code->co_argcount;
   // Positional values beyond co_argcount are surplus; when defaults fill
   // missing positionals there are none and the tuple is empty.
@@ -495,6 +500,11 @@ std::vector<Register*> resolveArgs(
 std::optional<InlineResult> inlineFunctionCall(
     Function& caller,
     const AbstractCall& call_instr) {
+  JIT_THROW_IF(call_instr.preloader == nullptr, "called without preloader");
+  Preloader& preloader = *call_instr.preloader;
+  auto caller_frame_state =
+      std::make_unique<FrameState>(*call_instr.instr->frameState());
+
   BorrowedRef<PyFunctionObject> callee = call_instr.func;
 
   // We are only able to inline functions that were already preloaded, since we
@@ -504,40 +514,23 @@ std::optional<InlineResult> inlineFunctionCall(
   // globals, or statically invoked. See `preloadFuncAndDeps` for what
   // dependencies we will preload. In batch-compile mode we can inline anything
   // that is part of the batch.
-  // The callee preloader is also our race-free source of func_defaults
-  // below: captured with the GIL held and kept alive, while the function
-  // object itself cannot be safely touched on a background compile without
-  // the GIL.
-  Preloader* preloader = preloaderManager().find(callee);
-  if (!preloader) {
-    logInlineFailure(caller, callee, InlineFailureType::kNeedsPreload);
-    return std::nullopt;
-  }
-
-  auto mapping = canInline(caller, call_instr, preloader->funcDefaults());
+  auto mapping = canInline(caller, call_instr, preloader);
   if (!mapping) {
     return std::nullopt;
   }
 
-  auto caller_frame_state =
-      std::make_unique<FrameState>(*call_instr.instr->frameState());
-
-  if (!canInlineWithPreloader(caller, call_instr, *preloader)) {
-    return std::nullopt;
-  }
-  HIRBuilder hir_builder(*preloader);
-  std::string callee_name = funcFullname(callee);
+  HIRBuilder hir_builder(preloader);
 
   InlineResult result;
   try {
     result = hir_builder.inlineHIR(
         &caller,
         caller_frame_state.get(),
-        numFreevars(preloader->code()) > 0 ? callee.get() : nullptr);
+        numFreevars(preloader.code()) > 0 ? callee.get() : nullptr);
   } catch (const std::exception& exn) {
     LOG_INLINER(
         "Tried to inline {} into {}, but failed with {}",
-        callee_name,
+        preloader.fullname(),
         caller.fullname,
         exn.what());
     return std::nullopt;
@@ -551,10 +544,10 @@ std::optional<InlineResult> inlineFunctionCall(
   JIT_LOGIF(
       getConfig().log.debug_inliner || getConfig().log.debug,
       "Inlining function {} into {}",
-      callee_name,
+      preloader.fullname(),
       caller.fullname);
 
-  BorrowedRef<PyCodeObject> callee_code = preloader->code();
+  BorrowedRef<PyCodeObject> callee_code = preloader.code();
 
   const bool has_varargs = callee_code->co_flags & CO_VARARGS;
   const bool has_varkw = callee_code->co_flags & CO_VARKEYWORDS;
@@ -599,7 +592,7 @@ std::optional<InlineResult> inlineFunctionCall(
       pre_call_state,
       co_argcount,
       *mapping,
-      preloader->funcDefaults());
+      preloader.funcDefaults());
 
   const size_t num_pos = mapping->num_pos;
 
@@ -639,7 +632,13 @@ std::optional<InlineResult> inlineFunctionCall(
 
   BasicBlock* tail = caller.cfg.splitAfter(*call_instr.instr);
   auto begin_inlined_function = BeginInlinedFunction::create(
-      callee, std::move(caller_frame_state), callee_name, preloader->reifier());
+      callee,
+      preloader.code(),
+      preloader.builtins(),
+      preloader.globals(),
+      std::move(caller_frame_state),
+      preloader.fullname(),
+      preloader.reifier());
   auto callee_branch = Branch::create(result.entry);
   if (call_instr.target != nullptr) {
     // Not a static call. Check that __code__ has not been swapped out since
@@ -901,7 +900,10 @@ void InlineFunctionCalls::run(Function& irfunc) {
                                const std::vector<AbstractCall>& candidates) {
     size_t caller_count = codeCallCount(caller_code);
     for (AbstractCall call : candidates) {
-      BorrowedRef<PyCodeObject> callee_code{call.func->func_code};
+      if (!ensurePreloader(irfunc, call)) {
+        continue;
+      }
+      BorrowedRef<PyCodeObject> callee_code = call.preloader->code();
 
       // Prune out callees that are substantially colder than the caller.  Don't
       // prune anything when a caller hasn't been run yet (e.g. compiled via
@@ -913,7 +915,7 @@ void InlineFunctionCalls::run(Function& irfunc) {
           LOG_INLINER(
               "Pruning cold call to {} from {}: callee called {} times vs "
               "caller's {}",
-              funcFullname(call.func),
+              call.preloader->fullname(),
               caller_name,
               callee_count,
               caller_count);
@@ -943,7 +945,7 @@ void InlineFunctionCalls::run(Function& irfunc) {
     AbstractCall call = queue.top();
     queue.pop();
 
-    BorrowedRef<PyCodeObject> call_code{call.func->func_code};
+    BorrowedRef<PyCodeObject> call_code = call.preloader->code();
     const FrameState* call_site = call.instr->frameState();
     // Inline depth of the call site.  A top-level call site is at depth 0, so
     // the function we'd inline there lands at depth 1.
@@ -951,14 +953,17 @@ void InlineFunctionCalls::run(Function& irfunc) {
 
     // Don't unroll directly or mutually recursive calls.
     if (inlineStackContains(call_site, call_code)) {
-      logInlineFailure(irfunc, call.func, InlineFailureType::kIsRecursive);
+      logInlineFailure(
+          irfunc, call.preloader->fullname(), InlineFailureType::kIsRecursive);
       continue;
     }
 
     // Bound how deep transitive inlining can go.
     if (inline_depth >= depth_limit) {
       logInlineFailure(
-          irfunc, call.func, InlineFailureType::kExceedsDepthLimit);
+          irfunc,
+          call.preloader->fullname(),
+          InlineFailureType::kExceedsDepthLimit);
       continue;
     }
 
@@ -969,7 +974,7 @@ void InlineFunctionCalls::run(Function& irfunc) {
           "Inliner reached cost limit of {} when trying to inline {} into {}, "
           "skipping",
           new_cost,
-          funcFullname(call.func),
+          call.preloader->fullname(),
           irfunc.fullname);
       continue;
     }
@@ -992,7 +997,7 @@ void InlineFunctionCalls::run(Function& irfunc) {
     for (BasicBlock* block : inlinedBlocks(result->entry, result->exit)) {
       collectCalls(irfunc, *block, nested);
     }
-    enqueueCandidates(call_code, funcFullname(call.func), nested);
+    enqueueCandidates(call_code, call.preloader->fullname(), nested);
   }
 
   // Inlining spliced callee sub-CFGs into the caller, changing block structure,

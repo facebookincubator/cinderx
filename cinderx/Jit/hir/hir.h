@@ -1638,17 +1638,32 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
  public:
   BeginInlinedFunction(
       BorrowedRef<PyFunctionObject> func,
+      BorrowedRef<PyCodeObject> code,
+      BorrowedRef<PyDictObject> builtins,
+      BorrowedRef<PyDictObject> globals,
       std::unique_ptr<FrameState> caller_state,
       const std::string& fullname,
       BorrowedRef<> reifier)
-      : InstrT(), func_(func), reifier_(reifier), fullname_(fullname) {
+      : InstrT(),
+        func_(func),
+        code_(code),
+        builtins_(builtins),
+        globals_(globals),
+        reifier_(reifier),
+        fullname_(fullname) {
     caller_state_ = std::move(caller_state);
   }
 
   // Note: The copy constructor creates a new FrameState - this means that
   // inlined FrameStates will not point to the copied FrameState as their parent
   BeginInlinedFunction(const BeginInlinedFunction& other)
-      : InstrT(), func_(other.func()), fullname_(other.fullname()) {
+      : InstrT(),
+        func_(other.func()),
+        code_(other.code()),
+        builtins_(other.builtins()),
+        globals_(other.globals()),
+        reifier_(other.reifier()),
+        fullname_(other.fullname()) {
     caller_state_ = std::make_unique<FrameState>(*other.callerFrameState());
   }
 
@@ -1661,7 +1676,7 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   }
 
   BorrowedRef<PyCodeObject> code() const {
-    return func_->func_code;
+    return code_;
   }
 
   std::string fullname() const {
@@ -1669,11 +1684,11 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   }
 
   BorrowedRef<> builtins() const {
-    return func_->func_builtins;
+    return builtins_;
   }
 
   BorrowedRef<PyObject> globals() const {
-    return func_->func_globals;
+    return globals_;
   }
 
   BorrowedRef<> reifier() const {
@@ -1690,6 +1705,9 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   // originally owned by the Call instruction, but that gets destroyed.
   // Used for printing.
   BorrowedRef<PyFunctionObject> func_;
+  BorrowedRef<PyCodeObject> code_;
+  BorrowedRef<PyDictObject> builtins_;
+  BorrowedRef<PyDictObject> globals_;
   BorrowedRef<> reifier_;
   std::unique_ptr<FrameState> caller_state_{nullptr};
   std::string fullname_;

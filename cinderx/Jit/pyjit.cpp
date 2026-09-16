@@ -1173,9 +1173,9 @@ hir::Preloader* preload(BorrowedRef<> unit) {
         Py_TYPE(outer_func->func_globals)->tp_name,
         funcFullname(outer_func));
     preloader = hir::Preloader::make(
-        code,
-        outer_func->func_builtins,
-        outer_func->func_globals,
+        Ref<>::create(code),
+        Ref<>::create(outer_func->func_builtins),
+        Ref<>::create(outer_func->func_globals),
         outer_func->func_module,
         nullptr /* annotations */,
         codeFullname(outer_func->func_module, code),

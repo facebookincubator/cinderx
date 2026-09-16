@@ -181,9 +181,9 @@ std::unique_ptr<Preloader> Preloader::make(
     BorrowedRef<PyFunctionObject> func,
     Ref<> reifier) {
   auto preloader = Preloader::makeImpl(
-      func->func_code,
-      func->func_builtins,
-      func->func_globals,
+      Ref<>::create(func->func_code),
+      Ref<>::create(func->func_builtins),
+      Ref<>::create(func->func_globals),
       func->func_module,
       AnnotationIndex::fromFunction(func),
       funcFullname(func),
@@ -200,17 +200,17 @@ std::unique_ptr<Preloader> Preloader::make(
 }
 
 std::unique_ptr<Preloader> Preloader::make(
-    BorrowedRef<PyCodeObject> code,
-    BorrowedRef<PyDictObject> builtins,
-    BorrowedRef<PyDictObject> globals,
+    Ref<PyCodeObject> code,
+    Ref<PyDictObject> builtins,
+    Ref<PyDictObject> globals,
     BorrowedRef<> module,
     std::unique_ptr<AnnotationIndex> annotations,
     const std::string& fullname,
     Ref<> reifier) {
   return makeImpl(
-      code,
-      builtins,
-      globals,
+      Ref<>::create(code),
+      Ref<>::create(builtins),
+      Ref<>::create(globals),
       module,
       std::move(annotations),
       fullname,
@@ -219,18 +219,18 @@ std::unique_ptr<Preloader> Preloader::make(
 }
 
 std::unique_ptr<Preloader> Preloader::makeImpl(
-    BorrowedRef<PyCodeObject> code,
-    BorrowedRef<PyDictObject> builtins,
-    BorrowedRef<PyDictObject> globals,
+    Ref<PyCodeObject> code,
+    Ref<PyDictObject> builtins,
+    Ref<PyDictObject> globals,
     BorrowedRef<> module,
     std::unique_ptr<AnnotationIndex> annotations,
     const std::string& fullname,
     Ref<> reifier,
     bool register_code) {
   auto preloader = std::unique_ptr<Preloader>(new Preloader(
-      code,
-      builtins,
-      globals,
+      std::move(code),
+      std::move(builtins),
+      std::move(globals),
       std::move(annotations),
       fullname,
       std::move(reifier)));
@@ -408,15 +408,15 @@ BorrowedRef<PyTupleObject> Preloader::funcDefaults() const {
 }
 
 Preloader::Preloader(
-    BorrowedRef<PyCodeObject> code,
-    BorrowedRef<PyDictObject> builtins,
-    BorrowedRef<PyDictObject> globals,
+    Ref<PyCodeObject> code,
+    Ref<PyDictObject> builtins,
+    Ref<PyDictObject> globals,
     std::unique_ptr<AnnotationIndex> annotations,
     const std::string& fullname,
     Ref<> reifier)
-    : code_(Ref<>::create(code)),
-      builtins_(Ref<>::create(builtins)),
-      globals_(Ref<>::create(globals)),
+    : code_(std::move(code)),
+      builtins_(std::move(builtins)),
+      globals_(std::move(globals)),
       annotations_(std::move(annotations)),
       fullname_(fullname),
       reifier_(std::move(reifier)) {}

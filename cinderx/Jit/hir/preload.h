@@ -95,9 +95,9 @@ class Preloader {
       Ref<> reifier = nullptr);
 
   static std::unique_ptr<Preloader> make(
-      BorrowedRef<PyCodeObject> code,
-      BorrowedRef<PyDictObject> builtins,
-      BorrowedRef<PyDictObject> globals,
+      Ref<PyCodeObject> code,
+      Ref<PyDictObject> builtins,
+      Ref<PyDictObject> globals,
       BorrowedRef<> module,
       std::unique_ptr<AnnotationIndex> annotations,
       const std::string& fullname,
@@ -170,17 +170,17 @@ class Preloader {
 
  private:
   explicit Preloader(
-      BorrowedRef<PyCodeObject> code,
-      BorrowedRef<PyDictObject> builtins,
-      BorrowedRef<PyDictObject> globals,
+      Ref<PyCodeObject> code,
+      Ref<PyDictObject> builtins,
+      Ref<PyDictObject> globals,
       std::unique_ptr<AnnotationIndex> annotations,
       const std::string& fullname,
       Ref<> reifier);
 
   static std::unique_ptr<Preloader> makeImpl(
-      BorrowedRef<PyCodeObject> code,
-      BorrowedRef<PyDictObject> builtins,
-      BorrowedRef<PyDictObject> globals,
+      Ref<PyCodeObject> code,
+      Ref<PyDictObject> builtins,
+      Ref<PyDictObject> globals,
       BorrowedRef<> module,
       std::unique_ptr<AnnotationIndex> annotations,
       const std::string& fullname,
