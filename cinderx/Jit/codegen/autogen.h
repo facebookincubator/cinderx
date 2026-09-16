@@ -40,6 +40,10 @@ class AutoTranslator {
 #elif defined(CINDER_AARCH64)
     JIT_CHECK(reg != raw(RegId::SP), "SP is not a general-purpose register");
 
+    if (reg == raw(RegId::XZR)) {
+      reg = asmjit::a64::Gp::kIdZr;
+    }
+
     switch (data_type) {
       case jit::lir::Operand::k8bit:
       case jit::lir::Operand::k16bit:

@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/codegen/arch.h"
+#include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/function.h"
@@ -270,11 +271,15 @@ TEST_F(LIRPostAllocRewriteTest, ZeroImmediateMoveUsesSizedZeroRegister) {
   EXPECT_EQ(instrs[0]->getInput(0)->getPhyRegister(), XZR);
   EXPECT_EQ(instrs[0]->getInput(0)->getPhyRegister().bitSize, XZR.bitSize);
   EXPECT_EQ(instrs[0]->getInput(0)->dataType(), DataType::k64bit);
+  EXPECT_TRUE(
+      codegen::autogen::AutoTranslator::getGp(instrs[0]->getInput(0)).isZR());
   EXPECT_TRUE(instrs[1]->isMove());
   ASSERT_TRUE(instrs[1]->getInput(0)->isReg());
   EXPECT_EQ(instrs[1]->getInput(0)->getPhyRegister(), WZR);
   EXPECT_EQ(instrs[1]->getInput(0)->getPhyRegister().bitSize, WZR.bitSize);
   EXPECT_EQ(instrs[1]->getInput(0)->dataType(), DataType::k32bit);
+  EXPECT_TRUE(
+      codegen::autogen::AutoTranslator::getGp(instrs[1]->getInput(0)).isZR());
 }
 
 TEST_F(LIRPostAllocRewriteTest, CVarArgCallUsesPlatformCallingConvention) {
