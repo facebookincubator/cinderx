@@ -3219,7 +3219,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       JIT_THROW_IF(
           output->isVecD() && mem_order != lir::MemoryOrder::kNone,
           "Load with float value is not supported for memory order {}",
-          mem_order);
+          memoryOrderName(mem_order));
 
       // TSAN and relaxed memory order handling.
       if constexpr (kCinderJitTsanEnabled) {
@@ -3254,7 +3254,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       JIT_THROW_IF(
           input->isVecD() && mem_order != lir::MemoryOrder::kNone,
           "Store with float value is not supported for memory order {}",
-          mem_order);
+          memoryOrderName(mem_order));
 
       // TSAN handling and relaxed memory order handling.
       if constexpr (kCinderJitTsanEnabled) {
