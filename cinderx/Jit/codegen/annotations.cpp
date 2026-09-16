@@ -111,9 +111,8 @@ std::string Annotations::disassemble(
     const asmjit::CodeHolder& code) {
   JIT_CHECK(code.hasBaseAddress(), "code not generated!");
   std::string result;
-  forEachSection([&](CodeSection section) {
-    result += disassembleSection(entry, code, section);
-  });
+  result += disassembleSection(entry, code, CodeSection::kHot);
+  result += disassembleSection(entry, code, CodeSection::kCold);
   return result;
 }
 

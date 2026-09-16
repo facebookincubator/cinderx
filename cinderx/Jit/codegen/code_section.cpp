@@ -30,16 +30,15 @@ void populateCodeSections(
     std::vector<std::pair<void*, std::size_t>>& code_sections,
     asmjit::CodeHolder& code,
     void* code_base_ptr) {
-  forEachSection([&](CodeSection section) {
-    auto asmjit_section = code.sectionByName(codeSectionName(section));
-    if (asmjit_section == nullptr || asmjit_section->realSize() == 0) {
-      return;
+  for (const asmjit::Section* section : code.sectionsByOrder()) {
+    if (!section->hasFlag(asmjit::SectionFlags::kExecutable) ||
+        section->realSize() == 0) {
+      continue;
     }
-    auto section_start =
-        static_cast<char*>(code_base_ptr) + asmjit_section->offset();
+    auto section_start = static_cast<char*>(code_base_ptr) + section->offset();
     code_sections.emplace_back(
-        reinterpret_cast<void*>(section_start), asmjit_section->realSize());
-  });
+        reinterpret_cast<void*>(section_start), section->realSize());
+  }
 }
 
 } // namespace cinderx::jit::codegen

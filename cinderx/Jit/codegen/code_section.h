@@ -79,13 +79,6 @@ class CodeSectionOverride {
   CodeHolderMetadata* metadata_;
 };
 
-// Call f with each code section.
-template <typename F>
-void forEachSection(F f) {
-  f(CodeSection::kHot);
-  f(CodeSection::kCold);
-}
-
 void populateCodeSections(
     std::vector<std::pair<void*, std::size_t>>& output_vector,
     asmjit::CodeHolder& code,
