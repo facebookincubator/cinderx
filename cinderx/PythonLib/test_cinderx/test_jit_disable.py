@@ -364,6 +364,72 @@ class DisableEnableTests(unittest.TestCase):
                 env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
 
+    def test_auto_from_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            assert cinderx.jit.get_compile_after_n_calls() == 1_000
+            assert cinderx.jit.get_compile_after_n_bytecodes() == 100_000
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={
+                    "CINDERX_JIT_AUTO": "1",
+                    "CINDERX_JIT_BACKGROUND_COMPILE": "0",
+                    **subprocess_env(),
+                },
+            )
+
+    def test_auto_call_threshold_from_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            assert cinderx.jit.get_compile_after_n_calls() == 2
+            assert cinderx.jit.get_compile_after_n_bytecodes() is None
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={
+                    "CINDERX_JIT_COMPILE_N_CALLS": "2",
+                    "CINDERX_JIT_BACKGROUND_COMPILE": "0",
+                    **subprocess_env(),
+                },
+            )
+
+    def test_auto_disabled_from_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            assert cinderx.jit.get_compile_after_n_calls() is None
+            assert cinderx.jit.get_compile_after_n_bytecodes() is None
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={
+                    "CINDERX_JIT_AUTO": "0",
+                    "CINDERX_JIT_BACKGROUND_COMPILE": "0",
+                    **subprocess_env(),
+                },
+            )
+
     @passIf(
         sys.version_info < (3, 14),
         "Interpreted bytecode accounting requires the 3.14 custom loop",

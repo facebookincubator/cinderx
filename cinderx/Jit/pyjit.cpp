@@ -345,9 +345,21 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "cinderx-jit-auto",
       "CINDERX_JIT_AUTO",
+      [](uint32_t enabled) {
+        if (enabled) {
+          getMutableConfig().compile_after_n_calls =
+              kDefaultAutoJitCallThreshold;
+          getMutableConfig().compile_after_n_bytecodes =
+              kDefaultAutoJitBytecodeThreshold;
+        }
+      },
+      "Enable auto-JIT mode with the default call and bytecode thresholds");
+
+  flag_processor.addOption(
+      "cinderx-jit-compile-n-calls",
+      "CINDERX_JIT_COMPILE_N_CALLS",
       [](uint32_t val) { getMutableConfig().compile_after_n_calls = val; },
-      "Enable auto-JIT mode, which compiles functions after the given "
-      "threshold");
+      "Compile functions after the given number of calls");
 
   flag_processor.addOption(
       "cinderx-jit-compile-n-bytecodes",

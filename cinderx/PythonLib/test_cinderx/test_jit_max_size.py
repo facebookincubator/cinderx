@@ -168,7 +168,7 @@ class SizeLimitTest(unittest.TestCase):
                 return j*2+{i}
             ''')
             # Call a handful of functions enough times to exceed the
-            # jit-auto threshold (up to 1000) so the JIT compiles them.
+            # compile-n-calls threshold (up to 1000) so the JIT compiles them.
             # The remaining functions are called once each below.
             for _rep in range(1100):
                 junk0(0)
@@ -221,14 +221,17 @@ class SizeLimitTest(unittest.TestCase):
                 # allocation is; we assume < 600K.
                 self.assertLess(used_size, 1024 * 600)
 
-            # Run the zero-assert tests with JitAuto=1000 to test "normal" behavior
-            # where we compile some code but don't have any limits to trip.
-            run_test(zero_asserts, ["-X", "jit-auto=1000", "-X", "jit-max-code-size=0"])
+            # Run with a 1000-call threshold to test "normal" behavior where we
+            # compile some code but don't have any limits to trip.
+            run_test(
+                zero_asserts,
+                ["-X", "jit-compile-n-calls=1000", "-X", "jit-max-code-size=0"],
+            )
             run_test(
                 zero_asserts,
                 [
                     "-X",
-                    "jit-auto=1000",
+                    "jit-compile-n-calls=1000",
                     "-X",
                     "jit-max-code-size=0",
                     "-X",

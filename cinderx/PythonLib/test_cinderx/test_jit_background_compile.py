@@ -166,7 +166,7 @@ class BackgroundCompileTest(unittest.TestCase):
                 check=True,
                 env={
                     **subprocess_env(),
-                    "CINDERX_JIT_AUTO": "200",
+                    "CINDERX_JIT_COMPILE_N_CALLS": "200",
                     "CINDERX_JIT_BACKGROUND_COMPILE": "1",
                 },
             )
@@ -1172,7 +1172,7 @@ class BackgroundCompilePoolForkTest(unittest.TestCase):
                     stderr=err_file,
                     env={
                         **subprocess_env(),
-                        "CINDERX_JIT_AUTO": "2",
+                        "CINDERX_JIT_COMPILE_N_CALLS": "2",
                         "CINDERX_JIT_BACKGROUND_COMPILE": background_compile,
                         "POOL_FORK_SEGMENTS": str(self.SEGMENTS),
                         "POOL_FORK_TASKS": str(self.TASKS),
