@@ -176,6 +176,9 @@ enum class RegAllocKind : uint8_t {
   kSpill,
 };
 
+constexpr uint32_t kDefaultAutoJitCallThreshold = 1'000;
+constexpr uint32_t kDefaultAutoJitBytecodeThreshold = 100'000;
+
 // Collection of configuration values for the JIT.
 //
 // Note: It's fine to store non-trivially destructible objects like std::string

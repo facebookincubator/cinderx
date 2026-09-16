@@ -22,7 +22,7 @@ from cinderx.jit import (
     lazy_compile,
     pause as pause_jit,
 )
-from cinderx.test_support import passUnless, subprocess_env
+from cinderx.test_support import passIf, passUnless, subprocess_env
 
 
 @passUnless(is_jit_enabled(), "Tests functionality on the JIT")
@@ -340,6 +340,9 @@ class DisableEnableTests(unittest.TestCase):
 
             cinderx.jit.auto()
 
+            assert cinderx.jit.get_compile_after_n_calls() == 1_000
+            assert cinderx.jit.get_compile_after_n_bytecodes() == 100_000
+
             def inc(x):
                 return x + 1
 
@@ -350,6 +353,43 @@ class DisableEnableTests(unittest.TestCase):
 
             inc(1001)
             assert cinderx.jit.is_jit_compiled(inc)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
+            )
+
+    @passIf(
+        sys.version_info < (3, 14),
+        "Interpreted bytecode accounting requires the 3.14 custom loop",
+    )
+    def test_auto_interpreted_bytecodes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            def loop():
+                total = 0
+                for value in range(20_000):
+                    total += value
+                return total
+
+            cinderx.jit.auto()
+
+            assert not cinderx.jit.is_jit_compiled(loop)
+            assert loop() == 199_990_000
+            assert cinderx.jit.count_interpreted_bytecodes(loop) >= 100_000
+            assert not cinderx.jit.is_jit_compiled(loop)
+            assert cinderx.jit.count_interpreted_calls(loop) == 1
+
+            assert loop() == 199_990_000
+            assert cinderx.jit.is_jit_compiled(loop)
+            assert cinderx.jit.count_interpreted_calls(loop) == 1
             """)
 
             test_file = Path(tmp_dir) / "mod.py"

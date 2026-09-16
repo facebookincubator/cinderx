@@ -2214,8 +2214,10 @@ bool reclaimQueuedBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
 }
 
 PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
-  // Default value that works well for most applications.
-  if (compile_after_n_calls_impl(1000) < 0) {
+  if (compile_after_n_calls_impl(kDefaultAutoJitCallThreshold) < 0) {
+    return nullptr;
+  }
+  if (compile_after_n_bytecodes_impl(kDefaultAutoJitBytecodeThreshold) < 0) {
     return nullptr;
   }
 
