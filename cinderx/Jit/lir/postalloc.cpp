@@ -1015,7 +1015,8 @@ RewriteResult rewriteBranchInstrs(Function* function) {
 // rewrite move instructions
 // optimize move instruction in the following cases:
 //   1. remove the move instruction when source and destination are the same
-//   2. rewrite move instruction to xor when the source operand is 0 on x86_64.
+//   2. rewrite a zero immediate to xor on x86-64 or the zero register on
+//      AArch64.
 RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto instr_opcode = instr->opcode();
@@ -1036,21 +1037,31 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
     return kRemoved;
   }
 
-  if constexpr (kBuildArch == Arch::kX86_64) {
-    if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
-      JIT_CHECK(
-          !in->isLinked(),
-          "Register allocation should have replaced linked operand {}",
-          *in);
-      instr->setOpcode(Opcode::kXor);
-      auto reg = out->getPhyRegister();
-      auto data_type = out->dataType();
-      out->setNone();
-      instr->setNumInputs(0);
-      instr->addOperands(PhyReg{reg, data_type}, PhyReg{reg, data_type});
-      return kChanged;
-    }
+#if defined(CINDER_X86_64)
+  if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
+    JIT_CHECK(
+        !in->isLinked(),
+        "Register allocation should have replaced linked operand {}",
+        *in);
+    instr->setOpcode(Opcode::kXor);
+    auto reg = out->getPhyRegister();
+    auto data_type = out->dataType();
+    out->setNone();
+    instr->setNumInputs(0);
+    instr->addOperands(PhyReg{reg, data_type}, PhyReg{reg, data_type});
+    return kChanged;
   }
+#elif defined(CINDER_AARCH64)
+  if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
+    JIT_CHECK(
+        !in->isLinked(),
+        "Register allocation should have replaced linked operand {}",
+        *in);
+    in->setPhyRegister(out->sizeInBits() <= 32 ? WZR : XZR);
+    in->setDataType(out->dataType());
+    return kChanged;
+  }
+#endif
 
   return kUnchanged;
 }

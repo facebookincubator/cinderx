@@ -245,6 +245,38 @@ static std::vector<Instruction*> collectInstrs(BasicBlock& bb) {
 }
 
 #if defined(CINDER_AARCH64)
+TEST_F(LIRPostAllocRewriteTest, ZeroImmediateMoveUsesSizedZeroRegister) {
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{X0, DataType::k64bit},
+      Imm{0, DataType::k64bit});
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{W1, DataType::k32bit},
+      Imm{0, DataType::k64bit});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  ASSERT_EQ(instrs.size(), 2);
+  EXPECT_TRUE(instrs[0]->isMove());
+  ASSERT_TRUE(instrs[0]->getInput(0)->isReg());
+  EXPECT_EQ(instrs[0]->getInput(0)->getPhyRegister(), XZR);
+  EXPECT_EQ(instrs[0]->getInput(0)->getPhyRegister().bitSize, XZR.bitSize);
+  EXPECT_EQ(instrs[0]->getInput(0)->dataType(), DataType::k64bit);
+  EXPECT_TRUE(instrs[1]->isMove());
+  ASSERT_TRUE(instrs[1]->getInput(0)->isReg());
+  EXPECT_EQ(instrs[1]->getInput(0)->getPhyRegister(), WZR);
+  EXPECT_EQ(instrs[1]->getInput(0)->getPhyRegister().bitSize, WZR.bitSize);
+  EXPECT_EQ(instrs[1]->getInput(0)->dataType(), DataType::k32bit);
+}
+
 TEST_F(LIRPostAllocRewriteTest, CVarArgCallUsesPlatformCallingConvention) {
   Function func;
   auto* bb = func.allocateBasicBlock();
