@@ -2,6 +2,7 @@
 
 # pyre-unsafe
 
+import ctypes
 import gc
 import inspect
 import sys
@@ -528,6 +529,60 @@ class GeneratorsTest(unittest.TestCase):
 
         self.assertIsNone(g_ref())
         self.assertEqual(callbacks, [g_ref])
+
+    @cinder_support.skip_unless_jit(
+        "Exercises gen_dealloc_with_custom_free, the JIT's own generator "
+        "dealloc, not plain CPython's"
+    )
+    def test_resurrection_from_dealloc_finalizer_is_demoted_to_generation_0(self):
+        # Regression test: gen_dealloc_with_custom_free must untrack the
+        # generator before, and re-track it before, calling
+        # PyObject_CallFinalizerFromDealloc whenever the finalizer can run
+        # Python code (i.e. the frame isn't finished yet) -- not only when
+        # there's a weakref. Otherwise a generator resurrected from its
+        # `finally` block during dealloc is left wherever the cyclic
+        # collector last placed it (e.g. the oldest generation) instead of
+        # being correctly demoted to generation 0, so any new cycle it forms
+        # afterwards can go permanently unscanned.
+        #
+        # The generator can't hold a reference back to itself while
+        # suspended -- a local, a closure cell, anything reachable from its
+        # own frame -- since that would make it part of a collectible cycle,
+        # and the cyclic collector calls finalizers through a separate pass
+        # of its own *before* gen_dealloc_with_custom_free ever gets a
+        # chance to call PyObject_CallFinalizerFromDealloc, which would
+        # exercise nothing. So "self" is smuggled out as a bare id() (no
+        # refcount effect) and turned back into a reference with ctypes only
+        # once the `finally` block is actually running, as part of ordinary
+        # refcount-driven dealloc.
+        resurrected = []
+        gen_id = []
+
+        @cinder_support.failUnlessJITCompiled
+        def gen():
+            try:
+                yield 1
+                yield 2
+            finally:
+                resurrected.append(ctypes.cast(gen_id[0], ctypes.py_object).value)
+
+        g = gen()
+        self.assertTrue(is_jit_compiled(gen))
+        next(g)  # FRAME_CREATED -> suspended; finalizer is no longer a no-op
+
+        gen_id.append(id(g))
+        for _ in range(5):
+            gc.collect()
+        self.assertIn(g, gc.get_objects(generation=2), "precondition: g not promoted")
+
+        del g  # sole remaining reference -> refcount hits 0 -> tp_dealloc
+
+        self.assertEqual(len(resurrected), 1)
+        # Freshly re-tracked objects land in generation 0. Checking this
+        # alone (rather than also asserting absence from generation 2) keeps
+        # the test robust against an incidental, allocation-triggered
+        # collection promoting the object again before a second snapshot.
+        self.assertIn(resurrected[0], gc.get_objects(generation=0))
 
     def test_gc_collects_unstarted_generator_cycle(self):
         class Cycle:
