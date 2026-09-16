@@ -28,7 +28,8 @@ enum class Result : int32_t {
   // Compilation didn't happen because the JIT is currently paused.
   PAUSED,
 
-  // We are compiling with preload required, but did not find a preloader.
+  // No valid preloader is available, possibly because re-entrant Python
+  // invalidated the function during preloading. A later call may retry.
   NO_PRELOADER,
 
   // We are over the maximum amount of code we are allowed to generate.

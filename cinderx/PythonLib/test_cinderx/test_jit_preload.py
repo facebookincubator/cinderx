@@ -14,6 +14,7 @@ from cinderx.test_support import (
     has_meta_lazy_imports,
     passIf,
     passUnless,
+    run_in_fork,
     skip_if_ft,
     skip_unless_jit,
     subprocess_env,
@@ -33,6 +34,111 @@ class PreloadTests(unittest.TestCase):
     MP_SCRIPT_FILE: str = os.path.join(
         os.path.dirname(__file__), "cinder_mp_preload_helper_main.py"
     )
+
+    @passIf(sys.version_info < (3, 14), "Requires deferred annotations")
+    @run_in_fork
+    def test_reentrant_preload_preserves_deletion_tracking(self) -> None:
+        """
+        Re-enter the JIT while outer is preloading:
+
+            compile outer -> preload outer -> compile inner -> preload inner
+                          -> replace outer.__code__
+                          -> outer notices and drops its stale preload
+
+        This must not leave outer interpreter-only. Its replacement should stay
+        scheduled and compile on the next call.
+        """
+        cinderx.jit.enable_emit_type_annotation_guards()
+
+        def outer_replacement(x: int) -> int:
+            return x + 2
+
+        def inner_annotation_hook() -> type:
+            outer.__code__ = outer_replacement.__code__
+            return int
+
+        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        def inner(x: inner_annotation_hook()) -> int:
+            return x
+
+        def outer_annotation_hook() -> type:
+            self.assertEqual(inner(42), 42)
+            return int
+
+        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        def outer(x: outer_annotation_hook()) -> int:
+            return x + 1
+
+        self.assertTrue(cinderx.jit.lazy_compile(inner))
+        self.assertTrue(cinderx.jit.lazy_compile(outer))
+
+        self.assertEqual(outer(1), 3)
+        cinderx.jit.wait_for_background_compiles()
+
+        self.assertTrue(
+            cinderx.jit.is_jit_compiled(inner),
+            "nested compilation did not run",
+        )
+        self.assertEqual(outer(1), 3)
+        cinderx.jit.wait_for_background_compiles()
+        self.assertTrue(
+            cinderx.jit.is_jit_compiled(outer),
+            "replacement code was not compiled on the next call",
+        )
+
+    @passIf(sys.version_info < (3, 14), "Requires deferred annotations")
+    @run_in_fork
+    def test_reentrant_preload_background_compile(self) -> None:
+        """
+        Re-enter the JIT while outer is preloading under background compilation:
+
+            call outer -> schedule outer -> preload outer
+                       -> call inner -> schedule inner -> preload inner
+                       -> replace outer.__code__
+                       -> outer notices and drops its stale preload
+        """
+        cinderx.jit.enable_emit_type_annotation_guards()
+        cinderx.jit.background_compile(True)
+
+        qual_prefix = (
+            f"{self.__class__.__qualname__}."
+            f"test_reentrant_preload_background_compile.<locals>"
+        )
+        cinderx.jit.append_jit_list(f"{__name__}:{qual_prefix}.inner")
+        cinderx.jit.append_jit_list(f"{__name__}:{qual_prefix}.outer")
+
+        def outer_replacement(x: int) -> int:
+            return x + 2
+
+        def inner_annotation_hook() -> type:
+            outer.__code__ = outer_replacement.__code__
+            return int
+
+        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        def inner(x: inner_annotation_hook()) -> int:
+            return x
+
+        def outer_annotation_hook() -> type:
+            self.assertEqual(inner(42), 42)
+            return int
+
+        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        def outer(x: outer_annotation_hook()) -> int:
+            return x + 1
+
+        self.assertEqual(outer(1), 3)
+        cinderx.jit.wait_for_background_compiles()
+
+        self.assertTrue(
+            cinderx.jit.is_jit_compiled(inner),
+            "nested compilation did not run",
+        )
+        self.assertEqual(outer(1), 3)
+        cinderx.jit.wait_for_background_compiles()
+        self.assertTrue(
+            cinderx.jit.is_jit_compiled(outer),
+            "replacement code was not compiled on the next call",
+        )
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")

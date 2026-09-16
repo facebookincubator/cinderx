@@ -12,7 +12,7 @@ std::unique_ptr<AnnotationIndex> AnnotationIndex::fromFunction(
   if (getMutableConfig().emit_type_annotation_guards) {
 #if PY_VERSION_HEX >= 0x030E0000
     BorrowedRef<> annotations = PyFunction_GetAnnotations(func);
-    if (!PyDict_Check(annotations)) {
+    if (annotations == nullptr || !PyDict_Check(annotations)) {
       return nullptr;
     }
     BorrowedRef<PyDictObject> dict_annotations{annotations};

@@ -180,13 +180,24 @@ void registerNestedCompileData(
 std::unique_ptr<Preloader> Preloader::make(
     BorrowedRef<PyFunctionObject> func,
     Ref<> reifier) {
+  // Snapshot inputs before annotation evaluation runs arbitrary Python.
+  auto owned_func = Ref<PyFunctionObject>::create(func);
+  auto code = Ref<PyCodeObject>::create(func->func_code);
+  auto builtins = Ref<PyDictObject>::create(func->func_builtins);
+  auto globals = Ref<PyDictObject>::create(func->func_globals);
+  auto module = Ref<>::create(func->func_module);
+  auto fullname = funcFullname(func);
+  auto annotations = AnnotationIndex::fromFunction(func);
+  if (PyErr_Occurred()) {
+    return nullptr;
+  }
   auto preloader = Preloader::makeImpl(
-      Ref<>::create(func->func_code),
-      Ref<>::create(func->func_builtins),
-      Ref<>::create(func->func_globals),
-      func->func_module,
-      AnnotationIndex::fromFunction(func),
-      funcFullname(func),
+      std::move(code),
+      std::move(builtins),
+      std::move(globals),
+      module,
+      std::move(annotations),
+      fullname,
       std::move(reifier),
       false);
   // Capture after makeImpl: preloading can execute arbitrary Python, which

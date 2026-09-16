@@ -17,6 +17,7 @@
 
 #include <atomic>
 #include <functional>
+#include <list>
 #include <memory>
 #include <thread>
 #include <unordered_map>
@@ -162,8 +163,15 @@ struct ModuleState {
   // JIT state they depend on.
   std::vector<std::thread> compile_worker_threads;
 
-  // Callback invoked when a compilation unit is deleted during preloading.
-  std::function<void(BorrowedRef<>)> unit_deleted_during_preload;
+  struct PreloadDeletionCallback {
+    std::thread::id thread;
+    std::function<void(BorrowedRef<>)> callback;
+    // Set in atForkPrepare for the forking thread.
+    bool survives_fork{false};
+  };
+
+  // Active preload scopes observing unit deletions.
+  std::list<PreloadDeletionCallback> preload_deletion_callbacks;
 
   // Index for the extra data that CinderX saves on code objects with
   // PyUnstable_Code_SetExtra, and loads with PyUnstable_Code_GetExtra.

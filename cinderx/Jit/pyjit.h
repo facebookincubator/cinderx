@@ -76,8 +76,9 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func);
  * Setting the `forcePreload` will bypass the "might want to compile" logic and
  * force all the preloads to happen unconditionally.
  *
- * Return a list of preloaders that were created.  There should be at least one
- * preloader in the list, if it's empty then there was a preloading failure.
+ * Return the functions that were successfully preloaded and not invalidated
+ * by re-entrant execution. An empty list can mean all targets were invalidated;
+ * PyErr_Occurred() distinguishes this from a Python error during preloading.
  */
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func,

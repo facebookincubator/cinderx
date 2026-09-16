@@ -149,7 +149,7 @@ PyObject* forcedJitVectorcall(
       "Called JIT wrapper with {} object instead of a function",
       Py_TYPE(func_obj)->tp_name);
   BorrowedRef<PyFunctionObject> func{func_obj};
-  BorrowedRef<PyCodeObject> code{func->func_code};
+  auto code = Ref<PyCodeObject>::create(func->func_code);
 
   // Compile the function.
   Result result;
@@ -174,13 +174,15 @@ PyObject* forcedJitVectorcall(
   // Python errors shouldn't happen during compilation, but if they do, bubble
   // them up without calling the function.
   if (result == Result::PYTHON_EXCEPTION) {
-    setVectorcall(func, interp_entry);
+    if (func->func_code == code.getObj()) {
+      setVectorcall(func, interp_entry);
+    }
     return nullptr;
   }
 
-  // Reset the function's entrypoint if it doesn't seem like there's a chance
-  // compilation will work "soon".
-  if (result != Result::ALREADY_SCHEDULED && result != Result::PAUSED) {
+  // Reset entrypoint unless compilation was deferred or the code was replaced.
+  if (func->func_code == code.getObj() && result != Result::ALREADY_SCHEDULED &&
+      result != Result::PAUSED && result != Result::NO_PRELOADER) {
     setVectorcall(func, interp_entry);
   }
 
@@ -1149,7 +1151,8 @@ PyThreadState* acquireCompileWorkerThreadState(PyInterpreterState* interp) {
 // Can potentially hit a Python exception, if so, will forward that along and
 // return nullptr.
 hir::Preloader* preload(BorrowedRef<> unit) {
-  auto [func, code] = splitUnit(unit);
+  auto [func, borrowed_code] = splitUnit(unit);
+  auto code = Ref<PyCodeObject>::create(borrowed_code);
   if (hir::Preloader* existing = hir::preloaderManager().find(code)) {
     return existing;
   }
@@ -1523,11 +1526,14 @@ bool compile_all(size_t workers = 0) {
 
     auto* mod_state = cinderx::getModuleState();
     JIT_CHECK(mod_state != nullptr, "JIT not initialized");
-    auto& deleted_callback = mod_state->unit_deleted_during_preload;
-    deleted_callback = [&](BorrowedRef<> deleted_unit) {
-      deleted_units.emplace(deleted_unit);
-    };
-    SCOPE_EXIT(deleted_callback = nullptr);
+    auto& callbacks = mod_state->preload_deletion_callbacks;
+    auto callback = callbacks.insert(
+        callbacks.end(),
+        {.thread = std::this_thread::get_id(),
+         .callback = [&](BorrowedRef<> deleted_unit) {
+           deleted_units.emplace(deleted_unit);
+         }});
+    SCOPE_EXIT(callbacks.erase(callback));
 
     JIT_DLOG("Starting compile_all with {} workers", workers);
 
@@ -4009,8 +4015,8 @@ constexpr std::string_view getCpuArchName() {
 void notifyUnitDeletedDuringPreload(
     cinderx::ModuleState* state,
     BorrowedRef<> unit) {
-  if (state->unit_deleted_during_preload) {
-    state->unit_deleted_during_preload(unit);
+  for (const auto& entry : state->preload_deletion_callbacks) {
+    entry.callback(unit);
   }
 }
 
@@ -4160,6 +4166,10 @@ void jitAtForkPrepare() {
   // the shared HugePageArena while holding its own lock.
   if (auto* state = getModuleState(); state != nullptr) {
     state->atForkPrepare();
+    auto thread = std::this_thread::get_id();
+    for (auto& entry : state->preload_deletion_callbacks) {
+      entry.survives_fork = entry.thread == thread;
+    }
   }
 }
 
@@ -4179,6 +4189,14 @@ void jitAtForkParent() {
 void jitAtForkChild() {
   if (auto* state = getModuleState(); state != nullptr) {
     state->atForkChild();
+    // Prune callbacks from threads that did not survive fork.
+    std::erase_if(state->preload_deletion_callbacks, [](const auto& entry) {
+      return !entry.survives_fork;
+    });
+    auto thread = std::this_thread::get_id();
+    for (auto& entry : state->preload_deletion_callbacks) {
+      entry.thread = thread;
+    }
   }
   SlabArenaForkRegistry::get().atForkChild();
   codeAllocatorAtForkChild();
@@ -4351,7 +4369,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   }
 
   CompilerContext<Compiler>* jit_ctx;
-  BorrowedRef<PyCodeObject> code{func->func_code};
+  auto code = Ref<PyCodeObject>::create(func->func_code);
   CompilationKey key{func};
   BackgroundCompileRegistry* reg;
   hir::IsolatedPreloaders isolated_preloaders;
@@ -4387,6 +4405,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
         return;
       }
     }
+    trackEligibleCodeObjects(func, code);
     auto admitted = admitCompile(jit_ctx, func);
     if (admitted.admission != CompileAdmission::kCompile) {
       return;
@@ -4399,7 +4418,6 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
       }
       reg->in_flight_count++;
     }
-    trackEligibleCodeObjects(func, func->func_code);
   }
 
   // The reservation above has to be released exactly once on every path out of
@@ -4410,6 +4428,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   bool reservation_released = false;
   SCOPE_EXIT({
     if (!reservation_released) {
+      jit_ctx->removeActiveCompile(key);
       std::lock_guard<std::mutex> lock(reg->mutex);
       if (reg->in_flight_count) {
         reg->in_flight_count--;
@@ -4424,14 +4443,16 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   {
     std::vector<BorrowedRef<PyFunctionObject>> targets =
         preloadFuncAndDeps(func);
-    if (targets.empty()) {
-      // Preloading hit a Python error; clear it and give up on this function.
-      // Only drop the active compile here -- finishBackgroundCompile() would
-      // also release the reservation, which the SCOPE_EXIT above owns.
-      FreeThreadedJITEntrypointGuard guard;
-      setVectorcall(func, getInterpretedVectorcall(func));
-      jit_ctx->removeActiveCompile(key);
-      throw CAPIError();
+    if (std::find(targets.begin(), targets.end(), func) == targets.end()) {
+      // Target was invalidated during preload; ignore if no exception occurred.
+      if (PyErr_Occurred()) {
+        FreeThreadedJITEntrypointGuard guard;
+        if (func->func_code == code.getObj()) {
+          setVectorcall(func, getInterpretedVectorcall(func));
+        }
+        throw CAPIError();
+      }
+      return;
     }
     preloaders = hir::preloaderManager().extract();
   }
@@ -4439,7 +4460,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   auto task = std::make_unique<BackgroundCompileTask>(
       Ref<PyFunctionObject>::create(func),
       std::move(preloaders),
-      Ref<PyCodeObject>::create(code.get()),
+      Ref<PyCodeObject>::create(code),
       Ref<PyDictObject>::create(
           reinterpret_cast<PyDictObject*>(func->func_builtins)),
       Ref<PyDictObject>::create(
@@ -4458,7 +4479,6 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
     CompilationKey current{func};
     if (reg->shutdown || !isJitUsable() || !(current == key) ||
         !jit_ctx->hasActiveCompile(key)) {
-      jit_ctx->removeActiveCompile(key);
       return;
     }
     std::lock_guard<std::mutex> lock(reg->mutex);
@@ -4466,11 +4486,9 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
     // a drain could have completed in the meantime.  Starting a worker now
     // would resurrect the thread that drain just joined.
     if (reg->shutdown) {
-      jit_ctx->removeActiveCompile(key);
       return;
     }
     if (!reg->worker_started && !startBackgroundWorkerThread(jit_ctx, *reg)) {
-      jit_ctx->removeActiveCompile(key);
       return;
     }
     reg->queue.push_back(std::move(task));
@@ -4899,13 +4917,9 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   // functions.
   trackEligibleCodeObjects(func, func->func_code);
 
-  // Collect a list of functions to compile.  If it's empty then there must have
-  // been a Python error during preloading.
   std::vector<BorrowedRef<PyFunctionObject>> targets = preloadFuncAndDeps(func);
   if (targets.empty()) {
-    JIT_CHECK(
-        PyErr_Occurred(), "Expect a Python exception when preloading fails");
-    return Result::PYTHON_EXCEPTION;
+    return PyErr_Occurred() ? Result::PYTHON_EXCEPTION : Result::NO_PRELOADER;
   }
 
   if (targets.size() > 1) {
@@ -4958,12 +4972,8 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     return result;
   }
 
-  // Otherwise the original function was destroyed during preloading, which is
-  // rare but can happen with nested functions.  In that case, we're just going
-  // to pretend everything went okay.  It doesn't make sense to return the
-  // results of any of the other preloaded functions, as the caller never asked
-  // for them in the first place.
-  return Result::OK;
+  // The requested function was invalidated during preloading.
+  return Result::NO_PRELOADER;
 }
 
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
@@ -4990,25 +5000,26 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 
   auto mod_state = cinderx::getModuleState();
 
-  // The callback installed below captures `deleted_units`, which lives on this
-  // frame, so it must not outlive the call.  Clearing it only after preload()
-  // returns isn't enough: the early return when preloading fails would leave it
-  // installed, and the next code object to be destroyed would then insert into
-  // a hash table on a dead stack frame.
-  SCOPE_EXIT(mod_state->unit_deleted_during_preload = nullptr);
+  // Track units deleted during this preload scope.
+  auto& callbacks = mod_state->preload_deletion_callbacks;
+  auto callback = callbacks.insert(
+      callbacks.end(),
+      {.thread = std::this_thread::get_id(),
+       .callback = [&](BorrowedRef<> deleted_unit) {
+         deleted_units.emplace(deleted_unit);
+       }});
+  SCOPE_EXIT(callbacks.erase(callback));
 
   while (worklist.size() > 0 && result.size() < limit) {
     BorrowedRef<PyFunctionObject> f = worklist.front();
     worklist.pop_front();
 
-    // This needs to be set every time before preload() is kicked off.
-    // Preloading can run arbitrary Python code, which means it can re-enter the
-    // JIT.
-    mod_state->unit_deleted_during_preload = [&](BorrowedRef<> deleted_unit) {
-      deleted_units.emplace(deleted_unit);
-    };
+    if (deleted_units.contains(f.getObj()) ||
+        deleted_units.contains(f->func_code)) {
+      continue;
+    }
+
     hir::Preloader* preloader = preload(f);
-    mod_state->unit_deleted_during_preload = nullptr;
 
     if (preloader == nullptr) {
       return {};
