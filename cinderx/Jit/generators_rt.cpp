@@ -116,9 +116,19 @@ void gen_dealloc_with_custom_free(
 
   auto* gen = reinterpret_cast<PyGenObject*>(self);
 
-  untrack(gen);
+  bool has_weakref = gen->gi_weakreflist != nullptr;
+  bool finalizer_is_inert = FRAME_STATE_FINISHED(gen->gi_frame_state);
+  bool needs_untrack_retrack = has_weakref || !finalizer_is_inert;
 
-  if (gen->gi_weakreflist != nullptr) {
+  // The object is GC-tracked on entry. Only untrack here to clear weakrefs
+  // (their callbacks can run arbitrary Python code), when clearing a
+  // never-resumed generator, or when the finalizer can still run Python code
+  // (frame not yet finished); otherwise leave it tracked for the finalizer.
+  if (clear_never_resumed || needs_untrack_retrack) {
+    untrack(gen);
+  }
+
+  if (has_weakref) {
     PyObject_ClearWeakRefs(self);
   }
 
@@ -129,8 +139,11 @@ void gen_dealloc_with_custom_free(
     gen->gi_frame_state = FRAME_COMPLETED;
 #endif
   } else {
-    // Re-track so the finalizer can run; it may resurrect the object.
-    track(self);
+    if (needs_untrack_retrack) {
+      // Re-track into gen 0 so the finalizer sees correct GC state and any
+      // resurrection lands in gen 0.
+      track(self);
+    }
     if (PyObject_CallFinalizerFromDealloc(self)) {
       return;
     }
