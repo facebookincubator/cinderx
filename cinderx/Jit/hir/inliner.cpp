@@ -826,26 +826,49 @@ std::vector<BasicBlock*> inlinedBlocks(BasicBlock* entry, BasicBlock* exit) {
 
 void tryEliminateBeginEnd(EndInlinedFunction* end) {
   BeginInlinedFunction* begin = end->matchingBegin();
-  if (begin->block() != end->block()) {
-    // Elimination across basic blocks not supported yet.
-    return;
-  }
-  auto it = begin->block()->iterator_to(*begin);
-  it++;
+  BasicBlock* begin_block = begin->block();
+  BasicBlock* end_block = end->block();
   std::vector<Instr*> to_delete{begin, end};
-  for (; &*it != end; it++) {
-    // Snapshots reference the FrameState owned by BeginInlinedFunction and, if
-    // not removed, will contain bad pointers.
-    if (it->isSnapshot()) {
-      to_delete.push_back(&*it);
-      continue;
+  bool saw_periodic_tasks = false;
+  // Scan the whole inlined region, not just a single block: the callee's
+  // entry eval-breaker check lives in its own block, so same-block scanning
+  // alone almost never fires.
+  for (BasicBlock* block : inlinedBlocks(begin_block, end_block)) {
+    auto it = block->begin();
+    if (block == begin_block) {
+      it = block->iterator_to(*begin);
+      it++;
     }
-    // Instructions that either deopt or otherwise materialize a PyFrameObject
-    // need the inline frames to exist.  Everything that materializes a
-    // PyFrameObject should also be marked as deopting.  Updating the previous
-    // instruction needs the frame too.
-    if (it->asDeoptBase() || hasArbitraryExecution(*it)) {
-      return;
+    for (auto end_it = block->end(); it != end_it; it++) {
+      Instr* instr = &*it;
+      if (instr == end) {
+        break;
+      }
+      // Snapshots reference the FrameState owned by BeginInlinedFunction and,
+      // if not removed, will contain bad pointers.
+      if (instr->isSnapshot()) {
+        to_delete.push_back(instr);
+        continue;
+      }
+      // The callee's entry eval-breaker check is redundant once inlined: the
+      // caller performs its own periodic checks. Allow (and remove) the first
+      // one; a second periodic check (e.g. from a loop in the callee body)
+      // needs the inline frames to exist like any other deopting instruction.
+      if (instr->isRunPeriodicTasks()) {
+        if (saw_periodic_tasks) {
+          return;
+        }
+        saw_periodic_tasks = true;
+        to_delete.push_back(instr);
+        continue;
+      }
+      // Instructions that either deopt or otherwise materialize a
+      // PyFrameObject need the inline frames to exist.  Everything that
+      // materializes a PyFrameObject should also be marked as deopting.
+      // Updating the previous instruction needs the frame too.
+      if (instr->asDeoptBase() || hasArbitraryExecution(*instr)) {
+        return;
+      }
     }
   }
   for (Instr* instr : to_delete) {
