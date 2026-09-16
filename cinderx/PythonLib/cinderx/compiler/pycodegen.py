@@ -1397,31 +1397,6 @@ class CodeGenerator(ASTVisitor):
         if not node.simple:
             self.checkAnnotation(node)
 
-    # pyre-fixme[2] It is not clear what type this node is because ast.AssName
-    # does not exist.
-    def visitAssName(self, node) -> None:
-        if node.flags == "OP_ASSIGN":
-            self.storeName(node.name)
-        elif node.flags == "OP_DELETE":
-            self.set_pos(node)
-            self.delName(node.name)
-        else:
-            print("oops", node.flags)
-            assert 0
-
-    # pyre-fixme[2] It is not clear what type this node is because ast.AssAttr
-    # does not exist.
-    def visitAssAttr(self, node) -> None:
-        self.visit(node.expr)
-        if node.flags == "OP_ASSIGN":
-            self.emit("STORE_ATTR", self.mangle(node.attrname))
-        elif node.flags == "OP_DELETE":
-            self.emit("DELETE_ATTR", self.mangle(node.attrname))
-        else:
-            print("warning: unexpected flags:", node.flags)
-            print(node)
-            assert 0
-
     # augmented assignment
 
     def visitAugAssign(self, node: ast.AugAssign) -> None:
