@@ -508,6 +508,7 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         sys.settrace(None)
 
     @passIf(is_emulated(), "QEMU doesn't support process_vm_readv")
+    @skip_test_if_oss("Requires lightweight frames from Meta Python")
     @run_with_instrumentation
     def test_looping_thread_deopted_on_instrumentation(self) -> None:
         # A worker thread in a tight JIT loop should have its topmost frame
