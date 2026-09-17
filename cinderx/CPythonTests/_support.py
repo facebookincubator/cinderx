@@ -52,7 +52,6 @@ _use_temp_cwd()
 @functools.lru_cache(maxsize=1)
 def _skip_list_rules() -> tuple[frozenset[str], tuple[str, ...]]:
     skip_list_files = get_skip_list_files(
-        include_jit=False,
         include_platform=False,
     )
     modules, patterns = parse_skip_lists(
