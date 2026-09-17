@@ -13,6 +13,7 @@ from cinderx.test_support import (
     is_emulated,
     passIf,
     run_in_fresh_process,
+    skip_test_if_oss,
     skip_unless_jit,
 )
 
@@ -766,6 +767,7 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
 
 
 @skip_unless_jit("Tests functionality on the JIT")
+@skip_test_if_oss("Requires lightweight frames from Meta Python")
 class JitStackFrameDeoptTest(unittest.TestCase):
     """
     Test that JIT frames on the stack are deopted when instrumentation attaches.
