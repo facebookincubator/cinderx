@@ -1,12 +1,19 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+import sys
 import traceback
 import types
+import typing
 import unittest
 
 import cinderx.jit
 from cinderx.jit import jit_suppress
-from cinderx.test_support import failUnlessJITCompiled, passIf, passUnless
+from cinderx.test_support import (
+    failUnlessJITCompiled,
+    FREE_THREADING_BUILD,
+    passIf,
+    passUnless,
+)
 
 INLINER: bool = cinderx.jit.is_hir_inliner_enabled()
 
@@ -422,8 +429,487 @@ def parse_flags_subpattern(source: FlagSource, info: FlagInfo) -> tuple[int, int
     return flags_on, flags_off
 
 
+class _ExactMethodTarget:
+    __slots__ = ()
+
+    def method(self, x: int) -> int:
+        return x + 1
+
+
+_EXACT_METHOD_INSTANCE = _ExactMethodTarget()
+
+
+def call_method_on_exact_global_instance(x: int) -> int:
+    return _EXACT_METHOD_INSTANCE.method(x)
+
+
+class _CustomGetattributeTarget:
+    __slots__ = ()
+
+    def method(self, x: int) -> int:
+        return x + 1
+
+    def __getattribute__(self, name: str):
+        if name == "method":
+            return lambda x: x + 2
+        return object.__getattribute__(self, name)
+
+
+_CUSTOM_GETATTRIBUTE_INSTANCE = _CustomGetattributeTarget()
+
+
+def call_method_with_custom_getattribute(x: int) -> int:
+    return _CUSTOM_GETATTRIBUTE_INSTANCE.method(x)
+
+
+class _StaticMethodTarget:
+    __slots__ = ()
+
+    @staticmethod
+    def method(x: int) -> int:
+        return x + 3
+
+
+_STATIC_METHOD_INSTANCE = _StaticMethodTarget()
+
+
+def call_staticmethod_on_exact_global_instance(x: int) -> int:
+    return _STATIC_METHOD_INSTANCE.method(x)
+
+
+class _ClassMethodTarget:
+    __slots__ = ()
+
+    @classmethod
+    def method(cls, x: int) -> int:
+        return x + 4
+
+
+_CLASS_METHOD_INSTANCE = _ClassMethodTarget()
+
+
+def call_classmethod_on_exact_global_instance(x: int) -> int:
+    return _CLASS_METHOD_INSTANCE.method(x)
+
+
+class _CallableDescriptor:
+    def __get__(self, instance, owner):
+        return lambda x: x + 5
+
+
+class _DescriptorTarget:
+    __slots__ = ()
+
+    method = _CallableDescriptor()
+
+
+_DESCRIPTOR_INSTANCE = _DescriptorTarget()
+
+
+def call_descriptor_on_exact_global_instance(x: int) -> int:
+    return _DESCRIPTOR_INSTANCE.method(x)
+
+
+class _ClassDeleteTarget:
+    __slots__ = ()
+
+    def method(self, x: int) -> int:
+        return x + 6
+
+
+_CLASS_DELETE_INSTANCE = _ClassDeleteTarget()
+
+
+def call_method_before_class_delete(x: int) -> int:
+    return _CLASS_DELETE_INSTANCE.method(x)
+
+
+class _BaseMethodTarget:
+    __slots__ = ()
+
+    def method(self, x: int) -> int:
+        return x + 7
+
+
+class _SubclassMethodTarget(_BaseMethodTarget):
+    __slots__ = ()
+
+
+_SUBCLASS_METHOD_INSTANCE = _SubclassMethodTarget()
+
+
+def call_inherited_method_on_subclass(x: int) -> int:
+    return _SUBCLASS_METHOD_INSTANCE.method(x)
+
+
+class _KwargsMethodTarget:
+    __slots__ = ()
+
+    def method(self, x: int, *, increment: int) -> int:
+        return x + increment
+
+
+_KWARGS_METHOD_INSTANCE = _KwargsMethodTarget()
+
+
+def call_method_with_kwargs(x: int) -> int:
+    return _KWARGS_METHOD_INSTANCE.method(x, increment=8)
+
+
+class _CombinedDictMethodTarget:
+    def method(self, x: int) -> int:
+        return x + 1
+
+
+_PREEXISTING_COMBINED_DICT_INSTANCE = _CombinedDictMethodTarget()
+typing.cast(dict[object, object], _PREEXISTING_COMBINED_DICT_INSTANCE.__dict__)[0] = (
+    None
+)
+_PREEXISTING_COMBINED_DICT_INSTANCE.__dict__["method"] = lambda x: x + 2
+
+
+def call_preexisting_combined_dict_shadow(x: int) -> int:
+    return _PREEXISTING_COMBINED_DICT_INSTANCE.method(x)
+
+
+_POSTCOMPILE_COMBINED_DICT_INSTANCE = _CombinedDictMethodTarget()
+
+
+def call_postcompile_combined_dict_shadow(x: int) -> int:
+    return _POSTCOMPILE_COMBINED_DICT_INSTANCE.method(x)
+
+
+class _ForeignSplitDictDonor:
+    method: typing.Callable[[int], int]
+
+
+_FOREIGN_SPLIT_DICT_DONOR = _ForeignSplitDictDonor()
+_FOREIGN_SPLIT_DICT_DONOR.method = lambda x: x + 2
+_FOREIGN_SPLIT_DICT_INSTANCE = _CombinedDictMethodTarget()
+_FOREIGN_SPLIT_DICT_INSTANCE.__dict__ = _FOREIGN_SPLIT_DICT_DONOR.__dict__
+
+
+def call_foreign_split_dict_shadow(x: int) -> int:
+    return _FOREIGN_SPLIT_DICT_INSTANCE.method(x)
+
+
+class _LyingContainsDict(dict[str, typing.Any]):
+    contains_calls = 0
+
+    def __contains__(self, key: object) -> bool:
+        type(self).contains_calls += 1
+        return False
+
+
+_LYING_DICT_INSTANCE = _CombinedDictMethodTarget()
+_LYING_DICT_INSTANCE.__dict__ = _LyingContainsDict(method=lambda x: x + 2)
+
+
+def call_lying_dict_shadow(x: int) -> int:
+    return _LYING_DICT_INSTANCE.method(x)
+
+
+class _InlineValuesMethodTarget:
+    def method(self, x: int) -> int:
+        return x + 1
+
+
+_PREEXISTING_INLINE_SHADOW_INSTANCE = _InlineValuesMethodTarget()
+_PREEXISTING_INLINE_SHADOW_INSTANCE.method = lambda x: x + 2
+_POSTCOMPILE_INLINE_SHADOW_INSTANCE = _InlineValuesMethodTarget()
+
+
+def call_preexisting_inline_shadow(x: int) -> int:
+    return _PREEXISTING_INLINE_SHADOW_INSTANCE.method(x)
+
+
+def call_postcompile_inline_shadow(x: int) -> int:
+    return _POSTCOMPILE_INLINE_SHADOW_INSTANCE.method(x)
+
+
+class _FullSharedKeysMethodTarget:
+    def __init__(self) -> None:
+        self.attr_00 = 0
+        self.attr_01 = 1
+        self.attr_02 = 2
+        self.attr_03 = 3
+        self.attr_04 = 4
+        self.attr_05 = 5
+        self.attr_06 = 6
+        self.attr_07 = 7
+        self.attr_08 = 8
+        self.attr_09 = 9
+        self.attr_10 = 10
+        self.attr_11 = 11
+        self.attr_12 = 12
+        self.attr_13 = 13
+        self.attr_14 = 14
+        self.attr_15 = 15
+        self.attr_16 = 16
+        self.attr_17 = 17
+        self.attr_18 = 18
+        self.attr_19 = 19
+        self.attr_20 = 20
+        self.attr_21 = 21
+        self.attr_22 = 22
+        self.attr_23 = 23
+        self.attr_24 = 24
+        self.attr_25 = 25
+        self.attr_26 = 26
+        self.attr_27 = 27
+        self.attr_28 = 28
+        self.attr_29 = 29
+
+    def method(self, x: int) -> int:
+        return x + 1
+
+
+_FULL_SHARED_KEYS_INSTANCE = _FullSharedKeysMethodTarget()
+
+
+def call_method_with_full_shared_keys(x: int) -> int:
+    return _FULL_SHARED_KEYS_INSTANCE.method(x)
+
+
+class _VarSizedMethodTarget(tuple):
+    def method(self, x: int) -> int:
+        return x + 1
+
+
+_VAR_SIZED_METHOD_INSTANCE = _VarSizedMethodTarget((object(),))
+_VAR_SIZED_METHOD_INSTANCE.method = lambda x: x + 2
+
+
+def call_method_on_var_sized_instance(x: int) -> int:
+    return _VAR_SIZED_METHOD_INSTANCE.method(x)
+
+
+class _UnseededInlineMethodTarget:
+    def method(self, x: int) -> int:
+        return x + 1
+
+
+_UNSEEDED_INLINE_METHOD_INSTANCE = _UnseededInlineMethodTarget()
+
+
+def call_unseeded_inline_method(x: int) -> int:
+    return _UNSEEDED_INLINE_METHOD_INSTANCE.method(x)
+
+
 @passUnless(INLINER, "Testing the inliner")
 class InlinedFunctionTests(unittest.TestCase):
+    def assert_method_rewritten(self, func) -> None:
+        counts = cinderx.jit.get_function_hir_opcode_counts(func)
+        self.assertIsNotNone(counts)
+        self.assertEqual(counts.get("LoadMethod", 0), 0)
+        self.assertEqual(counts.get("CallMethod", 0), 0)
+        self.assertEqual(counts.get("VectorCall", 0), 1)
+        self.assertEqual(counts.get("GuardType", 0), 1)
+        self.assertEqual(counts.get("CompareBool", 0), 0)
+
+    def assert_method_stays_generic(self, func) -> None:
+        counts = cinderx.jit.get_function_hir_opcode_counts(func)
+        self.assertIsNotNone(counts)
+        self.assertEqual(counts.get("LoadMethod", 0), 1)
+        self.assertEqual(counts.get("CallMethod", 0), 1)
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_rewrite_method_on_exact_global_instance(self) -> None:
+        cinderx.jit.force_compile(call_method_on_exact_global_instance)
+
+        self.assertTrue(
+            cinderx.jit.is_jit_compiled(call_method_on_exact_global_instance)
+        )
+        self.assert_method_rewritten(call_method_on_exact_global_instance)
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(call_method_on_exact_global_instance),
+            0,
+        )
+        self.assertEqual(call_method_on_exact_global_instance(41), 42)
+
+        original = _ExactMethodTarget.method
+
+        def replacement(self: _ExactMethodTarget, x: int) -> int:
+            return x + 2
+
+        try:
+            _ExactMethodTarget.method = replacement
+            self.assertEqual(call_method_on_exact_global_instance(41), 43)
+        finally:
+            _ExactMethodTarget.method = original
+
+    @jit_suppress
+    def test_custom_getattribute_stays_generic(self) -> None:
+        cinderx.jit.force_compile(call_method_with_custom_getattribute)
+
+        self.assert_method_stays_generic(call_method_with_custom_getattribute)
+        self.assertEqual(call_method_with_custom_getattribute(40), 42)
+
+    @jit_suppress
+    def test_non_function_descriptors_stay_generic(self) -> None:
+        cases = (
+            (call_staticmethod_on_exact_global_instance, 43),
+            (call_classmethod_on_exact_global_instance, 44),
+            (call_descriptor_on_exact_global_instance, 45),
+        )
+        for func, expected in cases:
+            with self.subTest(func=func.__name__):
+                cinderx.jit.force_compile(func)
+                self.assert_method_stays_generic(func)
+                self.assertEqual(func(40), expected)
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_delete_method_from_exact_class_deopts(self) -> None:
+        cinderx.jit.force_compile(call_method_before_class_delete)
+
+        self.assert_method_rewritten(call_method_before_class_delete)
+        self.assertEqual(call_method_before_class_delete(40), 46)
+        original = _ClassDeleteTarget.method
+        try:
+            del _ClassDeleteTarget.method
+            with self.assertRaises(AttributeError):
+                call_method_before_class_delete(40)
+        finally:
+            _ClassDeleteTarget.method = original
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_delete_inherited_method_from_base_deopts(self) -> None:
+        cinderx.jit.force_compile(call_inherited_method_on_subclass)
+
+        self.assert_method_rewritten(call_inherited_method_on_subclass)
+        self.assertEqual(call_inherited_method_on_subclass(40), 47)
+        original = _BaseMethodTarget.method
+        try:
+            del _BaseMethodTarget.method
+            with self.assertRaises(AttributeError):
+                call_inherited_method_on_subclass(40)
+        finally:
+            _BaseMethodTarget.method = original
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_rewrite_method_call_with_kwargs(self) -> None:
+        cinderx.jit.force_compile(call_method_with_kwargs)
+
+        self.assert_method_rewritten(call_method_with_kwargs)
+        self.assertEqual(call_method_with_kwargs(34), 42)
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_preexisting_combined_dict_shadow_deopts(self) -> None:
+        cinderx.jit.force_compile(call_preexisting_combined_dict_shadow)
+
+        self.assert_method_rewritten(call_preexisting_combined_dict_shadow)
+        self.assertEqual(call_preexisting_combined_dict_shadow(40), 42)
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_postcompile_combined_dict_shadow_deopts(self) -> None:
+        cinderx.jit.force_compile(call_postcompile_combined_dict_shadow)
+
+        self.assert_method_rewritten(call_postcompile_combined_dict_shadow)
+        self.assertEqual(call_postcompile_combined_dict_shadow(40), 41)
+
+        typing.cast(dict[object, object], _POSTCOMPILE_COMBINED_DICT_INSTANCE.__dict__)[
+            0
+        ] = None
+        _POSTCOMPILE_COMBINED_DICT_INSTANCE.__dict__["method"] = lambda x: x + 2
+        self.assertEqual(call_postcompile_combined_dict_shadow(40), 42)
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_foreign_split_dict_shadow_deopts(self) -> None:
+        cinderx.jit.force_compile(call_foreign_split_dict_shadow)
+
+        self.assert_method_rewritten(call_foreign_split_dict_shadow)
+        self.assertEqual(call_foreign_split_dict_shadow(40), 42)
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_lying_dict_subclass_shadow_deopts(self) -> None:
+        cinderx.jit.force_compile(call_lying_dict_shadow)
+
+        self.assert_method_rewritten(call_lying_dict_shadow)
+        self.assertEqual(call_lying_dict_shadow(40), 42)
+        self.assertEqual(_LyingContainsDict.contains_calls, 0)
+
+    @passUnless(
+        sys.version_info >= (3, 14),
+        "Static instance attributes do not prefill shared keys before 3.14",
+    )
+    @jit_suppress
+    def test_full_shared_keys_stays_generic(self) -> None:
+        cinderx.jit.force_compile(call_method_with_full_shared_keys)
+
+        self.assert_method_stays_generic(call_method_with_full_shared_keys)
+        self.assertEqual(call_method_with_full_shared_keys(40), 41)
+
+    @passUnless(
+        sys.version_info >= (3, 14),
+        "Inline values are only available from Python 3.14",
+    )
+    @jit_suppress
+    def test_var_sized_managed_dict_stays_generic(self) -> None:
+        cinderx.jit.force_compile(call_method_on_var_sized_instance)
+
+        self.assertEqual(call_method_on_var_sized_instance(40), 42)
+        self.assert_method_stays_generic(call_method_on_var_sized_instance)
+
+    @passIf(
+        FREE_THREADING_BUILD,
+        "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
+    )
+    @jit_suppress
+    def test_unseeded_inline_key_added_after_compile_deopts(self) -> None:
+        cinderx.jit.force_compile(call_unseeded_inline_method)
+
+        self.assert_method_rewritten(call_unseeded_inline_method)
+        self.assertEqual(call_unseeded_inline_method(40), 41)
+
+        _UNSEEDED_INLINE_METHOD_INSTANCE.method = lambda x: x + 2
+        self.assertEqual(call_unseeded_inline_method(40), 42)
+
+    @unittest.skip("Requires ordinary method dependency preloading")
+    @jit_suppress
+    def test_inline_method_on_exact_global_instance(self) -> None:
+        cinderx.jit.force_compile(call_method_on_exact_global_instance)
+
+        self.assertTrue(
+            cinderx.jit.is_jit_compiled(call_method_on_exact_global_instance)
+        )
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(call_method_on_exact_global_instance),
+            1,
+        )
+        self.assertEqual(call_method_on_exact_global_instance(41), 42)
+
     @jit_suppress
     def test_deopt_when_func_defaults_change(self) -> None:
         self.assertEqual(

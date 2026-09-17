@@ -8,7 +8,6 @@
 
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/compiler.h"
-#include "cinderx/Jit/hir/builtin_load_method_elimination.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
@@ -16,6 +15,7 @@
 #include "cinderx/Jit/hir/guard_removal.h"
 #include "cinderx/Jit/hir/inliner.h"
 #include "cinderx/Jit/hir/insert_update_prev_instr.h"
+#include "cinderx/Jit/hir/load_method_elimination.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/refcount_insertion.h"
 #include "cinderx/Jit/hir/simplify.h"
@@ -72,7 +72,7 @@ class TestPassRegistry {
     addPass(DeadCodeElimination::factory);
     addPass(GuardTypeRemoval::factory);
     addPass(BeginInlinedFunctionElimination::factory);
-    addPass(BuiltinLoadMethodElimination::factory);
+    addPass(LoadMethodElimination::factory);
     addPass(InsertUpdatePrevInstr::factory);
 
     addPass(AllPasses::factory);
@@ -270,7 +270,7 @@ int main(int argc, char* argv[]) {
   register_test(
       "dead_code_elimination_and_simplify_test.txt",
       RuntimeTest::kStaticCompiler);
-  register_test("builtin_load_method_elimination_test.txt");
+  register_test("load_method_elimination_test.txt");
   register_test("leaf_function_test.txt");
 #if !defined(CINDERX_RUNTIME_TESTS_FEATURE_FREE)
   // These goldens depend on lightweight frames and symbolized call targets.

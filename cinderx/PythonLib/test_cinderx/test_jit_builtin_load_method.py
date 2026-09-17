@@ -11,17 +11,17 @@ from cinderx.test_support import failUnlessJITCompiled
 # A module-level constant whose type is an immutable *heap* type: datetime.date
 # has Py_TPFLAGS_IMMUTABLETYPE set, is not a _Py_TPFLAGS_STATIC_BUILTIN, and has
 # tp_dictoffset == 0. Referencing it as a global lets the JIT specialize the
-# method-call receiver to an exact type, which routes BuiltinLoadMethodElimination
+# method-call receiver to an exact type, which routes LoadMethodElimination
 # through its immutableMultithreadedTypeLookup() path (as opposed to the static
 # builtin cache used for str/bytes/etc.).
 _IMMUTABLE_HEAP_CONST: datetime.date = datetime.date(2020, 1, 1)
 
 
-class BuiltinLoadMethodEliminationTest(unittest.TestCase):
+class LoadMethodEliminationTest(unittest.TestCase):
     def test_unknown_method_on_immutable_heap_type_does_not_crash(self) -> None:
         # Regression test: compiling a call to a non-existent method on an
         # exact-typed immutable-heap receiver used to SIGSEGV the JIT inside
-        # BuiltinLoadMethodElimination -- immutableMultithreadedTypeLookup()
+        # LoadMethodElimination -- immutableMultithreadedTypeLookup()
         # returns null for an unresolved name, and getMethodObjectFromType()
         # then called Py_TYPE() on that null pointer. force_compile() (via the
         # decorator) is what triggers the crash, before the function ever runs.

@@ -7,7 +7,6 @@
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
-#include "cinderx/Jit/hir/builtin_load_method_elimination.h"
 #include "cinderx/Jit/hir/call_site_live_values.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
@@ -15,6 +14,7 @@
 #include "cinderx/Jit/hir/guard_removal.h"
 #include "cinderx/Jit/hir/inliner.h"
 #include "cinderx/Jit/hir/insert_update_prev_instr.h"
+#include "cinderx/Jit/hir/load_method_elimination.h"
 #include "cinderx/Jit/hir/materialize_steals.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -122,6 +122,7 @@ void Compiler::runPasses(
   };
 
   runPassIf(hir::Simplify{}, PassConfig::kSimplify);
+  runPassIf(hir::LoadMethodElimination{}, PassConfig::kLoadMethodElim);
   runPassIf(
       hir::DynamicComparisonElimination{}, PassConfig::kDynamicComparisonElim);
   runPassIf(hir::GuardTypeRemoval{}, PassConfig::kGuardTypeRemoval);
@@ -135,9 +136,7 @@ void Compiler::runPasses(
         hir::BeginInlinedFunctionElimination{},
         PassConfig::kBeginInlinedFunctionElim);
 
-    runPassIf(
-        hir::BuiltinLoadMethodElimination{},
-        PassConfig::kBuiltinLoadMethodElim);
+    runPassIf(hir::LoadMethodElimination{}, PassConfig::kLoadMethodElim);
   }
 
   runPassIf(hir::Simplify{}, PassConfig::kSimplify);
@@ -191,7 +190,7 @@ PassConfig createConfig() {
   auto const& hir_opts = getConfig().hir_opts;
   set(hir_opts.begin_inlined_function_elim,
       PassConfig::kBeginInlinedFunctionElim);
-  set(hir_opts.builtin_load_method_elim, PassConfig::kBuiltinLoadMethodElim);
+  set(hir_opts.builtin_load_method_elim, PassConfig::kLoadMethodElim);
   set(hir_opts.clean_cfg, PassConfig::kCleanCFG);
   set(hir_opts.dead_code_elim, PassConfig::kDeadCodeElim);
   set(hir_opts.dynamic_comparison_elim, PassConfig::kDynamicComparisonElim);

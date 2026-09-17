@@ -29,7 +29,7 @@ enum PassConfig : uint64_t {
   // Bits to toggle individual optimization passes.
 
   kBeginInlinedFunctionElim = 1 << 0,
-  kBuiltinLoadMethodElim = 1 << 1,
+  kLoadMethodElim = 1 << 1,
   kCleanCFG = 1 << 2,
   kDeadCodeElim = 1 << 3,
   kDynamicComparisonElim = 1 << 4,

@@ -16,6 +16,7 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/refcount_insertion.h"
 #include "cinderx/Jit/hir/ssa.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 extern "C" {
@@ -1171,6 +1172,198 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
 }
 
 class CppInlinerTest : public RuntimeTest {};
+
+void expectDirectMethodRewrite(
+    const Function& irfunc,
+    bool has_instance_dict_guard = false) {
+  EXPECT_EQ(irfunc.inline_function_stats.num_inlined_functions, 0);
+  bool has_direct_vector_call = false;
+  bool has_exact_type_guard = false;
+  bool has_inline_values_check = false;
+  bool has_combined_dict_check = false;
+  for (const BasicBlock& block : irfunc.cfg.blocks) {
+    for (const Instr& instr : block) {
+      EXPECT_FALSE(instr.isLoadMethod());
+      EXPECT_FALSE(instr.isCallMethod());
+      if (instr.isVectorCall()) {
+        const auto& call = static_cast<const VectorCall&>(instr);
+        has_direct_vector_call = call.func()->instr()->isLoadConst() &&
+            call.func()->type().hasValueSpec(TFunc);
+      } else if (instr.isGuardType()) {
+        Type target = static_cast<const GuardType&>(instr).target();
+        if (target != TDictExact) {
+          has_exact_type_guard = target.isExact();
+        }
+      } else if (instr.isCompareBool()) {
+        has_combined_dict_check =
+            static_cast<const CompareBool&>(instr).op() == CompareOp::kNotIn;
+      } else if (instr.isLoadField()) {
+        const std::string name = static_cast<const LoadField&>(instr).name();
+        has_inline_values_check |=
+            name == "inline_values.valid" || name == "__dict__";
+      }
+    }
+  }
+  EXPECT_TRUE(has_direct_vector_call);
+  EXPECT_TRUE(has_exact_type_guard);
+  EXPECT_EQ(has_inline_values_check, has_instance_dict_guard);
+  EXPECT_FALSE(has_combined_dict_check);
+}
+
+void expectMethodCallRemainsGeneric(const Function& irfunc) {
+  bool has_load_method = false;
+  bool has_call_method = false;
+  for (const BasicBlock& block : irfunc.cfg.blocks) {
+    for (const Instr& instr : block) {
+      has_load_method |= instr.isLoadMethod();
+      has_call_method |= instr.isCallMethod();
+    }
+  }
+  EXPECT_TRUE(has_load_method);
+  EXPECT_TRUE(has_call_method);
+}
+
+TEST_F(CppInlinerTest, RewriteMethodOnExactGlobalInstance) {
+  if constexpr (kFreeThreadedBuild) {
+    GTEST_SKIP() << "Mutable-type LoadMethod elimination is disabled in "
+                    "free-threaded builds";
+  }
+
+  const char* pycode = R"(
+class C:
+  __slots__ = ()
+
+  def method(self, x):
+    return x + 1
+
+INSTANCE = C()
+
+def test(x):
+  return INSTANCE.method(x)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr) << "Failed compiling func";
+  std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+  ASSERT_NE(irfunc, nullptr);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAll);
+
+  expectDirectMethodRewrite(*irfunc);
+}
+
+TEST_F(CppInlinerTest, RewriteMethodOnExactGlobalInstanceWithSharedKeys) {
+#if defined(ENABLE_SHARED_KEYS_TYPE_MODIFIED) || PY_VERSION_HEX >= 0x03100000
+  if constexpr (kFreeThreadedBuild) {
+    GTEST_SKIP() << "Mutable-type LoadMethod elimination is disabled in "
+                    "free-threaded builds";
+  }
+
+  const char* pycode = R"(
+class C:
+  def method(self, x):
+    return x + 1
+
+INSTANCE = C()
+
+def test(x):
+  return INSTANCE.method(x)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr) << "Failed compiling func";
+  std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+  ASSERT_NE(irfunc, nullptr);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAll);
+
+  expectDirectMethodRewrite(*irfunc, true);
+#else
+  GTEST_SKIP() << "Shared-key changes do not notify type watchers";
+#endif
+}
+
+TEST_F(CppInlinerTest, DoNotRewriteMethodWithFullSharedKeys) {
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* pycode = R"(
+class C:
+  def fill(self):
+    self.attr_00 = 0
+    self.attr_01 = 1
+    self.attr_02 = 2
+    self.attr_03 = 3
+    self.attr_04 = 4
+    self.attr_05 = 5
+    self.attr_06 = 6
+    self.attr_07 = 7
+    self.attr_08 = 8
+    self.attr_09 = 9
+    self.attr_10 = 10
+    self.attr_11 = 11
+    self.attr_12 = 12
+    self.attr_13 = 13
+    self.attr_14 = 14
+    self.attr_15 = 15
+    self.attr_16 = 16
+    self.attr_17 = 17
+    self.attr_18 = 18
+    self.attr_19 = 19
+    self.attr_20 = 20
+    self.attr_21 = 21
+    self.attr_22 = 22
+    self.attr_23 = 23
+    self.attr_24 = 24
+    self.attr_25 = 25
+    self.attr_26 = 26
+    self.attr_27 = 27
+    self.attr_28 = 28
+    self.attr_29 = 29
+
+  def method(self, x):
+    return x + 1
+
+INSTANCE = C()
+
+def test(x):
+  return INSTANCE.method(x)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr) << "Failed compiling func";
+  std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+  ASSERT_NE(irfunc, nullptr);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAll);
+
+  expectMethodCallRemainsGeneric(*irfunc);
+#else
+  GTEST_SKIP() << "Static instance attributes do not prefill shared keys";
+#endif
+}
+
+TEST_F(CppInlinerTest, DoNotRewriteMutableMethodDuringThreadedCompile) {
+  const char* pycode = R"(
+class C:
+  __slots__ = ()
+
+  def method(self, x):
+    return x + 1
+
+INSTANCE = C()
+
+def test(x):
+  return INSTANCE.method(x)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr) << "Failed compiling func";
+  std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+  ASSERT_NE(irfunc, nullptr);
+
+  {
+    ThreadedCompileContext threaded_compile;
+    threaded_compile.releaseGil();
+    Compiler::runPasses(*irfunc, PassConfig::kAll);
+  }
+
+  expectMethodCallRemainsGeneric(*irfunc);
+}
 
 TEST_F(CppInlinerTest, ChangingCalleeFunctionCodeCausesDeopt) {
   const char* pycode = R"(
