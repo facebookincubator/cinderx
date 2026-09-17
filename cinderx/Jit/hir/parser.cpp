@@ -1074,9 +1074,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kReserveStack:
     case Opcode::kUnpackSequence:
     case Opcode::kUpdatePrevInstr:
-    case Opcode::kWaitHandleLoadCoroOrResult:
-    case Opcode::kWaitHandleLoadWaiter:
-    case Opcode::kWaitHandleRelease:
     case Opcode::kXIncref: {
       JIT_ABORT("Unsupported opcode: {}", opcode);
     }

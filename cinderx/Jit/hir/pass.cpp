@@ -247,7 +247,6 @@ Type outputType(
     case Opcode::kLoadTupleItem:
     case Opcode::kMatchKeys:
     case Opcode::kSend:
-    case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kYieldValue:
       return TObject;
     case Opcode::kBuildString:
@@ -272,7 +271,6 @@ Type outputType(
     case Opcode::kMatchClass:
     case Opcode::kStealCellItem:
     case Opcode::kSwapCellItem:
-    case Opcode::kWaitHandleLoadWaiter:
       return TOptObject;
 
     case Opcode::kGetSecondOutput: {
@@ -583,7 +581,6 @@ Type outputType(
     case Opcode::kUpdatePrevInstr:
     case Opcode::kUseObj:
     case Opcode::kUseType:
-    case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:
     case Opcode::kXIncref:
       JIT_ABORT("Opcode {} has no output", instr.opname());

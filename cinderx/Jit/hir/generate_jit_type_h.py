@@ -51,7 +51,6 @@ BASIC_FINAL_TYPES: list[str] = [
     "Gen",
     "NoneType",
     "Slice",
-    "WaitHandle",
 ]
 
 # Basic types that can be subtyped by users. These will be expanded into *User

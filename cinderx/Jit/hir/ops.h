@@ -177,9 +177,6 @@ namespace cinderx::jit::hir {
   V(UseObj)                        \
   V(UseType)                       \
   V(VectorCall)                    \
-  V(WaitHandleLoadCoroOrResult)    \
-  V(WaitHandleLoadWaiter)          \
-  V(WaitHandleRelease)             \
   V(XDecref)                       \
   V(XIncref)                       \
   V(YieldValue)

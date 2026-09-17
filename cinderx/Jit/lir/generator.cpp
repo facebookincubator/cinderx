@@ -5228,15 +5228,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 
         break;
       }
-      case hir::Opcode::kWaitHandleLoadWaiter: {
-        break;
-      }
-      case hir::Opcode::kWaitHandleLoadCoroOrResult: {
-        break;
-      }
-      case hir::Opcode::kWaitHandleRelease: {
-        break;
-      }
       case hir::Opcode::kDeleteSubscr: {
         const auto& instr = i.as<DeleteSubscr>();
         Instruction* call = bbb.appendInstr(

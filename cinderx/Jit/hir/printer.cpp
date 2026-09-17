@@ -309,9 +309,6 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kSwapCellItem:
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreSubscr:
-    case Opcode::kWaitHandleLoadCoroOrResult:
-    case Opcode::kWaitHandleLoadWaiter:
-    case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:
     case Opcode::kXIncref:
     case Opcode::kUnicodeConcat:

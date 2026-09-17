@@ -506,9 +506,7 @@ bool Instr::isReplayable() const {
     case Opcode::kUnicodeEqual:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUseObj:
-    case Opcode::kUseType:
-    case Opcode::kWaitHandleLoadCoroOrResult:
-    case Opcode::kWaitHandleLoadWaiter: {
+    case Opcode::kUseType: {
       return true;
     }
     case Opcode::kBatchDecref:
@@ -615,7 +613,6 @@ bool Instr::isReplayable() const {
     case Opcode::kUnpackSequence:
     case Opcode::kUnreachable:
     case Opcode::kVectorCall:
-    case Opcode::kWaitHandleRelease:
     case Opcode::kYieldValue:
     case Opcode::kXDecref:
     case Opcode::kXIncref: {
@@ -914,8 +911,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kReserveStack:
     case Opcode::kUnpackSequence:
     case Opcode::kVectorCall:
-    case Opcode::kWaitHandleLoadCoroOrResult:
-    case Opcode::kWaitHandleLoadWaiter:
     case Opcode::kYieldValue:
       return false;
 
@@ -949,7 +944,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kStoreField:
     case Opcode::kUpdatePrevInstr:
     case Opcode::kUnreachable:
-    case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:
     case Opcode::kXIncref:
       JIT_ABORT("Opcode {} has no output", instr.opname());

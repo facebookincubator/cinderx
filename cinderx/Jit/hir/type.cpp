@@ -53,15 +53,13 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
     };
 
     // After construction, verify that all appropriate types have an entry in
-    // this table. Except for TWaitHandle, which hasn't been ported to 3.12 yet
-    // and TArray which is a heap type so can't be included in this static
-    // table.
-#define CHECK_TY(name, bits, lifetime, flags)        \
-  JIT_CHECK(                                         \
-      T##name <= TArray || T##name <= TWaitHandle || \
-          ((flags) & kTypeHasUniquePyType) == 0 ||   \
-          result_map.contains(T##name),              \
-      "Type {} missing entry in typeToPyType()",     \
+    // this table. Except for TArray which is a heap type so can't be included
+    // in this static table.
+#define CHECK_TY(name, bits, lifetime, flags)                       \
+  JIT_CHECK(                                                        \
+      T##name <= TArray || ((flags) & kTypeHasUniquePyType) == 0 || \
+          result_map.contains(T##name),                             \
+      "Type {} missing entry in typeToPyType()",                    \
       T##name);
     HIR_TYPES(CHECK_TY)
 #undef CHECK_TY

@@ -412,12 +412,6 @@ class HIRBuilder {
       TranslationContext& tc,
       Register* out,
       bool handle_stop_async_iteration = false);
-  void emitDispatchEagerCoroResult(
-      CFG& cfg,
-      TranslationContext& tc,
-      Register* out,
-      BasicBlock* await_block,
-      BasicBlock* post_await_block);
 
   void emitBuildString(
       TranslationContext& tc,

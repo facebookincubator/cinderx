@@ -4781,52 +4781,6 @@ void HIRBuilder::emitSetUpdate(
   tc.emit<SetUpdate>(result, set, iterable, tc.frame);
 }
 
-void HIRBuilder::emitDispatchEagerCoroResult(
-    CFG& cfg,
-    TranslationContext& tc,
-    Register* out,
-    BasicBlock* await_block,
-    BasicBlock* post_await_block) {
-  Register* stack_top = tc.frame.stack.top();
-
-  TranslationContext has_wh_block{cfg.allocateBlock(), tc.frame};
-  tc.emit<CondBranchCheckType>(
-      stack_top, TWaitHandle, has_wh_block.block, await_block);
-
-  Register* wait_handle = allocateTemp();
-  has_wh_block.emit<RefineType>(wait_handle, TWaitHandle, stack_top);
-  Register* wh_coro_or_result = allocateTemp();
-  Register* wh_waiter = allocateTemp();
-  has_wh_block.emit<WaitHandleLoadCoroOrResult>(wh_coro_or_result, wait_handle);
-  has_wh_block.emit<WaitHandleLoadWaiter>(wh_waiter, wait_handle);
-  has_wh_block.emit<WaitHandleRelease>(wait_handle);
-
-  TranslationContext coro_block{cfg.allocateBlock(), tc.frame};
-  TranslationContext res_block{cfg.allocateBlock(), tc.frame};
-  has_wh_block.emit<CondBranch>(wh_waiter, coro_block.block, res_block.block);
-
-  // wh_waiter is OptObject; refine to Object in the true branch.
-  coro_block.emit<RefineType>(wh_waiter, TObject, wh_waiter);
-
-  if (code_->co_flags & CO_COROUTINE) {
-    coro_block.emit<SetCurrentAwaiter>(wh_coro_or_result);
-  }
-  // Yield the waiter value first (like YieldAndYieldFrom's skip-initial-send),
-  // then enter the yield-from Send loop with the resumed value.
-  Register* initial_send = allocateTemp();
-  auto* yv =
-      coro_block.emit<YieldValue>(initial_send, wh_waiter, coro_block.frame);
-  yv->setYieldFromIter(wh_coro_or_result);
-  // Set up stack for emitYieldFrom: [..., iter, send_value]
-  coro_block.frame.stack.push(wh_coro_or_result);
-  coro_block.frame.stack.push(initial_send);
-  emitYieldFrom(cfg, coro_block, out);
-  coro_block.emit<Branch>(post_await_block);
-
-  res_block.emit<Assign>(out, wh_coro_or_result);
-  res_block.emit<Branch>(post_await_block);
-}
-
 void HIRBuilder::emitMatchMappingSequence(
     CFG& cfg,
     TranslationContext& tc,

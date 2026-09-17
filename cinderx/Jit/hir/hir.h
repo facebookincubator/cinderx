@@ -3870,14 +3870,6 @@ class INSTR_CLASS(UnpackSequence, (TObject, TCPtr), HasOutput, Operands<2>) {
   int count_;
 };
 
-DEFINE_SIMPLE_INSTR(
-    WaitHandleLoadCoroOrResult,
-    (TObject),
-    HasOutput,
-    Operands<1>);
-DEFINE_SIMPLE_INSTR(WaitHandleLoadWaiter, (TObject), HasOutput, Operands<1>);
-DEFINE_SIMPLE_INSTR(WaitHandleRelease, (TObject), Operands<1>);
-
 // MatchKeys calls CPython's match_keys interpreter function. It takes two
 // arguments, subject and keys. Returns null on error, None if no match, and a
 // tuple of values on match.

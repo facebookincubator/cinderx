@@ -71,8 +71,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kUnreachable:
     case Opcode::kUseObj:
     case Opcode::kUseType:
-    case Opcode::kWaitHandleLoadCoroOrResult:
-    case Opcode::kWaitHandleLoadWaiter:
       return commonEffects(inst, AEmpty);
 
     // If boxing a bool, we return a borrowed reference to Py_True or Py_False.
@@ -93,7 +91,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kUpdatePrevInstr:
     // Can write to fields of its operands.
     case Opcode::kSetCurrentAwaiter:
-    case Opcode::kWaitHandleRelease:
     case Opcode::kLoadFrame:
       return commonEffects(inst, AOther);
 
@@ -470,9 +467,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kUpdatePrevInstr:
     case Opcode::kUseObj:
     case Opcode::kUseType:
-    case Opcode::kWaitHandleLoadCoroOrResult:
-    case Opcode::kWaitHandleLoadWaiter:
-    case Opcode::kWaitHandleRelease:
     case Opcode::kXIncref:
       return false;
 

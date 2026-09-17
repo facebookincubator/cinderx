@@ -679,16 +679,6 @@ void useSimpleInState(Env& env, BasicBlock* block) {
       Register* reg = cond->getOperand(0);
       setUncounted(env, map_get(env.live_regs, reg));
     }
-  } else if (term->isCondBranchCheckType()) {
-    // Ci_PyWaitHandleObject is an uncounted singleton, so we adjust its
-    // reference state here to avoid refcounting it.
-    auto cond = static_cast<CondBranchCheckType*>(term);
-    if (cond->type() == TWaitHandle) {
-      if (block == cond->true_bb()) {
-        Register* reg = cond->getOperand(0);
-        setUncounted(env, map_get(env.live_regs, reg));
-      }
-    }
   }
 
   // Second, kill any registers that die across the edge.
