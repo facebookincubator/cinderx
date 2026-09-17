@@ -157,14 +157,21 @@ def main() -> None:
     results = []
     # Importing test modules drops scratch files (@test_<pid>_tmp...) into the
     # working directory, so classify from a throwaway one rather than the repo.
+    # Restore the cwd before the directory is removed; leaving the process in a
+    # deleted directory makes interpreter shutdown fail with a non-zero status.
+    original_cwd = os.getcwd()
     with tempfile.TemporaryDirectory(prefix="classify-cpython-tests-") as tmp:
-        os.chdir(tmp)
-        for i, modname in enumerate(modules, 1):
-            record = classify(modname)
-            results.append(record)
-            print(
-                f"[{i}/{len(modules)}] tier{record['tier']} {modname}", file=sys.stderr
-            )
+        try:
+            os.chdir(tmp)
+            for i, modname in enumerate(modules, 1):
+                record = classify(modname)
+                results.append(record)
+                print(
+                    f"[{i}/{len(modules)}] tier{record['tier']} {modname}",
+                    file=sys.stderr,
+                )
+        finally:
+            os.chdir(original_cwd)
 
     payload = {"version": args.version, "modules": results}
     text = json.dumps(payload, indent=2, sort_keys=True)
@@ -172,6 +179,16 @@ def main() -> None:
         output.write_text(text + "\n")
     else:
         print(text)
+
+    # Importing every test module leaves the interpreter in a state it cannot
+    # always tear down cleanly -- `import test.test_code` alone is enough to make
+    # a CinderX interpreter exit 1, because it registers a co_extra free function
+    # that collides with the JIT's own use of co_extra. None of that says
+    # anything about the classification, which is already written, so exit before
+    # finalisation rather than reporting a spurious failure to the caller.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(0)
 
 
 if __name__ == "__main__":
