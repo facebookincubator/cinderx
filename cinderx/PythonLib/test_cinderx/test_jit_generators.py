@@ -573,7 +573,14 @@ class GeneratorsTest(unittest.TestCase):
         gen_id.append(id(g))
         for _ in range(5):
             gc.collect()
-        self.assertIn(g, gc.get_objects(generation=2), "precondition: g not promoted")
+
+        # Don't use self.assertIn(), it'll use `==` instead of `is`.  pytest
+        # pulls in `decimal.SignalDict` which will raise a ValueError when
+        # compared with something that isn't a `dict`.
+        self.assertTrue(
+            any(o is g for o in gc.get_objects(generation=2)),
+            "precondition: g not promoted",
+        )
 
         del g  # sole remaining reference -> refcount hits 0 -> tp_dealloc
 
@@ -582,7 +589,7 @@ class GeneratorsTest(unittest.TestCase):
         # alone (rather than also asserting absence from generation 2) keeps
         # the test robust against an incidental, allocation-triggered
         # collection promoting the object again before a second snapshot.
-        self.assertIn(resurrected[0], gc.get_objects(generation=0))
+        self.assertTrue(any(o is resurrected[0] for o in gc.get_objects(generation=0)))
 
     def test_gc_collects_unstarted_generator_cycle(self):
         class Cycle:
