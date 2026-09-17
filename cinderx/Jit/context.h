@@ -513,9 +513,8 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // CompiledFunction object.
   bool hasCompletedCompile(const CompilationKey& key);
 
-  // Defers finalization of a function with an already-compiled
-  // CompiledFunction during multi-threaded compile. The finalization will
-  // be performed in finalizeMultiThreadedCompile.
+  // Defer attaching a function to a compile shared with another function.
+  // finalizePendingCompiles() completes this after compilation.
   //
   // Takes over `func`, an owned reference the caller acquired while it held
   // the GIL.  Referencing the function here instead would poke a refcount with
@@ -524,7 +523,9 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       const CompilationKey& key,
       Ref<PyFunctionObject>&& func);
 
-  void finalizeMultiThreadedCompile();
+  // Publish completed worker compiles and finalize waiting functions after
+  // either serial or multithreaded compilation.
+  void finalizePendingCompiles();
 
   // Notifies that a compilation is complete. If we're not in multi-threaded
   // compile the CompiledFunction will immediately be created, otherwise the

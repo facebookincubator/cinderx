@@ -2,6 +2,10 @@
 # CinderX test skips.
 #
 
+# Runs as a standalone Buck test; it mutates global JIT preload state and is not
+# safe in the aggregate Cinder test runner.
+test_jit_preload_batch
+
 test.test_rlcompleter.TestRlcompleter.test_global_matches
 
 

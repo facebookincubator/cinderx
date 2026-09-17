@@ -103,7 +103,7 @@ TEST_F(JITContextTest, PendingTypeWatchPatchedWhenStale) {
     // Simulate the race: the type changes after the compile's checks but
     // before the watch is installed, so no notification fires. The compile
     // context stays active with the GIL held throughout, matching
-    // finalizeMultiThreadedCompile() on a background worker.
+    // finalizePendingCompiles() on a background worker.
     runCode("Foo.x = 2\n");
     ASSERT_FALSE(patcher.assumptionsStillValid());
     jit_ctx_->watchPendingTypes();

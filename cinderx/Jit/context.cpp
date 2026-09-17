@@ -576,7 +576,7 @@ void Context::addDeferredFinalization(
       Ref<PyFunctionObject>::steal(func.release()), key);
 }
 
-void Context::finalizeMultiThreadedCompile() {
+void Context::finalizePendingCompiles() {
   // Destructed outside the lock: decref can block on the GIL, which deadlocks
   // against funcDestroyed().
   decltype(completed_compiles_) completed;
@@ -600,7 +600,8 @@ void Context::finalizeMultiThreadedCompile() {
       // which case it has already erased itself from compiled_codes_ and there
       // is nothing left to attach the function to.
       auto it = compiled_codes_.find(key);
-      if (it != compiled_codes_.end() && !isJitCompiled(func)) {
+      if (it != compiled_codes_.end() && CompilationKey{func} == key &&
+          !isJitCompiled(func)) {
         finalizeFunc(func, it->second);
       }
     }
@@ -1021,7 +1022,9 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
     compiled->runtime()->setCompiledFunction(compiled);
   }
 
-  if (func != nullptr) {
+  // The function can change while a batch/background worker compiles its
+  // snapshot. Preserve the replacement's entrypoint in that case.
+  if (func != nullptr && CompilationKey{func} == key && !isJitCompiled(func)) {
     finalizeFunc(func, compiled);
   }
 
@@ -1043,6 +1046,17 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
   if (nested_it != nested_compile_data_.end()) {
     addNestedCompile(
         nestedCompileAnchor(key.code, func), *nested_it->second, compiled);
+  }
+
+  // If the original function changed, let waiting siblings keep the compile
+  // alive by attaching to it.
+  if (compiled->numFunctions() == 0) {
+    for (auto& [deferred_func, deferred_key] : deferred_finalizations_) {
+      if (deferred_key == key && CompilationKey{deferred_func} == key &&
+          !isJitCompiled(deferred_func)) {
+        finalizeFunc(deferred_func, compiled);
+      }
+    }
   }
   return compiled;
 }

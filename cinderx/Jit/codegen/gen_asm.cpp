@@ -1069,7 +1069,7 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
 
     // Register patcher with the runtime if it is type-based.
     if (auto typed_patcher = dynamic_cast<TypeDeoptPatcher*>(udp.patcher)) {
-      // The watch is installed in finalizeMultiThreadedCompile() for threaded
+      // The watch is installed in finalizePendingCompiles() for threaded
       // compiles, by which time the type may have changed without the watch
       // firing. Re-validate the patcher's assumptions before watching,
       // preferring a validator attached at the patchpoint's creation site.

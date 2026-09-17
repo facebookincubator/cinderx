@@ -68,6 +68,13 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func);
  */
 Result compileFunction(BorrowedRef<PyFunctionObject> func);
 
+// Snapshot holding strong references to the function and its preloaded code.
+// Callers must verify func->func_code == code before compiling or scheduling.
+struct PreloadedFunction {
+  Ref<PyFunctionObject> func;
+  Ref<PyCodeObject> code;
+};
+
 /*
  * Preload a function, along with any functions that it calls that we might want
  * to compile afterwards as well.  This is to support inlining and faster
@@ -80,7 +87,7 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func);
  * by re-entrant execution. An empty list can mean all targets were invalidated;
  * PyErr_Occurred() distinguishes this from a Python error during preloading.
  */
-std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
+std::vector<PreloadedFunction> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func,
     bool forcePreload = false);
 
