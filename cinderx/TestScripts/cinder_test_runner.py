@@ -18,14 +18,12 @@ import multiprocessing
 import os
 import os.path
 import pathlib
-import platform
 import queue
 import resource
 import shlex
 import signal
 import subprocess
 import sys
-import sysconfig
 import tempfile
 import threading
 import time
@@ -67,6 +65,7 @@ from common import (
     WorkerDone,
     WorkSender,
 )
+from skip_list_support import get_skip_list_files, parse_skip_lists
 from test import support
 from test.libregrtest.cmdline import _parse_args as libregrtest_parse_args
 from test.libregrtest.main import main as libregrtest_main
@@ -274,72 +273,13 @@ def manage_worker(
     worker.wait()
 
 
-def _is_prefork_build() -> bool:
-    try:
-        import cinderx
-    except ImportError:
-        return False
-    return cinderx.is_prefork_build()
-
-
 def _computeSkipTests(
     huntrleaks, use_rr=False, extra_skip_files=None
 ) -> Tuple[Set[str], Set[str]]:
-    skip_list_files = ["devserver_skip_tests.txt", "cinder_skip_test.txt"]
-
-    version = "".join(str(v) for v in sys.version_info[:2])
-    versioned_file = f"cinder_skip_test_{version}.txt"
-    if os.path.exists(os.path.join(os.path.dirname(__file__), versioned_file)):
-        skip_list_files.append(versioned_file)
-
-    if support.check_sanitizer(address=True):
-        skip_list_files.append("asan_skip_tests.txt")
-
-    if use_rr:
-        skip_list_files.append("rr_skip_tests.txt")
-
-    if extra_skip_files:
-        skip_list_files.extend(extra_skip_files)
-
-    try:
-        import cinderjit  # noqa: F401
-
-        skip_list_files.append("cinder_jit_ignore_tests.txt")
-        skip_list_files.append(f"cinder_jit_ignore_tests_{version}.txt")
-        if sysconfig.get_config_var("Py_GIL_DISABLED"):
-            skip_list_files.append(f"cinder_jit_ignore_tests_{version}t.txt")
-    except ImportError:
-        pass
-
-    if huntrleaks:
-        skip_list_files.append("refleak_skip_tests.txt")
-        if _is_prefork_build():
-            skip_list_files.append("refleak_prefork_skip_tests.txt")
-
-    skip_modules = set()
-    skip_patterns = set()
-
-    if platform.processor() != "" and platform.processor() != platform.machine():
-        skip_list_files.append("cross_platform_skip_tests.txt")
-
-    if platform.machine() in ("aarch64", "arm64"):
-        skip_list_files.append("arm64_skip_tests.txt")
-
-    for skip_file in skip_list_files:
-        skip_file_path = os.path.join(os.path.dirname(__file__), skip_file)
-        if not os.path.exists(skip_file_path):
-            continue
-        with open(skip_file_path) as fp:
-            for line in fp:
-                line = line.strip()
-                if not line or line.startswith("#"):
-                    continue
-                if len({".", "*"} & set(line)):
-                    skip_patterns.add(line)
-                else:
-                    skip_modules.add(line)
-
-    return skip_modules, skip_patterns
+    return parse_skip_lists(
+        Path(__file__).parent,
+        get_skip_list_files(huntrleaks, use_rr, extra_skip_files),
+    )
 
 
 def _select_tests(exclude: Set[str]) -> List[str]:
