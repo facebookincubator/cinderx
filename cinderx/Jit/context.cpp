@@ -693,7 +693,11 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
       }
       nested_it->second->clearCompiledFunction(&function);
     }
-    compiled_codes_.erase(CompilationKey{function});
+    compiled_codes_.erase(
+        CompilationKey{
+            function.runtime()->code(),
+            function.runtime()->builtins(),
+            function.runtime()->globals()});
   }
 }
 
