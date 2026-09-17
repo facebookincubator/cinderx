@@ -43,6 +43,11 @@ def specialize(
     func: Callable[..., TCallableRet], callable: Callable[[], TCallableRet]
 ) -> None:
     cinderx.jit.force_uncompile(func)
+
+    # Reset adaptive bytecode for code object.  Otherwise it persists across refleak
+    # runs and messes with expectations.
+    func.__code__ = func.__code__.replace()
+
     cinderx.jit.jit_suppress(func)
 
     for _ in range(5):
