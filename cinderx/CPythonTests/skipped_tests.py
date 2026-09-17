@@ -2,28 +2,20 @@
 
 """Tests excluded from the buckified Tier 1 CPython suite.
 
-These fail only under `python_unittest`, and pass under the regrtest-based
-runner (`cinder_test_runner.py`), which still runs the full suite -- so nothing
-here is uncovered. They are environment-sensitive rather than CinderX bugs: the
-dominant cause is re-invoking `sys.executable`, which under a PAR is the test
-binary rather than a bare interpreter (`test_audit` children fail with
-`ModuleNotFoundError: No module named 'test'`), plus a few locale and
-filesystem-encoding assumptions.
+These fail under `python_unittest`, mostly because its PAR environment differs
+from the regrtest runner. Entries are grouped by observed cause. Class and module
+entries cover families whose failing member varies with batch composition.
 
-Derived from a full run of the Tier 1 target; entries have not been triaged
-individually, so a genuine CinderX bug could be hiding among them. Anything
-removed from this list should be checked against `buck test
-fbcode//cinderx/CPythonTests:cpython-tests-314-x64`.
+Not every entry has been triaged individually. Check removals against:
 
-Grouped by module, with the count of excluded tests.
+    buck test @fbcode//mode/opt fbcode//cinderx/CPythonTests:cpython-tests-314-x64
 """
 
 SKIPPED_TESTS: frozenset[str] = frozenset(
     {
-        # test.test__locale (2)
-        "test.test__locale._LocaleTests.test_alt_digits_nl_langinfo",
-        "test.test__locale._LocaleTests.test_era_nl_langinfo",
-        # test.test_argparse (10)
+        # -- subprocess --
+        #   Re-invoke sys.executable, which under a PAR is the test binary rather
+        #   than a bare interpreter; children fail with ModuleNotFoundError: 'test'.
         "test.test_argparse.TestProgName.test_directory",
         "test.test_argparse.TestProgName.test_directory_compiled",
         "test.test_argparse.TestProgName.test_directory_in_zipfile",
@@ -34,22 +26,10 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_argparse.TestProgName.test_package_compiled",
         "test.test_argparse.TestProgName.test_zipfile",
         "test.test_argparse.TestProgName.test_zipfile_compiled",
-        # test.test_asyncio (11)
         "test.test_asyncio.test_base_events.BaseEventLoopTests.test_env_var_debug",
-        "test.test_asyncio.test_events.EPollEventLoopTests.test_write_named_fifo_unread_data",
-        "test.test_asyncio.test_events.PollEventLoopTests.test_write_named_fifo_unread_data",
-        "test.test_asyncio.test_events.SelectEventLoopTests.test_write_named_fifo_unread_data",
-        "test.test_asyncio.test_events.UnixPipeObjectSupportTests.test_read_fifo",
-        "test.test_asyncio.test_events.UnixPipeObjectSupportTests.test_write_fifo",
-        "test.test_asyncio.test_runners.RunTests.test_asyncio_run_without_uncancel",
-        "test.test_asyncio.test_runners.RunnerTests.test_interrupt_call_soon",
-        "test.test_asyncio.test_runners.RunnerTests.test_interrupt_wait",
         "test.test_asyncio.test_tasks.CoroutineGatherTests.test_env_var_debug",
         "test.test_asyncio.test_tasks.FutureGatherTests.test_env_var_debug",
-        # test.test_atexit (1)
         "test.test_atexit.GeneralTest.test_general",
-        # test.test_audit (27)
-        "test.test_audit.AuditTest.test_assert_unicode",
         "test.test_audit.AuditTest.test_basic",
         "test.test_audit.AuditTest.test_block_add_hook",
         "test.test_audit.AuditTest.test_block_add_hook_baseexception",
@@ -76,26 +56,8 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_audit.AuditTest.test_time",
         "test.test_audit.AuditTest.test_time_fail",
         "test.test_audit.AuditTest.test_unraisablehook",
-        # test.test_bytes (2)
-        "test.test_bytes.ByteArrayTest.test_check_encoding_errors",
-        "test.test_bytes.BytesTest.test_check_encoding_errors",
-        # test.test_c_locale_coercion (5)
-        "test.test_c_locale_coercion.LocaleCoercionTests.test_LC_ALL_set_to_C",
-        "test.test_c_locale_coercion.LocaleCoercionTests.test_PYTHONCOERCECLOCALE_not_set",
-        "test.test_c_locale_coercion.LocaleCoercionTests.test_PYTHONCOERCECLOCALE_not_zero",
-        "test.test_c_locale_coercion.LocaleCoercionTests.test_PYTHONCOERCECLOCALE_set_to_warn",
-        "test.test_c_locale_coercion.LocaleCoercionTests.test_PYTHONCOERCECLOCALE_set_to_zero",
-        # test.test_calendar (1)
-        "test.test_calendar.CommandLineTestCase.test_help",
-        # test.test_cext (1)
-        "test.test_cext",
-        # test.test_class (1)
         "test.test_class.TestInlineValues.test_detach_materialized_dict_no_memory",
-        # test.test_cmd_line (3)
         "test.test_cmd_line.CmdLineTest.test_relativedir_bug46421",
-        "test.test_cmd_line.CmdLineTest.test_stdout_flush_at_shutdown",
-        "test.test_cmd_line.CmdLineTest.test_xdev",
-        # test.test_cmd_line_script (17)
         "test.test_cmd_line_script.CmdLineTest.test_basic_script",
         "test.test_cmd_line_script.CmdLineTest.test_directory",
         "test.test_cmd_line_script.CmdLineTest.test_directory_compiled",
@@ -104,42 +66,18 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_cmd_line_script.CmdLineTest.test_module_in_package",
         "test.test_cmd_line_script.CmdLineTest.test_module_in_package_in_zipfile",
         "test.test_cmd_line_script.CmdLineTest.test_module_in_subpackage_in_zipfile",
-        "test.test_cmd_line_script.CmdLineTest.test_non_ascii",
         "test.test_cmd_line_script.CmdLineTest.test_package",
         "test.test_cmd_line_script.CmdLineTest.test_package_compiled",
-        "test.test_cmd_line_script.CmdLineTest.test_script_abspath",
         "test.test_cmd_line_script.CmdLineTest.test_script_compiled",
         "test.test_cmd_line_script.CmdLineTest.test_zipfile",
         "test.test_cmd_line_script.CmdLineTest.test_zipfile_compiled_checked_hash",
         "test.test_cmd_line_script.CmdLineTest.test_zipfile_compiled_timestamp",
         "test.test_cmd_line_script.CmdLineTest.test_zipfile_compiled_unchecked_hash",
-        # test.test_cppext (1)
-        "test.test_cppext",
-        # test.test_eintr (1)
         "test.test_eintr.EINTRTests.test_all",
-        # test.test_exceptions (1)
-        "test.test_exceptions.ExceptionTests.test_recursion_normalizing_exception",
-        # test.test_external_inspection (4)
         "test.test_external_inspection.TestGetStackTrace.test_async_global_awaited_by",
-        "test.test_external_inspection.TestGetStackTrace.test_async_remote_stack_trace",
-        "test.test_external_inspection.TestGetStackTrace.test_async_staggered_race_remote_stack_trace",
-        "test.test_external_inspection.TestGetStackTrace.test_remote_stack_trace",
-        # test.test_fstring (1)
-        "test.test_fstring.TestCase.test_gh139516",
-        # test.test_gc (2)
         "test.test_gc.GCTests.test_garbage_at_shutdown",
         "test.test_gc.PythonFinalizationTests.test_ast_fini",
-        # test.test_gettext (1)
-        "test.test_gettext.FindTestCase",
-        # test.test_glob (1)
-        "test.test_glob.GlobTests.test_glob_named_pipe",
-        # test.test_import (1)
-        "test.test_import.ImportTracebackTests.test_unencodable_filename",
-        # test.test_imaplib (1)
-        "test.test_imaplib.ThreadedNetworkedTestsSSL.test_ssl_verified",
-        # test.test_module (1)
         "test.test_module.ModuleTests.test_module_finalization_at_shutdown",
-        # test.test_multiprocessing_main_handling (39)
         "test.test_multiprocessing_main_handling.ForkCmdLineTest.test_basic_script",
         "test.test_multiprocessing_main_handling.ForkCmdLineTest.test_basic_script_no_suffix",
         "test.test_multiprocessing_main_handling.ForkCmdLineTest.test_directory",
@@ -179,102 +117,116 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_script_compiled",
         "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_zipfile",
         "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_zipfile_compiled",
-        # test.test_mailbox (1)
-        "test.test_mailbox.TestMaildir.test_clean",
-        # test.test_ntpath (1)
-        "test.test_ntpath.NtCommonTest.test_nonascii_abspath",
-        # test.test_os (16)
-        "test.test_os.BytesFwalkTests.test_walk_named_pipe",
-        "test.test_os.BytesFwalkTests.test_walk_named_pipe2",
-        "test.test_os.BytesWalkTests.test_walk_named_pipe",
-        "test.test_os.BytesWalkTests.test_walk_named_pipe2",
         "test.test_os.EnvironTests.test_putenv_unsetenv",
         "test.test_os.ForkTests.test_fork",
-        "test.test_os.FwalkTests.test_walk_named_pipe",
-        "test.test_os.FwalkTests.test_walk_named_pipe2",
-        "test.test_os.Pep383Tests.test_listdir",
-        "test.test_os.Pep383Tests.test_open",
-        "test.test_os.Pep383Tests.test_stat",
-        "test.test_os.Pep383Tests.test_statvfs",
         "test.test_os.PseudoterminalTests.test_pipe_spawnl",
-        "test.test_os.UtimeTests",
-        "test.test_os.WalkTests.test_walk_named_pipe",
-        "test.test_os.WalkTests.test_walk_named_pipe2",
-        # test.test_posix (2)
-        "test.test_posix.PosixTester.test_link_follow_symlinks",
         "test.test_posix.TestPosixSpawnP.test_posix_spawnp",
-        # test.test_posixpath (1)
-        "test.test_posixpath.PosixCommonTest.test_nonascii_abspath",
-        # test.test_pydoc (1)
-        "test.test_pydoc.test_pydoc.PydocDocTest.test_synopsis_sourceless_empty_doc",
-        # test.test_readline (1)
-        "test.test_readline.TestReadline.test_gh123321_threadsafe",
-        # test.test_shutil (2)
-        "test.test_shutil.TestArchives",
-        "test.test_shutil.TestRmTree.test_rmtree_on_named_pipe",
-        # test.test_site (4)
         "test.test_site.HelperFunctionsTests.test_s_option",
-        "test.test_site.ImportSideEffectTests.test_customization_modules_on_startup",
-        "test.test_site._pthFileTests.test_underpth_basic",
-        "test.test_site._pthFileTests.test_underpth_nosite_file",
-        # test.test_str (1)
-        "test.test_str.StrTest.test_check_encoding_errors",
-        # test.test_subprocess (7)
-        "test.test_subprocess.ProcessTestCase.test_cwd_with_relative_arg",
-        "test.test_subprocess.ProcessTestCase.test_cwd_with_relative_executable",
         "test.test_subprocess.ProcessTestCase.test_empty_env",
-        "test.test_subprocess.ProcessTestCaseNoPoll.test_cwd_with_relative_arg",
-        "test.test_subprocess.ProcessTestCaseNoPoll.test_cwd_with_relative_executable",
         "test.test_subprocess.ProcessTestCaseNoPoll.test_empty_env",
-        "test.test_subprocess.RunFuncTestCase.test_encoding_warning",
-        # test.test_sys (1)
-        "test.test_sys.TestRemoteExec.test_remote_exec_undecodable",
-        # test.test_sysconfig (3)
-        "test.test_sysconfig.MakefileTests.test_get_makefile_filename",
         "test.test_sysconfig.TestSysConfig.test_makefile_overwrites_config_vars",
-        "test.test_sysconfig.TestSysConfig.test_srcdir",
-        # test.test_tabnanny (1)
-        "test.test_tabnanny.TestCommandLine.test_command_usage",
-        # test.test_tempfile (1)
         "test.test_tempfile.TestMkstempInner.test_noinherit",
-        # test.test_tracemalloc (1)
         "test.test_tracemalloc.TestCAPI.test_late_untrack",
-        # test.test_unicode_file (2)
-        "test.test_unicode_file.TestUnicodeFiles.test_directories",
-        "test.test_unicode_file.TestUnicodeFiles.test_single_files",
-        # test.test_urllib2 (1)
-        "test.test_urllib2.HandlerTests.test_ftp_error",
-        # test.test_urllibnet (1)
-        "test.test_urllibnet.urlopenNetworkTests.test_getcode",
-        # test.test_urlparse (3)
-        "test.test_urlparse.UrlParseTestCase.test_attributes_bad_port",
-        "test.test_urlparse.UrlParseTestCase.test_attributes_bad_scheme",
-        "test.test_urlparse.UrlParseTestCase.test_roundtrips",
-        # test.test_utf8_mode (5)
-        "test.test_utf8_mode.UTF8ModeTests.test_cmd_line",
-        "test.test_utf8_mode.UTF8ModeTests.test_env_var",
-        "test.test_utf8_mode.UTF8ModeTests.test_locale_getpreferredencoding",
-        "test.test_utf8_mode.UTF8ModeTests.test_stdio",
-        "test.test_utf8_mode.UTF8ModeTests.test_xoption",
-        # test.test_venv (5)
         "test.test_venv.BasicTest.test_multiprocessing_recursion",
         "test.test_venv.BasicTest.test_special_chars_bash",
         "test.test_venv.BasicTest.test_special_chars_csh",
         "test.test_venv.BasicTest.test_sysconfig",
         "test.test_venv.BasicTest.test_zippath_from_non_installed_posix",
-        # test.test_xml_etree (1)
+        "test.test_zipimport.CompressedZipImportTestCase",
+        "test.test_zipimport.UncompressedZipImportTestCase",
+        # -- permissions --
+        #   Need privileges the test sandbox does not grant (Operation not permitted).
+        "test.test_asyncio.test_events.EPollEventLoopTests.test_write_named_fifo_unread_data",
+        "test.test_asyncio.test_events.PollEventLoopTests.test_write_named_fifo_unread_data",
+        "test.test_asyncio.test_events.SelectEventLoopTests.test_write_named_fifo_unread_data",
+        "test.test_asyncio.test_events.UnixPipeObjectSupportTests.test_read_fifo",
+        "test.test_asyncio.test_events.UnixPipeObjectSupportTests.test_write_fifo",
+        "test.test_glob.GlobTests.test_glob_named_pipe",
+        "test.test_os.BytesFwalkTests.test_walk_named_pipe",
+        "test.test_os.BytesFwalkTests.test_walk_named_pipe2",
+        "test.test_os.BytesWalkTests.test_walk_named_pipe",
+        "test.test_os.BytesWalkTests.test_walk_named_pipe2",
+        "test.test_os.FwalkTests.test_walk_named_pipe",
+        "test.test_os.FwalkTests.test_walk_named_pipe2",
+        "test.test_os.WalkTests.test_walk_named_pipe",
+        "test.test_os.WalkTests.test_walk_named_pipe2",
+        "test.test_posix.PosixTester.test_link_follow_symlinks",
+        "test.test_shutil.TestRmTree.test_rmtree_on_named_pipe",
+        # -- locale --
+        #   Assume a locale or filesystem encoding the test host does not provide.
+        "test.test__locale._LocaleTests.test_alt_digits_nl_langinfo",
+        "test.test__locale._LocaleTests.test_era_nl_langinfo",
+        "test.test_c_locale_coercion.LocaleCoercionTests.test_LC_ALL_set_to_C",
+        "test.test_c_locale_coercion.LocaleCoercionTests.test_PYTHONCOERCECLOCALE_not_set",
+        "test.test_c_locale_coercion.LocaleCoercionTests.test_PYTHONCOERCECLOCALE_not_zero",
+        "test.test_c_locale_coercion.LocaleCoercionTests.test_PYTHONCOERCECLOCALE_set_to_warn",
+        "test.test_c_locale_coercion.LocaleCoercionTests.test_PYTHONCOERCECLOCALE_set_to_zero",
+        "test.test_cmd_line_script.CmdLineTest.test_non_ascii",
+        "test.test_import.ImportTracebackTests.test_unencodable_filename",
+        "test.test_ntpath.NtCommonTest.test_nonascii_abspath",
+        "test.test_os.Pep383Tests.test_listdir",
+        "test.test_os.Pep383Tests.test_open",
+        "test.test_os.Pep383Tests.test_stat",
+        "test.test_os.Pep383Tests.test_statvfs",
+        "test.test_posixpath.PosixCommonTest.test_nonascii_abspath",
+        "test.test_sys.TestRemoteExec.test_remote_exec_undecodable",
+        "test.test_unicode_file.TestUnicodeFiles.test_directories",
+        "test.test_unicode_file.TestUnicodeFiles.test_single_files",
+        # -- filesystem --
+        #   Assume a writable layout the scratch working directory does not match.
+        "test.test_cmd_line_script.CmdLineTest.test_script_abspath",
+        "test.test_cppext",
+        "test.test_fstring.TestCase.test_filename_in_syntaxerror",
+        "test.test_mailbox.TestMaildir.test_clean",
+        "test.test_shutil.TestArchives",
+        "test.test_subprocess.ProcessTestCase.test_cwd_with_relative_arg",
+        # -- batch --
+        #   Died alongside another test in the same TPX batch; each passes in isolation.
+        "test.test_imaplib.ThreadedNetworkedTestsSSL.test_ssl_verified",
+        "test.test_urlparse.UrlParseTestCase.test_attributes_bad_port",
+        "test.test_urlparse.UrlParseTestCase.test_attributes_bad_scheme",
+        "test.test_urlparse.UrlParseTestCase.test_roundtrips",
         "test.test_xml_etree.C14NTest.test_xml_c14n2",
-        # test.test_xml_etree_c (1)
         "test.test_xml_etree_c.C14NTest.test_xml_c14n2",
-        # test.test_zipimport (9)
-        "test.test_zipimport.CompressedZipImportTestCase.testLargestPossibleComment",
-        "test.test_zipimport.CompressedZipImportTestCase.testUnencodable",
-        "test.test_zipimport.CompressedZipImportTestCase.testZip64",
-        "test.test_zipimport.CompressedZipImportTestCase.testZip64CruftAndComment",
-        "test.test_zipimport.CompressedZipImportTestCase.testZip64LargeFile",
-        "test.test_zipimport.UncompressedZipImportTestCase.testGetSource",
-        "test.test_zipimport.UncompressedZipImportTestCase.testUnencodable",
-        "test.test_zipimport.UncompressedZipImportTestCase.testZip64",
-        "test.test_zipimport.UncompressedZipImportTestCase.testZip64CruftAndComment",
+        # -- unclassified --
+        #   Did not reproduce in the run this list was last derived from, but has
+        #   failed in others -- these families rotate between sibling tests.
+        "test.test_asyncio.test_runners.RunTests.test_asyncio_run_without_uncancel",
+        "test.test_asyncio.test_runners.RunnerTests.test_interrupt_call_soon",
+        "test.test_asyncio.test_runners.RunnerTests.test_interrupt_wait",
+        "test.test_audit.AuditTest.test_assert_unicode",
+        "test.test_bytes.ByteArrayTest.test_check_encoding_errors",
+        "test.test_bytes.BytesTest.test_check_encoding_errors",
+        "test.test_calendar.CommandLineTestCase.test_help",
+        "test.test_cext",
+        "test.test_cmd_line.CmdLineTest.test_stdout_flush_at_shutdown",
+        "test.test_cmd_line.CmdLineTest.test_xdev",
+        "test.test_exceptions.ExceptionTests.test_recursion_normalizing_exception",
+        "test.test_external_inspection.TestGetStackTrace.test_async_remote_stack_trace",
+        "test.test_external_inspection.TestGetStackTrace.test_async_staggered_race_remote_stack_trace",
+        "test.test_external_inspection.TestGetStackTrace.test_remote_stack_trace",
+        "test.test_fstring.TestCase.test_gh139516",
+        "test.test_gettext.FindTestCase",
+        "test.test_os.UtimeTests",
+        "test.test_pydoc.test_pydoc.PydocDocTest.test_synopsis_sourceless_empty_doc",
+        "test.test_readline.TestReadline.test_gh123321_threadsafe",
+        "test.test_site.ImportSideEffectTests.test_customization_modules_on_startup",
+        "test.test_site._pthFileTests.test_underpth_basic",
+        "test.test_site._pthFileTests.test_underpth_nosite_file",
+        "test.test_str.StrTest.test_check_encoding_errors",
+        "test.test_subprocess.ProcessTestCase.test_cwd_with_relative_executable",
+        "test.test_subprocess.ProcessTestCaseNoPoll.test_cwd_with_relative_arg",
+        "test.test_subprocess.ProcessTestCaseNoPoll.test_cwd_with_relative_executable",
+        "test.test_subprocess.RunFuncTestCase.test_encoding_warning",
+        "test.test_sysconfig.MakefileTests.test_get_makefile_filename",
+        "test.test_sysconfig.TestSysConfig.test_srcdir",
+        "test.test_tabnanny.TestCommandLine.test_command_usage",
+        "test.test_urllib2.HandlerTests.test_ftp_error",
+        "test.test_urllibnet.urlopenNetworkTests.test_getcode",
+        "test.test_utf8_mode.UTF8ModeTests.test_cmd_line",
+        "test.test_utf8_mode.UTF8ModeTests.test_env_var",
+        "test.test_utf8_mode.UTF8ModeTests.test_locale_getpreferredencoding",
+        "test.test_utf8_mode.UTF8ModeTests.test_stdio",
+        "test.test_utf8_mode.UTF8ModeTests.test_xoption",
     }
 )
