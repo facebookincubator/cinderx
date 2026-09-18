@@ -50,14 +50,6 @@ fun jittestmodule:test {
       }
     }
     v18:CInt32 = LoadEvalBreaker
-    CondBranch<5, 4> v18
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v19:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     Return v19
@@ -313,14 +305,6 @@ fun jittestmodule:test {
       }
     }
     v28:CInt32 = LoadEvalBreaker
-    CondBranch<5, 4> v28
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v29:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:Nullptr = LoadConst<Nullptr>
@@ -338,14 +322,6 @@ fun jittestmodule:test {
       }
     }
     v37:CInt32 = LoadEvalBreaker
-    CondBranch<10, 9> v37
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v38:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v29
@@ -394,14 +370,6 @@ fun jittestmodule:test {
       }
     }
     v28:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v28
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v29:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:OptObject = LoadGlobalCached<1; "bar">
@@ -419,14 +387,6 @@ fun jittestmodule:test {
       }
     }
     v36:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v36
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v37:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v29
@@ -475,14 +435,6 @@ fun jittestmodule:test {
       }
     }
     v28:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v28
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v29:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:OptObject = LoadGlobalCached<1; "bar">
@@ -500,14 +452,6 @@ fun jittestmodule:test {
       }
     }
     v36:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v36
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v37:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v29
@@ -556,14 +500,6 @@ fun jittestmodule:test {
       }
     }
     v28:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v28
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v29:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:OptObject = LoadGlobalCached<1; "bar">
@@ -581,14 +517,6 @@ fun jittestmodule:test {
       }
     }
     v36:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v36
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v37:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v29
@@ -639,14 +567,6 @@ fun jittestmodule:test {
     }
     AtQuiescentState
     v28:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v28
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v29:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:OptObject = LoadGlobalCached<1; "bar">
@@ -665,14 +585,6 @@ fun jittestmodule:test {
     }
     AtQuiescentState
     v36:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v36
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v37:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v29

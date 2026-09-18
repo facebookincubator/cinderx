@@ -37,14 +37,6 @@ fun jittestmodule:test {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v14:CInt32 = LoadEvalBreaker
-    CondBranch<5, 4> v14
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v15:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     Return v15
@@ -235,26 +227,10 @@ fun jittestmodule:test {
     Snapshot
     v10:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v20:CInt32 = LoadEvalBreaker
-    CondBranch<5, 4> v20
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v21:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v29:CInt32 = LoadEvalBreaker
-    CondBranch<10, 9> v29
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v30:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v21
@@ -290,26 +266,10 @@ fun jittestmodule:test {
     Snapshot
     v10:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v20:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v20
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v21:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v28:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v28
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v29:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v21
@@ -345,26 +305,10 @@ fun jittestmodule:test {
     Snapshot
     v10:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v20:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v20
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v21:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v28:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v28
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v29:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v21
@@ -400,26 +344,10 @@ fun jittestmodule:test {
     Snapshot
     v10:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v20:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v20
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v21:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v28:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v28
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v29:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v21
@@ -457,27 +385,11 @@ fun jittestmodule:test {
     v10:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     AtQuiescentState
     v20:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v20
-  }
-
-  bb 5 (preds 1) {
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
     v21:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     AtQuiescentState
     v28:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v28
-  }
-
-  bb 10 (preds 4) {
-    Branch<9>
-  }
-
-  bb 9 (preds 4, 10) {
     v29:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     UseType<LongExact> v21
@@ -839,14 +751,6 @@ fun jittestmodule:test {
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v35:CInt32 = LoadEvalBreaker
-    CondBranch<10, 9> v35
-  }
-
-  bb 10 (preds 1) {
-    Branch<9>
-  }
-
-  bb 9 (preds 1, 10) {
     v36:CInt8[4] = LoadConst<CInt8[4]>
     v37:Nullptr = LoadConst<Nullptr>
     UseType<CInt8> v36
@@ -855,14 +759,6 @@ fun jittestmodule:test {
     Snapshot
     v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v22:CInt32 = LoadEvalBreaker
-    CondBranch<5, 4> v22
-  }
-
-  bb 5 (preds 9) {
-    Branch<4>
-  }
-
-  bb 4 (preds 5, 9) {
     v23:CInt8 = LoadField<foo@16, CInt8, borrowed> v10
     Snapshot
     Return<CInt8> v23
@@ -898,14 +794,6 @@ fun jittestmodule:test {
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v35:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v35
-  }
-
-  bb 10 (preds 1) {
-    Branch<9>
-  }
-
-  bb 9 (preds 1, 10) {
     v36:CInt8[4] = LoadConst<CInt8[4]>
     v37:Nullptr = LoadConst<Nullptr>
     UseType<CInt8> v36
@@ -914,14 +802,6 @@ fun jittestmodule:test {
     Snapshot
     v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v22:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v22
-  }
-
-  bb 5 (preds 9) {
-    Branch<4>
-  }
-
-  bb 4 (preds 5, 9) {
     v23:CInt8 = LoadField<foo@16, CInt8, borrowed> v10
     Snapshot
     Return<CInt8> v23
@@ -957,14 +837,6 @@ fun jittestmodule:test {
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v35:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v35
-  }
-
-  bb 10 (preds 1) {
-    Branch<9>
-  }
-
-  bb 9 (preds 1, 10) {
     v36:CInt8[4] = LoadConst<CInt8[4]>
     v37:Nullptr = LoadConst<Nullptr>
     UseType<CInt8> v36
@@ -973,14 +845,6 @@ fun jittestmodule:test {
     Snapshot
     v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v22:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v22
-  }
-
-  bb 5 (preds 9) {
-    Branch<4>
-  }
-
-  bb 4 (preds 5, 9) {
     v23:CInt8 = LoadField<foo@16, CInt8, borrowed> v10
     Snapshot
     Return<CInt8> v23
@@ -1016,14 +880,6 @@ fun jittestmodule:test {
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v35:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v35
-  }
-
-  bb 10 (preds 1) {
-    Branch<9>
-  }
-
-  bb 9 (preds 1, 10) {
     v36:CInt8[4] = LoadConst<CInt8[4]>
     v37:Nullptr = LoadConst<Nullptr>
     UseType<CInt8> v36
@@ -1032,14 +888,6 @@ fun jittestmodule:test {
     Snapshot
     v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v22:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v22
-  }
-
-  bb 5 (preds 9) {
-    Branch<4>
-  }
-
-  bb 4 (preds 5, 9) {
     v23:CInt8 = LoadField<foo@16, CInt8, borrowed> v10
     Snapshot
     Return<CInt8> v23
@@ -1078,14 +926,6 @@ fun jittestmodule:test {
     v38:ObjectUser[C:Exact] = TagIfDeferred v10
     AtQuiescentState
     v39:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v39
-  }
-
-  bb 10 (preds 1) {
-    Branch<9>
-  }
-
-  bb 9 (preds 1, 10) {
     v40:CInt8[4] = LoadConst<CInt8[4]>
     v41:Nullptr = LoadConst<Nullptr>
     UseType<CInt8> v40
@@ -1096,14 +936,6 @@ fun jittestmodule:test {
     v23:ObjectUser[C:Exact] = TagIfDeferred v10
     AtQuiescentState
     v24:CInt64 = LoadEvalBreaker
-    CondBranch<5, 4> v24
-  }
-
-  bb 5 (preds 9) {
-    Branch<4>
-  }
-
-  bb 4 (preds 5, 9) {
     v25:CInt8 = LoadField<foo@32, CInt8, borrowed> v23
     Snapshot
     Return<CInt8> v25

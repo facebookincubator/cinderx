@@ -172,8 +172,9 @@ consteval FrameInitTable buildFrameInitTable() {
       DataType::k8bit);
 
 #ifndef ENABLE_LIGHTWEIGHT_FRAMES
-  // Without ENABLE_LIGHTWEIGHT_FRAMES there is no lazy reification so
-  // we must initialize every field the interpreter expects.
+  // Without ENABLE_LIGHTWEIGHT_FRAMES, eagerly-initialized frames must set
+  // every field the interpreter expects. (Lazy frames skip this table: only
+  // f_funcobj is stored and the deopt path materializes the rest.)
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, f_globals)),
       FrameFieldKind::kGlobals,
       DataType::kObject);

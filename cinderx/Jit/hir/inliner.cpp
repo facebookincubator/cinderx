@@ -817,7 +817,10 @@ std::vector<BasicBlock*> inlinedBlocks(BasicBlock* entry, BasicBlock* exit) {
   return blocks;
 }
 
-void tryEliminateBeginEnd(EndInlinedFunction* end) {
+// Optimize the frame management. If the function is simple enough we can
+// just remove it. If the function can deopt then we will lazily create the
+// frame. If we have arbitrary code execution we need to setup the frame.
+void optimizeFrame(EndInlinedFunction* end) {
   BeginInlinedFunction* begin = end->matchingBegin();
   // A callee that owns cell or free variables (e.g. the `__class__` cell that
   // zero-arg super() forces into the code object) keeps them in this frame's
@@ -830,7 +833,9 @@ void tryEliminateBeginEnd(EndInlinedFunction* end) {
   BasicBlock* begin_block = begin->block();
   BasicBlock* end_block = end->block();
   std::vector<Instr*> to_delete{begin, end};
+  bool has_deopt = false;
   bool saw_periodic_tasks = false;
+  std::vector<FrameState*> states;
   // Scan the whole inlined region, not just a single block: the callee's
   // entry eval-breaker check lives in its own block, so same-block scanning
   // alone almost never fires.
@@ -849,32 +854,57 @@ void tryEliminateBeginEnd(EndInlinedFunction* end) {
       // if not removed, will contain bad pointers.
       if (instr->isSnapshot()) {
         to_delete.push_back(instr);
+        states.push_back(static_cast<Snapshot*>(instr)->frameState());
         continue;
       }
       // The callee's entry eval-breaker check is redundant once inlined: the
-      // caller performs its own periodic checks. Allow (and remove) the first
-      // one; a second periodic check (e.g. from a loop in the callee body)
-      // needs the inline frames to exist like any other deopting instruction.
+      // caller performs its own periodic checks. Allow (and remove, on
+      // elimination) the first one; a second periodic check (e.g. from a loop
+      // in the callee body) needs the inline frames to exist like any other
+      // deopting instruction.
       if (instr->isRunPeriodicTasks()) {
         if (saw_periodic_tasks) {
-          return;
+          has_deopt = true;
+          continue;
         }
         saw_periodic_tasks = true;
         to_delete.push_back(instr);
+        // The entry check is itself deopting, so its state must carry the
+        // lazy mark when the region goes lazy (later passes derive new
+        // states by copying it). It does not count as a deopt for the
+        // eliminate-vs-lazy decision: the caller performs its own periodic
+        // checks.
+        if (auto db = instr->asDeoptBase()) {
+          states.push_back(db->frameState());
+        }
         continue;
       }
-      // Instructions that either deopt or otherwise materialize a
-      // PyFrameObject need the inline frames to exist.  Everything that
-      // materializes a PyFrameObject should also be marked as deopting.
-      // Updating the previous instruction needs the frame too.
-      if (instr->asDeoptBase() || hasArbitraryExecution(*instr)) {
+      if (hasArbitraryExecution(*instr)) {
         return;
+      }
+      // Deopts are okay, we'll just need to lazily materialize the frame
+      // if we deopt.
+      if (auto db = instr->asDeoptBase()) {
+        has_deopt = true;
+        states.push_back(db->frameState());
       }
     }
   }
-  for (Instr* instr : to_delete) {
-    instr->unlink();
-    delete instr;
+  if (!has_deopt) {
+    // Every collected state is owned by a deleted instruction (snapshots own
+    // theirs; deopt states can't exist on this path), so no clearing needed.
+    for (Instr* instr : to_delete) {
+      instr->unlink();
+      delete instr;
+    }
+    return;
+  }
+  begin->setLazyFrames(true);
+  end->setLazyFrames(true);
+  for (FrameState* fs : states) {
+    if (fs != nullptr) {
+      fs->lazy_frame = true;
+    }
   }
 }
 
@@ -1037,9 +1067,36 @@ void InlineFunctionCalls::run(Function& irfunc) {
   // collapses the Assigns the inliner introduced.
   CopyPropagation{}.run(irfunc);
   CleanCFG{}.run(irfunc);
+
+  // Decide every inlined region's fate now that all (nested) inlining is done
+  // and regions are final. Outermost pairs first so a nested pair's decision
+  // wins on its own states. Lazy frames work without lightweight frames too:
+  // codegen still skips everything but f_funcobj and the deopt path
+  // materializes the frame from metadata either way.
+  std::vector<EndInlinedFunction*> ends;
+  for (auto& block : irfunc.cfg.blocks) {
+    for (auto& instr : block) {
+      if (instr.isEndInlinedFunction()) {
+        ends.push_back(static_cast<EndInlinedFunction*>(&instr));
+      }
+    }
+  }
+  std::sort(
+      ends.begin(),
+      ends.end(),
+      [](EndInlinedFunction* a, EndInlinedFunction* b) {
+        return a->inlineDepth() < b->inlineDepth();
+      });
+  for (EndInlinedFunction* end : ends) {
+    optimizeFrame(end);
+  }
 }
 
 void BeginInlinedFunctionElimination::run(Function& irfunc) {
+  // Second sweep with the same scan: picks up regions that only became
+  // eliminable after simplification, and re-checks lazy regions (eliminating
+  // any whose deopts all folded away). Regions eliminated by the first sweep
+  // are already gone.
   std::vector<EndInlinedFunction*> ends;
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
@@ -1050,7 +1107,7 @@ void BeginInlinedFunctionElimination::run(Function& irfunc) {
     }
   }
   for (EndInlinedFunction* end : ends) {
-    tryEliminateBeginEnd(end);
+    optimizeFrame(end);
   }
 }
 

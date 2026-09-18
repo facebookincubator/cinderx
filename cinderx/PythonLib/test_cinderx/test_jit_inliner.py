@@ -712,6 +712,19 @@ def swappable_caller():
     return swappable_callee()
 
 
+_LAZY_GLOBAL = [1]
+
+
+@failUnlessJITCompiled
+def lazy_global_callee():
+    return _LAZY_GLOBAL
+
+
+@failUnlessJITCompiled
+def lazy_global_caller():
+    return lazy_global_callee()
+
+
 @passUnless(INLINER, "Testing the inliner")
 class InlinedFunctionTests(unittest.TestCase):
     def assert_method_rewritten(self, func) -> None:
@@ -1230,6 +1243,23 @@ class InlinedFunctionTests(unittest.TestCase):
         finally:
             swappable_callee.__code__ = original_code
         self.assertEqual(swappable_caller(), 1)
+
+    @jit_suppress
+    def test_deopt_through_lazy_frame(self) -> None:
+        # The callee inlines with lazy frames (its only deopts are guards,
+        # with no arbitrary execution). Mutating the global fails the inlined
+        # guard, deopting through the lazy frame, which must materialize the
+        # right values.
+        self.assertEqual(lazy_global_caller(), [1])
+        self.assertGreater(cinderx.jit.get_num_inlined_functions(lazy_global_caller), 0)
+        global _LAZY_GLOBAL
+        old = _LAZY_GLOBAL
+        try:
+            _LAZY_GLOBAL = [2]
+            self.assertEqual(lazy_global_caller(), [2])
+        finally:
+            _LAZY_GLOBAL = old
+        self.assertEqual(lazy_global_caller(), [1])
 
     @jit_suppress
     def test_line_numbers_with_multiple_inlined_calls(self) -> None:

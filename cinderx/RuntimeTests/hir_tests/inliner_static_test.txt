@@ -35,28 +35,8 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
-    }
-    Snapshot
     v14:CInt32 = LoadEvalBreaker
-    CondBranch<5, 4> v14
-  }
-
-  bb 5 (preds 1) {
-    Snapshot
-    v18:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
-    Branch<4>
-  }
-
-  bb 4 (preds 1, 5) {
-    Snapshot
     v15:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    EndInlinedFunction
     Snapshot
     Return v15
   }
@@ -84,29 +64,16 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
-    }
-    Snapshot
     v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    Snapshot
-    EndInlinedFunction
     Snapshot
     Return v15
   }
@@ -134,29 +101,16 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 4
-    }
-    Snapshot
     v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    Snapshot
-    EndInlinedFunction
     Snapshot
     Return v15
   }
@@ -184,29 +138,16 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 4
-    }
-    Snapshot
     v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    Snapshot
-    EndInlinedFunction
     Snapshot
     Return v15
   }
@@ -235,30 +176,17 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
-    }
-    Snapshot
     AtQuiescentState
     v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    Snapshot
-    EndInlinedFunction
     Snapshot
     Return v15
   }
@@ -608,28 +536,16 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
-    }
-    Snapshot
     v14:CInt32 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:CInt8[4] = LoadConst<CInt8[4]>
-    EndInlinedFunction
     Snapshot
     Return<CInt8> v15
   }
@@ -657,28 +573,16 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
-    }
-    Snapshot
     v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:CInt8[4] = LoadConst<CInt8[4]>
-    EndInlinedFunction
     Snapshot
     Return<CInt8> v15
   }
@@ -706,28 +610,16 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 4
-    }
-    Snapshot
     v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:CInt8[4] = LoadConst<CInt8[4]>
-    EndInlinedFunction
     Snapshot
     Return<CInt8> v15
   }
@@ -755,28 +647,16 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 4
-    }
-    Snapshot
     v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:CInt8[4] = LoadConst<CInt8[4]>
-    EndInlinedFunction
     Snapshot
     Return<CInt8> v15
   }
@@ -805,29 +685,17 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
-    }
-    Snapshot
     AtQuiescentState
     v14:CInt64 = LoadEvalBreaker
     CondBranch<5, 4> v14
   }
 
   bb 5 (preds 1) {
-    Snapshot
-    v17:CInt32 = RunPeriodicTasks {
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
     Branch<4>
   }
 
   bb 4 (preds 1, 5) {
-    Snapshot
     v15:CInt8[4] = LoadConst<CInt8[4]>
-    EndInlinedFunction
     Snapshot
     Return<CInt8> v15
   }

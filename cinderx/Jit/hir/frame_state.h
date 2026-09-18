@@ -106,6 +106,13 @@ struct FrameState {
   // there's no code object for us to inspect.
   int nlocals{0};
 
+  // Whether this state belongs to a lazy inlined frame: the frame can deopt
+  // but never runs arbitrary code, so codegen leaves it mostly
+  // uninitialized (only f_funcobj is set) and it is fully materialized only
+  // if a deopt fires. Set by the inliner for states in a lazy region;
+  // propagated by value into DeoptFrameMetadata.
+  bool lazy_frame{false};
+
   OperandStack stack;
   BlockStack block_stack;
   BorrowedRef<PyCodeObject> code;

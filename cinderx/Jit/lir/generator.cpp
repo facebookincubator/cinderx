@@ -4805,6 +4805,35 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         // There is already an interpreter frame for the caller function.
         Instruction* callee_frame = getInlinedFrame(bbb, instr);
 
+        if (instr->lazyFrames()) {
+          // Lazy frames are never observed except through a deopt, which
+          // locates their slots from the frame pointer plus compile-time
+          // offsets and materializes them from metadata. Only store f_funcobj
+          // (read back by the deopt path to recover the function); the frames
+          // stay unlinked until reification links them. The reference above
+          // keeps func alive, so no incref is needed and EndInlinedFunction
+          // is a nop for lazy frames.
+          auto fieldOffset = [](FrameFieldKind kind) {
+            for (size_t f = 0; f < kFrameInitTable.num_fields; f++) {
+              const auto& field = kFrameInitTable.fields[f];
+              if (field.kind == kind) {
+                return std::pair(field.offset, field.data_type);
+              }
+            }
+            JIT_ABORT("Frame init table has no field of kind {}", (int)kind);
+          };
+          Instruction* funcobj_reg =
+              bbb.appendInstr(OutVReg{}, Opcode::kMove, func);
+          auto [funcobj_off, funcobj_dt] = fieldOffset(kFuncObjKind);
+          bbb.annotateNext("Store lazy funcobj");
+          bbb.appendInstr(
+              OutInd{callee_frame, funcobj_off, funcobj_dt},
+              Opcode::kStore,
+              funcobj_reg);
+          bbb.annotateNext("Inlined function");
+          break;
+        }
+
         // Resolve executable and funcobj values based on version.
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
         BorrowedRef<> frame_reifier;
@@ -4961,6 +4990,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case hir::Opcode::kEndInlinedFunction: {
         const auto& instr = i.as<EndInlinedFunction>();
+        if (instr.lazyFrames()) {
+          // Lazy frames were never fully initialized and own no references;
+          // there is nothing to tear down.
+          break;
+        }
         Instruction* callee_frame = getInlinedFrame(bbb, instr.matchingBegin());
         BorrowedRef<PyCodeObject> code = instr.matchingBegin()->code();
 

@@ -147,35 +147,116 @@ void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
       name);
 }
 
+// Offset of an inlined frame's stack slot relative to the deopt-time frame
+// pointer. Mirrors frameOffsetOf() and calcInlineStackSize, all frames
+// are grouped together in the same stack space.
+Py_ssize_t frameOffset(const DeoptMetadata& deopt_meta, size_t depth) {
+  Py_ssize_t off = 0;
+  for (size_t i = 0; i <= depth; i++) {
+    off -= frameHeaderSize(deopt_meta.frame_meta.at(i).code);
+  }
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  if (depth == 0) {
+    // The root frame sits kFrameHeaderOverhead into its slot (see prologue).
+    off += kFrameHeaderOverhead;
+  }
+#endif
+  return off;
+}
+
+// Deepest depth whose frame is linked into the thread state. Depths deeper
+// than this are unlinked lazy frames. A lazy region only ever nests
+// lazy-or-eliminated pairs, so every depth on the deopt path at or below a
+// linked frame is a normally-initialized frame.
+size_t deepestLinkedDepth(
+    uintptr_t rbp,
+    const DeoptMetadata& deopt_meta,
+    size_t depth,
+    _PyInterpreterFrame* cur_frame) {
+  for (size_t d = depth; d != 0; d--) {
+    _PyInterpreterFrame* slot = reinterpret_cast<_PyInterpreterFrame*>(
+        rbp + frameOffset(deopt_meta, d));
+    if (slot == cur_frame) {
+      return d;
+    }
+  }
+  return 0;
+}
+
+_PyInterpreterFrame* materializeDeoptFrame(
+    PyThreadState* tstate,
+    const DeoptMetadata& deopt_meta,
+    size_t depth,
+    _PyInterpreterFrame* src) {
+  const DeoptFrameMetadata& frame_meta = deopt_meta.frame_meta.at(depth);
+  if (frame_meta.code != nullptr &&
+      (frame_meta.code->co_flags & kCoFlagsAnyGenerator)) {
+    jitFramePopulateFrame(src);
+    jitFrameRemoveReifier(src);
+    return src;
+  }
+  if (frame_meta.lazy_frame) {
+    _PyInterpreterFrame* new_frame =
+        _PyThreadState_PushFrame(tstate, frame_meta.code->co_framesize);
+    if (new_frame == nullptr) {
+      return nullptr;
+    }
+    BorrowedRef<PyFunctionObject> func{frameFunction(src)};
+    jitFrameInit(
+        tstate,
+        new_frame,
+        func,
+        frame_meta.code,
+        0,
+        FRAME_OWNED_BY_THREAD,
+        nullptr);
+    return new_frame;
+  }
+  return convertInterpreterFrameFromStackToSlab(tstate, src);
+}
+
 // Helper to recursively reify the lightweight frames. We need to reify the
 // outermost lightweight frame first and work inwards to have the frames
 // allocated correctly on the slab. We then need to update the inner functions
 // previous to point at any updated outer frames. So we recurse to the inner
 // most frame, convert it, return the new frame, and continue converting as
-// we unwind.
+// we unwind. If we have inlined frames that are lazily populated we just
+// create and initialize them.
 _PyInterpreterFrame* reifyLightweightFrames(
     PyThreadState* tstate,
+    uintptr_t fp,
     const DeoptMetadata& deopt_meta,
     size_t depth,
+    size_t linked,
     _PyInterpreterFrame* cur_frame) {
   _PyInterpreterFrame* prev = nullptr;
   if (depth > 0) {
     prev = reifyLightweightFrames(
-        tstate, deopt_meta, depth - 1, cur_frame->previous);
-  }
-  if (!(_PyFrame_GetCode(cur_frame)->co_flags & kCoFlagsAnyGenerator)) {
-    cur_frame = convertInterpreterFrameFromStackToSlab(tstate, cur_frame);
-    if (cur_frame == nullptr) {
+        tstate, fp, deopt_meta, depth - 1, linked, cur_frame);
+    if (prev == nullptr) {
       return nullptr;
     }
+  }
+  _PyInterpreterFrame* src;
+  if (depth > linked) {
+    // calculate from the last linked frame
+    src = reinterpret_cast<_PyInterpreterFrame*>(
+        fp + frameOffset(deopt_meta, depth));
   } else {
-    jitFramePopulateFrame(cur_frame);
-    jitFrameRemoveReifier(cur_frame);
+    src = cur_frame;
+    for (size_t d = linked; d > depth; d--) {
+      src = src->previous;
+    }
   }
-  if (prev) {
-    cur_frame->previous = prev;
+  _PyInterpreterFrame* cur =
+      materializeDeoptFrame(tstate, deopt_meta, depth, src);
+  if (cur == nullptr) {
+    return nullptr;
   }
-  return cur_frame;
+  if (prev != nullptr) {
+    cur->previous = prev;
+  }
+  return cur;
 }
 
 uintptr_t prepareForDeopt(
@@ -187,13 +268,17 @@ uintptr_t prepareForDeopt(
   PyThreadState* tstate = _PyThreadState_UncheckedGet();
   bool is_instrumentation_deopt = false;
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
+  uintptr_t fp = regs[arch::reg_frame_pointer_loc.loc];
+
+  size_t linked =
+      deepestLinkedDepth(fp, deopt_meta, deopt_meta.inline_depth(), frame);
 
   // Check JIT_FRAME_DEOPT_PATCHED on the outermost frame's header before
-  // reification destroys it. Walk past inlined frames to find the outer one.
+  // reification destroys it.
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   {
     _PyInterpreterFrame* outer = frame;
-    for (size_t i = 0; i < deopt_meta.inline_depth(); i++) {
+    for (size_t i = 0; i < linked; i++) {
       outer = outer->previous;
     }
     is_instrumentation_deopt =
@@ -202,7 +287,7 @@ uintptr_t prepareForDeopt(
 #endif
 
   frame = reifyLightweightFrames(
-      tstate, deopt_meta, deopt_meta.inline_depth(), frame);
+      tstate, fp, deopt_meta, deopt_meta.inline_depth(), linked, frame);
   if (frame == nullptr) {
     Py_FatalError("Cannot recover from OOM");
   }

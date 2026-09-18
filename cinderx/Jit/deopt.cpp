@@ -606,6 +606,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
     meta.frame_meta.at(frame_idx).block_stack = frame->block_stack;
     meta.frame_meta.at(frame_idx).cause_instr_idx = frame->cur_instr_offs;
     meta.frame_meta.at(frame_idx).code = frame->code.get();
+    meta.frame_meta.at(frame_idx).lazy_frame = frame->lazy_frame;
   }
 
   if (hir::Register* guilty_reg = instr.guiltyReg()) {

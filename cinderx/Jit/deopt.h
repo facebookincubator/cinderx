@@ -126,6 +126,12 @@ struct DeoptFrameMetadata {
   PyCodeObject* code{nullptr};
 
   BCIndex cause_instr_idx{0};
+
+  // Whether this frame is lazy: codegen left it mostly uninitialized (only
+  // f_funcobj is set) because it can deopt but never runs arbitrary code.
+  // Reification must fully materialize it (via a fresh heap frame) instead
+  // of converting the stack frame in place.
+  bool lazy_frame{false};
 };
 
 // DeoptMetadata captures all the information necessary to reconstruct a

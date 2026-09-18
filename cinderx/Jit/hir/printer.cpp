@@ -320,8 +320,13 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kYieldValue: {
       return "";
     }
-    case Opcode::kBeginInlinedFunction:
-      return static_cast<const BeginInlinedFunction&>(instr).fullname();
+    case Opcode::kBeginInlinedFunction: {
+      const auto& begin = static_cast<const BeginInlinedFunction&>(instr);
+      if (begin.lazyFrames()) {
+        return fmt::format("{}, lazy", begin.fullname());
+      }
+      return begin.fullname();
+    }
     case Opcode::kLoadArrayItem: {
       const auto& load = static_cast<const LoadArrayItem&>(instr);
       std::string result;

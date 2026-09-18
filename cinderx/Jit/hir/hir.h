@@ -1699,6 +1699,18 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
     return caller_state_->inlineDepth() + 1;
   }
 
+  // Whether the inlined frames between this and the matching
+  // EndInlinedFunction are lazy: the region can deopt but never runs
+  // arbitrary code, so codegen only initializes f_funcobj and the frames are
+  // fully materialized only if a deopt actually fires.
+  bool lazyFrames() const {
+    return lazy_frames_;
+  }
+
+  void setLazyFrames(bool lazy_frames) {
+    lazy_frames_ = lazy_frames;
+  }
+
  private:
   // BeginInlinedFunction must own the FrameState that is used for building the
   // linked list of FrameStates as well as its parent FrameState. The parent is
@@ -1711,6 +1723,7 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   BorrowedRef<> reifier_;
   std::unique_ptr<FrameState> caller_state_{nullptr};
   std::string fullname_;
+  bool lazy_frames_{false};
 };
 
 class INSTR_CLASS(EndInlinedFunction, (), Operands<0>), public InlineBase {
@@ -1726,9 +1739,20 @@ class INSTR_CLASS(EndInlinedFunction, (), Operands<0>), public InlineBase {
     return inline_depth_;
   }
 
+  // Mirrors BeginInlinedFunction::lazyFrames() for the matching begin; set
+  // together with it by the inliner.
+  bool lazyFrames() const {
+    return lazy_frames_;
+  }
+
+  void setLazyFrames(bool lazy_frames) {
+    lazy_frames_ = lazy_frames;
+  }
+
  private:
   BeginInlinedFunction* begin_{nullptr};
   int inline_depth_{-1};
+  bool lazy_frames_{false};
 };
 
 #define FOREACH_PRIMITIVE_UNARY_OP_KIND(V) \
