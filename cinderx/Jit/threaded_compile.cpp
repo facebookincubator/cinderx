@@ -20,25 +20,13 @@ ThreadedCompileContext::ThreadedCompileContext() {
   threaded_compile_tstate_ = PyThreadState_Get();
 }
 
-ThreadedCompileContext::ThreadedCompileContext(WorkList&& work_list) {
-  JIT_DCHECK(current_ == nullptr, "should have no current context");
-  JIT_DCHECK(
-      threaded_compile_tstate_ == nullptr, "should have no saved thread state");
-  work_list_ = std::move(work_list);
-  interpreter_ = PyInterpreterState_Get();
-  current_ = this;
-  threaded_compile_tstate_ = PyThreadState_Get();
-}
-
 ThreadedCompileContext::~ThreadedCompileContext() {
-  if (!ended_) {
-    endCompile();
-  }
+  endCompile();
 }
 
-ThreadedCompileContext::WorkList ThreadedCompileContext::endCompile() {
+bool ThreadedCompileContext::endCompile() {
   if (ended_) {
-    return {};
+    return false;
   }
 
   if (main_ != nullptr) {
@@ -49,35 +37,12 @@ ThreadedCompileContext::WorkList ThreadedCompileContext::endCompile() {
   ended_ = true;
   threaded_compile_tstate_ = nullptr;
   current_ = nullptr;
-  // The GIL is held again, so it is safe to drop the references the workers
-  // handed back.
-  retired_list_.clear();
-  return std::move(retry_list_);
+  return true;
 }
 
 void ThreadedCompileContext::releaseGil() {
   JIT_DCHECK(main_ == nullptr, "main already saved");
   main_ = PyEval_SaveThread();
-}
-
-Ref<> ThreadedCompileContext::nextUnit() {
-  Ref<> unit;
-  JITCompilationLock lock;
-  if (!work_list_.empty()) {
-    unit = std::move(work_list_.back());
-    work_list_.pop_back();
-  }
-  return unit;
-}
-
-void ThreadedCompileContext::retryUnit(Ref<>&& unit) {
-  JITCompilationLock lock;
-  retry_list_.emplace_back(std::move(unit));
-}
-
-void ThreadedCompileContext::retireUnit(Ref<>&& unit) {
-  JITCompilationLock lock;
-  retired_list_.emplace_back(std::move(unit));
 }
 
 bool ThreadedCompileContext::compileRunning() {

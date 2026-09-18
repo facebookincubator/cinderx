@@ -46,6 +46,7 @@
 #include "cinderx/Jit/nested_compile.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/threaded_compile.h"
+#include "cinderx/Jit/threaded_compile_queue.h"
 #include "cinderx/module_state.h"
 
 #ifndef WIN32
@@ -1265,7 +1266,7 @@ std::pair<Result, Ref<>> tryCompilePreloaded(
 
 void compile_worker_thread(
     PyInterpreterState* interp,
-    std::shared_ptr<ThreadedCompileContext> context,
+    std::shared_ptr<ThreadedCompileQueue> context,
     std::shared_ptr<hir::IsolatedPreloaders> isolated,
     std::shared_ptr<const PreloadedUnitMap> preloaders) {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
@@ -1361,7 +1362,7 @@ bool multithread_compile_units_preloaded(
 
   // Allocate the compile context as a shared_ptr so it is ref-counted and
   // kept alive by the workers
-  auto compilation = std::make_shared<ThreadedCompileContext>(std::move(units));
+  auto compilation = std::make_shared<ThreadedCompileQueue>(std::move(units));
 
   PyInterpreterState* interp = ThreadedCompileContext::interpreter();
 
@@ -1381,7 +1382,7 @@ bool multithread_compile_units_preloaded(
 
   mod_state->joinCompileWorkers();
 
-  auto retry_list = compilation->endCompile();
+  auto retry_list = compilation->finalizeCompile();
 
   jitCtx()->finalizePendingCompiles();
 
