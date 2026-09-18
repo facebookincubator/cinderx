@@ -826,6 +826,14 @@ std::vector<BasicBlock*> inlinedBlocks(BasicBlock* entry, BasicBlock* exit) {
 
 void tryEliminateBeginEnd(EndInlinedFunction* end) {
   BeginInlinedFunction* begin = end->matchingBegin();
+  // A callee that owns cell or free variables (e.g. the `__class__` cell that
+  // zero-arg super() forces into the code object) keeps them in this frame's
+  // localsplus. The cell setup (MakeCell/InitFrameCellVars) is not itself a
+  // deopting instruction, so keep the frame explicitly rather than relying on
+  // the region scan below to catch it.
+  if (numCellvars(begin->code()) > 0 || numFreevars(begin->code()) > 0) {
+    return;
+  }
   BasicBlock* begin_block = begin->block();
   BasicBlock* end_block = end->block();
   std::vector<Instr*> to_delete{begin, end};
