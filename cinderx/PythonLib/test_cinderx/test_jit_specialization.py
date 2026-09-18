@@ -488,7 +488,7 @@ class SpecializationTests(CinderXTestCase):
         self.assertIn("UNPACK_SEQUENCE_TWO_TUPLE", opnames(f))
         self.assertEqual(f(("c", "d")), "c")
 
-    def test_for_iter_range_unused_loop_variable(self) -> None:
+    def test_for_iter_range_unused_loop_variable_is_unboxed(self) -> None:
         def count(n: int) -> int:
             result = 0
             for _ in range(n):
@@ -501,10 +501,51 @@ class SpecializationTests(CinderXTestCase):
             count(10)
         cinderx.jit.jit_unsuppress(count)
 
-        # Still using boxed integer arithmetic for the loop variable.
-        self.assertHIROpcodes(count, present=["PrimitiveBox"])
+        # Not perfect, but it tells us we're likely using unboxed integers.
+        self.assertHIROpcodes(
+            count,
+            present=["GuardType", "IntBinaryOp"],
+            absent=["PrimitiveBox"],
+        )
 
         self.assertEqual(count(100), 100)
+
+    def test_for_iter_range_reused_loop_variable(self) -> None:
+        """
+        Distilled from the nbody benchmark, this hit issues in the JIT with
+        trying to merge boxed ints, unboxed ints, and nullptr.
+        """
+
+        class Value:
+            __slots__ = ("value",)
+
+            def __init__(self, value: float) -> None:
+                self.value = value
+
+        def update(values: list[Value], size: int) -> None:
+            for i in range(size):
+                current = values[i]
+                current_value = current.value
+                for j in range(i + 1, size):
+                    other = values[j]
+                    delta = current_value - other.value
+                    current_value -= delta
+                    other.value += delta
+                current.value = current_value
+            for i in range(size):
+                current = values[i]
+                current.value += 1.0
+
+        warm_values = [Value(1.0), Value(2.0), Value(3.0)]
+        cinderx.jit.jit_suppress(update)
+        for _ in range(100):
+            update(warm_values, len(warm_values))
+        cinderx.jit.jit_unsuppress(update)
+
+        self.assertTrue(cinderx.jit.force_compile(update))
+        values = [Value(1.0), Value(2.0), Value(3.0)]
+        update(values, len(values))
+        self.assertEqual([value.value for value in values], [4.0, 3.0, 2.0])
 
     def test_for_iter_range_back_to_back_loops(self) -> None:
         # The empty-range check adds an edge that skips the loop entirely, so

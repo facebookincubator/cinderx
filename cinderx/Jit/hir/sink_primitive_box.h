@@ -15,6 +15,9 @@ namespace cinderx::jit::hir {
 // rewrite those frame-state references to the unboxed source value, leaving the
 // box dead.  This keeps chained primitive arithmetic unboxed on the fast path
 // while staying correct on deopt.
+//
+// Phi and Assign only forward a value along, so a box whose result reaches a
+// real use only through them counts as unused as well.
 class SinkPrimitiveBox final : public Pass {
  public:
   SinkPrimitiveBox() : Pass("SinkPrimitiveBox") {}

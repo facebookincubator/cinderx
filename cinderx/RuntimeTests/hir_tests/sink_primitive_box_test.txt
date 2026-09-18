@@ -455,4 +455,576 @@ fun test {
     Return v5
   }
 }
+--- Test Name ---
+SinksBoxesThroughDeoptOnlyPhi
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+  bb 1 {
+    v1:CInt64 = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1
+    Branch<3>
+  }
+  bb 2 {
+    v3:CInt64 = LoadConst<CInt64[9]>
+    v4:LongExact = PrimitiveBox<CInt64> v3
+    Branch<3>
+  }
+  bb 3 {
+    v5:LongExact = Phi<1, 2> v2 v4
+    v6:CInt64 = LoadConst<CInt64[11]>
+    v7:LongExact = PrimitiveBox<CInt64> v6 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v5
+      }
+    }
+    Return v7
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:CInt64 = Phi<1, 2> v1 v3
+    v6:CInt64[11] = LoadConst<CInt64[11]>
+    v7:LongExact = PrimitiveBox<CInt64> v6 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v5
+      }
+    }
+    Return v7
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:CInt64 = Phi<1, 2> v1 v3
+    v6:CInt64[11] = LoadConst<CInt64[11]>
+    v7:LongExact = PrimitiveBox<CInt64> v6 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v5
+      }
+    }
+    Return v7
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:CInt64 = Phi<1, 2> v1 v3
+    v6:CInt64[11] = LoadConst<CInt64[11]>
+    v7:LongExact = PrimitiveBox<CInt64> v6 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v5
+      }
+    }
+    Return v7
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:CInt64 = Phi<1, 2> v1 v3
+    v6:CInt64[11] = LoadConst<CInt64[11]>
+    v7:LongExact = PrimitiveBox<CInt64> v6 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v5
+      }
+    }
+    Return v7
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:CInt64 = Phi<1, 2> v1 v3
+    v6:CInt64[11] = LoadConst<CInt64[11]>
+    v7:LongExact = PrimitiveBox<CInt64> v6 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v5
+      }
+    }
+    Return v7
+  }
+}
+--- Test Name ---
+KeepsBoxesWhosePhiEscapes
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+  bb 1 {
+    v1:CInt64 = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+  bb 2 {
+    v3:CInt64 = LoadConst<CInt64[9]>
+    v4:LongExact = PrimitiveBox<CInt64> v3 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+  bb 3 {
+    v5:LongExact = Phi<1, 2> v2 v4
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    v4:LongExact = PrimitiveBox<CInt64> v3 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:LongExact = Phi<1, 2> v2 v4
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    v4:LongExact = PrimitiveBox<CInt64> v3 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:LongExact = Phi<1, 2> v2 v4
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    v4:LongExact = PrimitiveBox<CInt64> v3 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:LongExact = Phi<1, 2> v2 v4
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    v4:LongExact = PrimitiveBox<CInt64> v3 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:LongExact = Phi<1, 2> v2 v4
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    v4:LongExact = PrimitiveBox<CInt64> v3 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:LongExact = Phi<1, 2> v2 v4
+    Return v5
+  }
+}
+--- Test Name ---
+KeepsBoxFeedingUsedNullablePhi
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+  bb 1 {
+    v1:CInt64 = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+  bb 2 {
+    v3:Nullptr = LoadConst<Nullptr>
+    Branch<3>
+  }
+  bb 3 {
+    v4:OptLongExact = Phi<1, 2> v2 v3
+    v5:CInt64 = LoadConst<CInt64[11]>
+    v6:LongExact = PrimitiveBox<CInt64> v5 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v4
+      }
+    }
+    Return v6
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:Nullptr = LoadConst<Nullptr>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v4:OptLongExact = Phi<1, 2> v2 v3
+    v5:CInt64[11] = LoadConst<CInt64[11]>
+    v6:LongExact = PrimitiveBox<CInt64> v5 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v4
+      }
+    }
+    Return v6
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:Nullptr = LoadConst<Nullptr>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v4:OptLongExact = Phi<1, 2> v2 v3
+    v5:CInt64[11] = LoadConst<CInt64[11]>
+    v6:LongExact = PrimitiveBox<CInt64> v5 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v4
+      }
+    }
+    Return v6
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:Nullptr = LoadConst<Nullptr>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v4:OptLongExact = Phi<1, 2> v2 v3
+    v5:CInt64[11] = LoadConst<CInt64[11]>
+    v6:LongExact = PrimitiveBox<CInt64> v5 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v4
+      }
+    }
+    Return v6
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:Nullptr = LoadConst<Nullptr>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v4:OptLongExact = Phi<1, 2> v2 v3
+    v5:CInt64[11] = LoadConst<CInt64[11]>
+    v6:LongExact = PrimitiveBox<CInt64> v5 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v4
+      }
+    }
+    Return v6
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:Nullptr = LoadConst<Nullptr>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v4:OptLongExact = Phi<1, 2> v2 v3
+    v5:CInt64[11] = LoadConst<CInt64[11]>
+    v6:LongExact = PrimitiveBox<CInt64> v5 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v4
+      }
+    }
+    Return v6
+  }
+}
 --- End ---
