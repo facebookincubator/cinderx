@@ -308,6 +308,14 @@ static bool shouldPinGlobalValue(BorrowedRef<> value) {
       Ci_StrictModule_Check(value);
 }
 
+// Load the iterator object for a FOR_ITER-like instruction.
+Register* forIterTop(FrameState& frame) {
+  if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+    return frame.stack.top(1);
+  }
+  return frame.stack.top();
+}
+
 } // namespace
 
 Register* HIRBuilder::allocateTemp() {
@@ -1385,7 +1393,12 @@ void HIRBuilder::translate(
           break;
         }
         case FOR_ITER: {
-          emitForIter(tc, bc_instr);
+          if (getConfig().specialized_opcodes &&
+              bc_instr.specializedOpcode() == FOR_ITER_RANGE) {
+            emitForIterRange(irfunc.cfg, tc, bc_instr);
+          } else {
+            emitForIter(tc, bc_instr);
+          }
           break;
         }
         case LOAD_FIELD: {
@@ -1612,17 +1625,28 @@ void HIRBuilder::translate(
     // untouched along the other. Thus, they must be special cased.
     switch (prev_bc_instr.opcode()) {
       case FOR_ITER: {
-        auto condbr = static_cast<CondBranchIterNotDone*>(last_instr);
         auto new_frame = tc.frame;
         if constexpr (PY_VERSION_HEX >= 0x030E0000) {
-          // Just pop the sentinel value. The target POP_ITER will pop the
+          // Just pop the produced value. The target POP_ITER will pop the
           // iterator.
           new_frame.stack.discard(1);
         } else {
-          // Pop both the sentinel value signaling iteration is complete
-          // and the iterator itself.
+          // Pop both the produced value and the iterator itself.
           new_frame.stack.discard(2);
         }
+        if (getConfig().specialized_opcodes &&
+            prev_bc_instr.specializedOpcode() == FOR_ITER_RANGE) {
+          // emitForIterRange() ends the current block with an unconditional
+          // Branch into the loop body and wires the exhausted edge to the
+          // footer directly from the header, so recover the successors from
+          // there rather than from a CondBranchIterNotDone.
+          auto branch = static_cast<Branch*>(last_instr);
+          queue.emplace_back(branch->target(), tc.frame);
+          queue.emplace_back(
+              getBlockAtOff(prev_bc_instr.getJumpTarget()), new_frame);
+          break;
+        }
+        auto condbr = static_cast<CondBranchIterNotDone*>(last_instr);
         queue.emplace_back(condbr->true_bb(), tc.frame);
         queue.emplace_back(condbr->false_bb(), new_frame);
         break;
@@ -4030,18 +4054,110 @@ void HIRBuilder::emitGetIter(TranslationContext& tc) {
 void HIRBuilder::emitForIter(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  Register* iterator;
-  if constexpr (PY_VERSION_HEX >= 0x030F0000) {
-    iterator = tc.frame.stack.top(1);
-  } else {
-    iterator = tc.frame.stack.top();
-  }
+  Register* iterator = forIterTop(tc.frame);
   Register* next_val = allocateTemp();
   tc.emit<InvokeIterNext>(next_val, iterator, tc.frame);
   tc.frame.stack.push(next_val);
   BasicBlock* footer = getBlockAtOff(bc_instr.getJumpTarget());
   BasicBlock* body = getBlockAtOff(bc_instr.nextInstrOffset());
   tc.emit<CondBranchIterNotDone>(next_val, body, footer);
+}
+
+void HIRBuilder::emitForIterRange(
+    CFG& cfg,
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  // Local mirror of CPython's internal _PyRangeIterObject.
+  struct RangeIterObject {
+    PyObject_HEAD
+    long start;
+    long step;
+    long len;
+  };
+
+  Register* iterator = forIterTop(tc.frame);
+  BasicBlock* footer = getBlockAtOff(bc_instr.getJumpTarget());
+  BasicBlock* body = getBlockAtOff(bc_instr.nextInstrOffset());
+  Register* value = allocateTemp();
+  Register* len = allocateTemp();
+  Type range_type = Type::fromTypeExact(&PyRangeIter_Type);
+
+  constexpr int32_t kStartOffset = offsetof(RangeIterObject, start);
+  constexpr int32_t kStepOffset = offsetof(RangeIterObject, step);
+  constexpr int32_t kLenOffset = offsetof(RangeIterObject, len);
+
+  auto emit_guard = [&](TranslationContext& iter_tc) {
+    // FOR_ITER_RANGE is a specialization hint, so guard that the iterator
+    // really is a range iterator.
+    iter_tc.emit<GuardType>(iterator, range_type, iterator, iter_tc.frame);
+
+    // The range iterator is only ever accessed with LoadField and StoreField
+    // instructions, which will never generate UseType instructions on their
+    // own.  Add one here.
+    iter_tc.emit<UseType>(iterator, range_type);
+  };
+
+  auto emit_not_empty = [&](TranslationContext& iter_tc, BasicBlock* next) {
+    iter_tc.emit<LoadField>(len, iterator, "len", kLenOffset, TCInt64);
+    Register* zero = allocateTemp();
+    iter_tc.emit<LoadConst>(zero, Type::fromCInt(0, TCInt64));
+    Register* not_done = allocateTemp();
+    iter_tc.emit<PrimitiveCompare>(
+        not_done, PrimitiveCompareOp::kGreaterThan, len, zero);
+    iter_tc.emit<CondBranch>(not_done, next, footer);
+  };
+
+  auto emit_next = [&](TranslationContext& iter_tc) {
+    // Produce the next item inline (mirrors CPython's _ITER_NEXT_RANGE):
+    //   value = start; start += step; len -= 1
+    Register* start = allocateTemp();
+    iter_tc.emit<LoadField>(start, iterator, "start", kStartOffset, TCInt64);
+    iter_tc.emit<PrimitiveBox>(value, start, TCInt64, iter_tc.frame);
+
+    Register* step = allocateTemp();
+    iter_tc.emit<LoadField>(step, iterator, "step", kStepOffset, TCInt64);
+    Register* new_start = allocateTemp();
+    iter_tc.emit<IntBinaryOp>(new_start, BinaryOpKind::kAdd, start, step);
+    Register* null_prev = allocateTemp();
+    iter_tc.emit<LoadConst>(null_prev, TNullptr);
+    iter_tc.emit<StoreField>(
+        iterator, "start", kStartOffset, new_start, TCInt64, null_prev);
+
+    Register* one = allocateTemp();
+    iter_tc.emit<LoadConst>(one, Type::fromCInt(1, TCInt64));
+    Register* new_len = allocateTemp();
+    iter_tc.emit<IntBinaryOp>(new_len, BinaryOpKind::kSubtract, len, one);
+    iter_tc.emit<StoreField>(
+        iterator, "len", kLenOffset, new_len, TCInt64, null_prev);
+
+    iter_tc.frame.stack.push(value);
+    iter_tc.emit<Branch>(body);
+  };
+
+  BasicBlock* produce = cfg.allocateBlock();
+  // Keep the entry edge out of the loop header so its uninitialized locals do
+  // not merge with values from the backedge.  Both checks share produce.
+  bool prechecked = false;
+  if (tc.block->inEdges().size() == 1) {
+    BasicBlock* preheader = (*tc.block->inEdges().begin())->from();
+    auto* branch = dynamic_cast<Branch*>(preheader->getTerminator());
+    if (branch != nullptr && branch->target() == tc.block) {
+      TranslationContext initial_check{cfg.allocateBlock(), tc.frame};
+      initial_check.emitSnapshot();
+      emit_guard(initial_check);
+      branch->setTarget(initial_check.block);
+      emit_not_empty(initial_check, produce);
+      block_canonicalizer_->run(initial_check.block, initial_check.frame.stack);
+      prechecked = true;
+    }
+  }
+
+  if (!prechecked) {
+    emit_guard(tc);
+  }
+  emit_not_empty(tc, produce);
+  tc.block = produce;
+  emit_next(tc);
 }
 
 void HIRBuilder::emitGetYieldFromIter(CFG& cfg, TranslationContext& tc) {

@@ -289,6 +289,10 @@ class HIRBuilder {
   void emitForIter(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitForIterRange(
+      CFG& cfg,
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitInvokeMethodVectorCall(
       TranslationContext& tc,
       std::vector<Register*>& arg_regs,

@@ -5,13 +5,12 @@
 import contextlib
 import dis
 import sys
-import unittest
 from types import ModuleType
 from typing import Callable, Iterator, TypeVar
 
 import cinderx
 import cinderx.jit
-from cinderx.test_support import passIf, passUnless
+from cinderx.test_support import CinderXTestCase, passUnless
 
 
 TCallableRet = TypeVar("TCallableRet")
@@ -82,8 +81,7 @@ def specialize_interpreted(
         callable()
 
 
-@passIf(not cinderx.jit.is_enabled(), "Tests functionality on the JIT")
-class SpecializationTests(unittest.TestCase):
+class SpecializationTests(CinderXTestCase):
     def setUp(self) -> None:
         cinderx.jit.enable_specialized_opcodes()
 
@@ -489,3 +487,70 @@ class SpecializationTests(unittest.TestCase):
         self.assertNotIn("UNPACK_SEQUENCE", opnames(f))
         self.assertIn("UNPACK_SEQUENCE_TWO_TUPLE", opnames(f))
         self.assertEqual(f(("c", "d")), "c")
+
+    def test_for_iter_range_unused_loop_variable(self) -> None:
+        def count(n: int) -> int:
+            result = 0
+            for _ in range(n):
+                result += 1
+            return result
+
+        # Warm up so FOR_ITER specializes to FOR_ITER_RANGE before compiling.
+        cinderx.jit.jit_suppress(count)
+        for _ in range(100):
+            count(10)
+        cinderx.jit.jit_unsuppress(count)
+
+        # Still using boxed integer arithmetic for the loop variable.
+        self.assertHIROpcodes(count, present=["PrimitiveBox"])
+
+        self.assertEqual(count(100), 100)
+
+    def test_for_iter_range_back_to_back_loops(self) -> None:
+        # The empty-range check adds an edge that skips the loop entirely, so
+        # the second loop's setup Snapshots must not keep naming the first
+        # loop's guarded iterator: it has no definition on that edge.  The
+        # empty cases below exercise the skip edge of each loop.
+        def sums(n: int, m: int) -> int:
+            s = 0
+            for i in range(n):
+                s += i
+            for j in range(m):
+                s += j
+            return s
+
+        # Warm up so FOR_ITER specializes to FOR_ITER_RANGE before compiling.
+        cinderx.jit.jit_suppress(sums)
+        for _ in range(100):
+            sums(5, 7)
+        cinderx.jit.jit_unsuppress(sums)
+
+        self.assertTrue(cinderx.jit.force_compile(sums))
+        self.assertEqual(sums(5, 7), 31)
+        self.assertEqual(sums(0, 3), 3)
+        self.assertEqual(sums(3, 0), 3)
+        self.assertEqual(sums(0, 0), 0)
+
+    def test_for_iter_range_shared_produce_block(self) -> None:
+        """
+        Test deopting in the middle of a FOR_ITER_RANGE.
+        """
+
+        class ForceDeopt:
+            def __radd__(self, other: object) -> int:
+                return 100
+
+        def count(n: int, values: list[int | ForceDeopt]) -> int:
+            result = 0
+            for _ in range(n):
+                result += values.pop(0)
+            return result
+
+        cinderx.jit.jit_suppress(count)
+        for _ in range(100):
+            count(3, [1, 1, 1])
+        cinderx.jit.jit_unsuppress(count)
+
+        self.assertTrue(cinderx.jit.force_compile(count))
+        self.assertEqual(count(3, [1, 1, 1]), 3)
+        self.assertEqual(count(2, [1, ForceDeopt()]), 100)
