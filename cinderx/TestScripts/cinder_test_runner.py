@@ -65,7 +65,11 @@ from common import (
     WorkerDone,
     WorkSender,
 )
-from skip_list_support import get_skip_list_files, parse_skip_lists
+from skip_list_support import (
+    get_skip_list_files,
+    is_test_module_skipped,
+    parse_skip_lists,
+)
 from test import support
 from test.libregrtest.cmdline import _parse_args as libregrtest_parse_args
 from test.libregrtest.main import main as libregrtest_main
@@ -324,7 +328,7 @@ class MultiWorkerCinderRegrtest:
     def __init__(
         self,
         logfile: IO,
-        tests: Iterable[str],
+        tests: Optional[Iterable[str]],
         worker_timeout: int,
         worker_respawn_interval: int,
         success_on_test_errors: bool,
@@ -370,6 +374,15 @@ class MultiWorkerCinderRegrtest:
 
         if tests is None:
             tests = _select_tests(skip_modules)
+        else:
+            selected_tests = list(tests)
+            tests = [
+                test
+                for test in selected_tests
+                if not is_test_module_skipped(test, skip_modules)
+            ]
+            if selected_tests and not tests:
+                log_err("WARNING: all explicitly selected tests are skip-listed\n")
 
         extra_opts = {}
         if sys.version_info >= (3, 14):
