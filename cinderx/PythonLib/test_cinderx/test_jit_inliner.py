@@ -13,6 +13,7 @@ from cinderx.test_support import (
     FREE_THREADING_BUILD,
     passIf,
     passUnless,
+    skip_test_if_oss,
 )
 
 INLINER: bool = cinderx.jit.is_hir_inliner_enabled()
@@ -814,6 +815,7 @@ class InlinedFunctionTests(unittest.TestCase):
         "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
     )
     @jit_suppress
+    @skip_test_if_oss("Shared-key changes do not notify type watchers in OSS builds")
     def test_preexisting_combined_dict_shadow_deopts(self) -> None:
         cinderx.jit.force_compile(call_preexisting_combined_dict_shadow)
 
@@ -825,6 +827,7 @@ class InlinedFunctionTests(unittest.TestCase):
         "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
     )
     @jit_suppress
+    @skip_test_if_oss("Shared-key changes do not notify type watchers in OSS builds")
     def test_postcompile_combined_dict_shadow_deopts(self) -> None:
         cinderx.jit.force_compile(call_postcompile_combined_dict_shadow)
 
@@ -842,6 +845,7 @@ class InlinedFunctionTests(unittest.TestCase):
         "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
     )
     @jit_suppress
+    @skip_test_if_oss("Shared-key changes do not notify type watchers in OSS builds")
     def test_foreign_split_dict_shadow_deopts(self) -> None:
         cinderx.jit.force_compile(call_foreign_split_dict_shadow)
 
@@ -853,6 +857,7 @@ class InlinedFunctionTests(unittest.TestCase):
         "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
     )
     @jit_suppress
+    @skip_test_if_oss("Shared-key changes do not notify type watchers in OSS builds")
     def test_lying_dict_subclass_shadow_deopts(self) -> None:
         cinderx.jit.force_compile(call_lying_dict_shadow)
 
@@ -887,6 +892,7 @@ class InlinedFunctionTests(unittest.TestCase):
         "Mutable-type LoadMethod elimination is disabled in free-threaded builds",
     )
     @jit_suppress
+    @skip_test_if_oss("Shared-key changes do not notify type watchers in OSS builds")
     def test_unseeded_inline_key_added_after_compile_deopts(self) -> None:
         cinderx.jit.force_compile(call_unseeded_inline_method)
 
