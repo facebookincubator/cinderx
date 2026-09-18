@@ -1012,6 +1012,30 @@ RewriteResult rewriteBranchInstrs(Function* function) {
   return changed ? kChanged : kUnchanged;
 }
 
+// Check if this instruction matches `mov reg, 0`.
+bool isMoveZero(const Instruction* instr) {
+  if (!instr->isMove() || instr->getNumInputs() != 1) {
+    return false;
+  }
+  const Operand* in = instr->getInput(0);
+  return in->isImm() && !in->isFp() && in->getConstant() == 0 &&
+      instr->output()->isReg();
+}
+
+// This is a hack to handle the specific x86-64 case where we optimize a `mov
+// reg, 0` into `xor reg, reg` in optimizeMoveInstrs().  This is unsafe to do
+// because `mov` does not affect flags, but `xor` does.  We get away with this
+// today because we try to consume flags immediately after producing them, but
+// findFusibleCompare() is the exception.  It has to use this function to treat
+// the `mov` like a future `xor`.  When we get better flags tracking, we can get
+// rid of this.
+//
+// ARM64 is not affected because it uses the zero register.
+bool willWriteFlags(const Instruction* instr) {
+  return writesFlags(instr->opcode()) ||
+      (kBuildArch == Arch::kX86_64 && isMoveZero(instr));
+}
+
 // rewrite move instructions
 // optimize move instruction in the following cases:
 //   1. remove the move instruction when source and destination are the same
@@ -1038,11 +1062,14 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   }
 
 #if defined(CINDER_X86_64)
-  if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
+  if (isMoveZero(instr)) {
     JIT_CHECK(
         !in->isLinked(),
         "Register allocation should have replaced linked operand {}",
         *in);
+    // Note: This is unsafe as we're going from one instruction that doesn't
+    // change flags (mov) to one that does (xor), without checking if flags were
+    // live.  See willWriteFlags() for more context.
     instr->setOpcode(Opcode::kXor);
     auto reg = out->getPhyRegister();
     auto data_type = out->dataType();
@@ -1052,7 +1079,7 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
     return kChanged;
   }
 #elif defined(CINDER_AARCH64)
-  if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
+  if (isMoveZero(instr)) {
     JIT_CHECK(
         !in->isLinked(),
         "Register allocation should have replaced linked operand {}",
@@ -1131,7 +1158,7 @@ Instruction* findFusibleCompare(
 
     // If this instruction clobbers flags (but isn't our compare), we can't fuse
     // past it.
-    if (writesFlags(candidate->opcode())) {
+    if (willWriteFlags(candidate)) {
       return nullptr;
     }
 

@@ -320,6 +320,54 @@ TEST_F(LIRPostAllocRewriteTest, CVarArgCallUsesPlatformCallingConvention) {
 }
 #endif
 
+#if defined(CINDER_X86_64)
+
+// A Compare feeding a CondBranch is normally fused into cmp/jcc, reading the
+// flags the compare left behind.  Materializing zero in between becomes an Xor,
+// which clobbers them, so the fusion has to be given up.
+TEST_F(LIRPostAllocRewriteTest, CondBranchDoesNotFuseAcrossZeroMove) {
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+  auto* true_bb = func.allocateBasicBlock();
+  auto* false_bb = func.allocateBasicBlock();
+  bb->addSuccessor(true_bb);
+  bb->addSuccessor(false_bb);
+
+  bb->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kSignedGT,
+      OutPhyReg{RAX, DataType::k8bit},
+      PhyReg{RCX, DataType::k64bit},
+      Imm{0, DataType::k64bit});
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{RDX, DataType::k64bit},
+      Imm{0, DataType::k64bit});
+  bb->allocateInstr(Opcode::kCondBranch, nullptr, PhyReg{RAX, DataType::k8bit});
+
+  jit::codegen::Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  auto has = [&](auto pred) {
+    return std::any_of(instrs.begin(), instrs.end(), pred);
+  };
+
+  // The Move became the flag-clobbering Xor.
+  EXPECT_TRUE(has([](const Instruction* i) { return i->isXor(); }));
+  // So the branch has to re-derive the condition by testing the compare's
+  // materialized result, rather than branching on the compare's own condition.
+  EXPECT_TRUE(has([](const Instruction* i) { return i->isTest(); }));
+  EXPECT_FALSE(has([](const Instruction* i) {
+    return i->isBranchCC() && i->condition() == Condition::kSignedGT;
+  }));
+}
+
+#endif
+
 #if defined(CINDER_X86_64) && !defined(_WIN32)
 TEST_F(LIRPostAllocRewriteTest, CVarArgCallSetsVectorArgumentCount) {
   Function func;
