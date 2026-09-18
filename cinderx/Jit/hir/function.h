@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Common/containers.h"
+#include "cinderx/Jit/func_deopt_patcher.h"
 #include "cinderx/Jit/hir/cfg.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/jit_time_log.h"

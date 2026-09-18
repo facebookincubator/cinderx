@@ -40,8 +40,13 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: foo'
     }
     Snapshot
-    v23:Object = LoadField<func_code@48, Object, borrowed> v10
-    v24:MortalCode["foo"] = GuardIs<0xdeadbeef> v23 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v10
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v10
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -97,8 +102,13 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v22:Object = LoadField<func_code@48, Object, borrowed> v9
-    v23:MortalCode["foo"] = GuardIs<0xdeadbeef> v22 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v9
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -155,8 +165,13 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v22:Object = LoadField<func_code@48, Object, borrowed> v9
-    v23:MortalCode["foo"] = GuardIs<0xdeadbeef> v22 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 14
+        Stack<1> v9
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 14
@@ -213,8 +228,13 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v22:Object = LoadField<func_code@48, Object, borrowed> v9
-    v23:MortalCode["foo"] = GuardIs<0xdeadbeef> v22 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 14
+        Stack<1> v9
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 14
@@ -272,8 +292,13 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v22:Object = LoadField<func_code@64, Object, borrowed> v9
-    v23:MortalCode["foo"] = GuardIs<0xdeadbeef> v22 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v9
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -342,8 +367,13 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: foo'
     }
     Snapshot
-    v33:Object = LoadField<func_code@48, Object, borrowed> v14
-    v34:MortalCode["foo"] = GuardIs<0xdeadbeef> v33 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v14
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -374,21 +404,26 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: bar'
     }
     Snapshot
-    v44:Object = LoadField<func_code@48, Object, borrowed> v18
-    v45:MortalCode["bar"] = GuardIs<0xdeadbeef> v44 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v18
+      FrameState {
+        CurInstrOffset 30
+        Stack<1> v18
+      }
     }
     BeginInlinedFunction<jittestmodule:bar> {
       CurInstrOffset 30
       Stack<1> v29
     }
     Snapshot
-    v39:CInt32 = LoadEvalBreaker
-    CondBranch<10, 9> v39
+    v37:CInt32 = LoadEvalBreaker
+    CondBranch<10, 9> v37
   }
 
   bb 10 (preds 4) {
     Snapshot
-    v43:CInt32 = RunPeriodicTasks {
+    v41:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -398,16 +433,16 @@ fun jittestmodule:test {
 
   bb 9 (preds 4, 10) {
     Snapshot
-    v40:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v38:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     EndInlinedFunction
     Snapshot
     UseType<LongExact> v29
-    UseType<LongExact> v40
+    UseType<LongExact> v38
     UseType<ImmortalLongExact[3]> v29
-    UseType<ImmortalLongExact[4]> v40
-    v47:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    UseType<ImmortalLongExact[4]> v38
+    v43:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
-    Return v47
+    Return v43
   }
 }
 --- Expected 3.14 ---
@@ -438,8 +473,13 @@ fun jittestmodule:test {
     }
     v14:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v32:Object = LoadField<func_code@48, Object, borrowed> v13
-    v33:MortalCode["foo"] = GuardIs<0xdeadbeef> v32 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v13
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v13
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -471,21 +511,26 @@ fun jittestmodule:test {
     }
     v18:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v42:Object = LoadField<func_code@48, Object, borrowed> v17
-    v43:MortalCode["bar"] = GuardIs<0xdeadbeef> v42 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v17
+      FrameState {
+        CurInstrOffset 30
+        Stack<1> v17
+      }
     }
     BeginInlinedFunction<jittestmodule:bar> {
       CurInstrOffset 30
       Stack<1> v29
     }
     Snapshot
-    v38:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v38
+    v36:CInt64 = LoadEvalBreaker
+    CondBranch<10, 9> v36
   }
 
   bb 10 (preds 4) {
     Snapshot
-    v41:CInt32 = RunPeriodicTasks {
+    v39:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -495,17 +540,17 @@ fun jittestmodule:test {
 
   bb 9 (preds 4, 10) {
     Snapshot
-    v39:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v37:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     EndInlinedFunction
     Snapshot
     UseType<LongExact> v29
-    UseType<LongExact> v39
+    UseType<LongExact> v37
     UseType<ImmortalLongExact[3]> v29
-    UseType<ImmortalLongExact[4]> v39
-    v45:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    UseType<ImmortalLongExact[4]> v37
+    v41:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
-    Return v45
+    Return v41
   }
 }
 --- Expected 3.15 ---
@@ -536,8 +581,13 @@ fun jittestmodule:test {
     }
     v14:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v32:Object = LoadField<func_code@48, Object, borrowed> v13
-    v33:MortalCode["foo"] = GuardIs<0xdeadbeef> v32 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v13
+      FrameState {
+        CurInstrOffset 14
+        Stack<1> v13
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 14
@@ -569,21 +619,26 @@ fun jittestmodule:test {
     }
     v18:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v42:Object = LoadField<func_code@48, Object, borrowed> v17
-    v43:MortalCode["bar"] = GuardIs<0xdeadbeef> v42 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v17
+      FrameState {
+        CurInstrOffset 32
+        Stack<1> v17
+      }
     }
     BeginInlinedFunction<jittestmodule:bar> {
       CurInstrOffset 32
       Stack<1> v29
     }
     Snapshot
-    v38:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v38
+    v36:CInt64 = LoadEvalBreaker
+    CondBranch<10, 9> v36
   }
 
   bb 10 (preds 4) {
     Snapshot
-    v41:CInt32 = RunPeriodicTasks {
+    v39:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -593,17 +648,17 @@ fun jittestmodule:test {
 
   bb 9 (preds 4, 10) {
     Snapshot
-    v39:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v37:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     EndInlinedFunction
     Snapshot
     UseType<LongExact> v29
-    UseType<LongExact> v39
+    UseType<LongExact> v37
     UseType<ImmortalLongExact[3]> v29
-    UseType<ImmortalLongExact[4]> v39
-    v45:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    UseType<ImmortalLongExact[4]> v37
+    v41:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
-    Return v45
+    Return v41
   }
 }
 --- Expected 3.16 ---
@@ -634,8 +689,13 @@ fun jittestmodule:test {
     }
     v14:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v32:Object = LoadField<func_code@48, Object, borrowed> v13
-    v33:MortalCode["foo"] = GuardIs<0xdeadbeef> v32 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v13
+      FrameState {
+        CurInstrOffset 14
+        Stack<1> v13
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 14
@@ -667,21 +727,26 @@ fun jittestmodule:test {
     }
     v18:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v42:Object = LoadField<func_code@48, Object, borrowed> v17
-    v43:MortalCode["bar"] = GuardIs<0xdeadbeef> v42 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v17
+      FrameState {
+        CurInstrOffset 32
+        Stack<1> v17
+      }
     }
     BeginInlinedFunction<jittestmodule:bar> {
       CurInstrOffset 32
       Stack<1> v29
     }
     Snapshot
-    v38:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v38
+    v36:CInt64 = LoadEvalBreaker
+    CondBranch<10, 9> v36
   }
 
   bb 10 (preds 4) {
     Snapshot
-    v41:CInt32 = RunPeriodicTasks {
+    v39:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -691,17 +756,17 @@ fun jittestmodule:test {
 
   bb 9 (preds 4, 10) {
     Snapshot
-    v39:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v37:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     EndInlinedFunction
     Snapshot
     UseType<LongExact> v29
-    UseType<LongExact> v39
+    UseType<LongExact> v37
     UseType<ImmortalLongExact[3]> v29
-    UseType<ImmortalLongExact[4]> v39
-    v45:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    UseType<ImmortalLongExact[4]> v37
+    v41:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
-    Return v45
+    Return v41
   }
 }
 --- Expected 3.14t ---
@@ -733,8 +798,13 @@ fun jittestmodule:test {
     }
     v14:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v32:Object = LoadField<func_code@64, Object, borrowed> v13
-    v33:MortalCode["foo"] = GuardIs<0xdeadbeef> v32 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v13
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v13
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -767,8 +837,13 @@ fun jittestmodule:test {
     }
     v18:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v42:Object = LoadField<func_code@64, Object, borrowed> v17
-    v43:MortalCode["bar"] = GuardIs<0xdeadbeef> v42 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v17
+      FrameState {
+        CurInstrOffset 30
+        Stack<1> v17
+      }
     }
     BeginInlinedFunction<jittestmodule:bar> {
       CurInstrOffset 30
@@ -776,13 +851,13 @@ fun jittestmodule:test {
     }
     Snapshot
     AtQuiescentState
-    v38:CInt64 = LoadEvalBreaker
-    CondBranch<10, 9> v38
+    v36:CInt64 = LoadEvalBreaker
+    CondBranch<10, 9> v36
   }
 
   bb 10 (preds 4) {
     Snapshot
-    v41:CInt32 = RunPeriodicTasks {
+    v39:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -792,17 +867,17 @@ fun jittestmodule:test {
 
   bb 9 (preds 4, 10) {
     Snapshot
-    v39:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v37:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
     EndInlinedFunction
     Snapshot
     UseType<LongExact> v29
-    UseType<LongExact> v39
+    UseType<LongExact> v37
     UseType<ImmortalLongExact[3]> v29
-    UseType<ImmortalLongExact[4]> v39
-    v45:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    UseType<ImmortalLongExact[4]> v37
+    v41:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
-    Return v45
+    Return v41
   }
 }
 --- Test Name ---
@@ -861,8 +936,14 @@ fun jittestmodule:test {
     }
     Snapshot
     v21:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v37:Object = LoadField<func_code@48, Object, borrowed> v20
-    v38:MortalCode["foo"] = GuardIs<0xdeadbeef> v37 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v20
+      FrameState {
+        CurInstrOffset 24
+        Locals<1> v14
+        Stack<3> v20 v14 v21
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 24
@@ -889,17 +970,17 @@ fun jittestmodule:test {
     UseType<MortalListExact> v14
     UseType<ImmortalLongExact[1]> v21
     UseType<MortalListExact> v14
-    v39:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
-    v40:CInt64[1] = LoadConst<CInt64[1]>
-    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
-    Guard v41 {
+    v37:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v38:CInt64[1] = LoadConst<CInt64[1]>
+    v39:CBool = PrimitiveCompare<LessThanUnsigned> v38 v37
+    Guard v39 {
     }
-    v42:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v43:Object = LoadArrayItem v42 v40 v14
+    v40:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v41:Object = LoadArrayItem v40 v38 v14
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v43
+    Return v41
   }
 }
 --- Expected 3.14 ---
@@ -950,8 +1031,14 @@ fun jittestmodule:test {
     Snapshot
     v21:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    v37:Object = LoadField<func_code@48, Object, borrowed> v19
-    v38:MortalCode["foo"] = GuardIs<0xdeadbeef> v37 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v19
+      FrameState {
+        CurInstrOffset 24
+        Locals<1> v14
+        Stack<3> v19 v14 v21
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 24
@@ -978,17 +1065,17 @@ fun jittestmodule:test {
     UseType<MortalListExact> v14
     UseType<ImmortalLongExact[1]> v21
     UseType<MortalListExact> v14
-    v39:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
-    v40:CInt64[1] = LoadConst<CInt64[1]>
-    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
-    Guard v41 {
+    v37:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v38:CInt64[1] = LoadConst<CInt64[1]>
+    v39:CBool = PrimitiveCompare<LessThanUnsigned> v38 v37
+    Guard v39 {
     }
-    v42:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v43:Object = LoadArrayItem v42 v40 v14
+    v40:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v41:Object = LoadArrayItem v40 v38 v14
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v43
+    Return v41
   }
 }
 --- Expected 3.15 ---
@@ -1039,8 +1126,14 @@ fun jittestmodule:test {
     Snapshot
     v21:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    v37:Object = LoadField<func_code@48, Object, borrowed> v19
-    v38:MortalCode["foo"] = GuardIs<0xdeadbeef> v37 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v19
+      FrameState {
+        CurInstrOffset 26
+        Locals<1> v14
+        Stack<3> v19 v14 v21
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 26
@@ -1067,17 +1160,17 @@ fun jittestmodule:test {
     UseType<MortalListExact> v14
     UseType<ImmortalLongExact[1]> v21
     UseType<MortalListExact> v14
-    v39:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
-    v40:CInt64[1] = LoadConst<CInt64[1]>
-    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
-    Guard v41 {
+    v37:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v38:CInt64[1] = LoadConst<CInt64[1]>
+    v39:CBool = PrimitiveCompare<LessThanUnsigned> v38 v37
+    Guard v39 {
     }
-    v42:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v43:Object = LoadArrayItem v42 v40 v14
+    v40:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v41:Object = LoadArrayItem v40 v38 v14
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v43
+    Return v41
   }
 }
 --- Expected 3.16 ---
@@ -1128,8 +1221,14 @@ fun jittestmodule:test {
     Snapshot
     v21:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    v37:Object = LoadField<func_code@48, Object, borrowed> v19
-    v38:MortalCode["foo"] = GuardIs<0xdeadbeef> v37 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v19
+      FrameState {
+        CurInstrOffset 26
+        Locals<1> v14
+        Stack<3> v19 v14 v21
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 26
@@ -1156,17 +1255,17 @@ fun jittestmodule:test {
     UseType<MortalListExact> v14
     UseType<ImmortalLongExact[1]> v21
     UseType<MortalListExact> v14
-    v39:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
-    v40:CInt64[1] = LoadConst<CInt64[1]>
-    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
-    Guard v41 {
+    v37:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v14
+    v38:CInt64[1] = LoadConst<CInt64[1]>
+    v39:CBool = PrimitiveCompare<LessThanUnsigned> v38 v37
+    Guard v39 {
     }
-    v42:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v43:Object = LoadArrayItem v42 v40 v14
+    v40:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v41:Object = LoadArrayItem v40 v38 v14
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v43
+    Return v41
   }
 }
 --- Expected 3.14t ---
@@ -1218,8 +1317,14 @@ fun jittestmodule:test {
     Snapshot
     v21:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    v41:Object = LoadField<func_code@64, Object, borrowed> v19
-    v42:MortalCode["foo"] = GuardIs<0xdeadbeef> v41 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v19
+      FrameState {
+        CurInstrOffset 24
+        Locals<1> v14
+        Stack<3> v19 v14 v21
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 24
@@ -1246,7 +1351,7 @@ fun jittestmodule:test {
 
   bb 4 (preds 1, 5) {
     Snapshot
-    v43:Object = ListSubscr v35 v36 {
+    v41:Object = ListSubscr v35 v36 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v35 v36
@@ -1255,7 +1360,7 @@ fun jittestmodule:test {
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v43
+    Return v41
   }
 }
 --- Test Name ---
@@ -1296,8 +1401,13 @@ fun jittestmodule:test {
     Snapshot
     v13:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
-    v30:Object = LoadField<func_code@48, Object, borrowed> v12
-    v31:MortalCode["foo"] = GuardIs<0xdeadbeef> v30 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v12
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v12 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -1324,11 +1434,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v33:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v31:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v33
+    Return v31
   }
 }
 --- Expected 3.14 ---
@@ -1363,8 +1473,13 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    v30:Object = LoadField<func_code@48, Object, borrowed> v11
-    v31:MortalCode["foo"] = GuardIs<0xdeadbeef> v30 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -1391,11 +1506,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v33:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v31:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v33
+    Return v31
   }
 }
 --- Expected 3.15 ---
@@ -1430,8 +1545,13 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    v30:Object = LoadField<func_code@48, Object, borrowed> v11
-    v31:MortalCode["foo"] = GuardIs<0xdeadbeef> v30 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -1458,11 +1578,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v33:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v31:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v33
+    Return v31
   }
 }
 --- Expected 3.16 ---
@@ -1497,8 +1617,13 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    v30:Object = LoadField<func_code@48, Object, borrowed> v11
-    v31:MortalCode["foo"] = GuardIs<0xdeadbeef> v30 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -1525,11 +1650,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v33:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v31:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v33
+    Return v31
   }
 }
 --- Expected 3.14t ---
@@ -1565,8 +1690,13 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    v34:Object = LoadField<func_code@64, Object, borrowed> v11
-    v35:MortalCode["foo"] = GuardIs<0xdeadbeef> v34 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -1596,11 +1726,11 @@ fun jittestmodule:test {
     UseType<LongExact> v29
     UseType<ImmortalLongExact[2]> v28
     UseType<ImmortalLongExact[3]> v29
-    v37:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v35:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v37
+    Return v35
   }
 }
 --- Test Name ---
@@ -2046,8 +2176,13 @@ fun jittestmodule:test {
     }
     InitTupleElements<2> v36 v13 v14
     Snapshot
-    v37:Object = LoadField<func_code@48, Object, borrowed> v12
-    v38:MortalCode["foo"] = GuardIs<0xdeadbeef> v37 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v12
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v12 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -2073,26 +2208,26 @@ fun jittestmodule:test {
     v29:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
     UseType<MortalTupleExact> v36
     UseType<ImmortalLongExact[0]> v29
-    v39:CInt64[0] = LoadConst<CInt64[0]>
+    v37:CInt64[0] = LoadConst<CInt64[0]>
     UseType<TupleExact> v36
-    UseType<CInt64[0]> v39
+    UseType<CInt64[0]> v37
     Snapshot
     v31:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     UseType<MortalTupleExact> v36
     UseType<ImmortalLongExact[1]> v31
-    v41:CInt64[1] = LoadConst<CInt64[1]>
+    v39:CInt64[1] = LoadConst<CInt64[1]>
     UseType<TupleExact> v36
-    UseType<CInt64[1]> v41
+    UseType<CInt64[1]> v39
     Snapshot
     UseType<LongExact> v13
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v44:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v42:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v44
+    Return v42
   }
 }
 --- Expected 3.14 ---
@@ -2135,8 +2270,13 @@ fun jittestmodule:test {
     }
     InitTupleElements<2> v36 v13 v14
     Snapshot
-    v37:Object = LoadField<func_code@48, Object, borrowed> v11
-    v38:MortalCode["foo"] = GuardIs<0xdeadbeef> v37 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -2163,27 +2303,27 @@ fun jittestmodule:test {
     Snapshot
     UseType<MortalTupleExact> v36
     UseType<ImmortalLongExact[0]> v29
-    v39:CInt64[0] = LoadConst<CInt64[0]>
+    v37:CInt64[0] = LoadConst<CInt64[0]>
     UseType<TupleExact> v36
-    UseType<CInt64[0]> v39
+    UseType<CInt64[0]> v37
     Snapshot
     v31:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     UseType<MortalTupleExact> v36
     UseType<ImmortalLongExact[1]> v31
-    v41:CInt64[1] = LoadConst<CInt64[1]>
+    v39:CInt64[1] = LoadConst<CInt64[1]>
     UseType<TupleExact> v36
-    UseType<CInt64[1]> v41
+    UseType<CInt64[1]> v39
     Snapshot
     UseType<LongExact> v13
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v44:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v42:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v44
+    Return v42
   }
 }
 --- Expected 3.15 ---
@@ -2226,8 +2366,13 @@ fun jittestmodule:test {
     }
     InitTupleElements<2> v36 v13 v14
     Snapshot
-    v37:Object = LoadField<func_code@48, Object, borrowed> v11
-    v38:MortalCode["foo"] = GuardIs<0xdeadbeef> v37 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -2254,27 +2399,27 @@ fun jittestmodule:test {
     Snapshot
     UseType<MortalTupleExact> v36
     UseType<ImmortalLongExact[0]> v29
-    v39:CInt64[0] = LoadConst<CInt64[0]>
+    v37:CInt64[0] = LoadConst<CInt64[0]>
     UseType<TupleExact> v36
-    UseType<CInt64[0]> v39
+    UseType<CInt64[0]> v37
     Snapshot
     v31:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     UseType<MortalTupleExact> v36
     UseType<ImmortalLongExact[1]> v31
-    v41:CInt64[1] = LoadConst<CInt64[1]>
+    v39:CInt64[1] = LoadConst<CInt64[1]>
     UseType<TupleExact> v36
-    UseType<CInt64[1]> v41
+    UseType<CInt64[1]> v39
     Snapshot
     UseType<LongExact> v13
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v44:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v42:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v44
+    Return v42
   }
 }
 --- Expected 3.16 ---
@@ -2317,8 +2462,13 @@ fun jittestmodule:test {
     }
     InitTupleElements<2> v36 v13 v14
     Snapshot
-    v37:Object = LoadField<func_code@48, Object, borrowed> v11
-    v38:MortalCode["foo"] = GuardIs<0xdeadbeef> v37 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -2345,27 +2495,27 @@ fun jittestmodule:test {
     Snapshot
     UseType<MortalTupleExact> v36
     UseType<ImmortalLongExact[0]> v29
-    v39:CInt64[0] = LoadConst<CInt64[0]>
+    v37:CInt64[0] = LoadConst<CInt64[0]>
     UseType<TupleExact> v36
-    UseType<CInt64[0]> v39
+    UseType<CInt64[0]> v37
     Snapshot
     v31:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     UseType<MortalTupleExact> v36
     UseType<ImmortalLongExact[1]> v31
-    v41:CInt64[1] = LoadConst<CInt64[1]>
+    v39:CInt64[1] = LoadConst<CInt64[1]>
     UseType<TupleExact> v36
-    UseType<CInt64[1]> v41
+    UseType<CInt64[1]> v39
     Snapshot
     UseType<LongExact> v13
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v44:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v42:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v44
+    Return v42
   }
 }
 --- Expected 3.14t ---
@@ -2409,8 +2559,13 @@ fun jittestmodule:test {
     }
     InitTupleElements<2> v38 v13 v14
     Snapshot
-    v39:Object = LoadField<func_code@64, Object, borrowed> v11
-    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -2440,26 +2595,26 @@ fun jittestmodule:test {
     UseType<MortalTupleExact> v29
     UseType<ImmortalLongExact[0]> v31
     UseType<MortalTupleExact> v29
-    v41:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v29
-    v42:CInt64[0] = LoadConst<CInt64[0]>
-    v43:CBool = PrimitiveCompare<LessThanUnsigned> v42 v41
-    Guard v43 {
+    v39:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v29
+    v40:CInt64[0] = LoadConst<CInt64[0]>
+    v41:CBool = PrimitiveCompare<LessThanUnsigned> v40 v39
+    Guard v41 {
     }
-    v44:Object = LoadArrayItem<Offset[48]> v29 v42 v29
+    v42:Object = LoadArrayItem<Offset[48]> v29 v40 v29
     Snapshot
     v33:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     UseType<MortalTupleExact> v29
     UseType<ImmortalLongExact[1]> v33
     UseType<MortalTupleExact> v29
-    v45:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v29
-    v46:CInt64[1] = LoadConst<CInt64[1]>
-    v47:CBool = PrimitiveCompare<LessThanUnsigned> v46 v45
-    Guard v47 {
+    v43:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v29
+    v44:CInt64[1] = LoadConst<CInt64[1]>
+    v45:CBool = PrimitiveCompare<LessThanUnsigned> v44 v43
+    Guard v45 {
     }
-    v48:Object = LoadArrayItem<Offset[48]> v29 v46 v29
+    v46:Object = LoadArrayItem<Offset[48]> v29 v44 v29
     Snapshot
-    v35:Object = BinaryOp<Add> v44 v48 {
+    v35:Object = BinaryOp<Add> v42 v46 {
       FrameState {
         CurInstrOffset 34
         Locals<1> v29
@@ -2916,8 +3071,13 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: foo'
     }
     Snapshot
-    v39:Object = LoadField<func_code@48, Object, borrowed> v10
-    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v10
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v10
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -3009,8 +3169,13 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v39:Object = LoadField<func_code@48, Object, borrowed> v9
-    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v9
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -3104,8 +3269,13 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v39:Object = LoadField<func_code@48, Object, borrowed> v9
-    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 14
+        Stack<1> v9
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 14
@@ -3199,8 +3369,13 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v39:Object = LoadField<func_code@48, Object, borrowed> v9
-    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 14
+        Stack<1> v9
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 14
@@ -3295,8 +3470,13 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v39:Object = LoadField<func_code@64, Object, borrowed> v9
-    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 12
+        Stack<1> v9
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -4271,8 +4451,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v63:Object = LoadField<func_code@48, Object, borrowed> v24
-    v64:MortalCode["test"] = GuardIs<0xdeadbeef> v63 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v24
+      FrameState {
+        CurInstrOffset 34
+        Locals<1> v14
+        Stack<2> v24 v26
+      }
     }
     BeginInlinedFunction<jittestmodule:test> {
       CurInstrOffset 34
@@ -4337,7 +4523,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v65:Object = VectorCall<1> v55 v57 {
+    v63:Object = VectorCall<1> v55 v57 {
       FrameState {
         CurInstrOffset 34
         Locals<1> v26
@@ -4345,7 +4531,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v59:Object = BinaryOp<Multiply> v26 v65 {
+    v59:Object = BinaryOp<Multiply> v26 v63 {
       FrameState {
         CurInstrOffset 42
         Locals<1> v26
@@ -4438,8 +4624,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v73:Object = LoadField<func_code@48, Object, borrowed> v28
-    v74:MortalCode["test"] = GuardIs<0xdeadbeef> v73 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v28
+      FrameState {
+        CurInstrOffset 48
+        Locals<1> v17
+        Stack<2> v28 v31
+      }
     }
     BeginInlinedFunction<jittestmodule:test> {
       CurInstrOffset 48
@@ -4509,7 +4701,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v75:Object = VectorCall<1> v64 v67 {
+    v73:Object = VectorCall<1> v64 v67 {
       FrameState {
         CurInstrOffset 48
         Locals<1> v31
@@ -4517,7 +4709,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v69:Object = BinaryOp<Multiply> v31 v75 {
+    v69:Object = BinaryOp<Multiply> v31 v73 {
       FrameState {
         CurInstrOffset 56
         Locals<1> v31
@@ -4610,8 +4802,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v73:Object = LoadField<func_code@48, Object, borrowed> v28
-    v74:MortalCode["test"] = GuardIs<0xdeadbeef> v73 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v28
+      FrameState {
+        CurInstrOffset 50
+        Locals<1> v17
+        Stack<2> v28 v31
+      }
     }
     BeginInlinedFunction<jittestmodule:test> {
       CurInstrOffset 50
@@ -4681,7 +4879,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v75:Object = VectorCall<1> v64 v67 {
+    v73:Object = VectorCall<1> v64 v67 {
       FrameState {
         CurInstrOffset 50
         Locals<1> v31
@@ -4689,7 +4887,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v69:Object = BinaryOp<Multiply> v31 v75 {
+    v69:Object = BinaryOp<Multiply> v31 v73 {
       FrameState {
         CurInstrOffset 58
         Locals<1> v31
@@ -4782,8 +4980,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v73:Object = LoadField<func_code@48, Object, borrowed> v28
-    v74:MortalCode["test"] = GuardIs<0xdeadbeef> v73 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v28
+      FrameState {
+        CurInstrOffset 50
+        Locals<1> v17
+        Stack<2> v28 v31
+      }
     }
     BeginInlinedFunction<jittestmodule:test> {
       CurInstrOffset 50
@@ -4853,7 +5057,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v75:Object = VectorCall<1> v64 v67 {
+    v73:Object = VectorCall<1> v64 v67 {
       FrameState {
         CurInstrOffset 50
         Locals<1> v31
@@ -4861,7 +5065,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v69:Object = BinaryOp<Multiply> v31 v75 {
+    v69:Object = BinaryOp<Multiply> v31 v73 {
       FrameState {
         CurInstrOffset 58
         Locals<1> v31
@@ -4956,8 +5160,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v77:Object = LoadField<func_code@64, Object, borrowed> v30
-    v78:MortalCode["test"] = GuardIs<0xdeadbeef> v77 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v30
+      FrameState {
+        CurInstrOffset 48
+        Locals<1> v20
+        Stack<2> v30 v33
+      }
     }
     BeginInlinedFunction<jittestmodule:test> {
       CurInstrOffset 48
@@ -5029,7 +5239,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v79:Object = VectorCall<1> v68 v71 {
+    v77:Object = VectorCall<1> v68 v71 {
       FrameState {
         CurInstrOffset 48
         Locals<1> v57
@@ -5037,7 +5247,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v73:Object = BinaryOp<Multiply> v57 v79 {
+    v73:Object = BinaryOp<Multiply> v57 v77 {
       FrameState {
         CurInstrOffset 56
         Locals<1> v57
@@ -5099,8 +5309,13 @@ fun jittestmodule:test {
     Snapshot
     v13:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v14:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    v30:Object = LoadField<func_code@48, Object, borrowed> v12
-    v31:MortalCode["foo"] = GuardIs<0xdeadbeef> v30 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v12
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v12 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -5127,11 +5342,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[3]> v13
     UseType<ImmortalLongExact[4]> v14
-    v33:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    v31:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v33
+    Return v31
   }
 }
 --- Expected 3.14 ---
@@ -5166,8 +5381,13 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
-    v30:Object = LoadField<func_code@48, Object, borrowed> v11
-    v31:MortalCode["foo"] = GuardIs<0xdeadbeef> v30 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -5194,11 +5414,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[3]> v13
     UseType<ImmortalLongExact[4]> v14
-    v33:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    v31:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v33
+    Return v31
   }
 }
 --- Expected 3.15 ---
@@ -5233,8 +5453,13 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
-    v30:Object = LoadField<func_code@48, Object, borrowed> v11
-    v31:MortalCode["foo"] = GuardIs<0xdeadbeef> v30 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -5261,11 +5486,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[3]> v13
     UseType<ImmortalLongExact[4]> v14
-    v33:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    v31:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v33
+    Return v31
   }
 }
 --- Expected 3.16 ---
@@ -5300,8 +5525,13 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
-    v30:Object = LoadField<func_code@48, Object, borrowed> v11
-    v31:MortalCode["foo"] = GuardIs<0xdeadbeef> v30 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -5328,11 +5558,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[3]> v13
     UseType<ImmortalLongExact[4]> v14
-    v33:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    v31:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v33
+    Return v31
   }
 }
 --- Expected 3.14t ---
@@ -5368,8 +5598,13 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
-    v34:Object = LoadField<func_code@64, Object, borrowed> v11
-    v35:MortalCode["foo"] = GuardIs<0xdeadbeef> v34 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -5399,11 +5634,11 @@ fun jittestmodule:test {
     UseType<LongExact> v29
     UseType<ImmortalLongExact[3]> v28
     UseType<ImmortalLongExact[4]> v29
-    v37:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    v35:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v37
+    Return v35
   }
 }
 --- Test Name ---
@@ -5447,8 +5682,13 @@ fun jittestmodule:test {
     v16:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v10
     v17:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v16 {
     }
-    v31:Object = LoadField<func_code@48, Object, borrowed> v10
-    v32:MortalCode["foo"] = GuardIs<0xdeadbeef> v31 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v10
+      FrameState {
+        CurInstrOffset 12
+        Stack<3> v10 v14 v15
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -5475,11 +5715,11 @@ fun jittestmodule:test {
     UseType<LongExact> v15
     UseType<ImmortalLongExact[1]> v14
     UseType<ImmortalLongExact[2]> v15
-    v34:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v32:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v34
+    Return v32
   }
 }
 --- Expected 3.14 ---
@@ -5515,8 +5755,13 @@ fun jittestmodule:test {
     v16:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v9
     v17:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v16 {
     }
-    v31:Object = LoadField<func_code@48, Object, borrowed> v9
-    v32:MortalCode["foo"] = GuardIs<0xdeadbeef> v31 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 12
+        Stack<3> v9 v14 v15
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -5543,11 +5788,11 @@ fun jittestmodule:test {
     UseType<LongExact> v15
     UseType<ImmortalLongExact[1]> v14
     UseType<ImmortalLongExact[2]> v15
-    v34:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v32:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v34
+    Return v32
   }
 }
 --- Expected 3.15 ---
@@ -5583,8 +5828,13 @@ fun jittestmodule:test {
     v16:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v9
     v17:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v16 {
     }
-    v31:Object = LoadField<func_code@48, Object, borrowed> v9
-    v32:MortalCode["foo"] = GuardIs<0xdeadbeef> v31 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 14
+        Stack<3> v9 v14 v15
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 14
@@ -5611,11 +5861,11 @@ fun jittestmodule:test {
     UseType<LongExact> v15
     UseType<ImmortalLongExact[1]> v14
     UseType<ImmortalLongExact[2]> v15
-    v34:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v32:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v34
+    Return v32
   }
 }
 --- Expected 3.16 ---
@@ -5651,8 +5901,13 @@ fun jittestmodule:test {
     v16:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v9
     v17:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v16 {
     }
-    v31:Object = LoadField<func_code@48, Object, borrowed> v9
-    v32:MortalCode["foo"] = GuardIs<0xdeadbeef> v31 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 14
+        Stack<3> v9 v14 v15
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 14
@@ -5679,11 +5934,11 @@ fun jittestmodule:test {
     UseType<LongExact> v15
     UseType<ImmortalLongExact[1]> v14
     UseType<ImmortalLongExact[2]> v15
-    v34:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v32:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v34
+    Return v32
   }
 }
 --- Expected 3.14t ---
@@ -5720,8 +5975,13 @@ fun jittestmodule:test {
     v16:Tuple = LoadField<func_defaults@72, Tuple, borrowed> v9
     v17:ImmortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v16 {
     }
-    v35:Object = LoadField<func_code@64, Object, borrowed> v9
-    v36:MortalCode["foo"] = GuardIs<0xdeadbeef> v35 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v9
+      FrameState {
+        CurInstrOffset 12
+        Stack<3> v9 v14 v15
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 12
@@ -5751,11 +6011,11 @@ fun jittestmodule:test {
     UseType<LongExact> v30
     UseType<ImmortalLongExact[1]> v29
     UseType<ImmortalLongExact[2]> v30
-    v38:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v36:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v38
+    Return v36
   }
 }
 --- Test Name ---
@@ -5801,8 +6061,13 @@ fun jittestmodule:test {
     v20:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v12
     v21:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v20 {
     }
-    v43:Object = LoadField<func_code@48, Object, borrowed> v12
-    v44:MortalCode["foo"] = GuardIs<0xdeadbeef> v43 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v12
+      FrameState {
+        CurInstrOffset 16
+        Stack<5> v12 v13 v14 v18 v19
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -5829,23 +6094,23 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[1]> v13
     UseType<ImmortalLongExact[2]> v14
-    v48:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v46:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    UseType<LongExact> v48
+    UseType<LongExact> v46
     UseType<LongExact> v18
-    UseType<ImmortalLongExact[3]> v48
+    UseType<ImmortalLongExact[3]> v46
     UseType<ImmortalLongExact[3]> v18
-    v49:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
+    v47:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
     Snapshot
-    UseType<LongExact> v49
+    UseType<LongExact> v47
     UseType<LongExact> v19
-    UseType<ImmortalLongExact[6]> v49
+    UseType<ImmortalLongExact[6]> v47
     UseType<ImmortalLongExact[4]> v19
-    v50:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
+    v48:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v50
+    Return v48
   }
 }
 --- Expected 3.14 ---
@@ -5885,8 +6150,13 @@ fun jittestmodule:test {
     v20:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v11
     v21:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v20 {
     }
-    v43:Object = LoadField<func_code@48, Object, borrowed> v11
-    v44:MortalCode["foo"] = GuardIs<0xdeadbeef> v43 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<5> v11 v13 v14 v18 v19
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -5913,23 +6183,23 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[1]> v13
     UseType<ImmortalLongExact[2]> v14
-    v48:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v46:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    UseType<LongExact> v48
+    UseType<LongExact> v46
     UseType<LongExact> v18
-    UseType<ImmortalLongExact[3]> v48
+    UseType<ImmortalLongExact[3]> v46
     UseType<ImmortalLongExact[3]> v18
-    v49:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
+    v47:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
     Snapshot
-    UseType<LongExact> v49
+    UseType<LongExact> v47
     UseType<LongExact> v19
-    UseType<ImmortalLongExact[6]> v49
+    UseType<ImmortalLongExact[6]> v47
     UseType<ImmortalLongExact[4]> v19
-    v50:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
+    v48:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v50
+    Return v48
   }
 }
 --- Expected 3.15 ---
@@ -5969,8 +6239,13 @@ fun jittestmodule:test {
     v20:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v11
     v21:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v20 {
     }
-    v43:Object = LoadField<func_code@48, Object, borrowed> v11
-    v44:MortalCode["foo"] = GuardIs<0xdeadbeef> v43 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<5> v11 v13 v14 v18 v19
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -5997,23 +6272,23 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[1]> v13
     UseType<ImmortalLongExact[2]> v14
-    v48:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v46:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    UseType<LongExact> v48
+    UseType<LongExact> v46
     UseType<LongExact> v18
-    UseType<ImmortalLongExact[3]> v48
+    UseType<ImmortalLongExact[3]> v46
     UseType<ImmortalLongExact[3]> v18
-    v49:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
+    v47:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
     Snapshot
-    UseType<LongExact> v49
+    UseType<LongExact> v47
     UseType<LongExact> v19
-    UseType<ImmortalLongExact[6]> v49
+    UseType<ImmortalLongExact[6]> v47
     UseType<ImmortalLongExact[4]> v19
-    v50:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
+    v48:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v50
+    Return v48
   }
 }
 --- Expected 3.16 ---
@@ -6053,8 +6328,13 @@ fun jittestmodule:test {
     v20:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v11
     v21:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v20 {
     }
-    v43:Object = LoadField<func_code@48, Object, borrowed> v11
-    v44:MortalCode["foo"] = GuardIs<0xdeadbeef> v43 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<5> v11 v13 v14 v18 v19
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -6081,23 +6361,23 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[1]> v13
     UseType<ImmortalLongExact[2]> v14
-    v48:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v46:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    UseType<LongExact> v48
+    UseType<LongExact> v46
     UseType<LongExact> v18
-    UseType<ImmortalLongExact[3]> v48
+    UseType<ImmortalLongExact[3]> v46
     UseType<ImmortalLongExact[3]> v18
-    v49:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
+    v47:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
     Snapshot
-    UseType<LongExact> v49
+    UseType<LongExact> v47
     UseType<LongExact> v19
-    UseType<ImmortalLongExact[6]> v49
+    UseType<ImmortalLongExact[6]> v47
     UseType<ImmortalLongExact[4]> v19
-    v50:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
+    v48:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v50
+    Return v48
   }
 }
 --- Expected 3.14t ---
@@ -6138,8 +6418,13 @@ fun jittestmodule:test {
     v20:Tuple = LoadField<func_defaults@72, Tuple, borrowed> v11
     v21:ImmortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v20 {
     }
-    v51:Object = LoadField<func_code@64, Object, borrowed> v11
-    v52:MortalCode["foo"] = GuardIs<0xdeadbeef> v51 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<5> v11 v13 v14 v18 v19
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -6171,23 +6456,23 @@ fun jittestmodule:test {
     UseType<LongExact> v42
     UseType<ImmortalLongExact[1]> v41
     UseType<ImmortalLongExact[2]> v42
-    v56:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v54:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
-    UseType<LongExact> v56
+    UseType<LongExact> v54
     UseType<LongExact> v43
-    UseType<ImmortalLongExact[3]> v56
+    UseType<ImmortalLongExact[3]> v54
     UseType<ImmortalLongExact[3]> v43
-    v57:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
+    v55:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
     Snapshot
-    UseType<LongExact> v57
+    UseType<LongExact> v55
     UseType<LongExact> v44
-    UseType<ImmortalLongExact[6]> v57
+    UseType<ImmortalLongExact[6]> v55
     UseType<ImmortalLongExact[4]> v44
-    v58:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
+    v56:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v58
+    Return v56
   }
 }
 --- Test Name ---
@@ -6229,8 +6514,13 @@ fun jittestmodule:test {
     v13:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v32:ImmortalTupleExact[tuple:0xdeadbeef] = LoadConst<ImmortalTupleExact[tuple:0xdeadbeef]>
-    v33:Object = LoadField<func_code@48, Object, borrowed> v12
-    v34:MortalCode["foo"] = GuardIs<0xdeadbeef> v33 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v12
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v12 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -6257,11 +6547,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v36:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v34:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v36
+    Return v34
   }
 }
 --- Expected 3.14 ---
@@ -6297,8 +6587,13 @@ fun jittestmodule:test {
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v32:ImmortalTupleExact[tuple:0xdeadbeef] = LoadConst<ImmortalTupleExact[tuple:0xdeadbeef]>
-    v33:Object = LoadField<func_code@48, Object, borrowed> v11
-    v34:MortalCode["foo"] = GuardIs<0xdeadbeef> v33 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -6325,11 +6620,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v36:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v34:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v36
+    Return v34
   }
 }
 --- Expected 3.15 ---
@@ -6365,8 +6660,13 @@ fun jittestmodule:test {
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v32:ImmortalTupleExact[tuple:0xdeadbeef] = LoadConst<ImmortalTupleExact[tuple:0xdeadbeef]>
-    v33:Object = LoadField<func_code@48, Object, borrowed> v11
-    v34:MortalCode["foo"] = GuardIs<0xdeadbeef> v33 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -6393,11 +6693,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v36:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v34:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v36
+    Return v34
   }
 }
 --- Expected 3.16 ---
@@ -6433,8 +6733,13 @@ fun jittestmodule:test {
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v32:ImmortalTupleExact[tuple:0xdeadbeef] = LoadConst<ImmortalTupleExact[tuple:0xdeadbeef]>
-    v33:Object = LoadField<func_code@48, Object, borrowed> v11
-    v34:MortalCode["foo"] = GuardIs<0xdeadbeef> v33 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 18
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 18
@@ -6461,11 +6766,11 @@ fun jittestmodule:test {
     UseType<LongExact> v14
     UseType<ImmortalLongExact[2]> v13
     UseType<ImmortalLongExact[3]> v14
-    v36:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v34:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v36
+    Return v34
   }
 }
 --- Expected 3.14t ---
@@ -6502,8 +6807,13 @@ fun jittestmodule:test {
     v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v38:ImmortalTupleExact[tuple:0xdeadbeef] = LoadConst<ImmortalTupleExact[tuple:0xdeadbeef]>
-    v39:Object = LoadField<func_code@64, Object, borrowed> v11
-    v40:MortalCode["foo"] = GuardIs<0xdeadbeef> v39 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'func_code swap'
+      GuiltyReg v11
+      FrameState {
+        CurInstrOffset 16
+        Stack<3> v11 v13 v14
+      }
     }
     BeginInlinedFunction<jittestmodule:foo> {
       CurInstrOffset 16
@@ -6534,11 +6844,11 @@ fun jittestmodule:test {
     UseType<LongExact> v32
     UseType<ImmortalLongExact[2]> v31
     UseType<ImmortalLongExact[3]> v32
-    v42:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v40:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v42
+    Return v40
   }
 }
 --- End ---

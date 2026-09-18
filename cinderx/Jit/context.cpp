@@ -558,6 +558,70 @@ void Context::notifyTypeModified(
   }
 }
 
+void Context::watchFunc(
+    BorrowedRef<PyFunctionObject> func,
+    FuncCodeDeoptPatcher* patcher,
+    FuncWatchValidator validate) {
+  JITCompilationLock lock;
+  func_deopt_patchers_[func].emplace(patcher);
+  // No interpreter state is needed for the deopt itself, so unlike a type
+  // watch it is installed immediately. Only the validator is deferred when
+  // compiling on a background thread.
+  if (ThreadedCompileContext::compileRunning()) {
+    pending_func_watches_.emplace_back(func, patcher, std::move(validate));
+  }
+}
+
+void Context::unwatchFunc(FuncCodeDeoptPatcher* patcher) {
+  JITCompilationLock lock;
+  auto it = func_deopt_patchers_.find(patcher->func());
+  if (it != func_deopt_patchers_.end()) {
+    it->second.erase(patcher);
+  }
+  std::erase_if(pending_func_watches_, [&](const PendingFuncWatch& watch) {
+    return watch.patcher == patcher;
+  });
+}
+
+void Context::watchPendingFuncs() {
+  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  JITCompilationLock lock;
+  for (auto& watch : pending_func_watches_) {
+    // The code may have been swapped after the compile checked it but before
+    // the watch was installed, in which case the watch would never fire for
+    // that change. Eagerly deopt instead.
+    if (watch.validate && !watch.validate()) {
+      if (watch.patcher->isLinked() && !watch.patcher->isPatched()) {
+        watch.patcher->patch();
+      }
+      if (auto it = func_deopt_patchers_.find(watch.func);
+          it != func_deopt_patchers_.end()) {
+        it->second.erase(watch.patcher);
+        if (it->second.empty()) {
+          func_deopt_patchers_.erase(it);
+        }
+      }
+    }
+  }
+  pending_func_watches_.clear();
+}
+
+void Context::notifyFuncModified(BorrowedRef<PyFunctionObject> func) {
+  JITCompilationLock lock;
+  auto it = func_deopt_patchers_.find(func);
+  if (it == func_deopt_patchers_.end()) {
+    return;
+  }
+
+  for (FuncCodeDeoptPatcher* patcher : it->second) {
+    if (patcher->isLinked() && !patcher->isPatched()) {
+      patcher->patch();
+    }
+  }
+
+  func_deopt_patchers_.erase(it);
+}
+
 bool Context::hasCompletedCompile(const CompilationKey& key) {
   JITCompilationLock lock;
   return completed_compiles_.contains(key);
@@ -582,6 +646,7 @@ void Context::finalizePendingCompiles() {
     FreeThreadedJITEntrypointGuard guard;
     fixupFunctionEntryCachePostMultiThreadedCompile();
     watchPendingTypes();
+    watchPendingFuncs();
 
     for (auto& codes : completed_compiles_) {
       makeCompiledFunction(

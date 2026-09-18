@@ -697,6 +697,21 @@ def call_unseeded_inline_method(x: int) -> int:
     return _UNSEEDED_INLINE_METHOD_INSTANCE.method(x)
 
 
+@failUnlessJITCompiled
+def swappable_callee():
+    return 1
+
+
+@failUnlessJITCompiled
+def swappable_callee_replacement():
+    return 2
+
+
+@failUnlessJITCompiled
+def swappable_caller():
+    return swappable_callee()
+
+
 @passUnless(INLINER, "Testing the inliner")
 class InlinedFunctionTests(unittest.TestCase):
     def assert_method_rewritten(self, func) -> None:
@@ -1199,6 +1214,22 @@ class InlinedFunctionTests(unittest.TestCase):
         # the lookup raises KeyError and ends the loop.  There is no "-", so
         # flags_off is 0.
         self.assertEqual(parse_flags_subpattern(FlagSource("abiX"), FlagInfo()), (7, 0))
+
+    @jit_suppress
+    def test_code_swap_deopts_inlined_caller(self) -> None:
+        # The caller inlines the callee with a patchpoint (not a per-call
+        # guard) on the callee's code object. Swapping __code__ patches the
+        # caller's patchpoint so it deopts and picks up the new code;
+        # restoring deopts again.
+        self.assertEqual(swappable_caller(), 1)
+        self.assertGreater(cinderx.jit.get_num_inlined_functions(swappable_caller), 0)
+        original_code = swappable_callee.__code__
+        try:
+            swappable_callee.__code__ = swappable_callee_replacement.__code__
+            self.assertEqual(swappable_caller(), 2)
+        finally:
+            swappable_callee.__code__ = original_code
+        self.assertEqual(swappable_caller(), 1)
 
     @jit_suppress
     def test_line_numbers_with_multiple_inlined_calls(self) -> None:

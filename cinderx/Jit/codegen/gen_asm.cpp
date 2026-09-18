@@ -1083,6 +1083,19 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
       env_.ctx->watchType(
           typed_patcher->type(), typed_patcher, std::move(validator));
     }
+
+    // Register patcher with the runtime if it watches a function.
+    if (auto func_patcher = dynamic_cast<FuncCodeDeoptPatcher*>(udp.patcher)) {
+      Context::FuncWatchValidator validator =
+          func_->env.watchValidator(func_patcher);
+      if (validator == nullptr) {
+        validator = [func_patcher] {
+          return func_patcher->assumptionsStillValid();
+        };
+      }
+      env_.ctx->watchFunc(
+          func_patcher->func(), func_patcher, std::move(validator));
+    }
   }
 
   // Any patchers that aren't linked at this point are pointing to patch points

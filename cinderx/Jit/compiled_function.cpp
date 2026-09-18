@@ -544,6 +544,10 @@ void CompiledFunction::clear(bool context_finalizing) {
                 dynamic_cast<TypeDeoptPatcher*>(patcher.get())) {
           owner_->unwatch(typed_patcher);
         }
+        if (auto func_patcher =
+                dynamic_cast<FuncCodeDeoptPatcher*>(patcher.get())) {
+          owner_->unwatchFunc(func_patcher);
+        }
       }
     }
 

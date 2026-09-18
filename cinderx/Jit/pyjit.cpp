@@ -5081,6 +5081,11 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
 void funcModified(BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
   deoptFunc(func);
+  // Patch any callers that inlined the old code object. Have to check if
+  // context exists as this can fire after jit::finalize().
+  if (jitCtx()) {
+    jitCtx()->notifyFuncModified(func);
+  }
   // Clean up registrations for the old code object. At this point
   // func->func_code still refers to the old code. The caller will update
   // func->func_code and call scheduleCompile() to re-register with the new

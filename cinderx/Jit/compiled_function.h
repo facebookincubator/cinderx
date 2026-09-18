@@ -152,6 +152,10 @@ class CompiledFunctionOwner {
   // Python type itself is left watched for any other patchers.
   virtual void unwatch(TypeDeoptPatcher* patcher) = 0;
 
+  // Unwatch a single FuncCodeDeoptPatcher from a CompiledFunction. The
+  // watched function itself is left watched for any other patchers.
+  virtual void unwatchFunc(FuncCodeDeoptPatcher* patcher) = 0;
+
   // Hand off a CompiledFunctionData for deferred destruction instead of freeing
   // it inline, since the machine code may still be executing on some thread's
   // stack.  The (code, builtins, globals) triple keys the deferred entry and

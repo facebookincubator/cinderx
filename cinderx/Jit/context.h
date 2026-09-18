@@ -17,6 +17,7 @@
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/elf/note.h"
 #include "cinderx/Jit/fixed_type_profiler.h"
+#include "cinderx/Jit/func_deopt_patcher.h"
 #include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
@@ -464,6 +465,26 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Stops watching for a specific TypeDeoptPatcher.
   void unwatch(TypeDeoptPatcher* patcher) override;
 
+  // Validates that the assumptions a pending function watch was created with
+  // still hold. Evaluated with the GIL held in watchPendingFuncs(), after a
+  // threaded/background compile finishes.
+  using FuncWatchValidator = std::function<bool()>;
+
+  // Watch func for __code__ swaps, calling patcher->patch() when one
+  // happens (via notifyFuncModified).
+  void watchFunc(
+      BorrowedRef<PyFunctionObject> func,
+      FuncCodeDeoptPatcher* patcher,
+      FuncWatchValidator validate);
+
+  // Stops watching for a specific FuncCodeDeoptPatcher.
+  void unwatchFunc(FuncCodeDeoptPatcher* patcher) override;
+
+  // Callback for when a function's __code__ is swapped out (from
+  // pyjit::funcModified, before func_code is updated). Patches every
+  // registered patchpoint that inlined the old code.
+  void notifyFuncModified(BorrowedRef<PyFunctionObject> func);
+
   // Callback for when a type is modified or destroyed. lookup_type should be
   // the type that triggered the call (the type that's being
   // modified/deleted/otherwise messed with), and new_type should be the "new"
@@ -511,6 +532,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   BorrowedRef<> strBuildClass();
 
   void watchPendingTypes();
+  void watchPendingFuncs();
   void fixupFunctionEntryCachePostMultiThreadedCompile();
 
   const hir::Type& typeForCommonConstant(int i) const;
@@ -600,6 +622,21 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   };
   std::unordered_map<BorrowedRef<PyTypeObject>, std::vector<PendingTypeWatch>>
       pending_watches_;
+
+  std::unordered_map<
+      BorrowedRef<PyFunctionObject>,
+      std::unordered_set<FuncCodeDeoptPatcher*>>
+      func_deopt_patchers_;
+
+  // A function watch deferred during threaded/background compilation, along
+  // with the validator for the assumptions the compiled code made about the
+  // function's code object.
+  struct PendingFuncWatch {
+    BorrowedRef<PyFunctionObject> func;
+    FuncCodeDeoptPatcher* patcher;
+    FuncWatchValidator validate;
+  };
+  std::vector<PendingFuncWatch> pending_func_watches_;
 
   std::vector<hir::Type> common_constant_types_;
 

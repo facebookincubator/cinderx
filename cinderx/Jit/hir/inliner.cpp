@@ -641,24 +641,17 @@ std::optional<InlineResult> inlineFunctionCall(
       preloader.reifier());
   auto callee_branch = Branch::create(result.entry);
   if (call_instr.target != nullptr) {
-    // Not a static call. Check that __code__ has not been swapped out since
-    // the function was inlined.
-    // VectorCall -> {LoadField, GuardIs, BeginInlinedFunction, Branch to
-    // callee CFG}
-    //
-    // Consider emitting a DeoptPatchpoint here to catch the case where someone
-    // swaps out function.__code__.
-    Register* code_obj = caller.env.allocateRegister();
-    auto load_code = LoadField::create(
-        code_obj,
-        call_instr.target,
-        "func_code",
-        offsetof(PyFunctionObject, func_code),
-        TObject);
-    Register* guarded_code = caller.env.allocateRegister();
-    auto guard_code = GuardIs::create(guarded_code, callee_code, code_obj);
+    // Not a static call. Guard against __code__ being swapped out after the
+    // function was inlined with a patchpoint
+    caller.env.addReference(callee_code);
+    auto patcher =
+        caller.allocateCodePatcher<FuncCodeDeoptPatcher>(callee, callee_code);
+    auto patchpoint = DeoptPatchpoint::create(patcher);
+    patchpoint->setFrameState(pre_call_state);
+    patchpoint->setGuiltyReg(call_instr.target);
+    patchpoint->setDescr("func_code swap");
     call_instr.instr->expandInto(
-        {load_code, guard_code, begin_inlined_function, callee_branch});
+        {patchpoint, begin_inlined_function, callee_branch});
   } else {
     call_instr.instr->expandInto({begin_inlined_function, callee_branch});
   }
