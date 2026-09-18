@@ -1139,10 +1139,19 @@ int _cinderx_exec_impl(PyObject* m) {
   }
   state->anext_awaitable_type = Ref<PyTypeObject>::steal(anext_awaitable_type);
 
-  auto anext_func = Ref<>::steal(PyObject_GetAttrString(m, "anext"));
-  if (anext_func == nullptr ||
-      PyObject_SetAttrString(builtins_mod, "anext", anext_func) < 0) {
+  auto current_anext =
+      Ref<>::steal(PyObject_GetAttrString(builtins_mod, "anext"));
+  if (current_anext == nullptr) {
     return -1;
+  }
+  // Python implementations use the JIT-aware await bytecode and do not need
+  // CinderX's replacement.
+  if (!PyFunction_Check(current_anext)) {
+    auto cinderx_anext = Ref<>::steal(PyObject_GetAttrString(m, "anext"));
+    if (cinderx_anext == nullptr ||
+        PyObject_SetAttrString(builtins_mod, "anext", cinderx_anext) < 0) {
+      return -1;
+    }
   }
 
 #if defined(ENABLE_INCREMENTAL_GC) && defined(ENABLE_PARALLEL_GC)
