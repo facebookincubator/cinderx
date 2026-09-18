@@ -11,9 +11,23 @@ std::unique_ptr<AnnotationIndex> AnnotationIndex::fromFunction(
     BorrowedRef<PyFunctionObject> func) {
   if (getMutableConfig().emit_type_annotation_guards) {
 #if PY_VERSION_HEX >= 0x030E0000
-    BorrowedRef<> annotations = PyFunction_GetAnnotations(func);
+    // PyFunction_GetAnnotations returns a borrowed ref without locking on FT.
+    Ref<> annotations;
+    if constexpr (kFreeThreadedBuild) {
+      annotations =
+          Ref<>::steal(PyObject_GetAttrString(func, "__annotations__"));
+    } else {
+      annotations = Ref<>::create(PyFunction_GetAnnotations(func));
+    }
     if (annotations == nullptr || !PyDict_Check(annotations)) {
       return nullptr;
+    }
+    if constexpr (kFreeThreadedBuild) {
+      // Copy in case another thread modifies the dict.
+      annotations = Ref<>::steal(PyDict_Copy(annotations));
+      if (annotations == nullptr) {
+        return nullptr;
+      }
     }
     BorrowedRef<PyDictObject> dict_annotations{annotations};
     return std::unique_ptr<AnnotationIndex>(

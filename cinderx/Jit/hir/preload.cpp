@@ -8,6 +8,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/eligibility.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
@@ -148,6 +149,7 @@ void registerNestedCompileData(
     BorrowedRef<> module,
     BorrowedRef<PyCodeObject> root_code,
     bool register_root) {
+  FreeThreadedJITEntrypointGuard guard;
   auto* state = cinderx::getModuleState();
   if (state == nullptr || state->jit_context == nullptr) {
     return;
@@ -331,7 +333,14 @@ PyObject** Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
 }
 
 bool Preloader::canCacheGlobals() const {
-  return hasOnlyUnicodeKeys(builtins_) && hasOnlyUnicodeKeys(globals_);
+  {
+    CriticalSectionGuard guard(builtins_);
+    if (!hasOnlyUnicodeKeys(builtins_)) {
+      return false;
+    }
+  }
+  CriticalSectionGuard guard(globals_);
+  return hasOnlyUnicodeKeys(globals_);
 }
 
 BorrowedRef<> Preloader::global(int name_idx) const {

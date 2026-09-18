@@ -39,37 +39,6 @@
 
 namespace cinderx::jit {
 
-// Only used to serialize FT-only entrypoints, but declared unconditionally so
-// callers can branch on kFreeThreadedBuild instead of the preprocessor.
-std::recursive_mutex& freeThreadedJITEntrypointMutex();
-
-// Free-threaded builds can enter top-level JIT operations concurrently:
-// function/code registration, compilation, and destruction hooks.
-// Use a dedicated lock instead of ThreadedCompileGILHolder which is a nop
-// in GIL disabled builds.
-class FreeThreadedJITEntrypointGuard {
- public:
-  FreeThreadedJITEntrypointGuard() {
-    if constexpr (kFreeThreadedBuild) {
-      freeThreadedJITEntrypointMutex().lock();
-    }
-  }
-
-  ~FreeThreadedJITEntrypointGuard() {
-    if constexpr (kFreeThreadedBuild) {
-      freeThreadedJITEntrypointMutex().unlock();
-    }
-  }
-
-  FreeThreadedJITEntrypointGuard(const FreeThreadedJITEntrypointGuard&) =
-      delete;
-  FreeThreadedJITEntrypointGuard& operator=(
-      const FreeThreadedJITEntrypointGuard&) = delete;
-  FreeThreadedJITEntrypointGuard(FreeThreadedJITEntrypointGuard&&) = delete;
-  FreeThreadedJITEntrypointGuard& operator=(FreeThreadedJITEntrypointGuard&&) =
-      delete;
-};
-
 // State handed off to the background compilation worker. Holds Python
 // references (via the preloaders, func, and code) that must be released while
 // attached to the interpreter.

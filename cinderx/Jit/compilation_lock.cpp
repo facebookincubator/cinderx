@@ -11,6 +11,35 @@ std::recursive_mutex& jitCompilationMutex() {
   return mutex;
 }
 
+std::recursive_mutex& freeThreadedJITEntrypointMutex() {
+  static std::recursive_mutex mutex;
+  return mutex;
+}
+
+void freeThreadedJITEntrypointAtForkPrepare() {
+  if constexpr (kFreeThreadedBuild) {
+    freeThreadedJITEntrypointMutex().lock();
+  }
+}
+
+void freeThreadedJITEntrypointAtForkParent() {
+  if constexpr (kFreeThreadedBuild) {
+    freeThreadedJITEntrypointMutex().unlock();
+  }
+}
+
+void freeThreadedJITEntrypointAtForkChild() {
+  if constexpr (kFreeThreadedBuild) {
+    // Other threads disappear at fork. Reinit the mutex and restore only
+    // the surviving thread's recursion depth.
+    auto& mutex = freeThreadedJITEntrypointMutex();
+    resetMutexAfterFork(mutex);
+    for (size_t i = 0; i < freeThreadedJITEntrypointLockDepth; ++i) {
+      mutex.lock();
+    }
+  }
+}
+
 void jitCompilationAtForkPrepare() {
   jitCompilationMutex().lock();
 }

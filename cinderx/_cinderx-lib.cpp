@@ -632,15 +632,26 @@ int cinderx_func_watcher(
       scheduleCompile(func);
       break;
     }
-    case PyFunction_EVENT_MODIFY_CODE:
+    case PyFunction_EVENT_MODIFY_CODE: {
+      jit::FreeThreadedJITEntrypointGuard guard;
       jit::funcModified(func);
       // having deopted the func, we want to immediately consider recompiling.
       // func_set_code will assign this again later, but we do it early so
       // scheduleCompile() can consider the new code object now.
       Py_INCREF(new_value);
+#ifdef Py_GIL_DISABLED
+      // CPython requires stop-the-world when replacing func_code on FT.
+      PyInterpreterState* interp = _PyInterpreterState_GET();
+      _PyEval_StopTheWorld(interp);
+      PyObject* old_code = std::exchange(func->func_code, new_value);
+      _PyEval_StartTheWorld(interp);
+      Py_XDECREF(old_code);
+#else
       Py_XSETREF(func->func_code, new_value);
+#endif
       scheduleCompile(func);
       break;
+    }
     case PyFunction_EVENT_MODIFY_DEFAULTS:
       break;
     case PyFunction_EVENT_MODIFY_KWDEFAULTS:

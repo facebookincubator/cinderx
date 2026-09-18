@@ -83,11 +83,6 @@ void collectAndClearInlineCacheStats(
 
 AotContext g_aot_ctx;
 
-std::recursive_mutex& freeThreadedJITEntrypointMutex() {
-  static std::recursive_mutex mutex;
-  return mutex;
-}
-
 PyObject* yieldFromValue(
     GenDataFooter* gen_footer,
     const GenYieldPoint* yield_point) {

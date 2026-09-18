@@ -2,6 +2,10 @@
 
 #pragma once
 
+#include "cinderx/python.h"
+
+#include "cinderx/Common/define.h"
+
 #include <mutex>
 
 namespace cinderx::jit {
@@ -18,6 +22,56 @@ std::recursive_mutex& jitCompilationMutex();
 void jitCompilationAtForkPrepare();
 void jitCompilationAtForkParent();
 void jitCompilationAtForkChild();
+
+// Free-threaded builds can enter top-level JIT operations concurrently:
+// function/code registration, compilation, and destruction hooks.
+// Use a dedicated lock instead of ThreadedCompileGILHolder which is a nop
+// in GIL disabled builds.
+std::recursive_mutex& freeThreadedJITEntrypointMutex();
+inline thread_local size_t freeThreadedJITEntrypointLockDepth = 0;
+void freeThreadedJITEntrypointAtForkPrepare();
+void freeThreadedJITEntrypointAtForkParent();
+void freeThreadedJITEntrypointAtForkChild();
+
+class FreeThreadedJITEntrypointGuard {
+ public:
+  FreeThreadedJITEntrypointGuard() {
+    if constexpr (kFreeThreadedBuild) {
+      auto& mutex = freeThreadedJITEntrypointMutex();
+      if (!mutex.try_lock()) {
+        // Detach while waiting so we don't block stop-the-world pauses.
+#if PY_VERSION_HEX >= 0x030E0000
+        auto* tstate = PyThreadState_GetUnchecked();
+#else
+        auto* tstate = _PyThreadState_UncheckedGet();
+#endif
+        if (tstate != nullptr) {
+          tstate = PyEval_SaveThread();
+        }
+        mutex.lock();
+        if (tstate != nullptr) {
+          PyEval_RestoreThread(tstate);
+        }
+      }
+      ++freeThreadedJITEntrypointLockDepth;
+    }
+  }
+
+  ~FreeThreadedJITEntrypointGuard() {
+    if constexpr (kFreeThreadedBuild) {
+      --freeThreadedJITEntrypointLockDepth;
+      freeThreadedJITEntrypointMutex().unlock();
+    }
+  }
+
+  FreeThreadedJITEntrypointGuard(const FreeThreadedJITEntrypointGuard&) =
+      delete;
+  FreeThreadedJITEntrypointGuard& operator=(
+      const FreeThreadedJITEntrypointGuard&) = delete;
+  FreeThreadedJITEntrypointGuard(FreeThreadedJITEntrypointGuard&&) = delete;
+  FreeThreadedJITEntrypointGuard& operator=(FreeThreadedJITEntrypointGuard&&) =
+      delete;
+};
 
 // Uses to track if the current thread holds the lock for assertion purposes.
 inline thread_local int jitCompilationLockDepth = 0;
