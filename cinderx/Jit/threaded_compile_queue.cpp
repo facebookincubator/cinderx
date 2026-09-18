@@ -22,8 +22,8 @@ ThreadedCompileQueue::WorkList ThreadedCompileQueue::finalizeCompile() {
   return {};
 }
 
-Ref<> ThreadedCompileQueue::nextUnit() {
-  Ref<> unit;
+std::optional<CompilationUnit> ThreadedCompileQueue::nextUnit() {
+  std::optional<CompilationUnit> unit;
   JITCompilationLock lock;
   if (!work_list_.empty()) {
     unit = std::move(work_list_.back());
@@ -32,12 +32,12 @@ Ref<> ThreadedCompileQueue::nextUnit() {
   return unit;
 }
 
-void ThreadedCompileQueue::retryUnit(Ref<>&& unit) {
+void ThreadedCompileQueue::retryUnit(CompilationUnit&& unit) {
   JITCompilationLock lock;
   retry_list_.emplace_back(std::move(unit));
 }
 
-void ThreadedCompileQueue::retireUnit(Ref<>&& unit) {
+void ThreadedCompileQueue::retireUnit(CompilationUnit&& unit) {
   JITCompilationLock lock;
   retired_list_.emplace_back(std::move(unit));
 }

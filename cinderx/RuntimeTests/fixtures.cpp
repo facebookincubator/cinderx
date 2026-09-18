@@ -44,7 +44,7 @@ std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
   // Force preloading dependent functions to test the inliner.
   auto funcs = jit::preloadFuncAndDeps(func, true /* forcePreload */);
   JIT_CHECK(!funcs.empty(), "Failed to preload function");
-  auto preloader = jit::hir::preloaderManager().find(funcs.back().code);
+  auto preloader = funcs.back().preloader;
   JIT_CHECK(
       preloader->code() == func->func_code,
       "Expecting the last function to compile to be the first one preloaded");

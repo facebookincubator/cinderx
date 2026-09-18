@@ -3,14 +3,29 @@
 #pragma once
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/threaded_compile.h"
 
+#include <optional>
 #include <vector>
 
 namespace cinderx::jit {
+// Single unit of compilation. We always compile with a Preloader which holds
+// strong references to keep the compiled target alive. We may also optionally
+// have a function which we keep alive across the compile as well. We won't have
+// a function object if we're compiling a nested code object for which no
+// function has been created yet.
+struct CompilationUnit {
+  const hir::Preloader* preloader;
+  Ref<PyFunctionObject> func;
+
+  CompilationUnit(const hir::Preloader* preloader, Ref<PyFunctionObject>&& func)
+      : preloader(preloader), func(std::move(func)) {}
+};
+
 class ThreadedCompileQueue : public ThreadedCompileContext {
  public:
-  using WorkList = std::vector<Ref<>>;
+  using WorkList = std::vector<CompilationUnit>;
 
   ~ThreadedCompileQueue();
   ThreadedCompileQueue(const ThreadedCompileQueue&) = delete;
@@ -25,13 +40,13 @@ class ThreadedCompileQueue : public ThreadedCompileContext {
   // list of translation units that failed to compile.
   WorkList finalizeCompile();
 
-  Ref<> nextUnit();
+  std::optional<CompilationUnit> nextUnit();
 
   // Mark a unit as having failed to compile and to be retried in the future.
-  void retryUnit(Ref<>&& unit);
+  void retryUnit(CompilationUnit&& unit);
 
   // Mark a unit as being compiled and store it's reference for releasing later.
-  void retireUnit(Ref<>&& unit);
+  void retireUnit(CompilationUnit&& unit);
 
  private:
   // List of translation units to iterate through and compile.

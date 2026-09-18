@@ -1136,23 +1136,6 @@ std::pair<BorrowedRef<PyFunctionObject>, BorrowedRef<PyCodeObject>> splitUnit(
   return {nullptr, code};
 }
 
-std::string unitFullname(BorrowedRef<> unit) {
-  if (unit == nullptr) {
-    return "<nullptr>";
-  }
-  auto [func, code] = splitUnit(unit);
-  if (func != nullptr) {
-    return funcFullname(func);
-  }
-  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-  auto iter = jit_code_outer_funcs.find(code);
-  if (iter == jit_code_outer_funcs.end()) {
-    return fmt::format(
-        "<Unknown code object {}>", static_cast<void*>(code.get()));
-  }
-  return codeFullname(iter->second->func_module, code);
-}
-
 PyThreadState* acquireCompileWorkerThreadState(PyInterpreterState* interp) {
   // Create the state on its owning worker so thread-local runtime state is
   // initialized for the thread that uses it. Passing the interpreter avoids
@@ -1246,29 +1229,19 @@ using PreloadedUnitMap = UnorderedMap<BorrowedRef<>, const hir::Preloader*>;
 // Takes ownership of the unit's reference and hands it down to the compile.
 // The returned reference is whatever was left over, i.e. it is null once
 // something that outlives this call has taken the function over.
-std::pair<Result, Ref<>> tryCompilePreloaded(
-    Ref<>&& unit,
-    const PreloadedUnitMap& preloaders) {
-  const hir::Preloader* preloader = preloaders.at(BorrowedRef<>{unit});
-  if (!PyFunction_Check(unit)) {
-    // A bare code object has no function reference to hand down.
-    auto [result, unclaimed] = compileAdmittedPreloader(*preloader, nullptr);
-    JIT_DCHECK(unclaimed == nullptr, "nothing was handed down");
-    return {result, std::move(unit)};
-  }
-
-  // The unit is the function itself, so hand its reference down.
+std::pair<Result, CompilationUnit> tryCompilePreloaded(CompilationUnit&& unit) {
   auto [result, unclaimed] =
-      compileAdmittedPreloader(*preloader, std::move(unit));
-  return {
-      result, Ref<>::steal(reinterpret_cast<PyObject*>(unclaimed.release()))};
+      compileAdmittedPreloader(*unit.preloader, std::move(unit.func));
+  CompilationUnit res = {
+      unit.preloader,
+      Ref<>::steal(reinterpret_cast<PyObject*>(unclaimed.release()))};
+  return {result, std::move(res)};
 }
 
 void compile_worker_thread(
     PyInterpreterState* interp,
     std::shared_ptr<ThreadedCompileQueue> context,
-    std::shared_ptr<hir::IsolatedPreloaders> isolated,
-    std::shared_ptr<const PreloadedUnitMap> preloaders) {
+    std::shared_ptr<hir::IsolatedPreloaders> isolated) {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
 
   PyThreadState* tstate = acquireCompileWorkerThreadState(interp);
@@ -1288,14 +1261,13 @@ void compile_worker_thread(
     int attempts = 0;
     int retries = 0;
 
-    while (Ref<> unit = context->nextUnit()) {
+    while (auto unit = context->nextUnit()) {
       attempts++;
 
       // Hand our reference down into the compile so whatever ends up owning
       // the function can take it over instead of creating a reference here
       // with the GIL released.
-      auto [result, unclaimed] =
-          tryCompilePreloaded(std::move(unit), *preloaders);
+      auto [result, unclaimed] = tryCompilePreloaded(std::move(unit).value());
 
       // Hand back whatever the compile did not take over.  Dropping a
       // reference on this thread would decref with the GIL released, which is
@@ -1303,13 +1275,14 @@ void compile_worker_thread(
       JIT_CHECK(
           result != Result::NO_PRELOADER,
           "Cannot find a JIT preloader for {}",
-          unclaimed != nullptr ? unitFullname(unclaimed) : "claimed function");
+          unclaimed.preloader->fullname());
       if (result == Result::ALREADY_SCHEDULED) {
         retries++;
         JIT_CHECK(
-            unclaimed != nullptr, "retried unit should still own a reference");
+            unclaimed.func != nullptr,
+            "retried unit should still own a reference");
         context->retryUnit(std::move(unclaimed));
-      } else if (unclaimed != nullptr) {
+      } else if (unclaimed.func != nullptr) {
         context->retireUnit(std::move(unclaimed));
       }
     }
@@ -1337,21 +1310,18 @@ void compile_worker_thread(
   PyThreadState_DeleteCurrent();
 }
 
-void compile_units_preloaded(
-    std::vector<Ref<>>&& units,
-    const PreloadedUnitMap& preloaders) {
+void compile_units_preloaded(ThreadedCompileQueue::WorkList&& units) {
   for (auto& unit : units) {
     // Runs with the GIL held, so releasing whatever comes back is fine.
-    tryCompilePreloaded(std::move(unit), preloaders);
+    tryCompilePreloaded(std::move(unit));
   }
   jitCtx()->finalizePendingCompiles();
 }
 
 bool multithread_compile_units_preloaded(
-    std::vector<Ref<>>&& units,
+    ThreadedCompileQueue::WorkList units,
     size_t worker_count,
-    std::shared_ptr<hir::IsolatedPreloaders> isolated,
-    std::shared_ptr<const PreloadedUnitMap> preloaders) {
+    std::shared_ptr<hir::IsolatedPreloaders> isolated) {
   JIT_CHECK(worker_count > 1, "Expecting >1 workers but got {}", worker_count);
 
   JIT_DLOG(
@@ -1373,7 +1343,7 @@ bool multithread_compile_units_preloaded(
   std::vector<std::thread>& worker_threads = mod_state->compile_worker_threads;
   for (size_t i = 0; i < worker_count; i++) {
     worker_threads.emplace_back(
-        compile_worker_thread, interp, compilation, isolated, preloaders);
+        compile_worker_thread, interp, compilation, isolated);
   }
   // Keep the coordinator attached until every worker is launched in case
   // thread creation has been hooked to run arbitrary code. In GIL builds,
@@ -1389,7 +1359,7 @@ bool multithread_compile_units_preloaded(
   JIT_DLOG(
       "multithread_compile_units_preloaded retrying {} units serially",
       retry_list.size());
-  compile_units_preloaded(std::move(retry_list), *preloaders);
+  compile_units_preloaded(std::move(retry_list));
   return true;
 }
 
@@ -1507,8 +1477,8 @@ bool compile_all(size_t workers = 0) {
     workers = std::max<size_t>(getConfig().batch_compile_workers, 1);
   }
 
-  std::vector<Ref<>> compilation_units;
-  auto preloaders = std::make_shared<PreloadedUnitMap>();
+  std::vector<CompilationUnit> compilation_units;
+  PreloadedUnitMap preloaders;
   struct PreloadUnit {
     Ref<> unit;
     Ref<PyCodeObject> code;
@@ -1595,7 +1565,7 @@ bool compile_all(size_t workers = 0) {
         if (!preloader) {
           return false;
         }
-        preloaders->emplace(target.unit, preloader);
+        preloaders.emplace(target.unit, preloader);
       }
     }
   }
@@ -1607,8 +1577,8 @@ bool compile_all(size_t workers = 0) {
     FreeThreadedJITEntrypointGuard guard;
     compilation_units.reserve(owned_units.size());
     for (const auto& target : owned_units) {
-      auto it = preloaders->find(target.unit);
-      if (!target.isCurrent() || it == preloaders->end()) {
+      auto it = preloaders.find(target.unit);
+      if (!target.isCurrent() || it == preloaders.end()) {
         continue;
       }
       const hir::Preloader* preloader = it->second;
@@ -1628,7 +1598,9 @@ bool compile_all(size_t workers = 0) {
             std::move(admitted.func));
       }
       if (admitted.admission == CompileAdmission::kCompile) {
-        compilation_units.push_back(Ref<>::create(target.unit));
+        compilation_units.emplace_back(
+            preloader,
+            PyCode_Check(target.unit) ? nullptr : Ref<>::create(target.unit));
       }
     }
   }
@@ -1637,9 +1609,9 @@ bool compile_all(size_t workers = 0) {
 
   if (workers > 1) {
     return multithread_compile_units_preloaded(
-        std::move(compilation_units), workers, isolated, preloaders);
+        std::move(compilation_units), workers, isolated);
   } else {
-    compile_units_preloaded(std::move(compilation_units), *preloaders);
+    compile_units_preloaded(std::move(compilation_units));
   }
 
   return true;
@@ -4445,7 +4417,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   {
     auto targets = preloadFuncAndDeps(func);
     if (std::none_of(targets.begin(), targets.end(), [&](const auto& target) {
-          return target.func == func && target.code == code;
+          return target.func == func && target.preloader->code() == code;
         })) {
       // Target was invalidated during preload; ignore if no exception occurred.
       if (PyErr_Occurred()) {
@@ -4946,15 +4918,10 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   // Only report success for the requested function, not for its dependencies.
   auto result = Result::NO_PRELOADER;
 
-  for (const auto& [target, code] : targets) {
-    if (target->func_code != code.getObj()) {
+  for (const auto& [preloader, target] : targets) {
+    if (target->func_code != preloader->code()) {
       continue;
     }
-    auto preloader = hir::preloaderManager().find(code);
-    if (preloader == nullptr) {
-      continue;
-    }
-
     // Don't compile functions that were preloaded purely for inlining.
     bool is_static = preloader->code()->co_flags & CI_CO_STATICALLY_COMPILED;
     if (target != func && !is_static) {
@@ -4988,7 +4955,7 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   return result;
 }
 
-std::vector<PreloadedFunction> preloadFuncAndDeps(
+std::vector<CompilationUnit> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func,
     bool forcePreload) {
   // Add one for the original function itself.  When forcePreload is set the
@@ -4999,7 +4966,7 @@ std::vector<PreloadedFunction> preloadFuncAndDeps(
   // Re-entrant Python execution during preloading can drop references to
   // queued targets. Own targets throughout preloading and compilation.
   std::deque<Ref<PyFunctionObject>> worklist;
-  std::vector<PreloadedFunction> result;
+  std::vector<CompilationUnit> result;
 
   worklist.push_back(Ref<PyFunctionObject>::create(func));
 
@@ -5018,8 +4985,7 @@ std::vector<PreloadedFunction> preloadFuncAndDeps(
     if (preloader == nullptr) {
       return {};
     }
-    result.push_back(
-        {std::move(f), Ref<PyCodeObject>::create(preloader->code())});
+    result.emplace_back(preloader, std::move(f));
 
     // Protect shared JIT list/context lookups during eligibility checks.
     FreeThreadedJITEntrypointGuard guard;
@@ -5052,7 +5018,7 @@ std::vector<PreloadedFunction> preloadFuncAndDeps(
   // Prune any target whose code was replaced during preloading.
   FreeThreadedJITEntrypointGuard guard;
   std::erase_if(result, [](const auto& target) {
-    return target.func->func_code != target.code.getObj();
+    return target.func->func_code != target.preloader->code();
   });
 
   std::reverse(result.begin(), result.end());

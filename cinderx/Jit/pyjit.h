@@ -8,6 +8,7 @@
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/pyjit_result.h"
+#include "cinderx/Jit/threaded_compile_queue.h"
 
 namespace cinderx::jit {
 
@@ -68,13 +69,6 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func);
  */
 Result compileFunction(BorrowedRef<PyFunctionObject> func);
 
-// Snapshot holding strong references to the function and its preloaded code.
-// Callers must verify func->func_code == code before compiling or scheduling.
-struct PreloadedFunction {
-  Ref<PyFunctionObject> func;
-  Ref<PyCodeObject> code;
-};
-
 /*
  * Preload a function, along with any functions that it calls that we might want
  * to compile afterwards as well.  This is to support inlining and faster
@@ -87,7 +81,7 @@ struct PreloadedFunction {
  * by re-entrant execution. An empty list can mean all targets were invalidated;
  * PyErr_Occurred() distinguishes this from a Python error during preloading.
  */
-std::vector<PreloadedFunction> preloadFuncAndDeps(
+std::vector<CompilationUnit> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func,
     bool forcePreload = false);
 
