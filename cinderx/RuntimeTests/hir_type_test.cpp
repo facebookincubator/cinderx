@@ -124,6 +124,10 @@ TEST_F(HIRTypeTest, FromBuiltinType) {
   EXPECT_EQ(Type::fromTypeExact(&PyLong_Type), TLongExact);
   EXPECT_EQ(Type::fromType(&PyBool_Type), TBool);
   EXPECT_EQ(Type::fromTypeExact(&PyBool_Type), TBool);
+  EXPECT_EQ(Type::fromType(&PyComplex_Type), TComplex);
+  EXPECT_EQ(Type::fromTypeExact(&PyComplex_Type), TComplexExact);
+  EXPECT_EQ(Type::fromType(&PyByteArray_Type), TByteArray);
+  EXPECT_EQ(Type::fromTypeExact(&PyByteArray_Type), TByteArrayExact);
 
   EXPECT_EQ(
       Type::fromType(reinterpret_cast<PyTypeObject*>(PyExc_BaseException)),
@@ -147,6 +151,10 @@ TEST_F(HIRTypeTest, UniquePyType) {
   EXPECT_EQ(TImmortalLong.uniquePyType(), &PyLong_Type);
   EXPECT_EQ(TMortalList.uniquePyType(), &PyList_Type);
   EXPECT_EQ(TBool.uniquePyType(), &PyBool_Type);
+  EXPECT_EQ(TComplex.uniquePyType(), &PyComplex_Type);
+  EXPECT_EQ(TComplexExact.uniquePyType(), &PyComplex_Type);
+  EXPECT_EQ(TByteArray.uniquePyType(), &PyByteArray_Type);
+  EXPECT_EQ(TByteArrayExact.uniquePyType(), &PyByteArray_Type);
   EXPECT_EQ(TUnicode.uniquePyType(), &PyUnicode_Type);
   EXPECT_EQ(TList.uniquePyType(), &PyList_Type);
   EXPECT_EQ(TListExact.uniquePyType(), &PyList_Type);
@@ -182,6 +190,24 @@ my_obj = MyClass()
   EXPECT_EQ(Type::fromTypeExact(my_class).uniquePyType(), my_class);
   EXPECT_EQ(Type::fromObject(my_class).uniquePyType(), nullptr);
   EXPECT_EQ(Type::fromObject(my_obj).uniquePyType(), nullptr);
+}
+
+TEST_F(HIRTypeTest, LeafScalar) {
+  EXPECT_TRUE(TLongExact.isLeafScalar());
+  EXPECT_TRUE(TFloatExact.isLeafScalar());
+  EXPECT_TRUE(TUnicodeExact.isLeafScalar());
+  EXPECT_TRUE(TBytesExact.isLeafScalar());
+  EXPECT_TRUE(TComplexExact.isLeafScalar());
+  EXPECT_TRUE(TByteArrayExact.isLeafScalar());
+  EXPECT_TRUE(TBool.isLeafScalar());
+  EXPECT_TRUE(TNullptr.isLeafScalar());
+
+  EXPECT_FALSE(TLong.isLeafScalar());
+  EXPECT_FALSE(TComplex.isLeafScalar());
+  EXPECT_FALSE(TByteArray.isLeafScalar());
+  EXPECT_FALSE(TListExact.isLeafScalar());
+  EXPECT_FALSE(TDictExact.isLeafScalar());
+  EXPECT_FALSE(TObject.isLeafScalar());
 }
 
 TEST_F(HIRTypeTest, RuntimePyType) {
@@ -419,8 +445,8 @@ TEST_F(HIRTypeTest, SimpleIntersection) {
 TEST_F(HIRTypeTest, SimpleSubtraction) {
   EXPECT_EQ(TLong - TBool - TLongUser, TLongExact);
   EXPECT_EQ(
-      TUser - TBytes - TDict - TSet - TFloat - TList - TTuple - TUnicode -
-          TType - TBaseException - TLong - TArray,
+      TUser - TBytes - TByteArray - TComplex - TDict - TSet - TFloat - TList -
+          TTuple - TUnicode - TType - TBaseException - TLong - TArray,
       TObjectUser);
   EXPECT_EQ(TUnicode - TUnicodeExact, TUnicodeUser);
   EXPECT_EQ(TLong - TBool, TLongExact | TLongUser);

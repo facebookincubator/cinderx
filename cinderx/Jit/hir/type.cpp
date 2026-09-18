@@ -33,9 +33,11 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
     const std::unordered_map<Type, PyTypeObject*> result_map{
         {TObject, &PyBaseObject_Type},
         {TBool, &PyBool_Type},
+        {TByteArray, &PyByteArray_Type},
         {TBytes, &PyBytes_Type},
         {TCell, &PyCell_Type},
         {TCode, &PyCode_Type},
+        {TComplex, &PyComplex_Type},
         {TDict, &PyDict_Type},
         {TBaseException, reinterpret_cast<PyTypeObject*>(PyExc_BaseException)},
         {TFloat, &PyFloat_Type},
@@ -685,8 +687,9 @@ unsigned int Type::sizeInBytes() const {
 bool Type::isLeafScalar() const {
   // bool is included because it cannot be subclassed; TNullptr allows the same
   // reasoning to apply to XDecref of an optional value.
-  static const Type kLeafScalarTypes =
-      TLongExact | TFloatExact | TUnicodeExact | TBytesExact | TBool | TNullptr;
+  static const Type kLeafScalarTypes = TLongExact | TFloatExact |
+      TUnicodeExact | TBytesExact | TComplexExact | TByteArrayExact | TBool |
+      TNullptr;
   return *this <= kLeafScalarTypes;
 }
 

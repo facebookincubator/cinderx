@@ -100,6 +100,53 @@ def top_mutating_defaults():
 
 
 @failUnlessJITCompiled
+def mutate_complex_defaults():
+    leaf_complex_defaults.__defaults__ = (5j,)
+
+
+@failUnlessJITCompiled
+def leaf_complex_defaults(x, y=1j):
+    return x + y
+
+
+@failUnlessJITCompiled
+def middle_complex_defaults(a):
+    return leaf_complex_defaults(a)
+
+
+@failUnlessJITCompiled
+def top_mutating_complex_defaults():
+    mutate_complex_defaults()
+    return middle_complex_defaults(2j)
+
+
+# Module-level default so the callee below has an exact-bytearray default
+# without a call in its signature (flake8-bugbear B008).
+_XY_DEFAULT = bytearray(b"xy")
+
+
+@failUnlessJITCompiled
+def mutate_bytearray_defaults():
+    leaf_bytearray_defaults.__defaults__ = (bytearray(b"zz"),)
+
+
+@failUnlessJITCompiled
+def leaf_bytearray_defaults(x, y=_XY_DEFAULT):
+    return x + y
+
+
+@failUnlessJITCompiled
+def middle_bytearray_defaults(a):
+    return leaf_bytearray_defaults(a)
+
+
+@failUnlessJITCompiled
+def top_mutating_bytearray_defaults():
+    mutate_bytearray_defaults()
+    return middle_bytearray_defaults(bytearray(b"ab"))
+
+
+@failUnlessJITCompiled
 def base_adder(a, b=5):
     return a + b
 
@@ -1131,6 +1178,26 @@ class InlinedFunctionTests(unittest.TestCase):
         self.assertEqual(top_mutating_defaults(), 25)
         self.assertEqual(
             cinderx.jit.get_num_inlined_functions(top_mutating_defaults), 3
+        )
+
+    @jit_suppress
+    def test_complex_defaults_deopt_on_change(self) -> None:
+        # Same as above but with an exact-complex default: the inlined
+        # default (y=1j) is guarded, mutating __defaults__ deopts and picks
+        # up y=5j.
+        self.assertEqual(top_mutating_complex_defaults(), 7j)
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(top_mutating_complex_defaults),
+            3,
+        )
+
+    @jit_suppress
+    def test_bytearray_defaults_deopt_on_change(self) -> None:
+        # Same as above but with an exact-bytearray default.
+        self.assertEqual(top_mutating_bytearray_defaults(), bytearray(b"abzz"))
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(top_mutating_bytearray_defaults),
+            3,
         )
 
     @jit_suppress

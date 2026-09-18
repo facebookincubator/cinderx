@@ -57,7 +57,9 @@ BASIC_FINAL_TYPES: list[str] = [
 # and *Exact variants.
 BASIC_BASE_TYPES: list[str] = [
     "BaseException",
+    "ByteArray",
     "Bytes",
+    "Complex",
     "Dict",
     "Float",
     "List",
@@ -65,8 +67,6 @@ BASIC_BASE_TYPES: list[str] = [
     "Tuple",
     "Type",
     "Unicode",
-    # Long and Object are handled manually down below since they don't fit the
-    # normal pattern.
 ]
 
 # Type names that should map directly to a PyTypeObject*.

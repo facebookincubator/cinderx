@@ -355,16 +355,19 @@ MemoryEffects memoryEffects(const Instr& inst) {
 namespace {
 
 // Exact numeric types: arithmetic slots are pure C (worst case they raise,
-// which deopts but runs no Python code).
+// which deopts but runs no Python code). Complex is included: its slots are
+// pure C, and operations it doesn't define (floor division, modulo, bitwise
+// ops, shifts, ordering comparisons) fail with a synchronously-raised
+// TypeError.
 bool isExactNumeric(const Register* reg) {
-  return reg->type() <= (TLongExact | TFloatExact | TBool);
+  return reg->type() <= (TLongExact | TFloatExact | TComplexExact | TBool);
 }
 
 // Exact numeric or sequence types: the Add/Subtract/Multiply/Not slot paths
 // are pure C.
 bool isExactNumericOrSequence(const Register* reg) {
   return reg->type().isLeafScalar() ||
-      reg->type() <= (TListExact | TTupleExact);
+      reg->type() <= (TListExact | TTupleExact | TByteArrayExact);
 }
 
 bool binaryOpHasNoArbitraryExecution(const BinaryOp& inst) {
