@@ -1582,6 +1582,11 @@ TEST_F(BackendTest, StorePairWithZeroImmediate) {
 }
 
 #if defined(CINDER_AARCH64)
+TEST_F(BackendTest, GetGpTranslatesZeroRegisters) {
+  EXPECT_TRUE(autogen::AutoTranslator::getGp(DataType::k32bit, WZR).isZR());
+  EXPECT_TRUE(autogen::AutoTranslator::getGp(DataType::k64bit, XZR).isZR());
+}
+
 // This test uses CompilePreAllocated to construct the exact instruction
 // sequence the buggy register allocator would emit:
 //   1. Store a 64-bit pointer in X19 and a 32-bit flag in X21

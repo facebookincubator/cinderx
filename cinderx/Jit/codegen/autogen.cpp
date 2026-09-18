@@ -126,17 +126,17 @@ arch::Gp getReg(const Instruction* instr, const lir::Operand* operand) {
       *operand,
       *instr);
   int size = getOperandSize(instr, operand);
-  auto reg = operand->getPhyRegister().loc;
+  auto reg = operand->getPhyRegister();
 #if defined(CINDER_X86_64)
   switch (size) {
     case 8:
-      return asmjit::x86::gpb(reg);
+      return AutoTranslator::getGp(lir::DataType::k8bit, reg);
     case 16:
-      return asmjit::x86::gpw(reg);
+      return AutoTranslator::getGp(lir::DataType::k16bit, reg);
     case 32:
-      return asmjit::x86::gpd(reg);
+      return AutoTranslator::getGp(lir::DataType::k32bit, reg);
     case 64:
-      return asmjit::x86::gpq(reg);
+      return AutoTranslator::getGp(lir::DataType::k64bit, reg);
   }
 #elif defined(CINDER_AARCH64)
   switch (size) {
@@ -144,9 +144,9 @@ arch::Gp getReg(const Instruction* instr, const lir::Operand* operand) {
     case 16:
       JIT_ABORT("Currently unsupported size.");
     case 32:
-      return asmjit::a64::w(reg);
+      return AutoTranslator::getGp(lir::DataType::k32bit, reg);
     case 64:
-      return asmjit::a64::x(reg);
+      return AutoTranslator::getGp(lir::DataType::k64bit, reg);
   }
 #else
   CINDER_UNSUPPORTED
@@ -1711,12 +1711,10 @@ void loadToReg(
   } else {
     switch (output->dataType()) {
       case lir::Operand::k8bit:
-        as->ldrb(
-            AT::getGp(DataType::k32bit, output->getPhyRegister().loc), input);
+        as->ldrb(AT::getGp(DataType::k32bit, output->getPhyRegister()), input);
         break;
       case lir::Operand::k16bit:
-        as->ldrh(
-            AT::getGp(DataType::k32bit, output->getPhyRegister().loc), input);
+        as->ldrh(AT::getGp(DataType::k32bit, output->getPhyRegister()), input);
         break;
       default:
         as->ldr(AT::getGp(output), input);
@@ -1735,16 +1733,14 @@ void storeFromReg(
   } else {
     switch (output_operand->dataType()) {
       case lir::Operand::k8bit:
-        as->strb(
-            AT::getGp(DataType::k32bit, input->getPhyRegister().loc), output);
+        as->strb(AT::getGp(DataType::k32bit, input->getPhyRegister()), output);
         break;
       case lir::Operand::k16bit:
-        as->strh(
-            AT::getGp(DataType::k32bit, input->getPhyRegister().loc), output);
+        as->strh(AT::getGp(DataType::k32bit, input->getPhyRegister()), output);
         break;
       default:
         as->str(
-            AT::getGp(output_operand->dataType(), input->getPhyRegister().loc),
+            AT::getGp(output_operand->dataType(), input->getPhyRegister()),
             output);
         break;
     }
@@ -1868,8 +1864,7 @@ void translateMove(Environ* env, const Instruction* instr) {
           as->fmov(AT::getVecD(output), constant);
         } else if (constant == 0) {
           as->mov(
-              AT::getGpWiden(output),
-              AT::getGpWiden(output->dataType(), a64::xzr.id()));
+              AT::getGpWiden(output), AT::getGpWiden(output->dataType(), XZR));
         } else if (input->dataType() == lir::Operand::kObject) {
           as->load_addr(
               a64::x(output->getPhyRegister().loc),
@@ -2125,7 +2120,7 @@ void translateMovExtOp(
   int input_size = input->sizeInBits();
 
   if (input->isReg()) {
-    auto input_reg = AT::getGp(DataType::k32bit, input->getPhyRegister().loc);
+    auto input_reg = AT::getGp(DataType::k32bit, input->getPhyRegister());
 
     switch (input_size) {
       case 8:
@@ -2515,7 +2510,7 @@ void translateExchange(Environ* env, const Instruction* instr) {
   } else {
     auto reg0 = AT::getGpWiden(opnd0);
     auto reg1 = AT::getGpWiden(opnd1);
-    auto scratch = AT::getGpWiden(opnd0->dataType(), arch::reg_scratch_0.id());
+    auto scratch = AT::getGpWiden(opnd0->dataType(), arch::reg_scratch_0_loc);
 
     as->mov(scratch, reg0);
     as->mov(reg0, reg1);
@@ -2629,7 +2624,7 @@ void translateSelect(Environ* env, const Instruction* instr) {
     case jit::lir::Operand::k8bit:
     case jit::lir::Operand::k16bit:
       condition_reg =
-          AT::getGp(DataType::k32bit, condition_op->getPhyRegister().loc);
+          AT::getGp(DataType::k32bit, condition_op->getPhyRegister());
       as->and_(
           condition_reg,
           condition_reg,

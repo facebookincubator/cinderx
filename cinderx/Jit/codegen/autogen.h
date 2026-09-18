@@ -21,24 +21,27 @@ class AutoTranslator {
 
   void translateInstr(Environ* env, const jit::lir::Instruction* instr) const;
 
-  static arch::Gp getGp(lir::DataType data_type, unsigned int reg) {
+  static arch::Gp getGp(lir::DataType data_type, PhyLocation reg) {
+    JIT_CHECK(reg.isGpRegister(), "Expected a general-purpose register");
 #if defined(CINDER_X86_64)
+    auto reg_id = static_cast<uint32_t>(reg.loc);
     switch (data_type) {
       case jit::lir::Operand::k8bit:
-        return asmjit::x86::gpb(reg);
+        return asmjit::x86::gpb(reg_id);
       case jit::lir::Operand::k16bit:
-        return asmjit::x86::gpw(reg);
+        return asmjit::x86::gpw(reg_id);
       case jit::lir::Operand::k32bit:
-        return asmjit::x86::gpd(reg);
+        return asmjit::x86::gpd(reg_id);
       case jit::lir::Operand::kObject:
       case jit::lir::Operand::kObjectUntagged:
       case jit::lir::Operand::k64bit:
-        return asmjit::x86::gpq(reg);
+        return asmjit::x86::gpq(reg_id);
       case jit::lir::Operand::kDouble:
         JIT_ABORT("incorrect register type.");
     }
 #elif defined(CINDER_AARCH64)
-    JIT_CHECK(reg != raw(RegId::SP), "SP is not a general-purpose register");
+    auto reg_id =
+        reg == XZR ? asmjit::a64::Gp::kIdZr : static_cast<uint32_t>(reg.loc);
 
     if (reg == raw(RegId::XZR)) {
       reg = asmjit::a64::Gp::kIdZr;
@@ -49,11 +52,11 @@ class AutoTranslator {
       case jit::lir::Operand::k16bit:
         JIT_ABORT("Unsupported register size in aarch64.");
       case jit::lir::Operand::k32bit:
-        return asmjit::a64::w(reg);
+        return asmjit::a64::w(reg_id);
       case jit::lir::Operand::kObject:
       case jit::lir::Operand::kObjectUntagged:
       case jit::lir::Operand::k64bit:
-        return asmjit::a64::x(reg);
+        return asmjit::a64::x(reg_id);
       case jit::lir::Operand::kDouble:
         JIT_ABORT("incorrect register type.");
     }
@@ -63,11 +66,10 @@ class AutoTranslator {
     Py_UNREACHABLE();
   }
 
-  static arch::Gp getGp(const lir::Operand* op, unsigned int reg) {
+  static arch::Gp getGp(const lir::Operand* op, PhyLocation reg) {
 #if defined(CINDER_X86_64)
     return getGp(op->dataType(), reg);
 #elif defined(CINDER_AARCH64)
-    JIT_CHECK(reg != raw(RegId::SP), "SP is not a general-purpose register");
     return getGp(op->dataType(), reg);
 #else
     CINDER_UNSUPPORTED
@@ -75,16 +77,15 @@ class AutoTranslator {
     Py_UNREACHABLE();
   }
 
-  static arch::Gp getGpOutput(const lir::Operand* op, unsigned int reg) {
+  static arch::Gp getGpOutput(const lir::Operand* op, PhyLocation reg) {
 #if defined(CINDER_X86_64)
     return getGp(op->dataType(), reg);
 #elif defined(CINDER_AARCH64)
-    JIT_CHECK(reg != raw(RegId::SP), "SP is not a general-purpose register");
     auto data_type = op->dataType();
 
     if (data_type == jit::lir::Operand::k8bit ||
         data_type == jit::lir::Operand::k16bit) {
-      return asmjit::a64::w(reg);
+      return getGp(jit::lir::Operand::k32bit, reg);
     }
     return getGp(op->dataType(), reg);
 #else
@@ -117,14 +118,14 @@ class AutoTranslator {
   }
 
   static arch::Gp getGp(const jit::lir::Operand* op) {
-    return getGp(op, op->getPhyRegister().loc);
+    return getGp(op, op->getPhyRegister());
   }
 
   static arch::Gp getGpOutput(const jit::lir::Operand* op) {
-    return getGpOutput(op, op->getPhyRegister().loc);
+    return getGpOutput(op, op->getPhyRegister());
   }
 
-  static arch::Gp getGpWiden(lir::DataType data_type, unsigned int reg) {
+  static arch::Gp getGpWiden(lir::DataType data_type, PhyLocation reg) {
     // AArch64 has no sub-32-bit GP registers. Values in registers are
     // guaranteed to be properly zero-extended by ldrb/ldrh/cset.
     // For signed operations, use the postgen sign-extension pass instead.
@@ -138,7 +139,7 @@ class AutoTranslator {
   }
 
   static arch::Gp getGpWiden(const lir::Operand* op) {
-    return getGpWiden(op->dataType(), op->getPhyRegister().loc);
+    return getGpWiden(op->dataType(), op->getPhyRegister());
   }
 
  private:
