@@ -434,7 +434,7 @@ fun jittestmodule:test {
     v9:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v10:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 6
     }
     Snapshot
@@ -493,7 +493,7 @@ fun jittestmodule:test {
     Snapshot
     v10:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 6
     }
     Snapshot
@@ -552,7 +552,7 @@ fun jittestmodule:test {
     Snapshot
     v10:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 8
     }
     Snapshot
@@ -611,7 +611,7 @@ fun jittestmodule:test {
     Snapshot
     v10:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 8
     }
     Snapshot
@@ -671,7 +671,7 @@ fun jittestmodule:test {
     Snapshot
     v10:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 6
     }
     v24:ImmortalLongExact[3] = TagIfDeferred v9

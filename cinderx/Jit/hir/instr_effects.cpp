@@ -352,6 +352,120 @@ MemoryEffects memoryEffects(const Instr& inst) {
   JIT_ABORT("Bad opcode {}", static_cast<int>(inst.opcode()));
 }
 
+namespace {
+
+// Exact numeric types: arithmetic slots are pure C (worst case they raise,
+// which deopts but runs no Python code).
+bool isExactNumeric(const Register* reg) {
+  return reg->type() <= (TLongExact | TFloatExact | TBool);
+}
+
+// Exact numeric or sequence types: the Add/Subtract/Multiply/Not slot paths
+// are pure C.
+bool isExactNumericOrSequence(const Register* reg) {
+  return reg->type().isLeafScalar() ||
+      reg->type() <= (TListExact | TTupleExact);
+}
+
+bool binaryOpHasNoArbitraryExecution(const BinaryOp& inst) {
+  Register* left = inst.left();
+  Register* right = inst.right();
+  switch (inst.op()) {
+    case BinaryOpKind::kAdd:
+      return isExactNumericOrSequence(left) && isExactNumericOrSequence(right);
+    case BinaryOpKind::kSubtract:
+    case BinaryOpKind::kMultiply:
+      return left->type().isLeafScalar() && right->type().isLeafScalar();
+    case BinaryOpKind::kFloorDivide:
+    case BinaryOpKind::kTrueDivide:
+    case BinaryOpKind::kModulo:
+    case BinaryOpKind::kPower:
+    case BinaryOpKind::kAnd:
+    case BinaryOpKind::kOr:
+    case BinaryOpKind::kXor:
+    case BinaryOpKind::kLShift:
+    case BinaryOpKind::kRShift:
+    case BinaryOpKind::kFloorDivideUnsigned:
+    case BinaryOpKind::kModuloUnsigned:
+    case BinaryOpKind::kRShiftUnsigned:
+    case BinaryOpKind::kPowerUnsigned:
+      return isExactNumeric(left) && isExactNumeric(right);
+    case BinaryOpKind::kMatrixMultiply:
+    case BinaryOpKind::kSubscript:
+      return false;
+  }
+  // Unreachable, but default impure so new op kinds stay conservative.
+  return false;
+}
+
+bool inPlaceOpHasNoArbitraryExecution(const InPlaceOp& inst) {
+  Register* left = inst.left();
+  Register* right = inst.right();
+  switch (inst.op()) {
+    case InPlaceOpKind::kAdd:
+      return isExactNumericOrSequence(left) && isExactNumericOrSequence(right);
+    case InPlaceOpKind::kSubtract:
+    case InPlaceOpKind::kMultiply:
+      return left->type().isLeafScalar() && right->type().isLeafScalar();
+    case InPlaceOpKind::kFloorDivide:
+    case InPlaceOpKind::kTrueDivide:
+    case InPlaceOpKind::kModulo:
+    case InPlaceOpKind::kPower:
+    case InPlaceOpKind::kAnd:
+    case InPlaceOpKind::kOr:
+    case InPlaceOpKind::kXor:
+    case InPlaceOpKind::kLShift:
+    case InPlaceOpKind::kRShift:
+      return isExactNumeric(left) && isExactNumeric(right);
+    case InPlaceOpKind::kMatrixMultiply:
+      return false;
+  }
+  // Unreachable, but default impure so new op kinds stay conservative.
+  return false;
+}
+
+bool unaryOpHasNoArbitraryExecution(const UnaryOp& inst) {
+  Register* operand = inst.operand();
+  switch (inst.op()) {
+    case UnaryOpKind::kNegate:
+    case UnaryOpKind::kPositive:
+      return isExactNumeric(operand);
+    case UnaryOpKind::kInvert:
+      return operand->isA(TLongExact);
+    case UnaryOpKind::kNot:
+      return isExactNumericOrSequence(operand);
+  }
+  // Unreachable, but default impure so new op kinds stay conservative.
+  return false;
+}
+
+bool compareHasNoArbitraryExecution(
+    CompareOp op,
+    Register* left,
+    Register* right) {
+  switch (op) {
+    case CompareOp::kEqual:
+    case CompareOp::kNotEqual:
+      return left->type().isLeafScalar() && right->type().isLeafScalar();
+    case CompareOp::kLessThan:
+    case CompareOp::kLessThanEqual:
+    case CompareOp::kGreaterThan:
+    case CompareOp::kGreaterThanEqual:
+    case CompareOp::kLessThanUnsigned:
+    case CompareOp::kLessThanEqualUnsigned:
+    case CompareOp::kGreaterThanUnsigned:
+    case CompareOp::kGreaterThanEqualUnsigned:
+      return isExactNumeric(left) && isExactNumeric(right);
+    case CompareOp::kIn:
+    case CompareOp::kNotIn:
+    case CompareOp::kExcMatch:
+      return false;
+  }
+  return false;
+}
+
+} // namespace
+
 bool hasArbitraryExecution(const Instr& inst) {
   switch (inst.opcode()) {
     /*
@@ -473,19 +587,42 @@ bool hasArbitraryExecution(const Instr& inst) {
     /*
      * Opcodes which do have potential arbitrary execution.
      */
-    case Opcode::kBatchDecref:
+    // Long/Float binary ops lower to direct calls of the exact types' C
+    // slots, which invoke no Python code.
+    case Opcode::kLongBinaryOp:
+    case Opcode::kFloatBinaryOp:
+    case Opcode::kLongInPlaceOp:
+      return false;
+
     case Opcode::kBinaryOp:
+      return !binaryOpHasNoArbitraryExecution(inst.as<BinaryOp>());
+    case Opcode::kInPlaceOp:
+      return !inPlaceOpHasNoArbitraryExecution(inst.as<InPlaceOp>());
+    case Opcode::kUnaryOp:
+      return !unaryOpHasNoArbitraryExecution(inst.as<UnaryOp>());
+    case Opcode::kCompare: {
+      const auto& compare = inst.as<Compare>();
+      return !compareHasNoArbitraryExecution(
+          compare.op(), compare.left(), compare.right());
+    }
+    case Opcode::kCompareBool: {
+      const auto& compare = inst.as<CompareBool>();
+      return !compareHasNoArbitraryExecution(
+          compare.op(), compare.left(), compare.right());
+    }
+    case Opcode::kDecref:
+    case Opcode::kXDecref:
+      return !inst.getOperand(0)->type().isLeafScalar();
+
+    case Opcode::kBatchDecref:
     case Opcode::kCallEx:
     case Opcode::kCallInd:
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
     case Opcode::kCallStaticRetVoid:
-    case Opcode::kCompare:
-    case Opcode::kCompareBool:
     case Opcode::kConvertValue:
     case Opcode::kCopyDictWithoutKeys:
-    case Opcode::kDecref:
     case Opcode::kDeleteAttr:
     case Opcode::kDeleteSubscr:
     case Opcode::kDictMerge:
@@ -494,7 +631,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
-    case Opcode::kFloatBinaryOp:
     case Opcode::kFormatValue:
     case Opcode::kFormatWithSpec:
     case Opcode::kGetAIter:
@@ -505,7 +641,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kImportFrom:
     case Opcode::kImportName:
     case Opcode::kInitialYield:
-    case Opcode::kInPlaceOp:
     case Opcode::kInvokeIterNext:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:
@@ -520,8 +655,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadSpecial:
-    case Opcode::kLongBinaryOp:
-    case Opcode::kLongInPlaceOp:
     case Opcode::kMakeFunction:
     case Opcode::kMergeSetUnpack:
     case Opcode::kMatchClass:
@@ -534,11 +667,9 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kSetUpdate:
     case Opcode::kStoreAttr:
     case Opcode::kStoreSubscr:
-    case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
     case Opcode::kUnpackSequence:
     case Opcode::kVectorCall:
-    case Opcode::kXDecref:
     case Opcode::kYieldValue:
       return true;
 

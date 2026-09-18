@@ -642,7 +642,7 @@ fun jittestmodule:test {
         Stack<3> v12 v13 v14
       }
     }
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 16
     }
     Snapshot
@@ -714,7 +714,7 @@ fun jittestmodule:test {
         Stack<3> v11 v13 v14
       }
     }
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 16
     }
     Snapshot
@@ -786,7 +786,7 @@ fun jittestmodule:test {
         Stack<3> v11 v13 v14
       }
     }
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 18
     }
     Snapshot
@@ -858,7 +858,7 @@ fun jittestmodule:test {
         Stack<3> v11 v13 v14
       }
     }
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 18
     }
     Snapshot
@@ -931,7 +931,7 @@ fun jittestmodule:test {
         Stack<3> v11 v13 v14
       }
     }
-    BeginInlinedFunction<jittestmodule:add> {
+    BeginInlinedFunction<jittestmodule:add, lazy> {
       CurInstrOffset 16
     }
     v28:ImmortalLongExact[3] = TagIfDeferred v13

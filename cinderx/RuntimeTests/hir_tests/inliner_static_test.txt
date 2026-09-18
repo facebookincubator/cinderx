@@ -225,7 +225,7 @@ fun jittestmodule:test {
     v9:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v10:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
+    BeginInlinedFunction<jittestmodule:foo, lazy> {
       CurInstrOffset 6
     }
     Snapshot
@@ -285,7 +285,7 @@ fun jittestmodule:test {
     v10:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
+    BeginInlinedFunction<jittestmodule:foo, lazy> {
       CurInstrOffset 6
     }
     Snapshot
@@ -345,7 +345,7 @@ fun jittestmodule:test {
     v10:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
+    BeginInlinedFunction<jittestmodule:foo, lazy> {
       CurInstrOffset 8
     }
     Snapshot
@@ -405,7 +405,7 @@ fun jittestmodule:test {
     v10:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
+    BeginInlinedFunction<jittestmodule:foo, lazy> {
       CurInstrOffset 8
     }
     Snapshot
@@ -466,7 +466,7 @@ fun jittestmodule:test {
     v10:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:foo> {
+    BeginInlinedFunction<jittestmodule:foo, lazy> {
       CurInstrOffset 6
     }
     v25:ImmortalLongExact[1] = TagIfDeferred v9

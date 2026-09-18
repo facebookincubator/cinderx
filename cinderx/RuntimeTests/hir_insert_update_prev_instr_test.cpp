@@ -48,17 +48,17 @@ std::unique_ptr<Function> compileAndRunPass(
 } // namespace
 
 TEST_F(InsertUpdatePrevInstrTest, RedundantStoresEliminated) {
-  // Four len() calls on consecutive lines produce four arbitrary-execution
-  // points on different source lines. The additions produce more. Without
-  // dead store elimination, each line change emits its own UpdatePrevInstr.
-  // With the optimization, consecutive UpdatePrevInstr stores separated only
-  // by non-arbitrary-execution instructions are collapsed.
+  // Four len() calls produce four arbitrary-execution points. The calls are
+  // paired on shared lines so the stores collapse deterministically on every
+  // version. (The additions operate on exact ints, so they no longer count
+  // as arbitrary execution.) Without dead store elimination, each
+  // arbitrary-execution point emits its own UpdatePrevInstr. With the
+  // optimization, consecutive UpdatePrevInstr stores separated only by
+  // non-arbitrary-execution instructions are collapsed.
   const char* src = R"(
 def test(a):
-  w = len(a)
-  x = len(a)
-  y = len(a)
-  z = len(a)
+  w = len(a); x = len(a)
+  y = len(a); z = len(a)
   return w + x + y + z
 )";
   auto irfunc = compileAndRunPass(this, src);
@@ -70,8 +70,8 @@ def test(a):
 
   // There must be at least one UpdatePrevInstr.
   ASSERT_GT(update_count, 0);
-  // There must be multiple arbitrary-execution points (len calls + additions).
-  ASSERT_GE(arbitrary_count, 7);
+  // There must be multiple arbitrary-execution points (the len calls).
+  ASSERT_GE(arbitrary_count, 4);
   // The optimization must eliminate at least one redundant store: each
   // consecutive pair of arbitrary-execution instructions on different lines
   // with nothing observable between them has its first store removed.
