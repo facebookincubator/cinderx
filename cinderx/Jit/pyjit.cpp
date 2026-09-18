@@ -4363,19 +4363,21 @@ bool startBackgroundWorkerThread(
 }
 
 void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
-  if (!isJitUsable() || isJitCompiled(func)) {
-    return;
-  }
-
   CompilerContext<Compiler>* jit_ctx;
-  auto code = Ref<PyCodeObject>::create(func->func_code);
-  CompilationKey key{func};
+  Ref<PyCodeObject> code;
+  CompilationKey key{nullptr, nullptr, nullptr};
   BackgroundCompileRegistry* reg;
   hir::IsolatedPreloaders isolated_preloaders;
   {
-    // Don't hold this while we preload, we can deadlock easily
+    // Hold the entry lock only while checking initial state; release before
+    // preloading to avoid deadlocks.
     FreeThreadedJITEntrypointGuard guard;
 
+    if (!isJitUsable() || isJitCompiled(func)) {
+      return;
+    }
+    code = Ref<PyCodeObject>::create(func->func_code);
+    key = CompilationKey{func};
     jit_ctx = jitCtx();
     if (jit_ctx == nullptr) {
       return;
@@ -4461,21 +4463,16 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
       Ref<PyFunctionObject>::create(func),
       std::move(preloaders),
       Ref<PyCodeObject>::create(code),
-      Ref<PyDictObject>::create(
-          reinterpret_cast<PyDictObject*>(func->func_builtins)),
-      Ref<PyDictObject>::create(
-          reinterpret_cast<PyDictObject*>(func->func_globals)));
+      Ref<PyDictObject>::create(key.builtins),
+      Ref<PyDictObject>::create(key.globals));
 
   // Enqueue the task and lazily start the single worker thread.  If the worker
   // can't be started, release the task's Python references under the guard we
   // already hold and leave the function interpreted.
   {
     FreeThreadedJITEntrypointGuard guard;
-    // Revalidate everything preloading may have invalidated while running
-    // arbitrary Python without the entrypoint mutex: teardown may have been
-    // requested, the JIT disabled, our admission withdrawn, or func's code
-    // replaced underneath us.  Abandoning leaves the function interpreted;
-    // its vectorcall is untouched so a later call simply schedules afresh.
+    // Re-check state after preloading: the JIT may have been disabled,
+    // shutdown requested, or the function's code replaced.
     CompilationKey current{func};
     if (reg->shutdown || !isJitUsable() || !(current == key) ||
         !jit_ctx->hasActiveCompile(key)) {
@@ -4894,32 +4891,47 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
 //
 // Failing to compile a dependent function is a soft failure, and is ignored.
 Result compileFunction(BorrowedRef<PyFunctionObject> func) {
-  FreeThreadedJITEntrypointGuard guard;
-  if (!isJitInitialized()) {
-    return Result::NOT_INITIALIZED;
-  }
-  if (isJitPaused()) {
-    return Result::PAUSED;
-  }
-  if (!isJitUsable()) {
-    return Result::UNKNOWN_ERROR;
-  }
-
-  // Isolate preloaders state since batch preloading might trigger a call to a
-  // jitable function, resulting in a single-function compile.
+  // Preloading can execute arbitrary Python code, so run it without
+  // holding the entry lock to avoid deadlocks.
   hir::IsolatedPreloaders ip;
+  {
+    FreeThreadedJITEntrypointGuard guard;
+    if (!isJitInitialized()) {
+      return Result::NOT_INITIALIZED;
+    }
+    if (isJitPaused()) {
+      return Result::PAUSED;
+    }
+    if (!isJitUsable()) {
+      return Result::UNKNOWN_ERROR;
+    }
 
-  // We generally track function objects when they are created. But we may need
-  // to re-track here. A function can have nested functions and those nested
-  // functions can out-live the function that created them. When the outer
-  // function is destroyed we need to remove the dangling registrations in
-  // codeOuterFunctions. We will treat whatever remains as new top-level
-  // functions.
-  trackEligibleCodeObjects(func, func->func_code);
+    // We generally track function objects when they are created. But we may
+    // need to re-track here. A function can have nested functions and those
+    // nested functions can out-live the function that created them. When the
+    // outer function is destroyed we need to remove the dangling registrations
+    // in codeOuterFunctions. We will treat whatever remains as new top-level
+    // functions.
+    auto code = Ref<PyCodeObject>::create(func->func_code);
+    trackEligibleCodeObjects(func, code);
+  }
 
   auto targets = preloadFuncAndDeps(func);
   if (targets.empty()) {
     return PyErr_Occurred() ? Result::PYTHON_EXCEPTION : Result::NO_PRELOADER;
+  }
+
+  FreeThreadedJITEntrypointGuard guard;
+  if constexpr (kFreeThreadedBuild) {
+    if (!isJitInitialized()) {
+      return Result::NOT_INITIALIZED;
+    }
+    if (isJitPaused()) {
+      return Result::PAUSED;
+    }
+    if (!isJitUsable()) {
+      return Result::UNKNOWN_ERROR;
+    }
   }
 
   if (targets.size() > 1) {

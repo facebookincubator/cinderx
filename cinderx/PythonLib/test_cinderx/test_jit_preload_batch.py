@@ -7,12 +7,7 @@ import sys
 import unittest
 
 import cinderx.jit
-from cinderx.test_support import (
-    passIf,
-    run_in_fresh_process,
-    skip_if_ft,
-    skip_unless_jit,
-)
+from cinderx.test_support import passIf, run_in_fresh_process, skip_unless_jit
 
 
 @skip_unless_jit("Requires JIT compilation")
@@ -91,7 +86,6 @@ class BatchPreloadTests(unittest.TestCase):
         self.assertEqual(func(1), 11)
         self.assertTrue(cinderx.jit.is_jit_compiled(func))
 
-    @skip_if_ft("Fork coverage is for the GIL build")
     @passIf(not hasattr(os, "fork"), "fork is unavailable")
     @run_in_fresh_process
     def test_fork_during_batch_preload(self) -> None:
