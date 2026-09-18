@@ -4085,6 +4085,8 @@ void HIRBuilder::emitForIterRange(
   constexpr int32_t kStartOffset = offsetof(RangeIterObject, start);
   constexpr int32_t kStepOffset = offsetof(RangeIterObject, step);
   constexpr int32_t kLenOffset = offsetof(RangeIterObject, len);
+  constexpr Type kRangeIntType =
+      sizeof(long) == sizeof(int32_t) ? TCInt32 : TCInt64;
 
   auto emit_guard = [&](TranslationContext& iter_tc) {
     // FOR_ITER_RANGE is a specialization hint, so guard that the iterator
@@ -4098,9 +4100,9 @@ void HIRBuilder::emitForIterRange(
   };
 
   auto emit_not_empty = [&](TranslationContext& iter_tc, BasicBlock* next) {
-    iter_tc.emit<LoadField>(len, iterator, "len", kLenOffset, TCInt64);
+    iter_tc.emit<LoadField>(len, iterator, "len", kLenOffset, kRangeIntType);
     Register* zero = allocateTemp();
-    iter_tc.emit<LoadConst>(zero, Type::fromCInt(0, TCInt64));
+    iter_tc.emit<LoadConst>(zero, Type::fromCInt(0, kRangeIntType));
     Register* not_done = allocateTemp();
     iter_tc.emit<PrimitiveCompare>(
         not_done, PrimitiveCompareOp::kGreaterThan, len, zero);
@@ -4111,24 +4113,25 @@ void HIRBuilder::emitForIterRange(
     // Produce the next item inline (mirrors CPython's _ITER_NEXT_RANGE):
     //   value = start; start += step; len -= 1
     Register* start = allocateTemp();
-    iter_tc.emit<LoadField>(start, iterator, "start", kStartOffset, TCInt64);
-    iter_tc.emit<PrimitiveBox>(value, start, TCInt64, iter_tc.frame);
+    iter_tc.emit<LoadField>(
+        start, iterator, "start", kStartOffset, kRangeIntType);
+    iter_tc.emit<PrimitiveBox>(value, start, kRangeIntType, iter_tc.frame);
 
     Register* step = allocateTemp();
-    iter_tc.emit<LoadField>(step, iterator, "step", kStepOffset, TCInt64);
+    iter_tc.emit<LoadField>(step, iterator, "step", kStepOffset, kRangeIntType);
     Register* new_start = allocateTemp();
     iter_tc.emit<IntBinaryOp>(new_start, BinaryOpKind::kAdd, start, step);
     Register* null_prev = allocateTemp();
     iter_tc.emit<LoadConst>(null_prev, TNullptr);
     iter_tc.emit<StoreField>(
-        iterator, "start", kStartOffset, new_start, TCInt64, null_prev);
+        iterator, "start", kStartOffset, new_start, kRangeIntType, null_prev);
 
     Register* one = allocateTemp();
-    iter_tc.emit<LoadConst>(one, Type::fromCInt(1, TCInt64));
+    iter_tc.emit<LoadConst>(one, Type::fromCInt(1, kRangeIntType));
     Register* new_len = allocateTemp();
     iter_tc.emit<IntBinaryOp>(new_len, BinaryOpKind::kSubtract, len, one);
     iter_tc.emit<StoreField>(
-        iterator, "len", kLenOffset, new_len, TCInt64, null_prev);
+        iterator, "len", kLenOffset, new_len, kRangeIntType, null_prev);
 
     iter_tc.frame.stack.push(value);
     iter_tc.emit<Branch>(body);
