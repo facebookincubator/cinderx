@@ -7,8 +7,17 @@
 
 #pragma once
 
+// Everything below tests _WIN32 rather than WIN32, which the rest of CinderX
+// uses: this header is included by targets that don't go through CinderX's Buck
+// macros (`_cinderx.cpp` is a plain cpp_python_extension), so -DWIN32 does not
+// reach it.  _WIN32 is predefined by every Windows-targeting compiler.
+#ifdef _WIN32
+// Pull in the compiler's intrinsics before windows.h.  winnt.h declares a few
+// of them itself (e.g. _m_prefetchw), and if it gets there first clang's own
+// *intrin.h headers redeclare them with a different language linkage.
+#include <intrin.h>
+
 // Avoid conflicts with `min` and `max` on Windows platforms.
-#ifdef WIN32
 #define NOMINMAX
 #include <windows.h>
 // Avoid conflicts with the `small` macro defined by Windows headers.
@@ -38,7 +47,11 @@
 #include <atomic>
 #include <memory>
 
+// The MSVC STL declares the C11 fence functions in <atomic> itself, so pulling
+// in <stdatomic.h> on top of it gives conflicting declarations.
+#ifndef _WIN32
 #include <stdatomic.h>
+#endif
 
 // clang-format on
 

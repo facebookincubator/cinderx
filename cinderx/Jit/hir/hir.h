@@ -93,6 +93,11 @@ enum class Constraint {
 };
 
 struct OperandType {
+  // Only needed so that std::array<OperandType, 0> compiles: the MSVC STL
+  // gives its zero-length specialization a one-element dummy array, which it
+  // then has to be able to value-initialize.  libstdc++ and libc++ do not.
+  OperandType() : kind{Constraint::kType}, type{TBottom} {}
+
   /* implicit */ OperandType(Type ty) : kind{Constraint::kType}, type{ty} {}
   /* implicit */ OperandType(Constraint c) : kind{c}, type{TBottom} {}
 
