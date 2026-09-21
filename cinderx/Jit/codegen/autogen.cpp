@@ -2680,6 +2680,64 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kBind:
     case Opcode::kCallSiteLiveValues:
       return;
+    case Opcode::kGuard:
+      translateGuard(env, instr);
+      return;
+    case Opcode::kDeoptPatchpoint:
+      TranslateDeoptPatchpoint(env, instr);
+      return;
+    case Opcode::kLoadThreadState:
+      translateLoadThreadState(env, instr);
+      return;
+    case Opcode::kStoreGenYieldPoint:
+      translateStoreGenYieldPoint(env, instr);
+      return;
+    case Opcode::kStoreGenYieldFromPoint:
+      translateStoreGenYieldFromPoint(env, instr);
+      return;
+    case Opcode::kBranchToYieldExit:
+      JIT_ABORT("kBranchToYieldExit should have been removed by regalloc");
+    case Opcode::kResumeGenYield:
+      translateResumeGenYield(env, instr);
+      return;
+    case Opcode::kEpilogueEnd:
+      translateEpilogueEnd(env, instr);
+      return;
+    case Opcode::kIntToBool:
+      translateIntToBool(env, instr);
+      return;
+    case Opcode::kPrologue:
+      translatePrologue(env, instr);
+      return;
+    case Opcode::kSetupFrame:
+      translateSetupFrame(env, instr);
+      return;
+    case Opcode::kCompare:
+      TranslateCompare(env, instr);
+      return;
+    case Opcode::kLShift:
+    case Opcode::kRShift:
+    case Opcode::kRShiftUn:
+      translateShift(env, instr);
+      return;
+    case Opcode::kReserveStack:
+      translateReserveStack(env, instr);
+      return;
+    case Opcode::kVariadicPush:
+      translateVariadicPush(env, instr);
+      return;
+    case Opcode::kStorePair:
+      translateStorePair(env, instr);
+      return;
+    case Opcode::kLoadPair:
+      translateLoadPair(env, instr);
+      return;
+    case Opcode::kLeave:
+      translateLeave(env);
+      return;
+    case Opcode::kRet:
+      translateRet(env);
+      return;
 #if defined(CINDER_X86_64)
     case Opcode::kLea: {
       auto* output = instr->output();
@@ -2864,38 +2922,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kGuard:
-      translateGuard(env, instr);
-      return;
-    case Opcode::kDeoptPatchpoint:
-      TranslateDeoptPatchpoint(env, instr);
-      return;
-    case Opcode::kLoadThreadState:
-      translateLoadThreadState(env, instr);
-      return;
-    case Opcode::kStoreGenYieldPoint:
-      translateStoreGenYieldPoint(env, instr);
-      return;
-    case Opcode::kStoreGenYieldFromPoint:
-      translateStoreGenYieldFromPoint(env, instr);
-      return;
-    case Opcode::kBranchToYieldExit:
-      JIT_ABORT("kBranchToYieldExit should have been removed by regalloc");
-    case Opcode::kResumeGenYield:
-      translateResumeGenYield(env, instr);
-      return;
-    case Opcode::kEpilogueEnd:
-      translateEpilogueEnd(env, instr);
-      return;
-    case Opcode::kIntToBool:
-      translateIntToBool(env, instr);
-      return;
-    case Opcode::kPrologue:
-      translatePrologue(env, instr);
-      return;
-    case Opcode::kSetupFrame:
-      translateSetupFrame(env, instr);
-      return;
     case Opcode::kInc: {
       auto* input = instr->getInput(0);
 
@@ -2944,9 +2970,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       env->as->cmovnz(output, getReg(instr, instr->getInput(1)));
       return;
     }
-    case Opcode::kCompare:
-      TranslateCompare(env, instr);
-      return;
     case Opcode::kFadd: {
       if (instr->getNumOutputs() > 0) {
         env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
@@ -3112,11 +3135,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kLShift:
-    case Opcode::kRShift:
-    case Opcode::kRShiftUn:
-      translateShift(env, instr);
-      return;
     case Opcode::kTest32: {
       auto* in0 = instr->getInput(0);
       auto* in1 = instr->getInput(1);
@@ -3276,24 +3294,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
 
       return;
     }
-    case Opcode::kReserveStack:
-      translateReserveStack(env, instr);
-      return;
-    case Opcode::kVariadicPush:
-      translateVariadicPush(env, instr);
-      return;
-    case Opcode::kStorePair:
-      translateStorePair(env, instr);
-      return;
-    case Opcode::kLoadPair:
-      translateLoadPair(env, instr);
-      return;
-    case Opcode::kLeave:
-      translateLeave(env);
-      return;
-    case Opcode::kRet:
-      translateRet(env);
-      return;
     case Opcode::kNop:
     case Opcode::kCVarArgCall:
     case Opcode::kVectorCall:
@@ -3366,38 +3366,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kA64GuardCC:
       translateA64GuardCC(env, instr);
       return;
-    case Opcode::kGuard:
-      translateGuard(env, instr);
-      return;
-    case Opcode::kDeoptPatchpoint:
-      TranslateDeoptPatchpoint(env, instr);
-      return;
-    case Opcode::kLoadThreadState:
-      translateLoadThreadState(env, instr);
-      return;
-    case Opcode::kStoreGenYieldPoint:
-      translateStoreGenYieldPoint(env, instr);
-      return;
-    case Opcode::kStoreGenYieldFromPoint:
-      translateStoreGenYieldFromPoint(env, instr);
-      return;
-    case Opcode::kBranchToYieldExit:
-      JIT_ABORT("kBranchToYieldExit should have been removed by regalloc");
-    case Opcode::kResumeGenYield:
-      translateResumeGenYield(env, instr);
-      return;
-    case Opcode::kEpilogueEnd:
-      translateEpilogueEnd(env, instr);
-      return;
-    case Opcode::kIntToBool:
-      translateIntToBool(env, instr);
-      return;
-    case Opcode::kPrologue:
-      translatePrologue(env, instr);
-      return;
-    case Opcode::kSetupFrame:
-      translateSetupFrame(env, instr);
-      return;
     case Opcode::kInc:
       translateInc(env, instr);
       return;
@@ -3412,9 +3380,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Opcode::kSelect:
       translateSelect(env, instr);
-      return;
-    case Opcode::kCompare:
-      TranslateCompare(env, instr);
       return;
     case Opcode::kFadd: {
       auto* in0 = instr->getInput(0);
@@ -3494,11 +3459,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kMul:
       translateMul(env, instr);
       return;
-    case Opcode::kLShift:
-    case Opcode::kRShift:
-    case Opcode::kRShiftUn:
-      translateShift(env, instr);
-      return;
     case Opcode::kTest32: {
       auto* in0 = instr->getInput(0);
       auto* in1 = instr->getInput(1);
@@ -3526,24 +3486,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Opcode::kMulAdd:
       translateMulAdd(env, instr);
-      return;
-    case Opcode::kReserveStack:
-      translateReserveStack(env, instr);
-      return;
-    case Opcode::kVariadicPush:
-      translateVariadicPush(env, instr);
-      return;
-    case Opcode::kStorePair:
-      translateStorePair(env, instr);
-      return;
-    case Opcode::kLoadPair:
-      translateLoadPair(env, instr);
-      return;
-    case Opcode::kLeave:
-      translateLeave(env);
-      return;
-    case Opcode::kRet:
-      translateRet(env);
       return;
     case Opcode::kNop:
     case Opcode::kCVarArgCall:
