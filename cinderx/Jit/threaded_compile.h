@@ -2,14 +2,8 @@
 
 #pragma once
 
-#include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/compilation_lock.h"
 
-#include <atomic>
-#include <functional>
-#include <mutex>
-#include <thread>
 #include <vector>
 
 namespace cinderx::jit {

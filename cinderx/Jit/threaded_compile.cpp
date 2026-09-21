@@ -2,7 +2,9 @@
 
 #include "cinderx/Jit/threaded_compile.h"
 
+#include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Jit/compilation_lock.h"
 
 namespace cinderx::jit {
 

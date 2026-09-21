@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/threaded_compile_queue.h"
 
+#include "cinderx/Jit/compilation_lock.h"
+
 namespace cinderx::jit {
 
 ThreadedCompileQueue::ThreadedCompileQueue(WorkList&& work_list) {
