@@ -21773,4 +21773,495 @@ fun test {
     Return v0
   }
 }
+--- Test Name ---
+LongBinaryOpAddZeroOnRightReturnsOperand
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongExact> v0
+    v2 = LoadConst<LongExact[0]>
+    v3 = LongBinaryOp<Add> v1 v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Test Name ---
+LongBinaryOpAddZeroOnLeftReturnsOperand
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongExact> v0
+    v2 = LoadConst<LongExact[0]>
+    v3 = LongBinaryOp<Add> v2 v1
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Test Name ---
+LongBinaryOpSubtractZeroReturnsOperand
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongExact> v0
+    v2 = LoadConst<LongExact[0]>
+    v3 = LongBinaryOp<Subtract> v1 v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    Return v1
+  }
+}
+--- Test Name ---
+LongBinaryOpMultiplyOneOnRightReturnsOperand
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongExact> v0
+    v2 = LoadConst<LongExact[1]>
+    v3 = LongBinaryOp<Multiply> v1 v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Test Name ---
+LongBinaryOpMultiplyOneOnLeftReturnsOperand
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongExact> v0
+    v2 = LoadConst<LongExact[1]>
+    v3 = LongBinaryOp<Multiply> v2 v1
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<ImmortalLongExact[1]> v2
+    Return v1
+  }
+}
+--- Test Name ---
+LongBinaryOpMultiplyTwoOnRightUsesAdd
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongExact> v0
+    v2 = LoadConst<LongExact[2]>
+    v3 = LongBinaryOp<Multiply> v1 v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Test Name ---
+LongBinaryOpMultiplyTwoOnLeftUsesAdd
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongExact> v0
+    v2 = LoadConst<LongExact[2]>
+    v3 = LongBinaryOp<Multiply> v2 v1
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = RefineType<LongExact> v0
+    v2:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<ImmortalLongExact[2]> v2
+    v4:LongExact = LongBinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v4
+  }
+}
 --- End ---

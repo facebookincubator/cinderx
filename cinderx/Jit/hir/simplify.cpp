@@ -1244,13 +1244,32 @@ Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
   return nullptr;
 }
 
+std::optional<Py_ssize_t> getLongConstant(Type t) {
+  if (!t.hasObjectSpec()) {
+    return std::nullopt;
+  }
+  ThreadedCompileGILHolder lock;
+  BorrowedRef<> obj = t.objectSpec();
+  Py_ssize_t result = PyLong_AsSsize_t(obj);
+  if (PyErr_Occurred()) {
+    PyErr_Clear();
+    return std::nullopt;
+  }
+  return result;
+}
+
 Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
-  Type left_type = instr->left()->type();
-  Type right_type = instr->right()->type();
+  Register* left = instr->left();
+  Register* right = instr->right();
+  Type left_type = left->type();
+  Type right_type = right->type();
+  const BinaryOpKind op = instr->op();
+
+  // Constant folding.
   if (left_type.hasObjectSpec() && right_type.hasObjectSpec()) {
     ThreadedCompileGILHolder lock;
     Ref<> result;
-    if (instr->op() == BinaryOpKind::kPower) {
+    if (op == BinaryOpKind::kPower) {
       result = Ref<>::steal(PyLong_Type.tp_as_number->nb_power(
           left_type.objectSpec(), right_type.objectSpec(), Py_None));
     } else {
@@ -1267,6 +1286,39 @@ Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
     return env.emit<LoadConst>(
         Type::fromObject(env.func.env.addReference(std::move(result))));
   }
+
+  // Normalize constants to the right for commutative ops.
+  if ((op == BinaryOpKind::kAdd || op == BinaryOpKind::kMultiply) &&
+      left_type.hasObjectSpec() && !right_type.hasObjectSpec()) {
+    std::swap(left, right);
+    std::swap(left_type, right_type);
+  }
+
+  auto right_res = getLongConstant(right_type);
+  if (!right_res.has_value()) {
+    return nullptr;
+  }
+  Py_ssize_t right_v = *right_res;
+
+  // Identities.
+  if ((op == BinaryOpKind::kAdd && right_v == 0) ||
+      (op == BinaryOpKind::kSubtract && right_v == 0) ||
+      (op == BinaryOpKind::kMultiply && right_v == 1)) {
+    env.emit<UseType>(right, right_type);
+    return left;
+  }
+
+  // X * 2 --> X + X.
+  if (op == BinaryOpKind::kMultiply && right_v == 2) {
+    env.emit<UseType>(right, right_type);
+    return env.emit<LongBinaryOp>(
+        BinaryOpKind::kAdd, left, left, *instr->frameState());
+  }
+
+  // Not many more optimizations we can do, as each operation is a call to a
+  // runtime helper.  Doesn't make sense to turn something like `X * 4` into a
+  // series of additions as that'll be more expensive.
+
   return nullptr;
 }
 
