@@ -909,7 +909,7 @@ int _PyClassLoader_IsFinalMethodOverridden(
   return 0;
 }
 
-int get_func_or_special_callable(
+static int get_func_or_special_callable(
     PyTypeObject* type,
     PyObject* name,
     PyObject** result) {
@@ -1597,43 +1597,6 @@ _PyType_VTable* _PyClassLoader_EnsureVtable(
   }
 
   return vtable;
-}
-
-int _PyClassLoader_GetFuncOrCallable(
-    PyTypeObject* type,
-    PyObject* name,
-    PyObject** result) {
-  PyObject* dict = _PyType_GetDict(type);
-  if (PyTuple_CheckExact(name)) {
-    if (_PyClassLoader_IsPropertyName((PyTupleObject*)name)) {
-      _PyType_VTable* vtable = (_PyType_VTable*)type->tp_cache;
-      if (vtable != NULL) {
-        PyObject* specials = vtable->vt_specials;
-        if (specials != NULL) {
-          *result = PyDict_GetItem(specials, name);
-          if (*result != NULL) {
-            Py_INCREF(*result);
-            return 0;
-          }
-        }
-      }
-
-      PyObject* property = PyDict_GetItem(dict, PyTuple_GET_ITEM(name, 0));
-      if (property == NULL) {
-        *result = NULL;
-        return 0;
-      }
-      *result =
-          classloader_get_property_method(type, property, (PyTupleObject*)name);
-      if (*result == NULL) {
-        return -1;
-      }
-      return 0;
-    }
-  }
-  *result = PyDict_GetItem(dict, name);
-  Py_XINCREF(*result);
-  return 0;
 }
 
 /*

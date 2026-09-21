@@ -22,11 +22,6 @@
 
 int used_in_vtable(PyObject* value);
 
-int get_func_or_special_callable(
-    PyTypeObject* type,
-    PyObject* name,
-    PyObject** result);
-
 PyObject* classloader_get_property_method(
     PyTypeObject* type,
     PyObject* property,
