@@ -1225,8 +1225,9 @@ void expectMethodCallRemainsGeneric(const Function& irfunc) {
 
 TEST_F(CppInlinerTest, RewriteMethodOnExactGlobalInstance) {
   if constexpr (kFreeThreadedBuild) {
-    GTEST_SKIP() << "Mutable-type LoadMethod elimination is disabled in "
-                    "free-threaded builds";
+    SKIP(
+        "Mutable-type LoadMethod elimination is disabled in free-threaded "
+        "builds");
   }
 
   const char* pycode = R"(
@@ -1254,8 +1255,9 @@ def test(x):
 TEST_F(CppInlinerTest, RewriteMethodOnExactGlobalInstanceWithSharedKeys) {
 #if defined(ENABLE_SHARED_KEYS_TYPE_MODIFIED) || PY_VERSION_HEX >= 0x03100000
   if constexpr (kFreeThreadedBuild) {
-    GTEST_SKIP() << "Mutable-type LoadMethod elimination is disabled in "
-                    "free-threaded builds";
+    SKIP(
+        "Mutable-type LoadMethod elimination is disabled in free-threaded "
+        "builds");
   }
 
   const char* pycode = R"(
@@ -1277,7 +1279,7 @@ def test(x):
 
   expectDirectMethodRewrite(*irfunc, true);
 #else
-  GTEST_SKIP() << "Shared-key changes do not notify type watchers";
+  SKIP("Shared-key changes do not notify type watchers");
 #endif
 }
 
@@ -1334,7 +1336,7 @@ def test(x):
 
   expectMethodCallRemainsGeneric(*irfunc);
 #else
-  GTEST_SKIP() << "Static instance attributes do not prefill shared keys";
+  SKIP("Static instance attributes do not prefill shared keys");
 #endif
 }
 
