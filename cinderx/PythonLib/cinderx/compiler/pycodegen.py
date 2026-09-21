@@ -368,6 +368,10 @@ class CodeGenerator(ASTVisitor):
     # (its result discarded) skips building the list. Only enabled for the
     # Python versions whose compiler performs this optimization.
     _unused_listcomp_avoids_creation: bool = False
+    # gh-150737: unpacking an empty `*()`, `*[]` or `*{}` literal in displays
+    # and starred calls is skipped entirely. Only enabled for the Python
+    # versions whose compiler performs this optimization.
+    _skip_empty_starred_literals: bool = False
 
     # pyre-fixme[4] This appears to be unused.
     __initialized = None
@@ -2833,6 +2837,16 @@ class Entry:
         self.node = node
 
 
+def _is_empty_starred_literal(elt: ast.expr) -> bool:
+    # Mirrors CPython's is_empty_starred_literal (gh-150737).
+    if not isinstance(elt, ast.Starred):
+        return False
+    value = elt.value
+    if isinstance(value, ast.Dict):
+        return len(value.keys) == 0
+    return isinstance(value, (ast.Tuple, ast.List)) and len(value.elts) == 0
+
+
 class CodeGenerator312(CodeGenerator):
     flow_graph: type[PyFlowGraph] = PyFlowGraph312
     _SymbolVisitor = SymbolVisitor312
@@ -3471,6 +3485,11 @@ class CodeGenerator312(CodeGenerator):
         num_pushed: int = 0,
         is_tuple: bool = False,
     ) -> None:
+        if self._skip_empty_starred_literals:
+            # gh-150737: 3.16 does not emit unpackings of empty `*()`, `*[]`
+            # or `*{}` literals at all; drop them up front so the counting
+            # and emitting below match CPython's starunpack_helper_impl.
+            elts = [elt for elt in elts if not _is_empty_starred_literal(elt)]
         big = (len(elts) + num_pushed) > STACK_USE_GUIDELINE
         starred_load = self.hasStarred(elts)
         if not starred_load and not big:
@@ -6834,6 +6853,9 @@ class CodeGenerator316(CodeGenerator315):
     # gh-issue-151907: 3.16 skips building a list for a list comprehension whose
     # result is discarded (used as an expression statement).
     _unused_listcomp_avoids_creation: bool = True
+    # gh-150737: 3.16 skips unpacking empty `*()`, `*[]` and `*{}` literals in
+    # displays and starred calls.
+    _skip_empty_starred_literals: bool = True
 
     @staticmethod
     def _call_stack_use(nargs: int, nkwds: int) -> int:

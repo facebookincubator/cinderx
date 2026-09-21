@@ -348,6 +348,8 @@ def add_test(modname: str, fname: str) -> None:
         return
     elif "/3.14/" in fname and version != (3, 14):
         return
+    elif "/3.16/" in fname and version != (3, 16):
+        return
     if fname.endswith("/__init__.py"):
         return
 
