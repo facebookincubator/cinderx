@@ -3,6 +3,7 @@
 #include "cinderx/Jit/lir/inliner.h"
 
 #include "cinderx/Common/containers.h"
+#include "cinderx/Common/fork_support.h"
 #include "cinderx/Jit/lir/c_helper_translations.h"
 #include "cinderx/Jit/lir/parser.h"
 
@@ -192,50 +193,47 @@ lir::Function* LIRInliner::findCalleeFunction() {
   return parseFunction(addr);
 }
 
+namespace {
+
+UnorderedMap<uint64_t, std::unique_ptr<Function>> s_addr_to_function;
+std::shared_mutex s_addr_map_guard;
+
+} // namespace
+
+void lirInlinerAtForkPrepare() {
+  s_addr_map_guard.lock();
+}
+
+void lirInlinerAtForkParent() {
+  s_addr_map_guard.unlock();
+}
+
+void lirInlinerAtForkChild() {
+  resetMutexAfterFork(s_addr_map_guard);
+}
+
 lir::Function* LIRInliner::parseFunction(uint64_t addr) {
-  // addr_to_function maps function address to parsed function
-  static UnorderedMap<uint64_t, std::unique_ptr<Function>> addr_to_function;
-  static std::shared_mutex addr_map_guard;
-
   {
-    // Guard usage of addr_to_function
-    std::shared_lock guard{addr_map_guard};
-
-    // Check if function has already been parsed.
-    auto iter = addr_to_function.find(addr);
-    if (iter != addr_to_function.end()) {
+    std::shared_lock guard{s_addr_map_guard};
+    if (auto iter = s_addr_to_function.find(addr);
+        iter != s_addr_to_function.end()) {
       return iter->second.get();
     }
   }
 
-  // Using function addr, try to get LIR text.
   auto lir_text = mapCHelperToLIR(addr);
-  if (lir_text == nullptr) {
-    // Guard usage of addr_to_function
-    std::unique_lock guard{addr_map_guard};
-    // Add nullptr to map in case same addr is used again.
-    addr_to_function.emplace(addr, nullptr);
-    return nullptr; // No LIR text for that address.
-  }
-
-  Parser parser;
   std::unique_ptr<Function> parsed_func;
-  try {
-    parsed_func = parser.parse(*lir_text);
-  } catch (const ParserException&) {
-    // Guard usage of addr_to_function
-    std::unique_lock guard{addr_map_guard};
-    // Add nullptr to map in case same addr is used again.
-    addr_to_function.emplace(addr, nullptr);
-    return nullptr;
+  if (lir_text != nullptr) {
+    try {
+      parsed_func = Parser{}.parse(*lir_text);
+    } catch (const ParserException&) {
+      // Cache failed parses as nullptr to avoid retrying them.
+    }
   }
 
-  // Guard usage of addr_to_function
-  std::unique_lock guard{addr_map_guard};
-  // Add function to map.
-  addr_to_function.emplace(addr, std::move(parsed_func));
-  // Return parsed function.
-  return map_get_strict(addr_to_function, addr).get();
+  std::unique_lock guard{s_addr_map_guard};
+  auto [iter, _] = s_addr_to_function.emplace(addr, std::move(parsed_func));
+  return iter->second.get();
 }
 
 bool LIRInliner::resolveArguments() {

@@ -293,4 +293,8 @@ void visitLiveDeferredRefs(
     uintptr_t frame_base,
     gcvisitobjects_t visit);
 
+void deoptAtForkPrepare();
+void deoptAtForkParent();
+void deoptAtForkChild();
+
 } // namespace cinderx::jit

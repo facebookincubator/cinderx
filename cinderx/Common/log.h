@@ -59,6 +59,10 @@ std::string repr(BorrowedRef<> obj);
 // first.
 void setRuntimeError(const std::exception& exn);
 
+void logAtForkPrepare();
+void logAtForkParent();
+void logAtForkChild();
+
 // Outlined logging implementations to reduce code size on hot paths.
 CINDERX_COLD void logImplV(
     std::string_view file,

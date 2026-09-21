@@ -2,6 +2,7 @@
 
 #include "cinderx/Common/log.h"
 
+#include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/py-portability.h"
 
 #include <mutex>
@@ -26,7 +27,21 @@ std::string_view trimSourcePath(std::string_view path) {
   std::abort();
 }
 
+std::mutex s_log_mutex;
+
 } // namespace
+
+void logAtForkPrepare() {
+  s_log_mutex.lock();
+}
+
+void logAtForkParent() {
+  s_log_mutex.unlock();
+}
+
+void logAtForkChild() {
+  resetMutexAfterFork(s_log_mutex);
+}
 
 CINDERX_COLD void logImplV(
     std::string_view file,
@@ -34,8 +49,7 @@ CINDERX_COLD void logImplV(
     fmt::string_view format,
     fmt::format_args args) {
   FILE* output = jit::getConfig().log.output_file;
-  static std::mutex mutex;
-  std::lock_guard<std::mutex> lock{mutex};
+  std::lock_guard<std::mutex> lock{s_log_mutex};
   fmt::print(output, "JIT: {}:{} -- ", trimSourcePath(file), line);
   fmt::vprint(output, format, args);
   fmt::print(output, "\n");

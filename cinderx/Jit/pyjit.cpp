@@ -29,6 +29,7 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
+#include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/writer.h"
 #include "cinderx/Jit/eligibility.h"
@@ -42,6 +43,7 @@
 #include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/jit_time_log.h"
+#include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/nested_compile.h"
 #include "cinderx/Jit/perf_jitdump.h"
@@ -4149,9 +4151,15 @@ void jitAtForkPrepare() {
   if (auto* state = getModuleState(); state != nullptr) {
     state->atForkPrepare();
   }
+  deoptAtForkPrepare();
+  lir::lirInlinerAtForkPrepare();
+  logAtForkPrepare();
 }
 
 void jitAtForkParent() {
+  logAtForkParent();
+  lir::lirInlinerAtForkParent();
+  deoptAtForkParent();
   if (auto* state = getModuleState(); state != nullptr) {
     state->atForkParent();
   }
@@ -4166,6 +4174,9 @@ void jitAtForkParent() {
 }
 
 void jitAtForkChild() {
+  logAtForkChild();
+  lir::lirInlinerAtForkChild();
+  deoptAtForkChild();
   freeThreadedJITEntrypointAtForkChild();
   if (auto* state = getModuleState(); state != nullptr) {
     state->atForkChild();

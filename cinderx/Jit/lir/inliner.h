@@ -101,4 +101,8 @@ class LIRInliner {
   FRIEND_TEST(LIRInlinerTest, ResolveReturnWithoutPhiTest);
 };
 
+void lirInlinerAtForkPrepare();
+void lirInlinerAtForkParent();
+void lirInlinerAtForkChild();
+
 } // namespace cinderx::jit::lir

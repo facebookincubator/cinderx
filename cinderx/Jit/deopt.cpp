@@ -8,6 +8,7 @@
 
 #include "internal/pycore_ceval.h"
 
+#include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode.h"
@@ -677,6 +678,18 @@ void visitLiveDeferredRefs(
 #else
   JIT_ABORT("Only for FT builds.");
 #endif
+}
+
+void deoptAtForkPrepare() {
+  s_descrs_mutex.lock();
+}
+
+void deoptAtForkParent() {
+  s_descrs_mutex.unlock();
+}
+
+void deoptAtForkChild() {
+  resetMutexAfterFork(s_descrs_mutex);
 }
 
 } // namespace cinderx::jit
