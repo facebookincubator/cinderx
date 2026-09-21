@@ -156,7 +156,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadSpecial:
     case Opcode::kLongBinaryOp:
-    case Opcode::kLongInPlaceOp:
     case Opcode::kMatchClass:
     case Opcode::kMatchKeys:
     case Opcode::kSend:
@@ -588,15 +587,15 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kXIncref:
       return false;
 
-    /*
-     * Opcodes which do have potential arbitrary execution.
-     */
     // Long/Float binary ops lower to direct calls of the exact types' C
     // slots, which invoke no Python code.
     case Opcode::kLongBinaryOp:
     case Opcode::kFloatBinaryOp:
-    case Opcode::kLongInPlaceOp:
       return false;
+
+      /*
+       * Opcodes which do have potential arbitrary execution.
+       */
 
     case Opcode::kBinaryOp:
       return !binaryOpHasNoArbitraryExecution(inst.as<BinaryOp>());

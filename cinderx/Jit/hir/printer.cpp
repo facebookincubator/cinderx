@@ -492,10 +492,6 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
       const auto& bin = static_cast<const LongBinaryOp&>(instr);
       return std::string{GetBinaryOpName(bin.op())};
     }
-    case Opcode::kLongInPlaceOp: {
-      const auto& inplace = static_cast<const LongInPlaceOp&>(instr);
-      return std::string{GetInPlaceOpName(inplace.op())};
-    }
     case Opcode::kFloatBinaryOp: {
       const auto& bin = static_cast<const FloatBinaryOp&>(instr);
       return std::string{GetBinaryOpName(bin.op())};

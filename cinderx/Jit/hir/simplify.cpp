@@ -1218,69 +1218,28 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
   return nullptr;
 }
 
+// Convert `x op= y` into `x = x op y`.  Ints and floats are immutable, so the
+// two are equivalent, and the binary forms have further simplification cases.
 Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
   Register* lhs = instr->left();
   Register* rhs = instr->right();
+  BinaryOpKind op = toBinaryOpKind(instr->op());
+
   if (lhs->isA(TLongExact) && rhs->isA(TLongExact)) {
-    // All binary ops on TLong's return mutable so can be freely simplified with
-    // no explicit check.
-    switch (instr->op()) {
-      case InPlaceOpKind::kAdd:
-      case InPlaceOpKind::kAnd:
-      case InPlaceOpKind::kFloorDivide:
-      case InPlaceOpKind::kLShift:
-      case InPlaceOpKind::kModulo:
-      case InPlaceOpKind::kMultiply:
-      case InPlaceOpKind::kOr:
-      case InPlaceOpKind::kRShift:
-      case InPlaceOpKind::kSubtract:
-      case InPlaceOpKind::kXor:
-      case InPlaceOpKind::kPower:
-      case InPlaceOpKind::kTrueDivide:
-        env.emit<UseType>(lhs, TLongExact);
-        env.emit<UseType>(rhs, TLongExact);
-        return env.emit<LongInPlaceOp>(
-            instr->op(), lhs, rhs, *instr->frameState());
-      case InPlaceOpKind::kMatrixMultiply:
-        // These will generate an error at runtime.
-        break;
+    if (op == BinaryOpKind::kMatrixMultiply) {
+      // This will generate an error at runtime.
+      return nullptr;
     }
+    env.emit<UseType>(lhs, TLongExact);
+    env.emit<UseType>(rhs, TLongExact);
+    return env.emit<LongBinaryOp>(op, lhs, rhs, *instr->frameState());
   }
 
-  // Convert `x += y` into `x = x + y` because floats are immutable, there are
-  // further simplification cases for FloatBinaryOp.
-  if (lhs->isA(TFloatExact) && rhs->isA(TFloatExact)) {
-    std::optional<BinaryOpKind> binop;
-    switch (instr->op()) {
-      case InPlaceOpKind::kAdd:
-        binop = BinaryOpKind::kAdd;
-        break;
-      case InPlaceOpKind::kSubtract:
-        binop = BinaryOpKind::kSubtract;
-        break;
-      case InPlaceOpKind::kMultiply:
-        binop = BinaryOpKind::kMultiply;
-        break;
-      case InPlaceOpKind::kTrueDivide:
-        binop = BinaryOpKind::kTrueDivide;
-        break;
-      case InPlaceOpKind::kFloorDivide:
-        binop = BinaryOpKind::kFloorDivide;
-        break;
-      case InPlaceOpKind::kModulo:
-        binop = BinaryOpKind::kModulo;
-        break;
-      case InPlaceOpKind::kPower:
-        binop = BinaryOpKind::kPower;
-        break;
-      default:
-        break;
-    }
-    if (binop) {
-      env.emit<UseType>(lhs, TFloatExact);
-      env.emit<UseType>(rhs, TFloatExact);
-      return env.emit<FloatBinaryOp>(*binop, lhs, rhs, *instr->frameState());
-    }
+  if (lhs->isA(TFloatExact) && rhs->isA(TFloatExact) &&
+      (op == BinaryOpKind::kPower || FloatBinaryOp::slotMethod(op))) {
+    env.emit<UseType>(lhs, TFloatExact);
+    env.emit<UseType>(rhs, TFloatExact);
+    return env.emit<FloatBinaryOp>(op, lhs, rhs, *instr->frameState());
   }
   return nullptr;
 }

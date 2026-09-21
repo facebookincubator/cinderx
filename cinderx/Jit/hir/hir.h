@@ -758,6 +758,9 @@ constexpr size_t kNumInPlaceOpKinds = FOREACH_INPLACE_OP_KIND(COUNT_OP);
 std::string_view GetInPlaceOpName(InPlaceOpKind op);
 InPlaceOpKind ParseInPlaceOpName(std::string_view name);
 
+// Convert an in-place operator to its matching binary operator counterpart.
+BinaryOpKind toBinaryOpKind(InPlaceOpKind op);
+
 // Perform a in place operator x += 2
 class INSTR_CLASS(
     InPlaceOp,
@@ -2021,63 +2024,6 @@ class INSTR_CLASS(
 
  private:
   BinaryOpKind op_;
-};
-
-const std::array<binaryfunc, kNumInPlaceOpKinds> kLongInPlaceOpSlotMethods = {
-    // These don't use "nb_inplace" versions because those don't exist and we
-    // fallback to the non-inplace versions
-    PyLong_Type.tp_as_number->nb_add,
-    PyLong_Type.tp_as_number->nb_and,
-    PyLong_Type.tp_as_number->nb_floor_divide,
-    PyLong_Type.tp_as_number->nb_lshift,
-    nullptr, // unsupported: matrix multiply
-    PyLong_Type.tp_as_number->nb_remainder,
-    PyLong_Type.tp_as_number->nb_multiply,
-    PyLong_Type.tp_as_number->nb_or,
-    nullptr, // power is ternary and handled specially
-    PyLong_Type.tp_as_number->nb_rshift,
-    PyLong_Type.tp_as_number->nb_subtract,
-    PyLong_Type.tp_as_number->nb_true_divide,
-    PyLong_Type.tp_as_number->nb_xor,
-};
-
-class INSTR_CLASS(
-    LongInPlaceOp,
-    (TLongExact, TLongExact),
-    HasOutput,
-    Operands<2>,
-    DeoptBase) {
- public:
-  LongInPlaceOp(
-      Register* dst,
-      InPlaceOpKind op,
-      Register* left,
-      Register* right,
-      const FrameState& frame)
-      : InstrT(dst, left, right, frame), op_(op) {}
-
-  InPlaceOpKind op() const {
-    return op_;
-  }
-
-  binaryfunc slotMethod() const {
-    auto op_kind = static_cast<unsigned long>(op());
-    JIT_CHECK(op_kind < kLongInPlaceOpSlotMethods.size(), "unsupported binop");
-    binaryfunc helper = kLongInPlaceOpSlotMethods[op_kind];
-    JIT_DCHECK(helper != nullptr, "unsupported slot method");
-    return helper;
-  }
-
-  Register* left() const {
-    return getOperand(0);
-  }
-
-  Register* right() const {
-    return getOperand(1);
-  }
-
- private:
-  InPlaceOpKind op_;
 };
 
 const std::array<binaryfunc, kNumBinaryOpKinds> kFloatBinaryOpSlotMethods = {

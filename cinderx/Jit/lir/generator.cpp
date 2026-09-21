@@ -3509,24 +3509,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         }
         break;
       }
-      case hir::Opcode::kLongInPlaceOp: {
-        auto instr = &i.as<LongInPlaceOp>();
-        if (instr->op() == InPlaceOpKind::kPower) {
-          bbb.appendCallInstruction(
-              instr->output(),
-              PyLong_Type.tp_as_number->nb_power,
-              instr->left(),
-              instr->right(),
-              Py_None);
-        } else {
-          bbb.appendCallInstruction(
-              instr->output(),
-              instr->slotMethod(),
-              instr->left(),
-              instr->right());
-        }
-        break;
-      }
       case hir::Opcode::kFloatBinaryOp: {
         auto instr = &i.as<FloatBinaryOp>();
         if (instr->op() == BinaryOpKind::kPower) {

@@ -573,7 +573,6 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadMethodSuper:
     case Opcode::kLoadSpecial:
     case Opcode::kLongBinaryOp:
-    case Opcode::kLongInPlaceOp:
     case Opcode::kInitListElements:
     case Opcode::kInitTupleElements:
     case Opcode::kMaterializeRef:
@@ -869,7 +868,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kLoadVarObjectSize:
     case Opcode::kMaterializeRef:
     case Opcode::kLongBinaryOp:
-    case Opcode::kLongInPlaceOp:
     case Opcode::kLongCompare:
     case Opcode::kMakeCell:
     case Opcode::kMakeCheckedDict:
@@ -1398,6 +1396,38 @@ std::string_view GetInPlaceOpName(InPlaceOpKind op) {
 
 InPlaceOpKind ParseInPlaceOpName(std::string_view name) {
   return parseOpName<InPlaceOpKind>(name, kInPlaceOpNames, "InPlaceOpKind");
+}
+
+BinaryOpKind toBinaryOpKind(InPlaceOpKind op) {
+  switch (op) {
+    case InPlaceOpKind::kAdd:
+      return BinaryOpKind::kAdd;
+    case InPlaceOpKind::kAnd:
+      return BinaryOpKind::kAnd;
+    case InPlaceOpKind::kFloorDivide:
+      return BinaryOpKind::kFloorDivide;
+    case InPlaceOpKind::kLShift:
+      return BinaryOpKind::kLShift;
+    case InPlaceOpKind::kMatrixMultiply:
+      return BinaryOpKind::kMatrixMultiply;
+    case InPlaceOpKind::kModulo:
+      return BinaryOpKind::kModulo;
+    case InPlaceOpKind::kMultiply:
+      return BinaryOpKind::kMultiply;
+    case InPlaceOpKind::kOr:
+      return BinaryOpKind::kOr;
+    case InPlaceOpKind::kPower:
+      return BinaryOpKind::kPower;
+    case InPlaceOpKind::kRShift:
+      return BinaryOpKind::kRShift;
+    case InPlaceOpKind::kSubtract:
+      return BinaryOpKind::kSubtract;
+    case InPlaceOpKind::kTrueDivide:
+      return BinaryOpKind::kTrueDivide;
+    case InPlaceOpKind::kXor:
+      return BinaryOpKind::kXor;
+  }
+  JIT_THROW("Unknown InPlaceOpKind {}", static_cast<int>(op));
 }
 
 // NB: This needs to be in the order that the values appear in the FunctionAttr

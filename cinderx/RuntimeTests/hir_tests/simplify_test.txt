@@ -19127,12 +19127,9 @@ fun jittestmodule:test {
     v13:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     UseType<LongExact> v11
     UseType<LongExact> v13
-    v19:LongExact = LongInPlaceOp<Add> v11 v13 {
-      FrameState {
-        CurInstrOffset 10
-        Locals<1> v11
-      }
-    }
+    UseType<ImmortalLongExact[1]> v11
+    UseType<ImmortalLongExact[2]> v13
+    v20:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return<ImmortalNoneType> v16
@@ -19168,12 +19165,9 @@ fun jittestmodule:test {
     Snapshot
     UseType<LongExact> v11
     UseType<LongExact> v13
-    v18:LongExact = LongInPlaceOp<Add> v11 v13 {
-      FrameState {
-        CurInstrOffset 10
-        Locals<1> v11
-      }
-    }
+    UseType<ImmortalLongExact[1]> v11
+    UseType<ImmortalLongExact[2]> v13
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return v16
@@ -19209,12 +19203,9 @@ fun jittestmodule:test {
     Snapshot
     UseType<LongExact> v11
     UseType<LongExact> v13
-    v18:LongExact = LongInPlaceOp<Add> v11 v13 {
-      FrameState {
-        CurInstrOffset 12
-        Locals<1> v11
-      }
-    }
+    UseType<ImmortalLongExact[1]> v11
+    UseType<ImmortalLongExact[2]> v13
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
@@ -19251,12 +19242,9 @@ fun jittestmodule:test {
     Snapshot
     UseType<LongExact> v11
     UseType<LongExact> v13
-    v18:LongExact = LongInPlaceOp<Add> v11 v13 {
-      FrameState {
-        CurInstrOffset 12
-        Locals<1> v11
-      }
-    }
+    UseType<ImmortalLongExact[1]> v11
+    UseType<ImmortalLongExact[2]> v13
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
@@ -19294,12 +19282,9 @@ fun jittestmodule:test {
     Snapshot
     UseType<LongExact> v11
     UseType<LongExact> v13
-    v18:LongExact = LongInPlaceOp<Add> v11 v13 {
-      FrameState {
-        CurInstrOffset 10
-        Locals<1> v11
-      }
-    }
+    UseType<ImmortalLongExact[1]> v11
+    UseType<ImmortalLongExact[2]> v13
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return v16
@@ -19397,7 +19382,7 @@ fun jittestmodule:test {
     v36:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     UseType<LongExact> v30
     UseType<LongExact> v36
-    v41:LongExact = LongInPlaceOp<Add> v30 v36 {
+    v41:LongExact = LongBinaryOp<Add> v30 v36 {
       FrameState {
         CurInstrOffset 38
         Locals<2> v30 v33
@@ -19500,7 +19485,7 @@ fun jittestmodule:test {
     Snapshot
     UseType<LongExact> v30
     UseType<LongExact> v36
-    v41:LongExact = LongInPlaceOp<Add> v30 v36 {
+    v41:LongExact = LongBinaryOp<Add> v30 v36 {
       FrameState {
         CurInstrOffset 38
         Locals<2> v30 v33
@@ -19604,7 +19589,7 @@ fun jittestmodule:test {
     Snapshot
     UseType<LongExact> v34
     UseType<LongExact> v40
-    v45:LongExact = LongInPlaceOp<Add> v34 v40 {
+    v45:LongExact = LongBinaryOp<Add> v34 v40 {
       FrameState {
         CurInstrOffset 42
         Locals<2> v34 v37
@@ -19708,7 +19693,7 @@ fun jittestmodule:test {
     Snapshot
     UseType<LongExact> v34
     UseType<LongExact> v40
-    v45:LongExact = LongInPlaceOp<Add> v34 v40 {
+    v45:LongExact = LongBinaryOp<Add> v34 v40 {
       FrameState {
         CurInstrOffset 42
         Locals<2> v34 v37
@@ -19813,7 +19798,7 @@ fun jittestmodule:test {
     Snapshot
     UseType<LongExact> v30
     UseType<LongExact> v36
-    v41:LongExact = LongInPlaceOp<Add> v30 v36 {
+    v41:LongExact = LongBinaryOp<Add> v30 v36 {
       FrameState {
         CurInstrOffset 38
         Locals<2> v30 v33
