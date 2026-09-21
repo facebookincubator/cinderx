@@ -5274,6 +5274,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         appendGuard(bbb, InstrGuardKind::kNotNegative, instr, call);
         break;
       }
+      case hir::Opcode::kDeleteGlobal: {
+        const auto& instr = i.as<DeleteGlobal>();
+        Instruction* call = bbb.appendInstr(
+            Opcode::kCall,
+            OutVReg{Operand::k32bit},
+            Imm{reinterpret_cast<uint64_t>(rt::deleteGlobal)},
+            instr.getOperand(0),
+            instr.getOperand(1));
+        appendGuard(bbb, InstrGuardKind::kNotNegative, instr, call);
+        break;
+      }
       case hir::Opcode::kUnpackExToTuple: {
         auto instr = &i.as<UnpackExToTuple>();
         bbb.appendCallInstruction(
@@ -5437,6 +5448,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         case hir::Opcode::kCheckVar:
         case hir::Opcode::kCompareBool:
         case hir::Opcode::kDeleteAttr:
+        case hir::Opcode::kDeleteGlobal:
         case hir::Opcode::kDeleteSubscr:
         case hir::Opcode::kDeopt:
         case hir::Opcode::kDeoptPatchpoint:

@@ -3818,6 +3818,14 @@ DEFINE_SIMPLE_INSTR(
 // Takes a sub as operand 1
 DEFINE_SIMPLE_INSTR(DeleteSubscr, (TObject, TObject), Operands<2>, DeoptBase);
 
+// Implements `del name` for a global name.
+// Takes the globals dict as operand 0 and the name as operand 1.
+DEFINE_SIMPLE_INSTR(
+    DeleteGlobal,
+    (TDictExact, TUnicode),
+    Operands<2>,
+    DeoptBase);
+
 // Unpack a sequence as UNPACK_EX opcode and save the results
 // to a tuple
 class INSTR_CLASS(

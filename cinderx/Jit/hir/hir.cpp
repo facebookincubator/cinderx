@@ -532,6 +532,7 @@ bool Instr::isReplayable() const {
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kDecref:
     case Opcode::kDeleteAttr:
+    case Opcode::kDeleteGlobal:
     case Opcode::kDeleteSubscr:
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:
@@ -923,6 +924,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kCondBranchIterNotDone:
     case Opcode::kDecref:
     case Opcode::kDeleteAttr:
+    case Opcode::kDeleteGlobal:
     case Opcode::kDeleteSubscr:
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:

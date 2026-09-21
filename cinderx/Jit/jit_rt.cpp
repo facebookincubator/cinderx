@@ -945,6 +945,20 @@ PyObject* loadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
   return result;
 }
 
+int deleteGlobal(PyObject* globals, PyObject* name) {
+  int result = PyDict_DelItem(globals, name);
+  if (result == 0 || !PyErr_ExceptionMatches(PyExc_KeyError)) {
+    return result;
+  }
+  PyErr_Clear();
+  _PyEval_FormatExcCheckArg(
+      _PyThreadState_GET(),
+      PyExc_NameError,
+      "name '%.200s' is not defined",
+      name);
+  return -1;
+}
+
 PyObject* loadFunctionIndirect(PyObject** func, PyObject* descr) {
   PyObject* res = *func;
   if (!res) {

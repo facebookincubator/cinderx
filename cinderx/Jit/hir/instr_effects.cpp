@@ -122,6 +122,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kConvertValue:
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kDeleteAttr:
+    case Opcode::kDeleteGlobal:
     case Opcode::kDeleteSubscr:
     case Opcode::kDictMerge:
     case Opcode::kDictUpdate:
@@ -627,6 +628,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kConvertValue:
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kDeleteAttr:
+    case Opcode::kDeleteGlobal:
     case Opcode::kDeleteSubscr:
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:

@@ -5220,6 +5220,16 @@ void HIRBuilder::emitStoreGlobal(
       key,
       Type::fromObject(PyTuple_GET_ITEM(code_->co_names, bc_instr.oparg())));
   Register* value = tc.frame.stack.pop();
+  // Since 3.16 (gh-145855) `del name` is compiled as PUSH_NULL; STORE_GLOBAL,
+  // where a NULL value performs the delete.
+  if constexpr (PY_VERSION_HEX >= 0x03100000) {
+    Instr* value_def = value->instr();
+    if (value_def != nullptr && value_def->isLoadConst() &&
+        static_cast<const LoadConst*>(value_def)->type() <= TNullptr) {
+      tc.emit<DeleteGlobal>(globals_dict, key, tc.frame);
+      return;
+    }
+  }
   Register* result = allocateTemp();
   tc.emit<SetDictItem>(result, globals_dict, key, value, tc.frame);
 }

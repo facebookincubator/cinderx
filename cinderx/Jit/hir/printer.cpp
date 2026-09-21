@@ -254,6 +254,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kDecref:
     case Opcode::kDeleteSubscr:
+    case Opcode::kDeleteGlobal:
     case Opcode::kDeopt:
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:

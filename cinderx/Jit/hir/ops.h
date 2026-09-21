@@ -45,6 +45,7 @@ namespace cinderx::jit::hir {
   V(CondBranchCheckType)           \
   V(Decref)                        \
   V(DeleteAttr)                    \
+  V(DeleteGlobal)                  \
   V(DeleteSubscr)                  \
   V(Deopt)                         \
   V(DeoptPatchpoint)               \

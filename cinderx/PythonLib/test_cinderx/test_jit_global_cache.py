@@ -535,3 +535,30 @@ class LoadGlobalCacheTests(unittest.TestCase):
             self.assertEqual(tmp_lazy_binding_a.get_b(), 3)
             if cinderx.jit.is_enabled():
                 self.assertTrue(cinderx.jit.is_jit_compiled(tmp_lazy_binding_a.get_b))
+
+    @unittest.skipUnless(sys.version_info >= (3, 16), "requires Python 3.16")
+    def test_del_global_twice_missing_raises_name_error(self):
+        # On 3.16 `del name` compiles to PUSH_NULL; STORE_GLOBAL, so the JIT
+        # must delete the global and raise NameError with the deleted name
+        # when it is absent, matching the interpreter.
+        ns = {}
+        exec(
+            dedent(
+                """
+                def del_foo():
+                    global foo
+                    del foo
+                """
+            ),
+            ns,
+        )
+        del_foo = ns["del_foo"]
+        ns["foo"] = "hello"
+        if cinderx.jit.is_enabled():
+            self.assertTrue(cinderx.jit.force_compile(del_foo))
+        del_foo()
+        self.assertNotIn("foo", ns)
+        with self.assertRaises(NameError) as ctx:
+            del_foo()
+        self.assertEqual(ctx.exception.name, "foo")
+        self.assertIn("foo", str(ctx.exception))

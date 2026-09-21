@@ -553,6 +553,7 @@ Type outputType(
     case Opcode::kCondBranchIterNotDone:
     case Opcode::kDecref:
     case Opcode::kDeleteAttr:
+    case Opcode::kDeleteGlobal:
     case Opcode::kDeleteSubscr:
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:

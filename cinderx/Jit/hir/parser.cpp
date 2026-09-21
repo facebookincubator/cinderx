@@ -481,6 +481,12 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       newInstr<DeleteSubscr>(container, sub);
       break;
     }
+    case Opcode::kDeleteGlobal: {
+      auto globals = parseRegister();
+      auto name = parseRegister();
+      newInstr<DeleteGlobal>(globals, name);
+      break;
+    }
     case Opcode::kDictSubscr: {
       auto dict = parseRegister();
       auto key = parseRegister();

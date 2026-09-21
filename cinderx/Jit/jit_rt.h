@@ -134,6 +134,9 @@ StaticCallFPReturn reportStaticArgTypecheckErrorsWithDoubleReturn(
  */
 PyObject* loadGlobal(PyObject* globals, PyObject* builtins, PyObject* name);
 
+// Delete `name` from an exact globals dict, raising NameError when absent.
+int deleteGlobal(PyObject* globals, PyObject* name);
+
 /*
  * Helper to perform a Python call with dynamically determined arguments.
  *
