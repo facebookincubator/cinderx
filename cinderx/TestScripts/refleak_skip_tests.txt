@@ -49,3 +49,10 @@ test.test_funcattrs.FunctionDictsTest.test_unassigned_dict
 # the history file if the file size was 0"), so drop this once the platform
 # readline is >= 8.1.
 test.test_readline.TestHistoryManipulation.test_write_read_zero_length_history
+
+# Assumes a fresh process-wide asyncio task-name counter: it asserts the main
+# task of asyncio.run() is literally named "Task-1". Refleak repetitions rerun
+# the module in the same worker process, so the counter has already advanced
+# (and prior runs' sleep(10_000) tasks are still alive), and the assertion
+# fails. Upstream gh-157788; unskip if the test stops depending on the counter.
+test.test_external_inspection.TestSelfStackTrace.test_long_task_name_is_truncated
