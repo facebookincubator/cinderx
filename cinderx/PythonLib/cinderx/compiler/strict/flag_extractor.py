@@ -61,6 +61,7 @@ class FlagExtractor(SymbolVisitor):
                     self.seen_docstring = True
                 case ast.ImportFrom(module) if module == "__future__":
                     pass
+                # pyrefly: ignore [bad-match]
                 case ast.Constant(_):
                     pass
                 case ast.Import(_) as import_node:
