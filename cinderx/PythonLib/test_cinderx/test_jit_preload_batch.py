@@ -4,7 +4,9 @@
 
 import os
 import sys
+import threading
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
 from cinderx.test_support import passIf, run_in_fresh_process, skip_unless_jit
@@ -13,6 +15,61 @@ from cinderx.test_support import passIf, run_in_fresh_process, skip_unless_jit
 @skip_unless_jit("Requires JIT compilation")
 @passIf(sys.version_info < (3, 14), "Requires deferred annotations")
 class BatchPreloadTests(unittest.TestCase):
+    @run_in_fresh_process
+    def test_preload_allows_another_jit_thread_single_worker(self) -> None:
+        self._check_preload_allows_another_jit_thread(1)
+
+    @run_in_fresh_process
+    def test_preload_allows_another_jit_thread_multi_worker(self) -> None:
+        self._check_preload_allows_another_jit_thread(2)
+
+    def _check_preload_allows_another_jit_thread(self, workers: int) -> None:
+        cinderx.jit.background_compile(False)
+        cinderx.jit.enable_emit_type_annotation_guards()
+        entered = threading.Event()
+        replaced = threading.Event()
+
+        def replacement(x: int) -> int:
+            return x + 10
+
+        def other(x: int) -> int:
+            return x + 100
+
+        def annotation() -> type:
+            entered.set()
+            self.assertTrue(replaced.wait(30))
+            return int
+
+        # pyrefly: ignore [invalid-annotation]
+        def func(x: annotation()) -> int:
+            def inner() -> int:
+                return 1
+
+            return x + inner()
+
+        name = f"{__name__}:{func.__qualname__}"
+        cinderx.jit.append_jit_list(name)
+        cinderx.jit.append_jit_list(f"{name}.<locals>.inner")
+
+        def replace_code() -> None:
+            self.assertTrue(entered.wait(30))
+            self.assertTrue(cinderx.jit.force_compile(other))
+            func.__code__ = replacement.__code__
+            replaced.set()
+
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(replace_code)
+            try:
+                self.assertTrue(cinderx.jit.precompile_all(workers=workers))
+                future.result(timeout=30)
+            finally:
+                entered.set()
+
+        self.assertFalse(cinderx.jit.is_jit_compiled(func))
+        self.assertEqual(func(1), 11)
+        self.assertTrue(cinderx.jit.is_jit_compiled(func))
+        self.assertEqual(other(1), 101)
+
     @run_in_fresh_process
     def test_code_replacement_during_preload_single_worker(self) -> None:
         self._check_code_replacement(1)

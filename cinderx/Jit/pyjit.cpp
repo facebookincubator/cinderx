@@ -1153,7 +1153,9 @@ PyThreadState* acquireCompileWorkerThreadState(PyInterpreterState* interp) {
 //
 // Can potentially hit a Python exception, if so, will forward that along and
 // return nullptr.
-hir::Preloader* preload(BorrowedRef<> unit) {
+hir::Preloader* preload(
+    BorrowedRef<> unit,
+    BorrowedRef<PyFunctionObject> outer_func = nullptr) {
   auto [func, borrowed_code] = splitUnit(unit);
   auto code = Ref<PyCodeObject>::create(borrowed_code);
   if (hir::Preloader* existing = hir::preloaderManager().find(code)) {
@@ -1166,16 +1168,13 @@ hir::Preloader* preload(BorrowedRef<> unit) {
   if (func != nullptr) {
     preloader = hir::Preloader::make(func, makeFrameReifier(func->func_code));
   } else {
-    auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
-    auto it = jit_code_outer_funcs.find(code);
-    if (it == jit_code_outer_funcs.end()) {
+    if (outer_func == nullptr) {
       PyErr_Format(
           PyExc_RuntimeError,
           "failed to find code object for preloading: %U",
           code->co_qualname);
       return nullptr;
     }
-    BorrowedRef<PyFunctionObject>& outer_func = it->second;
     // Assuming the builtins + globals will always be a dictionary goes way back
     // in the JIT's history. I'm not sure what guarantees this though. Tread
     // carefully but try not to blow things up if this happens in production
@@ -1190,13 +1189,14 @@ hir::Preloader* preload(BorrowedRef<> unit) {
         "Unexpected type for globals ({}) on function {}",
         Py_TYPE(outer_func->func_globals)->tp_name,
         funcFullname(outer_func));
+    auto module = Ref<>::create(outer_func->func_module);
     preloader = hir::Preloader::make(
-        Ref<>::create(code),
-        Ref<>::create(outer_func->func_builtins),
-        Ref<>::create(outer_func->func_globals),
-        outer_func->func_module,
+        Ref<PyCodeObject>::create(code),
+        Ref<PyDictObject>::create(outer_func->func_builtins),
+        Ref<PyDictObject>::create(outer_func->func_globals),
+        module,
         nullptr /* annotations */,
-        codeFullname(outer_func->func_module, code),
+        codeFullname(module, code),
         makeFrameReifier(code));
   }
 
@@ -1505,7 +1505,6 @@ bool compile_all(size_t workers = 0) {
   auto isolated = std::make_shared<hir::IsolatedPreloaders>();
 
   {
-    FreeThreadedJITEntrypointGuard guard;
     // Own every unit we are about to process for the whole preload+compile
     // region.
     //
@@ -1533,37 +1532,44 @@ bool compile_all(size_t workers = 0) {
     // re-walking the heap until a walk turns up nothing new.
     size_t next_unit = 0;
     while (true) {
-      std::vector<Ref<>> batch = discoverCompilationUnits(seen);
-      if (batch.empty()) {
-        break;
-      }
-
-      JIT_DLOG("compile_all preloading a batch of {} units", batch.size());
-
-      // Snapshot the whole batch before any preload can execute Python and
-      // replace the code of a unit we have not reached yet.
-      for (auto& unit : batch) {
-        auto [func, code] = splitUnit(unit);
-        Ref<PyFunctionObject> outer;
-        if (func == nullptr) {
-          auto& outer_funcs = jitCtx()->codeOuterFunctions();
-          auto it = outer_funcs.find(code);
-          if (it != outer_funcs.end()) {
-            outer = Ref<PyFunctionObject>::create(it->second);
-          }
+      {
+        FreeThreadedJITEntrypointGuard guard;
+        std::vector<Ref<>> batch = discoverCompilationUnits(seen);
+        if (batch.empty()) {
+          break;
         }
-        owned_units.push_back(
-            {std::move(unit),
-             Ref<PyCodeObject>::create(code),
-             std::move(outer)});
+
+        JIT_DLOG("compile_all preloading a batch of {} units", batch.size());
+
+        // Snapshot the whole batch before any preload can execute Python and
+        // replace the code of a unit we have not reached yet.
+        for (auto& unit : batch) {
+          auto [func, code] = splitUnit(unit);
+          Ref<PyFunctionObject> outer;
+          if (func == nullptr) {
+            auto& outer_funcs = jitCtx()->codeOuterFunctions();
+            auto it = outer_funcs.find(code);
+            if (it != outer_funcs.end()) {
+              outer = Ref<PyFunctionObject>::create(it->second);
+            }
+          }
+          owned_units.push_back(
+              {std::move(unit),
+               Ref<PyCodeObject>::create(code),
+               std::move(outer)});
+        }
       }
 
       for (; next_unit < owned_units.size(); ++next_unit) {
         const auto& target = owned_units[next_unit];
-        if (!target.isCurrent()) {
-          continue;
+        {
+          FreeThreadedJITEntrypointGuard guard;
+          if (!target.isCurrent()) {
+            continue;
+          }
         }
-        hir::Preloader* preloader = preload(target.unit);
+        // Preloading can execute arbitrary Python code, so run without a lock.
+        hir::Preloader* preloader = preload(target.unit, target.outer);
         if (!preloader) {
           return false;
         }
@@ -1580,7 +1586,8 @@ bool compile_all(size_t workers = 0) {
     compilation_units.reserve(owned_units.size());
     for (const auto& target : owned_units) {
       auto it = preloaders.find(target.unit);
-      if (!target.isCurrent() || it == preloaders.end()) {
+      if (it == preloaders.end() || !target.isCurrent() ||
+          it->second->code() != target.code) {
         continue;
       }
       const hir::Preloader* preloader = it->second;
@@ -1600,9 +1607,7 @@ bool compile_all(size_t workers = 0) {
             std::move(admitted.func));
       }
       if (admitted.admission == CompileAdmission::kCompile) {
-        compilation_units.emplace_back(
-            preloader,
-            PyCode_Check(target.unit) ? nullptr : Ref<>::create(target.unit));
+        compilation_units.emplace_back(preloader, std::move(admitted.func));
       }
     }
   }
@@ -1691,16 +1696,18 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
 }
 
 PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
-  FreeThreadedJITEntrypointGuard guard;
-  if (!getConfig().multithreaded_compile_test) {
-    PyErr_SetString(
-        PyExc_NotImplementedError, "multithreaded_compile_test not enabled");
-    return nullptr;
+  {
+    FreeThreadedJITEntrypointGuard guard;
+    if (!getConfig().multithreaded_compile_test) {
+      PyErr_SetString(
+          PyExc_NotImplementedError, "multithreaded_compile_test not enabled");
+      return nullptr;
+    }
+    cinderx::getModuleState()->compile_workers_attempted = 0;
+    cinderx::getModuleState()->compile_workers_retries = 0;
+    JIT_LOG("(Re)compiling every unit the JIT still owes a compile");
+    jitCtx()->clearForMultithreadedCompileTest();
   }
-  cinderx::getModuleState()->compile_workers_attempted = 0;
-  cinderx::getModuleState()->compile_workers_retries = 0;
-  JIT_LOG("(Re)compiling every unit the JIT still owes a compile");
-  jitCtx()->clearForMultithreadedCompileTest();
 
   std::chrono::time_point start = std::chrono::steady_clock::now();
   if (!compile_all()) {
