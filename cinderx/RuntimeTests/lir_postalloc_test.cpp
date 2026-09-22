@@ -9,11 +9,11 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/operand.h"
-#include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postalloc.h"
 #include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_parser.h"
 
 #include <algorithm>
 #include <iostream>

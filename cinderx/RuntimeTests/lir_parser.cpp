@@ -1,6 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Jit/lir/parser.h"
+#include "cinderx/RuntimeTests/lir_parser.h"
 
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/code_section.h"

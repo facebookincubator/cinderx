@@ -12,11 +12,11 @@
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/linear_scan.h"
-#include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postalloc.h"
 #include "cinderx/Jit/lir/spill_alloc.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
 #include <math.h>

@@ -2,9 +2,9 @@
 
 #include <gtest/gtest.h>
 
-#include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_parser.h"
 
 using namespace cinderx::jit;
 

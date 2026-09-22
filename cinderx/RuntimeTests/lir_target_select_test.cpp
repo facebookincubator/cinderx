@@ -8,9 +8,9 @@
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/generator.h"
-#include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/target_select.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
 #include <memory>

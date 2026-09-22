@@ -6,9 +6,9 @@
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/linear_scan.h"
-#include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
 namespace cinderx::jit::lir {

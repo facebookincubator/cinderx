@@ -7,8 +7,8 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/operand.h"
-#include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/spill_alloc.h"
+#include "cinderx/RuntimeTests/lir_parser.h"
 
 #include <fmt/ostream.h>
 
