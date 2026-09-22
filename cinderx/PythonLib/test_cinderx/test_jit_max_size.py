@@ -339,13 +339,13 @@ class MaxCodeSizeApiTest(unittest.TestCase):
 
         # Test invalid types
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             cinderx.jit.set_max_code_size(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             cinderx.jit.set_max_code_size("100M")
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             cinderx.jit.set_max_code_size(100.5)
 
         # Test negative value

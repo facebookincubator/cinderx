@@ -174,7 +174,6 @@ class StaticPatchTests(StaticTestBase):
             f = mod.f
             import weakref
 
-            # pyre-ignore[61]: Not using `i` here.
             wr = weakref.ref(f, lambda *args: self.assertEqual(i, -1))  # noqa: F841
             del f
             for _ in range(100):
@@ -201,7 +200,7 @@ class StaticPatchTests(StaticTestBase):
                 autospec=True,
                 return_value=100,
             ):
-                # pyre-ignore[6]: Intentionally setting an integer key to mess with the module dict.
+                # pyrefly: ignore [unsupported-operation]
                 mod.__dict__[42] = 1
                 self.assertEqual(g(), 100)
 
@@ -536,7 +535,7 @@ class StaticPatchTests(StaticTestBase):
             C.f = 42
             a = D()
             a.f = 100
-            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
+            # pyrefly: ignore [missing-attribute]
             self.assertEqual(a.get_f(), 100)
 
     def test_patch_static_to_static(self) -> None:
@@ -585,8 +584,9 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaisesRegex(
                 TypeError, "unexpected return type from E.f, expected str, got int"
             ):
-                # pyre-ignore[16]: Superclass is dynamically compiled and invisible to
+                # Superclass is dynamically compiled and invisible to
                 # pyre.
+                # pyrefly: ignore [missing-attribute]
                 self.assertEqual(E().get_lower_f(), "ABC")
 
     def test_patch_method_mock(self) -> None:

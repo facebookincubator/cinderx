@@ -4974,7 +4974,7 @@ class StaticCompilationTests(StaticTestBase):
                 async def f(self):
                     return 0
 
-            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
+            # pyrefly: ignore [missing-attribute]
             coro = D().g()
             with self.assertRaises(IndexError):
                 coro.send(None)
@@ -4996,12 +4996,12 @@ class StaticCompilationTests(StaticTestBase):
                 def f(self):
                     return loop.create_future()
 
-            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
+            # pyrefly: ignore [missing-attribute]
             coro = D().g()
             try:
                 coro.send(None)
             except RuntimeError as e:
-                # pyre-ignore[16]: Expecting __cause__ to exist.
+                # pyrefly: ignore [missing-attribute]
                 self.assertEqual(e.__cause__.args[0], 100)
             loop.close()
 
@@ -5022,7 +5022,7 @@ class StaticCompilationTests(StaticTestBase):
                 def f(self):
                     return loop.create_future()
 
-            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
+            # pyrefly: ignore [missing-attribute]
             coro = D().g()
             with self.assertRaises(TypeError):
                 coro.send(None)
@@ -5044,7 +5044,7 @@ class StaticCompilationTests(StaticTestBase):
                 async def f(self):
                     return 0
 
-            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
+            # pyrefly: ignore [missing-attribute]
             coro = D().g()
             try:
                 coro.send(None)

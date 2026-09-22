@@ -49,8 +49,7 @@ try:
     from .future import find_futures as future_find_futures
     from .misc import mangle
 
-    # pyre-fixme[21]: Could not find name `INTRINSIC_1` in `cinderx.compiler.opcodes`.
-    # pyre-fixme[21]: Could not find name `INTRINSIC_2` in `cinderx.compiler.opcodes`.
+    # pyrefly: ignore [missing-module-attribute]
     from .opcodes import find_op_idx, INTRINSIC_1, INTRINSIC_2
     from .optimizer import AstOptimizer, AstOptimizer312, AstOptimizer314
     from .pyassem import (
@@ -373,7 +372,6 @@ class CodeGenerator(ASTVisitor):
     # versions whose compiler performs this optimization.
     _skip_empty_starred_literals: bool = False
 
-    # pyre-fixme[4] This appears to be unused.
     __initialized = None
 
     def __init__(
@@ -411,7 +409,6 @@ class CodeGenerator(ASTVisitor):
         self.name: str = self.get_node_name(node) if name is None else name
         self.in_conditional_block = 0
 
-        # pyre-fixme[4] This appears to be unused.
         self.last_lineno = None
 
     @property
@@ -835,7 +832,7 @@ class CodeGenerator(ASTVisitor):
         self.emitJump(jumpblock)
         self.nextBlock()
 
-    # pyre-fixme[2] The node accepted here is called from a lot of places, but
+    # The node accepted here is called from a lot of places, but
     # not every node type has lineno and col_offset defined on it. We need to
     # narrow the type from ast.AST.
     def syntax_error(self, msg: str, node) -> SyntaxError:
@@ -1225,7 +1222,7 @@ class CodeGenerator(ASTVisitor):
     def visitConstant(self, node: ast.Constant) -> None:
         self.emit("LOAD_CONST", node.value)
 
-    # pyre-fixme[2] It is not clear the type of this node because ast.keyword
+    # It is not clear the type of this node because ast.keyword
     # exists but does not have a name field on it.
     def visitKeyword(self, node) -> None:
         self.emit("LOAD_CONST", node.name)
@@ -1275,7 +1272,6 @@ class CodeGenerator(ASTVisitor):
             name = alias.name
             asname = alias.asname
             if name == "*":
-                # pyre-fixme[16] This field does not appear to be used.
                 self.namespace = 0
                 self.emit_import_star()
                 # There can only be one name w/ from ... import *
@@ -1447,7 +1443,7 @@ class CodeGenerator(ASTVisitor):
     def emitAugSubscript(self, node: ast.AugAssign) -> None:
         raise NotImplementedError()
 
-    # pyre-fixme[2] It is not clear which type this node is because ast.Exec
+    # It is not clear which type this node is because ast.Exec
     # does not exist.
     def visitExec(self, node) -> None:
         self.visit(node.expr)
@@ -1697,7 +1693,7 @@ class CodeGenerator(ASTVisitor):
     def visitUnaryOp(self, node: ast.UnaryOp) -> None:
         self.unaryOp(node, self._unary_opcode[type(node.op)])
 
-    # pyre-fixme[2] It is not clear what this node type is, as ast.Backquote
+    # It is not clear what this node type is, as ast.Backquote
     # does not exist.
     def visitBackquote(self, node) -> None:
         return self.unaryOp(node, "UNARY_CONVERT")
@@ -2691,9 +2687,10 @@ class CodeGenerator(ASTVisitor):
         name: str,
         first_lineno: int,
     ) -> CodeGenerator:
-        # pyre-fixme[6] This call to skip_docstring assumes that the body is a
+        # This call to skip_docstring assumes that the body is a
         # list of statements, but when a lambda is passed in here it is possible
         # that it is only an expression.
+        # pyrefly: ignore [bad-argument-type]
         body = self.skip_docstring(node.body)
         return self.generate_function_with_body(node, name, first_lineno, body)
 
@@ -2727,7 +2724,7 @@ class CodeGenerator(ASTVisitor):
 
     def emit_closure(self, gen: CodeHolder, flags: int) -> None:
         prefix = ""
-        # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
+        # pyrefly: ignore [missing-attribute]
         if not isinstance(gen.tree, self.unqualified_asts):
             prefix = self.get_qual_prefix(gen)
 
@@ -2850,8 +2847,7 @@ def _is_empty_starred_literal(elt: ast.expr) -> bool:
 class CodeGenerator312(CodeGenerator):
     flow_graph: type[PyFlowGraph] = PyFlowGraph312
     _SymbolVisitor = SymbolVisitor312
-    # pyre-fixme[8]: Attribute has type `Tuple[Type[AST]]`; used as
-    #  `Tuple[Type[ClassDef], Type[TypeVar]]`.
+    # pyrefly: ignore [bad-assignment]
     unqualified_asts: tuple[type[ast.AST]] = (
         ast.ClassDef,
         getattr(ast, "TypeVar", None),
@@ -3727,10 +3723,7 @@ class CodeGenerator312(CodeGenerator):
             posonlyargs=0,
             suppress_default_const=True,
         )
-        # pyre-fixme[6]: For 1st argument expected `Union[Annotations, ClassDef,
-        #  TypeParams, AsyncFunctionDef, DictComp, FunctionDef, GeneratorExp, Lambda,
-        #  ListComp, SetComp, TypeAlias, arguments]` but got `Union[TypeVarDefault,
-        #  ParamSpec, TypeVar, TypeVarTuple]`.
+        # pyrefly: ignore [bad-argument-type]
         outer_gen = self.make_child_codegen(key, graph, name=graph.name)
         outer_gen.class_name = self.class_name
         outer_gen.optimized = 1
@@ -3956,8 +3949,7 @@ class CodeGenerator312(CodeGenerator):
             )
             outer_gen.class_name = node.name
             outer_gen.optimized = 1
-            # pyre-fixme[6]: For 1st argument expected `List[Union[ParamSpec,
-            #  TypeVar, TypeVarTuple]]` but got `List[type_param]`.
+            # pyrefly: ignore [bad-argument-type]
             outer_gen.compile_type_params(node.type_params)
 
             outer_gen.set_pos(node)
@@ -4032,8 +4024,7 @@ class CodeGenerator312(CodeGenerator):
             outer_gen.optimized = 1
             outer_gen.set_pos(node)
             outer_gen.emit("LOAD_CONST", node.name.id)
-            # pyre-fixme[6]: For 1st argument expected `List[Union[ParamSpec,
-            #  TypeVar, TypeVarTuple]]` but got `List[type_param]`.
+            # pyrefly: ignore [bad-argument-type]
             outer_gen.compile_type_params(node.type_params)
         else:
             outer_gen.emit("LOAD_CONST", node.name.id)
@@ -4204,8 +4195,7 @@ class CodeGenerator312(CodeGenerator):
 
     def visitTryStar(self, node: ast.TryStar) -> None:
         if node.finalbody:
-            # pyre-fixme[6]: For 1st argument expected `Optional[Try]` but got
-            #  `TryStar`.
+            # pyrefly: ignore [bad-argument-type]
             self.emit_try_finally(node, star=True)
         else:
             self.emit_try_star_except(node)
@@ -4247,7 +4237,7 @@ class CodeGenerator312(CodeGenerator):
             try_body()
         elif node.handlers:
             if star:
-                # pyre-fixme[6]: For 1st argument expected `TryStar` but got `Try`.
+                # pyrefly: ignore [bad-argument-type]
                 self.emit_try_star_except(node)
             else:
                 self.emit_try_except(node)
@@ -5193,15 +5183,14 @@ class CodeGenerator314(CodeGenerator312):
             self.emit("PUSH_NULL")
             self.emit("CALL", 0)
 
-    # pyre-fixme[14]: `compile_type_param_bound_or_default` overrides method defined
-    #  in `CodeGenerator312` inconsistently.
+    # pyrefly: ignore [bad-override]
     def compile_type_param_bound_or_default(
         self, bound: ast.expr, name: str, key: ast.expr, allow_starred: bool
     ) -> None:
         typevar_scope = self.symbols.scopes[key]
         # emit defaults
         self.graph.emit_with_loc("LOAD_CONST", (1,), bound)
-        # pyre-ignore[6]: Expected Annotations, arguments, not expr
+        # pyrefly: ignore [bad-argument-type]
         outer_gen = self.setup_annotations(bound, key, typevar_scope)
         outer_gen.class_name = self.class_name
         if allow_starred and isinstance(bound, ast.Starred):
@@ -5223,8 +5212,7 @@ class CodeGenerator314(CodeGenerator312):
         symbols = self.symbols
 
         scope = symbols.scopes[node]
-        # pyre-fixme[6]: For 2nd argument expected `Union[Annotations, arguments]`
-        #  but got `TypeAlias`.
+        # pyrefly: ignore [bad-argument-type]
         res = self.setup_annotations(node, node, scope)
         res.class_name = self.class_name
         return res
@@ -5729,11 +5717,10 @@ class CodeGenerator314(CodeGenerator312):
         with self.conditional_block():
             super().visitTry(node)
 
-    # pyre-fixme[14]: `visitTryStar` overrides method defined in `CodeGenerator312`
-    #  inconsistently.
+    # pyrefly: ignore [bad-override]
     def visitTryStar(self, node: ast.Try) -> None:
         with self.conditional_block():
-            # pyre-fixme[6]: For 1st argument expected `TryStar` but got `Try`.
+            # pyrefly: ignore [bad-argument-type]
             super().visitTryStar(node)
 
     def visitWith(self, node: ast.With) -> None:
@@ -6012,7 +5999,7 @@ class CodeGenerator314(CodeGenerator312):
             starargs=(),
             optimized=1,
             docstring=None,
-            firstline=loc.lineno,  # pyre-ignore[16]: no attribute lineno
+            firstline=loc.lineno,  # pyrefly: ignore [missing-attribute]
             posonlyargs=1,
         )
 
@@ -6242,12 +6229,12 @@ class CodeGenerator314(CodeGenerator312):
         gen.emit_noline("LOAD_CONST", tuple(attrs))
         gen.storeName("__static_attributes__")
 
-    # pyre-ignore[11]: No TemplateStr
+    # pyrefly: ignore [missing-attribute]
     def visitTemplateStr(self, node: ast.TemplateStr) -> None:
         last_was_interpolation = True
         stringslen = 0
         for value in node.values:
-            # pyre-ignore[16]: No Interpolation
+            # pyrefly: ignore [missing-attribute]
             if isinstance(value, ast.Interpolation):
                 if last_was_interpolation:
                     self.emit("LOAD_CONST", "")
@@ -6264,14 +6251,14 @@ class CodeGenerator314(CodeGenerator312):
 
         interpolationslen = 0
         for value in node.values:
-            # pyre-ignore[16]: No Interpolation
+            # pyrefly: ignore [missing-attribute]
             if isinstance(value, ast.Interpolation):
                 self.visit(value)
                 interpolationslen += 1
         self.emit("BUILD_TUPLE", interpolationslen)
         self.emit("BUILD_TEMPLATE")
 
-    # pyre-ignore[11]: No Interpolation
+    # pyrefly: ignore [missing-attribute]
     def visitInterpolation(self, node: ast.Interpolation) -> None:
         self.visit(node.value)
         self.emit("LOAD_CONST", node.str)

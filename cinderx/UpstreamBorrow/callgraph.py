@@ -18,7 +18,7 @@ def make_callgraph(parsed_file: ParsedFile) -> Graph:
     graph = {}
     for cursor in parsed_file.translation_unit.cursor.walk_preorder():
         if not (
-            # pyre-ignore[16]: `CursorKind` has no attribute `FUNCTION_DECL`.
+            # pyrefly: ignore [missing-attribute]
             cursor.kind == CursorKind.FUNCTION_DECL
             and cursor.extent.start.file.name.endswith(parsed_file.source_file)
         ):
@@ -26,7 +26,7 @@ def make_callgraph(parsed_file: ParsedFile) -> Graph:
         func_name = cursor.spelling
         graph[func_name] = []
         for node in cursor.walk_preorder():
-            # pyre-ignore[16]: `CursorKind` has no attribute `CALL_EXPR`.
+            # pyrefly: ignore [missing-attribute]
             if node.kind == CursorKind.CALL_EXPR and node.referenced:
                 graph[func_name].append(node.referenced.spelling)
     return graph

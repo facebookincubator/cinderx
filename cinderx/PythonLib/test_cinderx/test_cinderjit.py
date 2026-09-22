@@ -299,7 +299,7 @@ class CallExTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def test_call_dynamic_kw_dict_dummy(self) -> None:
-        # pyre-ignore[32]: Pyre doesn't recognize a user-defined mapping object.
+        # pyrefly: ignore [bad-unpacking, missing-argument]
         r = _simpleFunc(**CallExTests._DummyMapping())
         self.assertEqual(r, (1, 2))
 
@@ -436,8 +436,9 @@ class SetNonDataDescrAttrTests(unittest.TestCase):
         # setter doesn't modify the object, so obj.foo shouldn't change
         self.set_foo(self.obj, 300)
         self.assertEqual(self.obj.foo, 200)
-        # pyre-ignore[16]: Pyre can't follow through setter to see this dynamic
+        # Pyre can't follow through setter to see this dynamic
         # attribute.
+        # pyrefly: ignore [missing-attribute]
         self.assertTrue(self.descr.invoked)
 
 
@@ -914,7 +915,7 @@ class UnwindStateTests(unittest.TestCase):
         try:
             self._copied_locals("hello")
         except RuntimeError as re:
-            # pyre-ignore[16]: Ignoring the possible None cases here.
+            # pyrefly: ignore [missing-attribute]
             f_locals = re.__traceback__.tb_next.tb_frame.f_locals
             self.assertEqual(
                 f_locals, {"self": self, "a": "hello", "b": "hello", "c": "hello"}
@@ -1482,7 +1483,7 @@ class RegressionTests(StaticTestBase):
 class CinderJitModuleTests(StaticTestBase):
     def test_bad_disable(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[19]: Intentionally testing type errors here.
+            # pyrefly: ignore [bad-argument-count, bad-argument-type]
             cinderx.jit.disable(1, 2, 3)
 
     def test_jit_suppress(self) -> None:
@@ -1556,7 +1557,7 @@ class DeleteAttrTests(unittest.TestCase):
             pass
 
         c = C()
-        # pyre-ignore[16]: Intentionally testing dynamically defined attribute.
+        # pyrefly: ignore [missing-attribute]
         c.foo = "bar"
         # pyrefly: ignore [missing-attribute]
         self.assertEqual(c.foo, "bar")
@@ -2289,10 +2290,10 @@ class JITSuppressTests(unittest.TestCase):
 class BadArgumentTests(unittest.TestCase):
     def test_compile_after_n_calls(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             compile_after_n_calls(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             compile_after_n_calls(is_jit_compiled)
         with self.assertRaises(ValueError):
             compile_after_n_calls(-1)
@@ -2301,10 +2302,10 @@ class BadArgumentTests(unittest.TestCase):
 
     def test_compile_after_n_bytecodes(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             compile_after_n_bytecodes(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             compile_after_n_bytecodes(is_jit_compiled)
         with self.assertRaises(ValueError):
             compile_after_n_bytecodes(-1)
@@ -2313,60 +2314,60 @@ class BadArgumentTests(unittest.TestCase):
 
     def test_is_compiled(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             is_jit_compiled(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             is_jit_compiled(5)
         with self.assertRaises(TypeError):
             is_jit_compiled(is_jit_compiled)
 
     def test_force_compile(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             force_compile(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             force_compile(5)
         with self.assertRaises(TypeError):
             force_compile(is_jit_compiled)
 
     def test_force_uncompile(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             force_uncompile(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             force_uncompile(5)
         with self.assertRaises(TypeError):
             force_uncompile(is_jit_compiled)
 
     def test_lazy_compile(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             cinderx.jit.lazy_compile(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             cinderx.jit.lazy_compile(5)
         with self.assertRaises(TypeError):
             cinderx.jit.lazy_compile(is_jit_compiled)
 
     def test_jit_suppress(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             jit_suppress(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             jit_suppress(5)
         with self.assertRaises(TypeError):
             jit_suppress(is_jit_compiled)
 
     def test_jit_unsuppress(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             jit_unsuppress(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentional type error.
+            # pyrefly: ignore [bad-argument-type]
             jit_unsuppress(5)
         with self.assertRaises(TypeError):
             jit_unsuppress(is_jit_compiled)
@@ -2560,7 +2561,7 @@ class SimplifyCompileTimeTests(unittest.TestCase):
         lines.append("    return acc")
         ns: dict[str, object] = {}
         exec(compile("\n".join(lines), f"<{kind}_{n}>", "exec"), ns, ns)
-        # pyre-ignore[7]: exec-defined function.
+        # pyrefly: ignore [bad-return]
         return ns["f"]
 
     def test_isinstance_if_chain_compiles_in_linear_time(self) -> None:
@@ -2620,7 +2621,7 @@ class RenamedNestedCompileTests(unittest.TestCase):
         ]
         ns: dict[str, object] = {}
         exec(compile("\n".join(lines), "<renamed_nested>", "exec"), ns, ns)
-        # pyre-ignore[7]: exec-defined function.
+        # pyrefly: ignore [bad-return]
         return ns["factory"]
 
     def test_renamed_nested_function_is_compiled_once(self) -> None:
@@ -2705,7 +2706,7 @@ class GetCompiledFunctionTests(unittest.TestCase):
 
     def test_rejects_non_function(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore: Argument `Literal[42]` is not assignable to parameter
+            # pyrefly: ignore [bad-argument-type]
             cinderx.jit.get_compiled_function(42)
 
 

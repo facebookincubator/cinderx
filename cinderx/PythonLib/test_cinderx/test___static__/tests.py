@@ -126,7 +126,6 @@ class StaticTests(unittest.TestCase):
     def test_cast_optional(self) -> None:
         self.assertIs(cast(Optional[int], None), None)
         self.assertIs(cast(int | None, None), None)
-        # pyre-ignore[20]: missing arg to __ror__
         self.assertIs(cast(None | int, None), None)
 
     def test_cast_generic_type(self) -> None:
@@ -137,7 +136,7 @@ class StaticTests(unittest.TestCase):
 
         g = G()
 
-        # pyre-ignore[16]: no attribute __getitem__
+        # pyrefly: ignore [missing-attribute]
         self.assertIs(cast(G[int], g), g)
 
     def test_cast_type_too_complex(self) -> None:

@@ -442,7 +442,7 @@ class StaticTestBase(CompilerTest):
 
     def _temp_mod_name(self) -> str:
         StaticTestBase._temp_mod_num += 1
-        # pyre-ignore[16]: Expecting a certain number of frames.
+        # pyrefly: ignore [missing-attribute]
         return sys._getframe().f_back.f_back.f_back.f_code.co_name + str(
             StaticTestBase._temp_mod_num
         )
@@ -516,10 +516,10 @@ class StaticTestBase(CompilerTest):
         }
         add_fixed_module(d)
         m = StrictModule(d, enable_patching)
-        # pyre-ignore[6]: Expecting ModuleType but getting StrictModule.
+        # pyrefly: ignore [unsupported-operation]
         sys.modules[name] = m
         exec(code_obj, d)
-        # pyre-ignore[7]: Treating StrictModule as ModuleType, again.
+        # pyrefly: ignore [bad-return]
         return d, m
 
     @contextmanager
@@ -549,7 +549,7 @@ class StaticTestBase(CompilerTest):
             if dump_bytecode:
                 dis(compiled)
             d, m = self._in_strict_module(name, compiled, enable_patching)
-            # pyre-ignore[7]: Treat this ModuleType as TModule.
+            # pyrefly: ignore [invalid-yield]
             yield m
         finally:
             set_freeze_enabled(old_setting)
@@ -649,7 +649,7 @@ __slot_types__ = {slot_types!r}
     def bind_final_return(self, code: str) -> Value:
         mod, comp = self.bind_module(code)
         types = comp.modules["foo"].types
-        # pyre-ignore[16]: Expecting a statement here.
+        # pyrefly: ignore [missing-attribute]
         node = mod.body[-1].body[-1].value
         return types[node]
 
@@ -670,7 +670,7 @@ __slot_types__ = {slot_types!r}
     ) -> tuple[Value, Compiler]:
         mod, comp = self.bind_module(code, optimize)
         types = comp.modules["foo"].types
-        # pyre-ignore[16]: Expecting an expression here.
+        # pyrefly: ignore [missing-attribute]
         return types[mod.body[-1].value], comp
 
     def bind_module(

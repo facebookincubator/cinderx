@@ -1012,7 +1012,7 @@ class DataclassTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             params = mod.C.__dataclass_params__
-            # pyre-ignore[16]: Pyre doesn't know about dataclass internals.
+            # pyrefly: ignore [missing-attribute]
             self.assertIsInstance(params, _DataclassParams)
             self.assertTrue(params.init)
             self.assertTrue(params.repr)

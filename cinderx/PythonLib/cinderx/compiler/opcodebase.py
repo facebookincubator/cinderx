@@ -45,7 +45,7 @@ class Opcode:
         self.popped: dict[str, int | Callable[[object], int]] = {}
         self.pushed: dict[str, int | Callable[[object], int]] = {}
 
-    def stack_effect(self, opcode: int, oparg, jump: int) -> int:  # pyre-ignore[2]
+    def stack_effect(self, opcode: int, oparg, jump: int) -> int:
         oparg_int = 0
         if opcode >= self.HAVE_ARGUMENT:
             if oparg is None:
@@ -57,14 +57,14 @@ class Opcode:
             raise ValueError(
                 "stack_effect: opcode does not permit oparg but oparg was specified"
             )
-        # pyre-fixme[6]: For 1st argument expected `Optional[bool]` but got `int`.
+        # pyrefly: ignore [bad-argument-type]
         jump_int = {None: -1, True: 1, False: 0}.get(jump)
         if jump_int is None:
             raise ValueError("stack_effect: jump must be False, True or None")
         opname = self.opname[opcode]
         return self.stack_effect_raw(opname, oparg_int, jump_int)
 
-    def stack_effect_raw(self, opname: str, oparg, jump: int) -> int:  # pyre-ignore[2]
+    def stack_effect_raw(self, opname: str, oparg, jump: int) -> int:
         effect = self.stack_effects.get(opname)
         if effect is None:
             raise ValueError(
@@ -73,7 +73,7 @@ class Opcode:
         if isinstance(effect, int):
             return effect
         else:
-            return effect(oparg, jump)  # pyre-ignore[29]
+            return effect(oparg, jump)  # pyrefly: ignore [not-callable]
 
     def get_num_popped(self, opname: str, oparg: object) -> int:
         popped = self.popped.get(opname)
@@ -136,7 +136,7 @@ class Opcode:
         self.hasfree.discard(op)
         self.shadowop.discard(op)
         self.opmap.pop(opname)
-        self.opname[op] = None  # pyre-ignore[6]
+        self.opname[op] = None  # pyrefly: ignore [unsupported-operation]
         self.stack_effects.pop(opname)
         delattr(self, opname)
 

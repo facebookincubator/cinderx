@@ -135,7 +135,7 @@ def passAlways(reason: str) -> Callable[[_FT], _FT]:
         reason = ""
         # pyrefly: ignore [bad-return]
         return decorator(test_item)
-    # pyre-ignore[7]: bad return type
+    # pyrefly: ignore [bad-return]
     return decorator
 
 
@@ -249,7 +249,7 @@ def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
     def wrapper(*args: object, **kwargs: object) -> TRet:
         cinderx.jit.get_and_clear_runtime_stats()
         r = func(*args, **kwargs)
-        # pyre-ignore[6]
+        # pyrefly: ignore [bad-argument-type]
         if len(deopts := cinderx.jit.get_and_clear_runtime_stats()["deopt"]):
             raise RuntimeError(f"Deopt occurred {deopts}")
         return r
@@ -280,7 +280,7 @@ def has_cpython_test_package() -> bool:
     much not-OSS and still have no `test` package.
     """
     try:
-        # pyre-ignore[21]: can't find test.support
+        # pyrefly: ignore [missing-import]
         import test.support  # noqa: F401
     except ImportError:
         return False
@@ -465,7 +465,7 @@ class CinderXTestCase(unittest.TestCase):
         expected_opcode: str,
         expected_oparg: int | None = None,
     ) -> None:
-        # pyre-ignore[6]: func isn't properly typed as a callable yet.
+        # pyrefly: ignore [bad-argument-type]
         func = undo_fail_decorators(func)
 
         bytecode_instructions = dis.get_instructions(func)

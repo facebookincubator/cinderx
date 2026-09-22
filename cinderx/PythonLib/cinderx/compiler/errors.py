@@ -52,7 +52,7 @@ class ErrorLocation:
 
 
 def error_location(filename: str, node: AST) -> ErrorLocation:
-    # pyre-fixme[16]: `AST` has no attribute `lineno`.
+    # pyrefly: ignore [missing-attribute]
     source_line = linecache.getline(filename, node.lineno)
     # The SyntaxError offset field is 1-indexed:
     # https://docs.python.org/3.14/library/exceptions.html#SyntaxError.offset
@@ -63,12 +63,12 @@ def error_location(filename: str, node: AST) -> ErrorLocation:
         node,
         # pyrefly: ignore [missing-attribute]
         node.lineno,
-        # pyre-fixme[16]: `AST` has no attribute `col_offset`.
+        # pyrefly: ignore [missing-attribute]
         node.col_offset + 1,
         source_line or None,
-        # pyre-fixme[16]: `AST` has no attribute `end_lineno`.
+        # pyrefly: ignore [missing-attribute, bad-argument-type]
         node.end_lineno if node.end_lineno is not None else None,
-        # pyre-fixme[16]: `AST` has no attribute `end_col_offset`.
+        # pyrefly: ignore [missing-attribute, unsupported-operation]
         node.end_col_offset + 1 if node.end_col_offset is not None else None,
     )
 

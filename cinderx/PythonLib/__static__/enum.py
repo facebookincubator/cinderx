@@ -60,10 +60,10 @@ class EnumMeta(type):
 
         for name, value in members.items():
             option = klass(name=name, value=value)
-            # pyre-ignore[16]: __members__ is dynamically defined
+            # pyrefly: ignore [missing-attribute]
             klass.__members__[name] = option
             if EnumMeta.is_hashable(option):
-                # pyre-ignore[16]: __reversed_map__ is dynamically defined
+                # pyrefly: ignore [missing-attribute]
                 klass.__reversed_map__[option] = option
             if EnumMeta.is_hashable(value):
                 klass.__reversed_map__[value] = option
@@ -71,34 +71,34 @@ class EnumMeta(type):
         return klass
 
     def __len__(cls) -> int:
-        # pyre-ignore[16]: __members__ is dynamically defined
+        # pyrefly: ignore [missing-attribute]
         return len(cls.__members__)
 
     def __getitem__(cls, attribute: str) -> Enum:
-        # pyre-ignore[16]: __members__ is dynamically defined
+        # pyrefly: ignore [missing-attribute]
         return cls.__members__[attribute]
 
     def __iter__(cls) -> Iterable[Enum]:
-        # pyre-ignore[16]: __members__ is dynamically defined
+        # pyrefly: ignore [missing-attribute]
         return iter(cls.__members__.values())
 
     def __call__(cls, *args: object, **kwargs: object) -> Enum:
         if len(args) == 1:
             attribute = args[0]
-            # pyre-ignore[6]: expected str, got object
+            # pyrefly: ignore [bad-argument-type]
             return cls._get_by_value(attribute)
 
         name = kwargs["name"]
         value = kwargs["value"]
-        # pyre-ignore[20]: __new__ expects dct
-        # pyre-ignore[9]:declared to have type Enum but is used as Type[Enum]
+        # pyrefly: ignore [bad-argument-count]
+        # pyrefly: ignore [bad-assignment]
         instance: Enum = cls.__new__(cls, value)
         instance.name = name
         instance.value = value
         return instance
 
     def _get_by_value(cls, value: str) -> Enum:
-        # pyre-ignore[16]: __reversed_map__ is dynamically defined
+        # pyrefly: ignore [missing-attribute]
         res = cls.__reversed_map__.get(value, SENTINEL)
         if res is not SENTINEL:
             return res
@@ -135,7 +135,7 @@ class StringEnumMeta(EnumMeta):
     as text (to match text literals used in StringEnum)."""
 
     def _get_by_value(cls, value: str | bytes) -> StringEnum:
-        # pyre-ignore[7]: Expected StringEnum, got Enum
+        # pyrefly: ignore [bad-return]
         return super()._get_by_value(
             value.decode("utf-8") if isinstance(value, bytes) else value
         )
@@ -151,7 +151,7 @@ def unique(enumeration: type[Enum]) -> type[Enum]:
     Class decorator for enumerations ensuring unique member values
     """
     duplicates = []
-    # pyre-ignore[16]: __members__ is dynamically defined
+    # pyrefly: ignore [missing-attribute]
     for name, member in enumeration.__members__.items():
         if name != member.name:
             duplicates.append((name, member.name))

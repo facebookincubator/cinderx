@@ -52,7 +52,7 @@ class StrictTestBase(CompilerTest):
 
     def _temp_mod_name(self) -> str:
         StrictTestBase._temp_mod_num += 1
-        # pyre-ignore[16]: Expecting a certain number of frames.
+        # pyrefly: ignore [missing-attribute]
         return sys._getframe().f_back.f_back.f_back.f_back.f_code.co_name + str(
             StrictTestBase._temp_mod_num
         )

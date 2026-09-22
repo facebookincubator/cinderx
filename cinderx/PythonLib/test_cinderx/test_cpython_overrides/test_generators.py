@@ -2,7 +2,7 @@
 import unittest
 
 try:
-    # pyre-ignore[21]: can't find _testcapi
+    # pyrefly: ignore [missing-import]
     import _testcapi
 except ImportError:
     _testcapi = None
@@ -48,10 +48,10 @@ class CinderX_GeneratorTest(unittest.TestCase):
 
         # unnamed generator
         gen = (x for x in range(10))
-        # pyre-ignore[16]: no attribute __name__
+        # pyrefly: ignore [missing-attribute]
         self.assertEqual(gen.__name__, "<genexpr>")
         self.assertEqual(
-            # pyre-ignore[16]: no attribute __qualname__
+            # pyrefly: ignore [missing-attribute]
             gen.__qualname__,
             "CinderX_GeneratorTest.test_name.<locals>.<genexpr>",
         )

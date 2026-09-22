@@ -8,7 +8,7 @@ from typing import Any, Callable, Coroutine
 try:
     from _cinderx import AsyncLazyValue
 except ImportError:
-    # pyre-fixme[21]: Could not find a name `AsyncLazyValue` in `_asyncio`.
+    # pyrefly: ignore [missing-module-attribute]
     from _asyncio import AsyncLazyValue
 
 from functools import wraps
@@ -43,7 +43,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             pass
 
         # close non-started asynclazy value is no-op
-        # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
         (AsyncLazyValue(g).__await__()).close()
         pass
 
@@ -170,7 +169,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
                 return self.a, b, c, d
 
         with self.assertRaises(StopIteration) as ctx:
-            # pyre-fixme[16]: Module `_asyncio` has no attribute `AsyncLazyValue`.
             AsyncLazyValue(X().m, 2, 3, 4).__await__().send(None)
 
         self.assertEqual(ctx.exception.value, (1, 2, 3, 4))
@@ -231,7 +229,6 @@ class AsyncLazyValueTest(unittest.TestCase):
             await asyncio.sleep(3)
             raise RuntimeError("async_func never got cancelled")
 
-        # pyre-fixme[11]: Annotation `AsyncLazyValue` is not defined as a type.
         async def async_cancel(task: asyncio.Task, alv: AsyncLazyValue) -> None:
             await self.coro_running.wait()
             self.log("cancelling")

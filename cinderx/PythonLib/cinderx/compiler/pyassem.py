@@ -20,7 +20,7 @@ try:
     if sys.version_info >= (3, 15):
         from .opcodes import _inline_cache_entries
     else:
-        # pyre-ignore[21]: No _inline_cache_entries
+        # pyrefly: ignore [missing-module-attribute]
         from opcode import _inline_cache_entries
 except ImportError:
     _inline_cache_entries = None
@@ -179,7 +179,7 @@ class Instruction:
 
     @property
     def lineno(self) -> int:
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
         return self.loc.lineno
 
     def __repr__(self) -> str:
@@ -388,8 +388,7 @@ class FlowGraph:
 
     def set_pos(self, node: AST | SrcLocation) -> None:
         if not self.first_inst_lineno:
-            # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-            #  `lineno`.
+            # pyrefly: ignore [missing-attribute]
             self.first_inst_lineno = node.lineno
         self.loc = node
 
@@ -499,11 +498,11 @@ class Block:
         """
         contained = []
         for inst in self.insts:
-            # pyre-fixme[6] It is not clear what the type of inst is.
+            # pyrefly: ignore [bad-argument-type]
             if len(inst) == 1:
                 continue
 
-            # pyre-fixme[16] It is not clear what the type of inst is.
+            # pyrefly: ignore [bad-index]
             op = inst[1]
             if hasattr(op, "graph"):
                 contained.append(op.graph)
@@ -1433,9 +1432,9 @@ class PyFlowGraph(FlowGraph):
             elif not instr.is_jump(self.opcode):
                 continue
 
-            # pyre-fixme[16] instr.target can be None
+            # pyrefly: ignore [missing-attribute]
             while not instr.target.insts:
-                # pyre-fixme[16] instr.target can be None
+                # pyrefly: ignore [missing-attribute]
                 instr.target = instr.target.next
 
     def should_inline_block(self, block: Block) -> bool:
@@ -1498,7 +1497,7 @@ class PyFlowGraphCinderMixin(PyFlowGraph):
     ) -> CodeType:
         if self.scope is not None and self.scope.suppress_jit:
             self.setFlag(CO_SUPPRESS_JIT)
-        # pyre-ignore[16]: `PyFlowGraph` has no attribute `make_code`
+        # pyrefly: ignore [missing-attribute]
         return super().make_code(nlocals, code, consts, firstline, lnotab)
 
 
@@ -2640,7 +2639,7 @@ class PyFlowGraph314(PyFlowGraph312):
 
         # We can only inline blocks with no line numbers.
         for inst in block.insts:
-            # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+            # pyrefly: ignore [missing-attribute]
             if inst.loc.lineno >= 0:
                 return False
         return True
@@ -3107,9 +3106,9 @@ class PyFlowGraph314(PyFlowGraph312):
     def make_super_instruction(
         self, inst1: Instruction, inst2: Instruction, super_op: str
     ) -> None:
-        # pyre-ignore[16]: lineno is maybe not defined on AST
+        # pyrefly: ignore [missing-attribute]
         line1 = inst1.loc.lineno
-        # pyre-ignore[16]: lineno is maybe not defined on AST
+        # pyrefly: ignore [missing-attribute]
         line2 = inst2.loc.lineno
         # Skip if instructions are on different lines
         if line1 >= 0 and line2 >= 0 and line1 != line2:
@@ -3570,35 +3569,29 @@ class LinePositionTable:
         self.write_entry(loc, size)
 
     def write_entry(self, loc: AST | SrcLocation, size: int) -> None:
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
         if loc.lineno < 0:
             return self.write_entry_no_location(size)
 
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
         line_delta = loc.lineno - self.lineno
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-        #  `col_offset`.
+        # pyrefly: ignore [missing-attribute]
         column = loc.col_offset
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-        #  `end_col_offset`.
+        # pyrefly: ignore [missing-attribute]
         end_column = loc.end_col_offset
         assert isinstance(end_column, int)
         assert column >= -1
         assert end_column >= -1
         if column < 0 or end_column < 0:
-            # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-            #  `end_lineno`.
-            # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-            #  `lineno`.
+            # pyrefly: ignore [missing-attribute]
+            # pyrefly: ignore [missing-attribute]
             if loc.end_lineno == loc.lineno or loc.end_lineno == -1:
                 self.write_no_column(size, line_delta)
-                # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-                #  `lineno`.
+                # pyrefly: ignore [missing-attribute]
                 self.lineno = loc.lineno
                 return
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-        #  `end_lineno`.
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
+        # pyrefly: ignore [missing-attribute]
         elif loc.end_lineno == loc.lineno:
             if (
                 line_delta == 0
@@ -3609,13 +3602,12 @@ class LinePositionTable:
                 return self.write_short_form(size, column, end_column)
             if 0 <= line_delta < 3 and column < 128 and end_column < 128:
                 self.write_one_line_form(size, line_delta, column, end_column)
-                # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-                #  `lineno`.
+                # pyrefly: ignore [missing-attribute]
                 self.lineno = loc.lineno
                 return
 
         self.write_long_form(loc, size)
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
         self.lineno = loc.lineno
 
     def write_short_form(self, size: int, column: int, end_column: int) -> None:
@@ -3646,25 +3638,22 @@ class LinePositionTable:
         self.write_signed_varint(line_delta)  # Start line delta
 
     def write_long_form(self, loc: AST | SrcLocation, size: int) -> None:
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-        #  `end_lineno`.
+        # pyrefly: ignore [missing-attribute]
         end_lineno = loc.end_lineno
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-        #  `end_col_offset`.
+        # pyrefly: ignore [missing-attribute]
         end_col_offset = loc.end_col_offset
 
         assert size > 0 and size <= 8
         assert end_lineno is not None and end_col_offset is not None
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
         assert end_lineno >= loc.lineno
 
         self.write_first_byte(CodeLocationInfoKind.LONG, size)
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
         self.write_signed_varint(loc.lineno - self.lineno)  # Start line delta
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
         self.write_varint(end_lineno - loc.lineno)  # End line delta
-        # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute
-        #  `col_offset`.
+        # pyrefly: ignore [missing-attribute]
         self.write_varint(loc.col_offset + 1)  # Start column
         self.write_varint(end_col_offset + 1)  # End column
 

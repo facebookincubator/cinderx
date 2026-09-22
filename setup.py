@@ -365,7 +365,7 @@ class BuildExt(build_ext):
         # Partition into CMake extensions and everything else.
         cmake_extensions = []
         other_extensions = []
-        # pyre-ignore[16]: No pyre types for build_ext.
+        # pyrefly: ignore [missing-attribute]
         for extension in self.extensions:
             if isinstance(extension, CMakeExtension):
                 cmake_extensions.append(extension)
@@ -376,17 +376,17 @@ class BuildExt(build_ext):
         for extension in cmake_extensions:
             self._run_cmake(extension)
 
-        # pyre-ignore[16]: No pyre types for build_ext.
+        # pyrefly: ignore [missing-attribute]
         self.extensions = other_extensions
         super().run()
 
     def _run_cmake(self, extension: CMakeExtension) -> None:
-        # pyre-ignore[16]: No pyre types for build_ext.
+        # pyrefly: ignore [missing-attribute]
         build_dir = self.build_temp
         os.makedirs(build_dir, exist_ok=True)
 
         # get_ext_fullpath returns a file path (e.g., "scratch/lib/_cinderx.cp314-win_amd64.pyd").
-        # pyre-ignore[16]: No pyre types for build_ext.
+        # pyrefly: ignore [missing-attribute]
         ext_fullpath = os.path.abspath(self.get_ext_fullpath(extension.name))
         ext_dir = os.path.dirname(ext_fullpath)
         os.makedirs(ext_dir, exist_ok=True)
@@ -493,7 +493,7 @@ class BuildExt(build_ext):
         if platform.system() == "Windows":
             cmake_args.extend(["-G", "Ninja"])
 
-        # pyre-ignore[16]: No pyre types for build_ext.
+        # pyrefly: ignore [missing-attribute]
         self.spawn(["cmake"] + cmake_args + ["-B", build_dir, CHECKOUT_ROOT_DIR])
         self.spawn(["cmake", "--build", build_dir] + build_args)
 

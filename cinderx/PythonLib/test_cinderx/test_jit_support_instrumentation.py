@@ -605,7 +605,6 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
 
         calls_seen: list[str] = []
 
-        # pyre-ignore[3]: Return type is recursive.
         def trace_func(frame: FrameType, event: str, arg: object):
             if event == "call" and frame.f_code.co_name == "foo":
                 calls_seen.append(frame.f_code.co_name)
@@ -631,7 +630,6 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
 
         calls_seen: list[str] = []
 
-        # pyre-ignore[3]: Return type is recursive.
         def trace_func(frame: FrameType, event: str, arg: object):
             if event == "call" and frame.f_code.co_name == "foo":
                 calls_seen.append(frame.f_code.co_name)
@@ -660,7 +658,6 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
     def test_new_functions_not_compiled_while_tracer_active(self) -> None:
         calls_seen: list[str] = []
 
-        # pyre-ignore[3]: Return type is recursive.
         def trace_func(frame: FrameType, event: str, arg: object):
             if event == "call" and frame.f_code.co_name == "new_function":
                 calls_seen.append(frame.f_code.co_name)
@@ -705,7 +702,6 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
         def profile_func(frame: FrameType, event: str, arg: object) -> None:
             return None
 
-        # pyre-ignore[3]: Return type is recursive.
         def trace_func(frame: FrameType, event: str, arg: object):
             return trace_func
 
@@ -1244,7 +1240,6 @@ class JitStackFrameDeoptTest(unittest.TestCase):
         # sys.settrace should also cause grandparent frames to receive LINE events
         line_events: list[tuple[str, str]] = []
 
-        # pyre-ignore[3]: Return type is recursive.
         def trace_func(frame: FrameType, event: str, arg: object):
             if frame.f_code.co_name == "grandparent" and event == "line":
                 line_events.append((frame.f_code.co_name, event))

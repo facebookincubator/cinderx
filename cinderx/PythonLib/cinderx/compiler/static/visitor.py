@@ -63,11 +63,13 @@ class GenericVisitor(ASTVisitor, Generic[TVisitRet]):
         ctx = self.error_context(node) if isinstance(node, AST) else nullcontext()
         with ctx:
             if not args:
-                # pyre-ignore: ASTVisitor is not generic yet, can't assert the result is
+                # ASTVisitor is not generic yet, can't assert the result is
                 # TVisitRet.
+                # pyrefly: ignore [bad-return]
                 return super().visit(node)
-            # pyre-ignore: ASTVisitor is not generic yet, can't assert the result is
+            # ASTVisitor is not generic yet, can't assert the result is
             # TVisitRet.
+            # pyrefly: ignore [bad-return]
             return super().visit(node, *args)
 
     def syntax_error(self, msg: str, node: AST) -> None:

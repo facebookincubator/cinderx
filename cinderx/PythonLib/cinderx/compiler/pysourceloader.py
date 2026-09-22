@@ -33,7 +33,7 @@ class PySourceFileLoader(SourceFileLoader):
         but use the python based bytecode generator from
         compiler/pycodegen.py
         """
-        # pyre-ignore[16]
+        # pyrefly: ignore [missing-attribute]
         return importlib._bootstrap._call_with_frames_removed(
             compile_code, data, path, "exec", optimize=_optimize
         )

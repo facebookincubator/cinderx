@@ -39,7 +39,7 @@ def main() -> None:
 
     codeobj = py_compile(text, sys.argv[1], "exec")
 
-    # pyre-ignore[6]: maybe not CodeType
+    # pyrefly: ignore [bad-argument-type]
     dis_stable.Disassembler().dump_code(codeobj, file=sys.stdout)
 
 

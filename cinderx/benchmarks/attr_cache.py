@@ -236,7 +236,7 @@ def _property_source() -> str:
 def _build_property() -> list[object]:
     namespace: dict[str, object] = {}
     exec(compile(_property_source(), "<attr_cache:property>", "exec"), namespace)
-    cls: type = namespace["PropertyReceiver"]  # pyre-ignore[9]
+    cls: type = namespace["PropertyReceiver"]  # pyrefly: ignore [bad-assignment]
     objs: list[object] = [cls() for _ in range(RECEIVERS)]
     _set_names(objs)
     return objs
@@ -529,7 +529,7 @@ def _generate(
 ) -> Callable[..., object]:
     namespace: dict[str, object] = dict(extra_globals)
     exec(compile(source, f"<attr_cache:{name}>", "exec"), namespace)
-    return namespace[name]  # pyre-ignore[7]
+    return namespace[name]  # pyrefly: ignore [bad-return]
 
 
 def _build_load_fn(

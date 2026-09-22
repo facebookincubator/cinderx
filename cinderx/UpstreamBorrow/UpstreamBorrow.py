@@ -151,19 +151,19 @@ def parse_borrow_info(input_string: str) -> Decl | None:
     transform = match.group(6)
 
     if kind_str == "function":
-        # pyre-ignore[16]: `CursorKind` has no attribute `FUNCTION_DECL`.
+        # pyrefly: ignore [missing-attribute]
         kind = CursorKind.FUNCTION_DECL
     elif kind_str == "typedef":
-        # pyre-ignore[16]: `CursorKind` has no attribute `TYPEDEF_DECL`.
+        # pyrefly: ignore [missing-attribute]
         kind = CursorKind.TYPEDEF_DECL
     elif kind_str == "var":
-        # pyre-ignore[16]: `CursorKind` has no attribute `VAR_DECL`.
+        # pyrefly: ignore [missing-attribute]
         kind = CursorKind.VAR_DECL
     elif kind_str == "struct":
-        # pyre-ignore[16]: `CursorKind` has no attribute `STRUCT_DECL`.
+        # pyrefly: ignore [missing-attribute]
         kind = CursorKind.STRUCT_DECL
     elif kind_str == "enum":
-        # pyre-ignore[16]: `CursorKind` has no attribute `ENUM_DECL`.
+        # pyrefly: ignore [missing-attribute]
         kind = CursorKind.ENUM_DECL
     else:
         raise Exception(f"Unknown kind: {kind_str}")
@@ -277,8 +277,7 @@ class TemplateFileProcessor:
                         ]
                         # Overwrite earlier declarations; the last one is the
                         # function definition.
-                        # pyre-fixme[6]: For 2nd argument expected `List[str]` but
-                        #  got `str`.
+                        # pyrefly: ignore [unsupported-operation]
                         self.decls[source_file][name] = content
 
     def _generate_output(self) -> None:

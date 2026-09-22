@@ -20,7 +20,6 @@ from collections import defaultdict
 from typing import Iterable
 
 
-# pyre-ignore[2]: Parameter `**kwargs` has no type specified.
 def run(cmd: list[str], **kwargs) -> str:
     """Capture stdout, let stderr be displayed to show progress."""
     result = subprocess.Popen(cmd, text=True, stdout=subprocess.PIPE, **kwargs)

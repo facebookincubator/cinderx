@@ -137,8 +137,9 @@ TCallable = TypeVar("TCallable", bound=Callable)
 def callable_file_loader(
     loader: tuple[Callable[[str, str], Loader], list[str]],
 ) -> Generator[None, None, None]:
-    # pyre-ignore[6]: Callable[[str, str], Loader] acts just like type[Loader], but they
+    # Callable[[str, str], Loader] acts just like type[Loader], but they
     # are different types.
+    # pyrefly: ignore [bad-argument-type]
     with file_loader(loader):
         yield
 
@@ -310,11 +311,11 @@ class StrictLoaderTest(StrictTestBase):
 
     @skip_unless_lazy_imports()
     def test_with_lazy_imports_failed_invoke(self) -> None:
-        # pyre-ignore[16]: no such attribute
+        # pyrefly: ignore [missing-attribute]
         enabled = importlib.is_lazy_imports_enabled()
         try:
             if not enabled:
-                # pyre-ignore[16]: no such attribute
+                # pyrefly: ignore [missing-attribute]
                 importlib.set_lazy_imports(True)
             self.sbx.write_file(
                 "a.py",
@@ -351,7 +352,7 @@ class StrictLoaderTest(StrictTestBase):
                     self.assertEqual(a.f1(), 42)
         finally:
             if not enabled:
-                # pyre-ignore[16]: no such attribute
+                # pyrefly: ignore [missing-attribute]
                 importlib.set_lazy_imports(False)
 
     def test_strict_second_import(self) -> None:

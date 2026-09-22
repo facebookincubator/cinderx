@@ -37,13 +37,13 @@ class CountCallsTest(unittest.TestCase):
     @passUnless(JIT_ENABLED, "Stubs don't check argument types")
     def test_bad_args(self) -> None:
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentionally checking runtime behavior.
+            # pyrefly: ignore [bad-argument-type]
             count_interpreted_calls(None)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentionally checking runtime behavior.
+            # pyrefly: ignore [bad-argument-type]
             count_interpreted_calls(5)
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentionally checking runtime behavior.
+            # pyrefly: ignore [bad-argument-type]
             count_interpreted_calls("huh")
         with self.assertRaises(TypeError):
             count_interpreted_calls(count_interpreted_calls)

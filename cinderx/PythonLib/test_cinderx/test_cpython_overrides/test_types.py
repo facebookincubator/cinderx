@@ -20,7 +20,7 @@ class CinderX_UnionTests(unittest.TestCase):
         for _ in range(1000):
             T = typing.TypeVar("T")
             U = int | list[T]
-            # pyre-ignore[16]: TypeVar doesn't have blah
+            # pyrefly: ignore [missing-attribute]
             T.blah = U
             del T
             del U

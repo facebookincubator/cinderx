@@ -32,11 +32,11 @@ def main() -> None:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
     # Importing these modules triggers JIT compilation of all their functions.
-    import binary_trees  # pyre-ignore[21]
-    import fannkuch  # pyre-ignore[21]
-    import nbody  # pyre-ignore[21]
-    import richards  # pyre-ignore[21]
-    import spectral_norm  # pyre-ignore[21]
+    import binary_trees  # pyrefly: ignore [missing-import]
+    import fannkuch  # pyrefly: ignore [missing-import]
+    import nbody  # pyrefly: ignore [missing-import]
+    import richards  # pyrefly: ignore [missing-import]
+    import spectral_norm  # pyrefly: ignore [missing-import]
 
     # Suppress unused import warnings.
     _ = (binary_trees, fannkuch, nbody, richards, spectral_norm)

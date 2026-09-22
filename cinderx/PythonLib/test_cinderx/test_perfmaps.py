@@ -7,7 +7,7 @@ import unittest
 from cinderx.test_support import passUnless
 
 try:
-    # pyre-ignore[21]: can't find _testinternalcapi
+    # pyrefly: ignore [missing-import]
     from _testinternalcapi import perf_map_state_teardown, write_perf_map_entry
 
     _HAVE_PERF_MAP_UTILS = True

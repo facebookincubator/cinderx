@@ -69,7 +69,7 @@ class FlagTests(CompilerTest):
         from __future__ import barry_as_FLUFL
         def f(): pass"""
         )["f"]
-        # pyre-ignore[16]: Pyre doesn't recognize this flag.
+        # pyrefly: ignore [missing-attribute]
         barry_bdfl = __future__.CO_FUTURE_BARRY_AS_BDFL
         self.assertEqual(
             f.__code__.co_flags,

@@ -7,7 +7,7 @@ from __future__ import annotations
 import operator
 from typing import cast
 
-# pyre-fixme[21]: Could not find name `INTRINSIC_1` in `cinderx.compiler.opcodes`.
+# pyrefly: ignore [missing-module-attribute]
 from .opcodes import find_op_idx, INTRINSIC_1
 from .optimizer import PyLimits, safe_lshift, safe_mod, safe_multiply, safe_power
 
@@ -725,11 +725,11 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
     def skip_nops(self, next_block: Block, lineno: int) -> bool:
         next_lineno = -1
         for next_instr in next_block.insts:
-            # pyre-ignore[16]: no lineno
+            # pyrefly: ignore [missing-attribute]
             if next_instr.opname == "NOP" and next_instr.loc.lineno < 0:
                 # Skip over NOPs without a location, they will be removed
                 continue
-            # pyre-ignore[16]: no lineno
+            # pyrefly: ignore [missing-attribute]
             next_lineno = next_instr.loc.lineno
         return lineno == next_lineno
 
@@ -920,7 +920,7 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
         if (
             next_instr.opname == "STORE_FAST"
             and next_instr.ioparg == instr.ioparg
-            # pyre-ignore[16]: `Instruction` has no attribute `loc`.
+            # pyrefly: ignore [missing-attribute]
             and next_instr.loc.lineno == instr.loc.lineno
         ):
             instr.opname = "POP_TOP"

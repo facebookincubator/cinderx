@@ -19,13 +19,13 @@ def _copy_attrs(src: ast.AST, dest: ast.AST) -> None:
     """
     Copies line and column info from one node to another.
     """
-    # pyre-fixme[16]: `AST` has no attribute `lineno`.
+    # pyrefly: ignore [missing-attribute]
     dest.lineno = src.lineno
-    # pyre-fixme[16]: `AST` has no attribute `end_lineno`.
+    # pyrefly: ignore [missing-attribute]
     dest.end_lineno = src.end_lineno
-    # pyre-fixme[16]: `AST` has no attribute `col_offset`.
+    # pyrefly: ignore [missing-attribute]
     dest.col_offset = src.col_offset
-    # pyre-fixme[16]: `AST` has no attribute `end_col_offset`.
+    # pyrefly: ignore [missing-attribute]
     dest.end_col_offset = src.end_col_offset
 
 

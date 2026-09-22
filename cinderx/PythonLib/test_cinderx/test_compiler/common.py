@@ -155,7 +155,7 @@ class CompilerTest(TestCase):
 
     def assertBinOpInBytecode(self, x: Disassembleable, binop: str) -> None:
         binop = "NB_" + binop.removeprefix("BINARY_")
-        # pyre-fixme[21]: Could not find name `_nb_ops` in `opcode` (stubbed).
+        # pyrefly: ignore [missing-module-attribute]
         from opcode import _nb_ops
 
         for i, (name, _sign) in enumerate(_nb_ops):
@@ -309,7 +309,7 @@ class ExceptionTableEntry:
 
     @classmethod
     def from_dis_entry(cls, e: object) -> ExceptionTableEntry:
-        # pyre-ignore[16]: No visibility into result of dis._parse_exception_table().
+        # pyrefly: ignore [missing-attribute]
         return cls(e.start, e.end, e.target, e.depth, e.lasti)
 
 
@@ -320,7 +320,7 @@ class ParsedExceptionTable:
     @classmethod
     def from_bytes(cls, exc_table: bytes) -> ParsedExceptionTable:
         code = _FakeCodeType(exc_table)
-        # pyre-ignore[16]: Undefined attribute dis._parse_exception_table
+        # pyrefly: ignore [missing-attribute]
         parsed_table = dis._parse_exception_table(code)
         entries = [ExceptionTableEntry.from_dis_entry(e) for e in parsed_table]
         return cls(entries)
@@ -334,7 +334,7 @@ class ParsedExceptionTable:
             if not (m := re.match(DIS_EXC_RE, line)):
                 raise ValueError(f"Invalid exception table entry: {line}")
             args = [int(m.group(x)) for x in range(1, 5)] + [bool(m.group(5))]
-            # pyre-ignore[6]: for 5th positional argument, expected `bool` but got `int`.
+            # pyrefly: ignore [bad-argument-type]
             e = ExceptionTableEntry(*args)
             # NOTE: From the you-have-died-of-dis-entry-dept...
             # When dis displays the exception table entry, it subtracts 2 from

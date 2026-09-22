@@ -36,8 +36,9 @@ def install() -> None:
         return
 
     try:
-        # pyre-ignore[21]: _cinderx is only importable where CinderX is
-        # supported, which is the only place install() is called.
+        # _cinderx is only importable where CinderX is supported, which is the
+        # only place install() is called.
+        # pyrefly: ignore [missing-import]
         from _cinderx import _next_or_sentinel, _NEXT_SENTINEL
     except ImportError:
         return
@@ -46,13 +47,14 @@ def install() -> None:
     # (which is version-specific and left unchanged here).
     original_exit = contextlib._GeneratorContextManager.__exit__
 
-    # pyre-ignore[8]: Monkeypatching the stdlib method; the replacement is
-    # behaviorally compatible but its unparameterized self type does not match
-    # the generic method slot.
+    # Monkeypatching the stdlib method; the replacement is behaviorally
+    # compatible but its unparameterized self type does not match the generic
+    # method slot.
+    # pyrefly: ignore [bad-argument-type]
     @wraps(original_exit)
     def __exit__(
-        # pyre-ignore[24]: The generic arity of _GeneratorContextManager
-        # differs across Python versions; leave it unparameterized.
+        # The generic arity of _GeneratorContextManager differs across Python
+        # versions; leave it unparameterized.
         self: contextlib._GeneratorContextManager,
         typ: type[BaseException] | None,
         value: BaseException | None,
@@ -71,7 +73,8 @@ def install() -> None:
 
     _patched_exit = __exit__
 
-    # pyre-ignore[8]: Monkeypatching the stdlib method; the replacement is
-    # behaviorally compatible but its unparameterized self type does not match
-    # the generic method slot.
+    # Monkeypatching the stdlib method; the replacement is behaviorally
+    # compatible but its unparameterized self type does not match the generic
+    # method slot.
+    # pyrefly: ignore [bad-assignment]
     contextlib._GeneratorContextManager.__exit__ = __exit__

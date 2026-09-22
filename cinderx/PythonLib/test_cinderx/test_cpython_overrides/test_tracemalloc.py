@@ -10,7 +10,7 @@ import unittest
 from cinderx.test_support import passIf
 
 try:
-    # pyre-ignore[21]: can't find _testcapi
+    # pyrefly: ignore [missing-import]
     import _testcapi
 except ImportError:
     _testcapi: None | types.ModuleType = None
@@ -74,7 +74,7 @@ def create_snapshots() -> tuple[tracemalloc.Snapshot, tracemalloc.Snapshot]:
 
 def frame(filename: str, lineno: int) -> object:
     # pyrefly: ignore [missing-attribute]
-    # pyre-ignore[16]: `tracemalloc` has no attribute `_Frame`.
+    # pyrefly: ignore [missing-attribute]
     return tracemalloc._Frame((filename, lineno))
 
 

@@ -27,7 +27,7 @@ class LoadMethodEliminationTest(unittest.TestCase):
         # decorator) is what triggers the crash, before the function ever runs.
         @failUnlessJITCompiled
         def call_unknown() -> object:
-            # pyre-ignore[16]: The missing method is the whole point.
+            # pyrefly: ignore [missing-attribute]
             return _IMMUTABLE_HEAP_CONST.this_method_does_not_exist()
 
         # Compilation survived. The optimization correctly bails on the

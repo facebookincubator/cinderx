@@ -37,7 +37,7 @@ def make_tree(depth: int) -> TreeNode:
 def check_tree(node: TreeNode) -> int:
     if node.left is None:
         return 1
-    # pyre-ignore[6]: Subtrees have to be non-None.
+    # pyrefly: ignore [bad-argument-type]
     return 1 + check_tree(node.left) + check_tree(node.right)
 
 

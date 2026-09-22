@@ -4,7 +4,7 @@ import sys
 
 from .test_api import ApiTests
 
-# pyre-ignore[21]: test_code_sbs not found (not included in buck test build)
+# pyrefly: ignore [missing-import]
 from .test_code_sbs import CodeTests
 from .test_errors import ErrorTests, ErrorTestsBuiltin
 from .test_exception_table import EncodingTests

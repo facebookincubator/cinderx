@@ -22,9 +22,7 @@ STATIC_OPNAMES: list[str] = [f"<{i}>" for i in range(256)]
 STATIC_CONST_OPCODES: list[int] = []
 
 if sys.version_info >= (3, 12):
-    # pyre-fixme[21]: Could not find name `_cache_format` in `opcode` (stubbed).
-    # pyre-fixme[21]: Could not find name `_inline_cache_entries` in `opcode` (stubbed).
-    # pyre-fixme[21]: Could not find name `_specializations` in `opcode` (stubbed).
+    # pyrefly: ignore [missing-module-attribute]
     from opcode import _cache_format, _inline_cache_entries, _specializations, hasarg
 
     if sys.version_info >= (3, 15):
@@ -72,7 +70,7 @@ if sys.version_info >= (3, 12):
         # pyrefly: ignore [missing-attribute]
         dis._empty_slot = [
             slot
-            # pyre-fixme[16]: Module `dis` has no attribute `_all_opname`.
+            # pyrefly: ignore [missing-attribute]
             for slot, name in enumerate(dis._all_opname)
             if name.startswith("<")
         ]

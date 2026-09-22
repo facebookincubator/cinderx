@@ -51,7 +51,7 @@ class SymbolVisitorTests(CompilerTest):
             module = ast.parse(stmt)
             visitor = SymbolVisitor(0)
             visitor.visit(module)
-            # pyre-ignore[16]: `_ast.stmt` has no attribute `value`.
+            # pyrefly: ignore [missing-attribute]
             gen = module.body[0].value
             self.assertIn("foo", visitor.scopes[gen].defs)
 

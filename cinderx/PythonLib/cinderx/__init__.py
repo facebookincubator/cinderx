@@ -223,16 +223,14 @@ except ImportError as e:
 
         def __init__(
             self,
-            # pyre-fixme[31]: Expression `typing.Callable[(_TParams,
-            #  typing.Awaitable[_T])]` is not a valid type.
+            # pyrefly: ignore [bad-specialization]
             coro_func: Callable[_TParams, Awaitable[_T]],
-            # pyre-fixme[11]: Annotation `args` is not defined as a type.
+            # pyrefly: ignore [missing-attribute]
             *args: _TParams.args,
-            # pyre-fixme[11]: Annotation `kwargs` is not defined as a type.
+            # pyrefly: ignore [missing-attribute]
             **kwargs: _TParams.kwargs,
         ) -> None:
-            # pyre-fixme[31]: Expression `typing.Optional[typing.Callable[(_TParams,
-            #  typing.Awaitable[_T])]]` is not a valid type.
+            # pyrefly: ignore [bad-specialization]
             self.coro_func: Optional[Callable[_TParams, Awaitable[_T]]] = coro_func
             self.args: Tuple[object, ...] = args
             self.kwargs: Dict[str, object] = kwargs
@@ -286,8 +284,7 @@ except ImportError as e:
 
         def __await__(self) -> Generator[None, None, _T]:
             if self.state == _AsyncLazyValueState.Done:
-                # pyre-ignore[7]: Expected `Generator[None, None, Variable[_T](covariant)]`
-                # but got `_AsyncLazyValue[Variable[_T](covariant)]`.
+                # pyrefly: ignore [bad-return]
                 return self
             elif self.state == _AsyncLazyValueState.Running:
                 c = self._get_future(None)
@@ -309,8 +306,7 @@ except ImportError as e:
                     loop = asyncio.get_running_loop()
                 t = loop.create_task(self._async_compute())
                 self.state = _AsyncLazyValueState.Running
-                # pyre-ignore[16]: Undefined attribute `asyncio.tasks.Task`
-                # has no attribute `_source_traceback`.
+                # pyrefly: ignore [missing-attribute]
                 if t._source_traceback:
                     # pyrefly: ignore [unsupported-operation]
                     del t._source_traceback[-1]
@@ -430,7 +426,7 @@ except ImportError as e:
                     raise TypeError(
                         "slot can't be used with subtypes of cached_property"
                     )
-                # pyre-ignore[4]: Missing attribute annotation for __class__
+                # pyrefly: ignore [bad-argument-type]
                 self.__class__ = cached_property_with_descr
 
     class cached_property_with_descr(cached_property[_TClass, _TReturnType]):

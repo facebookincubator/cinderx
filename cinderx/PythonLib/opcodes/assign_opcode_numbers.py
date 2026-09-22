@@ -147,11 +147,11 @@ def build_size_map() -> dict[int, list[int]]:
     size_by_name: dict[str, int] = {}
 
     def add_one(name: str, size_from: str) -> None:
-        # pyre-ignore[16]: unknown attribute
+        # pyrefly: ignore [missing-attribute]
         size_by_name[name] = opcode._inline_cache_entries.get(size_from, 0)
 
     # First add the specialized opcodes based upon their parent
-    # pyre-ignore[16]: unknown attribute
+    # pyrefly: ignore [missing-attribute]
     for op, specializations in opcode._specializations.items():
         add_one(op, op)
         for specialization in specializations:

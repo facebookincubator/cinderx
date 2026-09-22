@@ -49,11 +49,11 @@ class OverlappingPreloadTests(unittest.TestCase):
             self.assertTrue(release_b.wait(30))
             return int
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def a(x: annotation_a()) -> int:
             return x + 1
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def b(x: annotation_b()) -> int:
             return x + 2
 
@@ -106,7 +106,7 @@ class OverlappingPreloadTests(unittest.TestCase):
             func.__code__ = replacement.__code__
             return int
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def func(x: annotation()) -> int:
             return x + 1
 

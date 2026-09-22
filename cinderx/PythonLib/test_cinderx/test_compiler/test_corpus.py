@@ -51,7 +51,6 @@ def add_test(modname: str, fname: str) -> None:
                 origdump.getvalue().split("\n"), newdump.getvalue().split("\n")
             )
 
-    # pyre-ignore[16]: Callable `test_corpus` has no attribute `__name__`.
     test_corpus.__name__ = "test_" + modname.replace("/", "_")[:-3]
     test_corpus = skip_test_if_oss("test_corpus not supported on OSS builds")(
         test_corpus

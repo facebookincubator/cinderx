@@ -677,7 +677,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
 
         self.declare_local(node.name, res)
 
-    # pyre-ignore[11]: Annotation `NodeWithTypeParams` is not defined as a type
+    # pyrefly: ignore [not-a-type]
     def _visitTypeParams(self, node: NodeWithTypeParams) -> None:
         if hasattr(node, "type_params"):
             for t in node.type_params:
@@ -699,7 +699,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
     def get_type(self, node: AST) -> Value:
         if self.nodes_default_dynamic:
             return self.module.types.get(node, self.type_env.DYNAMIC)
-        # pyre-fixme[16]: `AST` has no attribute `lineno`.
+        # pyrefly: ignore [missing-attribute]
         assert node in self.module.types, f"node not found: {node}, {node.lineno}"
         return self.module.types[node]
 

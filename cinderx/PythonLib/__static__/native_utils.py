@@ -54,7 +54,7 @@ def _create_args(
         except KeyError as e:
             raise RuntimeError(f"Unsupported primitive type: {descr}") from e
         else:
-            # pyre-ignore[29]: object is not callable
+            # pyrefly: ignore [not-callable]
             call_args.append(ctypes_type(arg))
     return call_args
 

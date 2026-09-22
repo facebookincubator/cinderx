@@ -141,8 +141,7 @@ class Compiler(StaticCompiler):
 
         if name not in self.modules:
             if flags.is_static:
-                # pyre-fixme[6]: For 1st argument expected `str` but got
-                #  `Union[bytes, str]`.
+                # pyrefly: ignore [bad-argument-type]
                 symbols = symtable.symtable(source, filename, "exec")
                 root = pyast
 
@@ -200,9 +199,9 @@ class Compiler(StaticCompiler):
         override_flags: Flags | None = None,
     ) -> tuple[CodeType | None, bool, bool]:
         pyast = ast.parse(source)
-        # pyre-fixme[6]: For 1st argument expected `str` but got `Union[bytes, str]`.
+        # pyrefly: ignore [bad-argument-type]
         symbols = symtable.symtable(source, filename, "exec")
-        # pyre-fixme[6]: For 1st argument expected `Flag` but got `Optional[Flags]`.
+        # pyrefly: ignore [bad-argument-type]
         flags = self.get_flags(name, pyast, override_flags)
 
         if not flags.is_static and not flags.is_strict:

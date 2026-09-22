@@ -22,7 +22,7 @@ if hasattr(dis, "_specialized_instructions"):
         index for index, name in enumerate(_all_opnames) if name.startswith("<")
     ]
 
-    # pyre-ignore
+    # pyrefly: ignore [missing-attribute]
     for index, name in zip(_specialized_indices, dis._specialized_instructions):
         _all_opnames[index] = name
 

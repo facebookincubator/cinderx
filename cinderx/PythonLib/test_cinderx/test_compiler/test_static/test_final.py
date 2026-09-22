@@ -613,7 +613,7 @@ class FinalTests(StaticTestBase):
             class D(mod.C):
                 pass
 
-            # pyre-ignore[16]: Pyre doesn't know about __final_method_names__.
+            # pyrefly: ignore [missing-attribute]
             self.assertEqual(D.__final_method_names__, ("foo",))
 
     def test_final_method_nonstatic_override_throws_runtime_type_error(self) -> None:
@@ -744,8 +744,9 @@ class FinalTests(StaticTestBase):
                 class D(mod.C):
                     pass
 
-                # pyre-ignore[16]: Intentionally trying to override final method `foo`
+                # Intentionally trying to override final method `foo`
                 # to see the exception get thrown.
+                # pyrefly: ignore [missing-attribute]
                 D.foo = lambda self: 0
 
     def test_updating_slot_of_final_method_in_base_class_succeeds(

@@ -5,7 +5,7 @@ import gc
 import sys
 import unittest
 
-# pyre-ignore
+# pyrefly: ignore [missing-import]
 # this must be in globals for JIT to see
 from re._constants import BIGCHARSET
 

@@ -159,9 +159,9 @@ def trace(a):
 TASKTABSIZE: Final[int] = 10
 
 
-class TaskWorkArea(object):
+class TaskWorkArea:
     def __init__(self) -> None:
-        # pyre-ignore[8]: Pyre confused on list[Task | None] vs list[None].
+        # pyrefly: ignore [bad-assignment]
         self.taskTab: List[Task | None] = [None] * TASKTABSIZE
 
         self.taskList: Task | None = None

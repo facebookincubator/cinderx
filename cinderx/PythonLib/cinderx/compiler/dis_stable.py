@@ -103,10 +103,10 @@ def _disassemble_bytes(
             line_offset=line_offset,
         )
     elif sys.version_info >= (3, 12):
-        # pyre-fixme[16]: Module `dis` has no attribute `_get_instructions_bytes`.
+        # pyrefly: ignore [missing-attribute]
         instr_bytes = _dis._get_instructions_bytes(
             code,
-            # pyre-fixme[16]: `Optional` has no attribute `__getitem__`.
+            # pyrefly: ignore [unsupported-operation]
             lambda oparg: localsplusnames[oparg],
             names,
             constants,
@@ -248,8 +248,7 @@ class Disassembler:
             print("co_exceptiontable:", co.co_exceptiontable, file=file)
             print("exception table: ", file=file)
             print(
-                # pyre-fixme[16]: Module `dis` has no attribute
-                #  `_parse_exception_table`.
+                # pyrefly: ignore [missing-attribute]
                 "\n".join("    " + str(x) for x in _dis._parse_exception_table(co)),
                 file=file,
             )

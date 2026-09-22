@@ -15,7 +15,7 @@ from cinderx.compiler.strict.flag_extractor import Flags
 from cinderx.compiler.symbols import SymbolVisitor
 
 
-# pyre-ignore[39]: Compiler is final
+# pyrefly: ignore [invalid-inheritance]
 class PyreflyCompiler(Compiler):
     def __init__(
         self,
@@ -91,7 +91,7 @@ class PyreflyCompiler(Compiler):
 
         return tree
 
-    # pyre-ignore[14]: Pyre thinks the `compiler: Compiler` argument is inconsistent
+    # pyrefly: ignore [bad-override]
     def make_type_binder(
         self,
         symbols: SymbolVisitor,

@@ -603,7 +603,6 @@ class ContextDecoratorTests(StaticTestBase):
                 exit_called = True
 
         loop = asyncio.new_event_loop()
-        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         fut: asyncio.Future = asyncio.Future(loop=loop)
 
         @C()
@@ -652,7 +651,6 @@ class ContextDecoratorTests(StaticTestBase):
                 exit_called = True
 
         loop = asyncio.new_event_loop()
-        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         fut: asyncio.Future = asyncio.Future(loop=loop)
 
         @C()
@@ -827,7 +825,6 @@ class ContextDecoratorTests(StaticTestBase):
                 return True
 
         loop = asyncio.new_event_loop()
-        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         fut: asyncio.Future = asyncio.Future(loop=loop)
 
         @C()
@@ -865,7 +862,6 @@ class ContextDecoratorTests(StaticTestBase):
                 return True
 
         loop = asyncio.new_event_loop()
-        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         fut: asyncio.Future = asyncio.Future(loop=loop)
 
         @C()
@@ -948,7 +944,6 @@ class ContextDecoratorTests(StaticTestBase):
         class C(ContextDecorator):
             pass
 
-        # pyre-ignore: Too hard to type decorator.
         def dec(f):
             f.bar = "abc"
             return f
@@ -1012,7 +1007,6 @@ class ContextDecoratorTests(StaticTestBase):
 
         loop = asyncio.new_event_loop()
         try:
-            # pyre-ignore[1001]: Intentionally calling generator methods manually.
             fut: asyncio.Future = asyncio.Future(loop=loop)
 
             @C()

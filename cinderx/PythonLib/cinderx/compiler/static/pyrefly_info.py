@@ -73,10 +73,10 @@ class LocationInfo:
     @classmethod
     def from_node(cls, node: AST) -> Self:
         return cls(
-            start_line=node.lineno,  # pyre-ignore[16]
-            start_col=node.col_offset,  # pyre-ignore[16]
-            end_line=node.end_lineno,  # pyre-ignore[16]
-            end_col=node.end_col_offset,  # pyre-ignore[16]
+            start_line=node.lineno,  # pyrefly: ignore [missing-attribute]
+            start_col=node.col_offset,  # pyrefly: ignore [missing-attribute]
+            end_line=node.end_lineno,  # pyrefly: ignore [missing-attribute]
+            end_col=node.end_col_offset,  # pyrefly: ignore [missing-attribute]
         )
 
 
@@ -98,9 +98,8 @@ class PyreflyTypeInfo:
         for entry in data["locations"]:
             key = LocationInfo.from_location(entry["loc"])
             if "contextual_type" in entry:
-                # pyre-fixme[6]: For 2nd argument expected `int` but got `Location`.
-                # pyre-fixme[27]: TypedDict `LocationEntry` has no key
-                #  `contextual_type`.
+                # pyrefly: ignore [unsupported-operation]
+                # pyrefly: ignore [bad-typed-dict-key]
                 self._locations[key] = entry["contextual_type"]
             else:
                 self._locations[key] = entry["type"]
@@ -136,7 +135,7 @@ class PyreflyTypeInfo:
         entry = self._type_table[type_index]
         # Try non-types
         if entry["kind"] == "bound_method":
-            # pyre-ignore[27]: We need a more elaborate type declaration to represent tagged union data layout
+            # pyrefly: ignore [bad-typed-dict-key]
             defining_class_qname = str(entry["defining_class"])
             resolved_class = self.resolve_classname(
                 defining_class_qname, modules, type_env
@@ -182,8 +181,7 @@ class PyreflyTypeInfo:
             elif entry["qname"] == "typing.Type":
                 args = entry.get("args", [])
                 if args:
-                    # pyre-fixme[16]: Item `object` of `list[Any] | object` has no
-                    #  attribute `__getitem__`.
+                    # pyrefly: ignore [bad-index]
                     inner_entry = self._type_table[args[0]]
                     if inner_entry["kind"] == "class":
                         qname = str(inner_entry["qname"])
@@ -196,8 +194,7 @@ class PyreflyTypeInfo:
             elif entry["qname"] in ("typing.Optional", "typing.Union"):
                 args = entry.get("args", [])
                 resolved_args: list[Class] = []
-                # pyre-fixme[16]: Item `object` of `list[Any] | object` has no
-                #  attribute `__iter__`.
+                # pyrefly: ignore [not-iterable]
                 for arg_index in args:
                     arg_val = self.lookup_type(arg_index, modules, type_env)
                     if arg_val is None:
@@ -279,7 +276,7 @@ class PyreflyTypeInfo:
             # Walk any remaining parts (e.g. nested classes)
             for part in parts:
                 if isinstance(result, Class):
-                    # pyre-ignore[16]: `Class` has no attribute `get_child`
+                    # pyrefly: ignore [missing-attribute]
                     result = result.get_child(part, mod_name)
                 else:
                     return None

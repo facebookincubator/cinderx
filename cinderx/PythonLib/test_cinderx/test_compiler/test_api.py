@@ -33,7 +33,7 @@ class ApiTests(CompilerTest):
             "a: List[int] = []",
             "foo",
             "exec",
-            # pyre-fixme[16]: Module `__future__` has no attribute `CO_FUTURE_ANNOTATIONS`
+            # pyrefly: ignore [missing-attribute]
             __future__.CO_FUTURE_ANNOTATIONS,
         )
         self.assertInBytecode(code, "LOAD_CONST", "List[int]")

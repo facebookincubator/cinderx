@@ -7,7 +7,7 @@ import sys
 import unittest
 
 try:
-    # pyre-fixme[21]: Could not find name `shadowop` in `cinderx.opcode`.
+    # pyrefly: ignore [missing-module-attribute]
     from cinderx.opcode import shadowop
 except ImportError:
     if sys.version_info >= (3, 14):
@@ -189,11 +189,11 @@ class CinderX_DisTests(unittest.TestCase):
             ):
                 continue
             with self.subTest(opname=opname):
-                # pyre-ignore[16]: no attribute _OPNAME_WIDTH
+                # pyrefly: ignore [missing-attribute]
                 width = dis._OPNAME_WIDTH
                 if sys.version_info >= (3, 12):
                     if opcode in dis.hasarg:
-                        # pyre-fixme[16]: Module `dis` has no attribute `_OPARG_WIDTH`.
+                        # pyrefly: ignore [missing-attribute]
                         width += 1 + dis._OPARG_WIDTH
                 else:
                     if opcode < dis.HAVE_ARGUMENT:

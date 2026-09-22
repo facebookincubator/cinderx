@@ -8,7 +8,7 @@ import random
 from inspect import iscoroutinefunction
 from types import UnionType as typesUnion
 
-# pyre-ignore[21]: No _GenericAlias, _tp_cache
+# pyrefly: ignore [missing-module-attribute]
 from typing import (
     _GenericAlias,
     _tp_cache,
@@ -346,7 +346,7 @@ def _subs_tvars(
     """
     args = getattr(tp, "__args__", None)
     if args is None:
-        # pyre-ignore[7]: Expected `Type[object]` but got `typing.Tuple[Union[Type[object], TypeVar], ...]`.
+        # pyrefly: ignore [bad-return]
         return tp
 
     new_args = list(args)
@@ -355,10 +355,10 @@ def _subs_tvars(
             for i, tvar in enumerate(tvars):
                 if arg == tvar:
                     if (
-                        # pyre-ignore[16]: `object` has no attribute `__constraints__`.
+                        # pyrefly: ignore [missing-attribute]
                         tvar.__constraints__
                         and not isinstance(subs[i], TypeVar)
-                        # pyre-ignore[6]: In call `issubclass`, ...
+                        # pyrefly: ignore [bad-argument-type]
                         and not issubclass(subs[i], tvar.__constraints__)
                     ):
                         raise TypeError(
@@ -390,7 +390,7 @@ def _collect_type_vars(types: tuple[TVarOrType, ...]) -> tuple[TypeVar, ...]:
 def make_generic_type(
     gen_type: type[object], params: tuple[TypeVar | type[object], ...]
 ) -> Type[object]:
-    # pyre-ignore[16]: object has no attribute __parameters__
+    # pyrefly: ignore [missing-attribute]
     if len(params) != len(gen_type.__parameters__):
         raise TypeError(f"Incorrect number of type arguments for {gen_type.__name__}")
 
@@ -405,7 +405,7 @@ def make_generic_type(
 def _replace_types(
     gen_type: TVarOrType, subs: tuple[type[object], ...]
 ) -> type[object]:
-    # pyre-ignore[16]: object has no attribute __origin__
+    # pyrefly: ignore [missing-attribute]
     existing_inst = gen_type.__origin__.__insts__.get(subs)
 
     if existing_inst is not None:
@@ -421,7 +421,7 @@ def _replace_types(
 
     # Remove the existing StaticGeneric base...
     bases = tuple(
-        # pyre-ignore[16]: object has no attribute __orig_bases__
+        # pyrefly: ignore [missing-attribute]
         base
         for base in gen_type.__orig_bases__
         if not isinstance(base, StaticGeneric)
@@ -463,7 +463,6 @@ class StaticGeneric:
     classes share different generic types and the generic type arguments can
     be accessed via __args___"""
 
-    # pyre-ignore[16]: typing has no attribute _tp_cache
     @_tp_cache
     def __class_getitem__(
         cls, elem_type: tuple[TypeVar | type[object]]
@@ -480,7 +479,7 @@ class StaticGeneric:
         return set_type_static_final(make_generic_type(cls, elem_type))
 
     def __init_subclass__(cls) -> None:
-        # pyre-ignore[16]: StaticGeneric has no attribute __orig__bases__
+        # pyrefly: ignore [missing-attribute]
         type_vars = _collect_type_vars(cls.__orig_bases__)
         cls.__origin__ = cls
         cls.__parameters__ = type_vars
@@ -593,7 +592,7 @@ class ExcContextDecorator:
         return make_context_decorator_wrapper(self, _no_profile_inner, func)
 
 
-# pyre-ignore[16]: `Type` has no attribute `_recreate_cm`.
+# pyrefly: ignore [missing-attribute]
 ExcContextDecorator._recreate_cm = make_recreate_cm(ExcContextDecorator)
 set_type_static(ExcContextDecorator)
 

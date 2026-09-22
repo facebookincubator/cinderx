@@ -25,8 +25,8 @@ def format_oparg(instr: Instruction) -> str:
             return f"Block({instr.target.bid}, label={instr.target.label!r})"
         return f"Block({instr.target.bid})"
     elif isinstance(instr.oparg, (AnnotationsCodeHolder, CodeGenerator)):
-        # pyre-fixme[16]: `AST` has no attribute `lineno`.
-        # pyre-fixme[16]: `AST` has no attribute `col_offset`.
+        # pyrefly: ignore [missing-attribute]
+        # pyrefly: ignore [missing-attribute]
         return f"Code({instr.oparg.name!r})"
     elif isinstance(instr.oparg, (str, int, tuple, frozenset, type(None))):
         return repr(instr.oparg)
@@ -198,7 +198,7 @@ class CodeTests(CompilerTest):
             # TASK(T190611021): Handle methods and nested functions.
             for _, obj in graph.consts:
                 if inspect.iscode(obj) and obj.co_name == fn_name:
-                    # pyre-ignore[16]: `types.CodeType` has no attribute `co_exceptiontable`
+                    # pyrefly: ignore [missing-attribute]
                     actual = obj.co_exceptiontable
                     break
             else:
@@ -377,7 +377,6 @@ def add_test(modname: str, fname: str) -> None:
             for fn, table in exc.items():
                 self.check_exc_table(graph, fn, table)
 
-    # pyre-ignore[16]: Callable has no attribute __name__
     test_code.__name__ = "test_" + modname.replace("/", "_").replace(".", "_")[:-3]
     setattr(CodeTests, test_code.__name__, test_code)
 
@@ -485,8 +484,8 @@ class Code:
         if isinstance(self.loc, str):
             return self.loc == other.name
         elif isinstance(self.loc, tuple):
-            # pyre-fixme[16]: `AST` has no attribute `lineno`.
-            # pyre-fixme[16]: `AST` has no attribute `col_offset`.
+            # pyrefly: ignore [missing-attribute]
+            # pyrefly: ignore [missing-attribute]
             return self.loc == (other.tree.lineno, other.tree.col_offset)
         elif isinstance(self.loc, int):
             return self.loc == other.tree.lineno

@@ -14,10 +14,10 @@ from cinderx.test_support import has_cpython_test_package, passUnless
 _HAVE_CPYTHON_TESTS = has_cpython_test_package()
 
 if _HAVE_CPYTHON_TESTS:
-    # pyre-ignore[21]: can't find test.support
+    # pyrefly: ignore [missing-import]
     from test import support
 
-    # pyre-ignore[21]: can't find test.fork_wait
+    # pyrefly: ignore [missing-import]
     from test.fork_wait import ForkWait
 else:
     support = None
@@ -30,8 +30,9 @@ else:
     _HAVE_CPYTHON_TESTS and hasattr(os, "fork"),
     "needs fork() and CPython's test package",
 )
-# pyre-ignore[39]: the base class is whichever of the two above got bound,
+# the base class is whichever of the two above got bound,
 # and Pyre can't see either of them.
+# pyrefly: ignore [invalid-inheritance]
 class CinderX_ForkTest(ForkWait):
     def test_threaded_import_lock_fork(self) -> None:
         """Check fork() in main thread works while a subthread is doing an import"""

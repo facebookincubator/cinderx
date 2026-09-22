@@ -9,7 +9,7 @@ import cinderx.jit
 from cinderx.test_support import has_cpython_test_package, passIf, passUnless
 
 if has_cpython_test_package():
-    # pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
+    # pyrefly: ignore [missing-import]
     import test.test_gc as test_gc_module
 else:
     test_gc_module = None
@@ -75,7 +75,7 @@ if test_gc_module is not None:
             # Tests implementation details of serial collector
             def test_refcount_errors(self) -> None:
                 # necessary for tearDown to succeed
-                # pyre-ignore[16]: ParallelGCCallbackTests` has no attribute `visit`
+                # pyrefly: ignore [missing-attribute]
                 self.visit = None
 
     @passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")

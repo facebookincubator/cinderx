@@ -879,7 +879,9 @@ def cli(
             file=sys.stderr,
         )
         instance = WORKLOADS[name].build()
-        step: Callable[[], object] = instance.step  # pyre-ignore[16]
+        step: Callable[[], object] = (
+            instance.step  # pyrefly: ignore [missing-attribute]
+        )
         samples_ms = run(step, iterations, warmup, repeat)
         means[name] = print_results(
             name, warmup, iterations, repeat, enable_cinderx, samples_ms

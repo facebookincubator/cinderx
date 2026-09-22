@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-ignore-all-errors
+# pyrefly: ignore-errors
 
 # Vendored version of https://github.com/colesbury/fastmark with modifications
 # to work with cinderx

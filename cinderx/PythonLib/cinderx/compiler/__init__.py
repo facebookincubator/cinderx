@@ -27,7 +27,7 @@ from .pycodegen import CinderCodeGenerator, compile, compile_code, compileFile
 
 def make_static_instr(instr: dis.Instruction, co: object) -> dis.Instruction:
     if instr.opcode in STATIC_CONST_OPCODES:
-        # pyre-fixme[21]: Could not find name `_get_code_object` in `dis` (stubbed).
+        # pyrefly: ignore [missing-module-attribute]
         from dis import _get_code_object
 
         return dis.Instruction(

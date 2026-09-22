@@ -186,7 +186,7 @@ class AstOptimizer(ASTRewriter):
 
     def makeConstTuple(self, elts: Iterable[ast.expr]) -> Constant | None:
         if all(isinstance(elt, Constant) for elt in elts):
-            # pyre-ignore[16]: each elt is a constant at this point.
+            # pyrefly: ignore [missing-attribute, bad-argument-type]
             return Constant(tuple(elt.value for elt in elts))
 
         return None
@@ -195,7 +195,7 @@ class AstOptimizer(ASTRewriter):
         elts = self.walk_list(node.elts)
 
         if isinstance(node.ctx, ast.Load):
-            # pyre-ignore[6]: Can't type walk_list fully yet.
+            # pyrefly: ignore [bad-argument-type]
             res = self.makeConstTuple(elts)
             if res is not None:
                 return copy_location(res, node)
@@ -225,18 +225,17 @@ class AstOptimizer(ASTRewriter):
     def _visitIter(self, node: ast.expr) -> ast.expr:
         if isinstance(node, ast.List):
             elts = self.walk_list(node.elts)
-            # pyre-ignore[6]: Can't type walk_list fully yet.
+            # pyrefly: ignore [bad-argument-type]
             res = self.makeConstTuple(elts)
             if res is not None:
                 return copy_location(res, node)
             if not any(isinstance(e, ast.Starred) for e in elts):
-                # pyre-fixme[6]: For 1st argument expected `List[expr]` but got
-                #  `Sequence[expr]`.
+                # pyrefly: ignore [bad-argument-type]
                 return copy_location(ast.Tuple(elts=elts, ctx=node.ctx), node)
             return self.update_node(node, elts=elts)
         elif isinstance(node, ast.Set):
             elts = self.walk_list(node.elts)
-            # pyre-ignore[6]: Can't type walk_list fully yet.
+            # pyrefly: ignore [bad-argument-type]
             res = self.makeConstTuple(elts)
             if res is not None:
                 # pyrefly: ignore [bad-argument-type]
@@ -272,7 +271,7 @@ class AstOptimizer(ASTRewriter):
         comparators = self.walk_list(node.comparators)
 
         if isinstance(node.ops[-1], (ast.In, ast.NotIn)):
-            # pyre-ignore[6]: Can't type walk_list fully yet.
+            # pyrefly: ignore [bad-argument-type]
             new_iter = self._visitIter(comparators[-1])
             if new_iter is not None and new_iter is not comparators[-1]:
                 comparators = list(comparators)

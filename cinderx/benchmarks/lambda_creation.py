@@ -67,7 +67,7 @@ def make_nested() -> object:
 
 def construct_and_call_nested(iterations: int) -> None:
     for _ in range(iterations):
-        # pyre-ignore[29]: the whole point is calling the fresh instance.
+        # pyrefly: ignore [not-callable]
         make_nested()(1)
 
 

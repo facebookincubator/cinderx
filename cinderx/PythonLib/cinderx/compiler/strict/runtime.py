@@ -6,7 +6,7 @@ from __future__ import annotations
 
 
 try:
-    # pyre-ignore[21]: Undefined import
+    # pyrefly: ignore [missing-module-attribute]
     from cinderx import freeze_type as cinder_freeze
 except ImportError:
     cinder_freeze = None

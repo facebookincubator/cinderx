@@ -1,5 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-ignore-all-errors
+# pyrefly: ignore-errors
 
 # This script exercises multi-threaded JIT compilation by importing a bunch of
 # things and then calling a magic function on the cinderx module to do a

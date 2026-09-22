@@ -94,14 +94,14 @@ class BatchPreloadTests(unittest.TestCase):
             b.__code__ = replacement.__code__
             return int
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def a(x: annotation()) -> int:
             def inner() -> int:
                 return 1
 
             return x + inner()
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def b(x: annotation()) -> int:
             def inner() -> int:
                 return 2
@@ -128,7 +128,7 @@ class BatchPreloadTests(unittest.TestCase):
         def annotation() -> type:
             raise RuntimeError("batch annotation failed")
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def func(x: annotation()) -> int:
             return x
 
@@ -159,7 +159,7 @@ class BatchPreloadTests(unittest.TestCase):
             func.__code__ = replacement.__code__
             return int
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def func(x: annotation()) -> int:
             return x
 

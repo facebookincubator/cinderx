@@ -13,7 +13,7 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     import sys
     from enum import Enum
 
-    # pyre-ignore[21]: typeshed doesn't know about this
+    # pyrefly: ignore [missing-module-attribute]
     from importlib import _bootstrap, _pack_uint32
     from importlib._bootstrap_external import (
         # pyrefly: ignore [missing-module-attribute]
@@ -464,7 +464,7 @@ class StrictSourceFileLoader(SourceFileLoader):
                     except (ImportError, EOFError):
                         pass
                     else:
-                        # pyre-ignore[16]: typeshed doesn't know about this
+                        # pyrefly: ignore [missing-attribute]
                         _bootstrap._verbose_message(
                             "{} matches {}", bytecode_path, source_path
                         )
@@ -477,7 +477,7 @@ class StrictSourceFileLoader(SourceFileLoader):
         if source_bytes is None:
             source_bytes = self.get_data(source_path)
         code_object = self.source_to_code(source_bytes, source_path)
-        # pyre-ignore[16]: typeshed doesn't know about this
+        # pyrefly: ignore [missing-attribute]
         _bootstrap._verbose_message("code object from {}", source_path)
         if (
             not sys.dont_write_bytecode
@@ -507,7 +507,7 @@ class StrictSourceFileLoader(SourceFileLoader):
                     len(source_bytes),
                 )
             try:
-                # pyre-ignore[16]: typeshed doesn't know about this
+                # pyrefly: ignore [missing-attribute]
                 self._cache_bytecode(source_path, bytecode_path, data)
             except NotImplementedError:
                 pass
@@ -768,7 +768,7 @@ def strict_compile(
             (invalidation_mode == PycInvalidationMode.CHECKED_HASH),
         )
 
-    # pyre-ignore[16]: typeshed doesn't know about this
+    # pyrefly: ignore [missing-attribute]
     loader._cache_bytecode(file, cfile, bytecode)
     return cfile
 

@@ -215,27 +215,27 @@ class Compiler:
             "map": self.type_env.DYNAMIC,
             "reversed": self.type_env.DYNAMIC,
             "zip": self.type_env.DYNAMIC,
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "abs": reflect_builtin_function(abs, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "all": reflect_builtin_function(all, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "any": reflect_builtin_function(any, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "anext": reflect_builtin_function(anext, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "ascii": reflect_builtin_function(ascii, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "bin": reflect_builtin_function(bin, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "breakpoint": reflect_builtin_function(breakpoint, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "callable": reflect_builtin_function(callable, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "chr": reflect_builtin_function(chr, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "compile": reflect_builtin_function(compile, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "dir": reflect_builtin_function(dir, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "divmod": reflect_builtin_function(divmod, None, self.type_env),
@@ -243,31 +243,31 @@ class Compiler:
             "eval": reflect_builtin_function(eval, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "exec": reflect_builtin_function(exec, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "format": reflect_builtin_function(format, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "hash": reflect_builtin_function(hash, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "hex": reflect_builtin_function(hex, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "id": reflect_builtin_function(id, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "input": reflect_builtin_function(input, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "iter": reflect_builtin_function(iter, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "next": reflect_builtin_function(next, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "oct": reflect_builtin_function(oct, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "open": reflect_builtin_function(open, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "ord": reflect_builtin_function(ord, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "pow": reflect_builtin_function(pow, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "print": reflect_builtin_function(print, None, self.type_env),
-            # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+            # pyrefly: ignore [bad-argument-type]
             "repr": reflect_builtin_function(repr, None, self.type_env),
             # pyrefly: ignore [bad-argument-type]
             "round": reflect_builtin_function(round, None, self.type_env),
@@ -425,7 +425,7 @@ class Compiler:
                 "PyDict": self.type_env.dict.exact_type(),
                 "RAND_MAX": rand_max.instance,
                 "rand": reflect_builtin_function(
-                    # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+                    # pyrefly: ignore [bad-argument-type]
                     rand,
                     None,
                     self.type_env,

@@ -11,8 +11,9 @@ if not (
     or importlib.util.find_spec("_cinderx") is None
 ):
     try:
-        # pyre-ignore[21]: The cinderx module is an optional dependency here, its
+        # The cinderx module is an optional dependency here, its
         # existence is confirmed in the if statement above.
+        # pyrefly: ignore [missing-import]
         import cinderx  # noqa: F401
     except Exception as e:
         raise RuntimeError("Failed to initialize CinderX module") from e

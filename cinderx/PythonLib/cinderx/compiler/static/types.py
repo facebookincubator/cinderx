@@ -649,7 +649,7 @@ class TypeEnvironment:
         instantiations[index] = concrete
         concrete.members.update(
             {
-                # pyre-ignore[6]: We trust that the type name is generic here.
+                # pyrefly: ignore [bad-argument-type]
                 k: v.make_generic(concrete, concrete.type_name, self)
                 for k, v in generic_type.members.items()
             }
@@ -2265,7 +2265,7 @@ class GenericClass(Class):
         for def_arg, self_arg, src_arg in zip(
             type_def.type_args, self.type_args, src.type_args
         ):
-            # pyre-fixme[16]: `Class` has no attribute `variance`.
+            # pyrefly: ignore [missing-attribute]
             variance = def_arg.variance
             if variance is Variance.INVARIANT:
                 if self_arg.is_subclass_of(src_arg) and src_arg.is_subclass_of(
@@ -2306,8 +2306,7 @@ class GenericClass(Class):
             type_name,
             self.type_env,
             bases,
-            # pyre-fixme[6]: Expected `Optional[Object[Class]]` for 3rd param but
-            #  got `Value`.
+            # pyrefly: ignore [bad-argument-type]
             instance,
             self.klass,
             {},
@@ -4088,7 +4087,7 @@ class Function(Callable[Class], FunctionContainer):
         idx = 0
         for idx, (argument, default) in enumerate(zip(posargs, defaults)):
             style = ParamStyle.POSONLY if idx < nposonly else ParamStyle.NORMAL
-            # pyre-fixme[6]: For 4th argument expected `expr` but got `Optional[expr]`.
+            # pyrefly: ignore [bad-argument-type]
             self.process_arg(module, idx, argument, default, style)
 
         base_idx = idx
@@ -4100,7 +4099,7 @@ class Function(Callable[Class], FunctionContainer):
 
         for argument, default in zip(arguments.kwonlyargs, arguments.kw_defaults):
             base_idx += 1
-            # pyre-fixme[6]: For 4th argument expected `expr` but got `Optional[expr]`.
+            # pyrefly: ignore [bad-argument-type]
             self.process_arg(module, base_idx, argument, default, ParamStyle.KWONLY)
 
         kwarg = arguments.kwarg
@@ -7510,7 +7509,7 @@ def parse_type(info: dict[str, object], type_env: TypeEnvironment) -> Class:
     optional = info.get("optional", False)
     type = info.get("type")
     if type:
-        # pyre-fixme[6]: For 1st argument expected `str` but got `object`.
+        # pyrefly: ignore [bad-argument-type]
         klass = type_env.name_to_type.get(type)
         if klass is None:
             raise NotImplementedError("unsupported type: " + str(type))
@@ -10256,7 +10255,7 @@ class ContextDecoratedMethod(DecoratedMethod):
         )
         call_recreate = ast.Call(load_recreate, [], [])
 
-        # pyre-fixme[6]: For 2nd argument expected `Optional[expr]` but got `List[_T]`.
+        # pyrefly: ignore [bad-argument-type]
         with_item = ast.copy_location(ast.withitem(call_recreate, []), body[0])
 
         with_statement = cast(ast.stmt, ast.With([with_item], body))

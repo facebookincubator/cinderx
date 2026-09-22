@@ -57,7 +57,7 @@ class PreloadTests(unittest.TestCase):
             outer.__code__ = outer_replacement.__code__
             return int
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def inner(x: inner_annotation_hook()) -> int:
             return x
 
@@ -65,7 +65,7 @@ class PreloadTests(unittest.TestCase):
             self.assertEqual(inner(42), 42)
             return int
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def outer(x: outer_annotation_hook()) -> int:
             return x + 1
 
@@ -114,7 +114,7 @@ class PreloadTests(unittest.TestCase):
             outer.__code__ = outer_replacement.__code__
             return int
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def inner(x: inner_annotation_hook()) -> int:
             return x
 
@@ -122,7 +122,7 @@ class PreloadTests(unittest.TestCase):
             self.assertEqual(inner(42), 42)
             return int
 
-        # pyre-ignore[11]: Intentional deferred annotation evaluation.
+        # pyrefly: ignore [invalid-annotation]
         def outer(x: outer_annotation_hook()) -> int:
             return x + 1
 
