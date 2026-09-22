@@ -253,7 +253,7 @@ BB %2 - preds: %0
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCondBranch));
 }
 
-TEST_F(LIRTargetSelectTest, DoesNotSelectBranchCCAcrossFlagClobber) {
+TEST_F(LIRTargetSelectTest, SelectsBranchCCAcrossFlagClobber) {
   const char* lir_input_str = R"(Function:
 BB %0 - succs: %1 %2
   %1:64bit = Move 1
@@ -272,18 +272,14 @@ BB %2 - preds: %0
   EXPECT_LIR_SEQUENCE(
       *lir_func,
       Query(*lir_func)
-          .opcode(Opcode::kCompare)
-          .condition(Condition::kEqual)
-          .outVreg(3)
-          .outType(DataType::k32bit),
-      Query(*lir_func)
           .opcode(Opcode::kAdd)
           .outVreg(4)
           .inVreg(0, 1)
           .inVreg(1, 2),
-      Query(*lir_func).opcode(Opcode::kCondBranch).inVreg(0, 3));
-  EXPECT_NO_LIR(
+      Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2),
       Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCondBranch));
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesSignedSubWordInputs) {
@@ -353,6 +349,28 @@ BB %0
   EXPECT_NO_LIR(Query(*lir_func)
                     .opcode(Opcode::kCompare)
                     .condition(Condition::kUnsignedLT));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kGuard));
+}
+
+TEST_F(LIRTargetSelectTest, SelectsA64GuardCCAcrossFlagClobber) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:64bit = Move 1
+  %2:64bit = Move 2
+  %3:8bit = LessThanUnsigned %1, %2
+  %4:64bit = Add %1, %2
+  Guard 4, 0, %3, 0
+  Return %1
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func).opcode(Opcode::kAdd).outVreg(4),
+      Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2),
+      Query(*lir_func).opcode(Opcode::kA64GuardCC));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kGuard));
 }
 
@@ -538,6 +556,32 @@ def func(x, y):
       Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
   EXPECT_NO_LIR(
       Query(*lir_func).opcode(Opcode::kCompare).condition(Condition::kEqual));
+}
+
+TEST_F(LIRTargetSelectTest, SelectsBranchCCAcrossAddFromStaticPython) {
+  const char* src = R"(
+from __static__ import int64
+
+def func(x: int64, y: int64) -> int64:
+  cond = x < y
+  value = x + y
+  if cond:
+    return value
+  return x
+)";
+
+  Ref<PyObject> pyfunc(compileStaticAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getSelectedLIRFunction(pyfunc.get());
+
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func).opcode(Opcode::kAdd),
+      Query(*lir_func).opcode(Opcode::kCmp),
+      Query(*lir_func)
+          .opcode(Opcode::kBranchCC)
+          .condition(Condition::kSignedLT));
 }
 #endif
 

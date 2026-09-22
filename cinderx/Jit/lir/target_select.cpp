@@ -121,6 +121,41 @@ bool flagsPreservedBetween(instr_iter_t begin, instr_iter_t end) {
   return true;
 }
 
+/* Ensure the flags set by a comparison reach its consumer. If an intervening
+ * instruction overwrites them, move the comparison immediately before the
+ * consumer when possible. */
+bool makeCompareFlagsAvailable(
+    BasicBlock* block,
+    instr_iter_t compare_iter,
+    instr_iter_t consumer_iter) {
+  if (flagsPreservedBetween(std::next(compare_iter), consumer_iter)) {
+    return true;
+  }
+
+  Instruction* compare = compare_iter->get();
+  for (size_t idx = 0; idx < compare->getNumInputs(); idx++) {
+    const Operand* operand = compare->getInput(idx);
+
+    /* Floating-point comparisons can update floating-point exception state, so
+     * moving them may change observable behavior. */
+    if (operand->isFp()) {
+      return false;
+    }
+
+    /* Linked operands retain their values when their live ranges are extended,
+     * and immediates are immutable. Other operands may target mutable
+     * locations, so moving them would have observable effects. */
+    if (!operand->isLinked() && !operand->isImm()) {
+      return false;
+    }
+  }
+
+  /* Move the comparison immediately before its consumer. */
+  block->instructions().splice(
+      consumer_iter, block->instructions(), compare_iter);
+  return true;
+}
+
 /* AArch64 GPR operations produce at least 32-bit results. Keep semantic
  * sub-32-bit types in generic LIR, then legalize them before register
  * allocation so codegen does not need to mask partial-register results.
@@ -362,10 +397,9 @@ void selectA64CondBranch(
     return;
   }
 
-  /* Check that the instructions between the compare and the conditional branch
-   * do not modify flags. */
+  /* Make the compare's flags available to the conditional branch. */
   instr_iter_t compare_iter = block->iterator_to(compare);
-  if (!flagsPreservedBetween(std::next(compare_iter), instr_iter)) {
+  if (!makeCompareFlagsAvailable(block, compare_iter, instr_iter)) {
     return;
   }
 
@@ -418,10 +452,9 @@ void selectA64Guard(
     return;
   }
 
-  /* Check that the instructions between the compare and the guard do not
-   * modify flags. */
+  /* Make the compare's flags available to the guard. */
   instr_iter_t compare_iter = block->iterator_to(compare);
-  if (!flagsPreservedBetween(std::next(compare_iter), instr_iter)) {
+  if (!makeCompareFlagsAvailable(block, compare_iter, instr_iter)) {
     return;
   }
 
