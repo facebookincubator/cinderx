@@ -1070,6 +1070,112 @@ def func(items):
   expectResumeEntryDispatchIsNotAnSSAPredecessor(pyfunc.get(), true);
 }
 
+TEST_F(LIRGeneratorTest, CastBuildsInlinedControlFlowDirectly) {
+  const char* pycode = R"(
+def func(x) -> int:
+  return x
+)";
+
+  Ref<PyObject> pyfunc(compileStaticAndGet(pycode, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+
+  Query exact_type_query(*lir_func);
+  exact_type_query.opcode(Opcode::kCompare)
+      .condition(Condition::kEqual)
+      .inDefOpcode(0, Opcode::kLoad)
+      .inDefOpcode(1, Opcode::kMove)
+      .inDefImm(1, 0, reinterpret_cast<uint64_t>(&PyLong_Type));
+  Query subtype_query(*lir_func);
+  subtype_query.opcode(Opcode::kCall)
+      .inAddr(0, reinterpret_cast<uint64_t>(PyType_IsSubtype));
+  Query error_query(*lir_func);
+  error_query.opcode(Opcode::kCVarArgCall)
+      .inAddr(0, reinterpret_cast<uint64_t>(PyErr_Format))
+      .inImm(1, 2)
+      .inType(1, DataType::k64bit)
+      .inImm(2, reinterpret_cast<uint64_t>(PyExc_TypeError))
+      .inType(2, DataType::kObject)
+      .inType(3, DataType::kObject)
+      .inDefOpcode(4, Opcode::kLoad)
+      .inDefOpcode(5, Opcode::kLoad);
+
+  Instruction* exact_type = nullptr;
+  Instruction* subtype = nullptr;
+  Instruction* error = nullptr;
+  for (BasicBlock* block : lir_func->basicBlocks()) {
+    for (auto& instruction : block->instructions()) {
+      if (exact_type_query.matches(*instruction)) {
+        exact_type = instruction.get();
+      } else if (subtype_query.matches(*instruction)) {
+        subtype = instruction.get();
+      } else if (error_query.matches(*instruction)) {
+        error = instruction.get();
+      }
+    }
+  }
+
+  ASSERT_NE(exact_type, nullptr) << lirFuncString(*lir_func);
+  ASSERT_NE(subtype, nullptr) << lirFuncString(*lir_func);
+  ASSERT_NE(error, nullptr) << lirFuncString(*lir_func);
+
+  Instruction* actual_type = exact_type->getInput(0)->getLinkedInstr();
+  Instruction* target_type = exact_type->getInput(1)->getLinkedInstr();
+  Instruction* value = actual_type->getInput(0)
+                           ->getMemoryIndirect()
+                           ->getBaseRegOperand()
+                           ->getLinkedInstr();
+  Instruction* target_name = error->getInput(4)->getLinkedInstr();
+  Instruction* actual_name = error->getInput(5)->getLinkedInstr();
+  EXPECT_EQ(
+      target_name->getInput(0)
+          ->getMemoryIndirect()
+          ->getBaseRegOperand()
+          ->getLinkedInstr(),
+      target_type);
+  EXPECT_EQ(
+      actual_name->getInput(0)
+          ->getMemoryIndirect()
+          ->getBaseRegOperand()
+          ->getLinkedInstr(),
+      actual_type);
+
+  BasicBlock* check_block = exact_type->basicBlock();
+  BasicBlock* success_block = check_block->getTrueSuccessor();
+  BasicBlock* subtype_block = check_block->getFalseSuccessor();
+  BasicBlock* failure_block = subtype_block->getFalseSuccessor();
+  ASSERT_EQ(subtype->basicBlock(), subtype_block);
+  EXPECT_EQ(subtype_block->getTrueSuccessor(), success_block);
+  EXPECT_EQ(error->basicBlock(), failure_block);
+  ASSERT_EQ(success_block->successors().size(), 1);
+  ASSERT_EQ(failure_block->successors().size(), 1);
+  BasicBlock* merge_block = success_block->successors().front();
+  ASSERT_EQ(failure_block->successors().front(), merge_block);
+  ASSERT_EQ(success_block->getNumInstrs(), 0);
+
+  Instruction* result = merge_block->getFirstInstr();
+  ASSERT_NE(result, nullptr);
+  ASSERT_TRUE(result->isPhi());
+  ASSERT_EQ(result->numPhiInputs(), 2);
+  EXPECT_EQ(result->phiPredecessor(0), success_block);
+  EXPECT_EQ(result->phiPredecessor(1), failure_block);
+  EXPECT_EQ(result->phiInput(0)->getLinkedInstr(), value);
+  EXPECT_EQ(
+      result->phiInput(1)->getLinkedInstr(), failure_block->getLastInstr());
+  ASSERT_NE(result->origin(), nullptr);
+  EXPECT_TRUE(result->origin()->isCast());
+
+  ASSERT_EQ(merge_block->successors().size(), 1);
+  Instruction* output = merge_block->successors().front()->getFirstInstr();
+  ASSERT_NE(output, nullptr);
+  EXPECT_TRUE(output->isMove());
+  EXPECT_EQ(output->getInput(0)->getLinkedInstr(), result);
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Opcode::kCall)
+                    .inAddr(0, reinterpret_cast<uint64_t>(rt::cast)));
+}
+
 TEST_F(LIRGeneratorTest, StaticLoadInteger) {
   const char* pycode = R"(
 from __static__ import int64

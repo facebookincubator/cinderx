@@ -43,7 +43,6 @@
 #include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/jit_time_log.h"
-#include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/nested_compile.h"
 #include "cinderx/Jit/perf_jitdump.h"
@@ -710,12 +709,6 @@ FlagProcessor initFlagProcessor() {
       getMutableConfig().inliner.depth_limit,
       "Maximum depth for transitive (recursive) inlining. A limit of 1 only "
       "inlines direct callees; higher values also inline callees of callees.");
-
-  flag_processor.addOption(
-      "cinderx-jit-lir-inliner",
-      "CINDERX_JIT_LIR_INLINER",
-      getMutableConfig().lir_opts.inliner,
-      "Enable the LIR inliner");
 
   flag_processor
       .addOption(
@@ -4159,13 +4152,11 @@ void jitAtForkPrepare() {
     state->atForkPrepare();
   }
   deoptAtForkPrepare();
-  lir::lirInlinerAtForkPrepare();
   logAtForkPrepare();
 }
 
 void jitAtForkParent() {
   logAtForkParent();
-  lir::lirInlinerAtForkParent();
   deoptAtForkParent();
   if (auto* state = getModuleState(); state != nullptr) {
     state->atForkParent();
@@ -4182,7 +4173,6 @@ void jitAtForkParent() {
 
 void jitAtForkChild() {
   logAtForkChild();
-  lir::lirInlinerAtForkChild();
   deoptAtForkChild();
   freeThreadedJITEntrypointAtForkChild();
   if (auto* state = getModuleState(); state != nullptr) {

@@ -46,11 +46,6 @@ struct HIROptimizations {
   bool sink_primitive_box{true};
 };
 
-// List of LIR optimization passes to run.
-struct LIROptimizations {
-  bool inliner{true};
-};
-
 // Configuration options to control the simplifier's behavior.
 struct SimplifierConfig {
   // The maximum number of times the simplifier can process a function's CFG.
@@ -221,7 +216,6 @@ struct Config {
   // TASK(T195042385): Replace this with actual typing.
   bool refine_static_python{true};
   HIROptimizations hir_opts;
-  LIROptimizations lir_opts;
   SimplifierConfig simplifier;
   InlinerConfig inliner;
   // Number of workers to use for batch compilation, like in precompile_all().

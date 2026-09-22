@@ -88,16 +88,8 @@ class ReturnCastInsertionTests(StaticTestBase):
     def test_failed_return_cast_raises_in_jit(self) -> None:
         """A failing return cast must raise rather than crash under the JIT.
 
-        rt::cast is inlined from hand-written LIR whose error path calls
-        PyErr_Format, which is variadic.  That LIR passes the two tp_name
-        arguments in registers, which is wrong on platforms that pass variadic
-        arguments on the stack, so PyErr_Format read NULL for '%s' and the
-        raise became a segfault.
-
-        This checks TypeError rather than StaticTypeError because the two
-        paths disagree on the exception type: the inlined LIR raises
-        PyExc_TypeError while the out-of-line rt::cast raises
-        CiExc_StaticTypeError, which is a TypeError subclass.
+        The lowered and out-of-line paths use different TypeError subclasses,
+        so this checks TypeError.
         """
         for ann, good, bad, message in [
             ("int", 42, None, "expected 'int', got 'NoneType'"),

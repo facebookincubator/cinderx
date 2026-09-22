@@ -1230,7 +1230,6 @@ PyObject* invokeClassMethod(
 }
 
 PyObject* cast(PyObject* obj, PyTypeObject* type) {
-  // FYI this function is inlined by the LIRInliner.
   if (PyObject_TypeCheck(obj, type)) {
     return obj;
   }

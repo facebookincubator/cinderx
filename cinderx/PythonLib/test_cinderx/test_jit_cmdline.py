@@ -400,14 +400,6 @@ class CmdLineTest(unittest.TestCase):
             "CINDERX_JIT_BATCH_COMPILE_WORKERS",
         )
 
-    def test_lir_inliner(self) -> None:
-        self._check_acknowledged(
-            "jit-lir-inliner",
-            "PYTHONJITLIRINLINER",
-            "cinderx-jit-lir-inliner",
-            "CINDERX_JIT_LIR_INLINER",
-        )
-
     def test_all_static_functions(self) -> None:
         self._check_acknowledged(
             "jit-all-static-functions",

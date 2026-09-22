@@ -4,7 +4,6 @@
 
 #include "cinderx/Common/define.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/printer.h"
 
 #include <unordered_map>
@@ -18,15 +17,6 @@ using namespace cinderx::jit::codegen;
 namespace cinderx::jit::lir {
 
 namespace {
-
-// Inline C helper functions.
-RewriteResult rewriteInlineHelper(function_rewrite_arg_t func) {
-  if (!getConfig().lir_opts.inliner) {
-    return kUnchanged;
-  }
-
-  return LIRInliner::inlineCalls(func) ? kChanged : kUnchanged;
-}
 
 // Constant fold unary operations with immediate inputs.
 // Negate(Imm(c)) → Move(Imm(-c))
@@ -977,9 +967,6 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
 } // namespace
 
 void PostGenerationRewrite::registerRewrites() {
-  // rewriteInlineHelper should occur before other rewrites.
-  registerOneRewriteFunction(rewriteInlineHelper, 0);
-
   registerOneRewriteFunction(rewriteConstantFoldUnaryOps, 1);
   registerOneRewriteFunction(rewriteBinaryOpConstantPosition, 1);
   registerOneRewriteFunction(rewriteBinaryOpLargeConstant, 1);

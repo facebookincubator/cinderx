@@ -242,6 +242,67 @@ constexpr auto kGenFinishedFrameState = FRAME_CLEARED;
 
 } // namespace
 
+void LIRGenerator::emitCast(BasicBlockBuilder& bbb, const Cast* instr) {
+  Instruction* value = bbb.getDefInstr(instr->value());
+  BasicBlock* check = bbb.allocateBlock();
+  bbb.appendBlock(check);
+
+  Instruction* target_type = bbb.appendInstr(
+      Opcode::kMove, OutVReg{DataType::kObject}, instr->pytype());
+  constexpr int32_t kTypeOffset = offsetof(PyObject, ob_type);
+  Instruction* actual_type = bbb.appendInstr(
+      Opcode::kLoad, OutVReg{DataType::kObject}, Ind{value, kTypeOffset});
+  Instruction* is_exact_type = bbb.appendInstr(
+      Opcode::kCompare,
+      Condition::kEqual,
+      OutVReg{DataType::kObject},
+      actual_type,
+      target_type);
+
+  BasicBlock* subtype = bbb.allocateBlock();
+  BasicBlock* success = bbb.allocateBlock();
+  BasicBlock* failure = bbb.allocateBlock();
+  BasicBlock* merge = bbb.allocateBlock();
+  BasicBlock* continuation = bbb.allocateBlock();
+  bbb.appendBranch(Opcode::kCondBranch, is_exact_type, success, subtype);
+
+  bbb.switchBlock(subtype);
+  Instruction* is_subtype = bbb.appendCallInstruction(
+      OutVReg{DataType::kObject}, PyType_IsSubtype, actual_type, target_type);
+  bbb.appendBranch(Opcode::kCondBranch, is_subtype, success, failure);
+
+  bbb.switchBlock(success);
+  IncomingEdge success_edge = success->addSuccessor(merge);
+
+  bbb.switchBlock(failure);
+  constexpr int32_t kNameOffset = offsetof(PyTypeObject, tp_name);
+  Instruction* actual_name = bbb.appendInstr(
+      Opcode::kLoad, OutVReg{DataType::kObject}, Ind{actual_type, kNameOffset});
+  Instruction* target_name = bbb.appendInstr(
+      Opcode::kLoad, OutVReg{DataType::kObject}, Ind{target_type, kNameOffset});
+  static constexpr char kErrorFormat[] = "expected '%s', got '%s'";
+  bbb.appendInstr(
+      Opcode::kCVarArgCall,
+      Imm{reinterpret_cast<uint64_t>(PyErr_Format), DataType::kObject},
+      Imm{2, DataType::k64bit},
+      Imm{reinterpret_cast<uint64_t>(PyExc_TypeError), DataType::kObject},
+      Imm{reinterpret_cast<uint64_t>(kErrorFormat), DataType::kObject},
+      target_name,
+      actual_name);
+  Instruction* null_result = bbb.appendInstr(
+      Opcode::kMove, OutVReg{DataType::kObject}, Imm{0, DataType::kObject});
+  IncomingEdge failure_edge = failure->addSuccessor(merge);
+
+  bbb.switchBlock(merge);
+  Instruction* result =
+      bbb.appendInstr(Opcode::kPhi, OutVReg{DataType::kObject});
+  result->addPhiInput(success_edge, value);
+  result->addPhiInput(failure_edge, null_result);
+
+  bbb.appendBlock(continuation);
+  bbb.appendInstr(instr->output(), Opcode::kMove, result);
+}
+
 LIRGenerator::LIRGenerator(
     const jit::hir::Function* func,
     jit::codegen::Environ* env)
@@ -4223,8 +4284,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           func = instr->optional() ? rt::castOptional : rt::cast;
         }
 
-        bbb.appendCallInstruction(
-            instr->output(), func, instr->value(), instr->pytype());
+        if (func == rt::cast) {
+          emitCast(bbb, instr);
+        } else {
+          bbb.appendCallInstruction(
+              instr->output(), func, instr->value(), instr->pytype());
+        }
         break;
       }
 
@@ -5539,7 +5604,11 @@ void LIRGenerator::resolvePhiOperands(
 
   for (BasicBlock* block : basic_blocks_) {
     block->foreachPhiInstr([&](Instruction* instr) {
-      const auto* hir_instr = &instr->origin()->as<Phi>();
+      const hir::Instr* origin = instr->origin();
+      if (origin == nullptr || !origin->isPhi()) {
+        return;
+      }
+      const auto* hir_instr = &origin->as<Phi>();
       const auto* hir_bb = hir_instr->block();
       const auto& translated = bb_map.at(hir_bb);
       JIT_THROW_IF(

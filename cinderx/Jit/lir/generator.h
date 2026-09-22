@@ -193,6 +193,7 @@ class LIRGenerator {
   }
 
   void analyzeCopies();
+  void emitCast(BasicBlockBuilder& bbb, const hir::Cast* instr);
   BasicBlock* generateEntryBlock();
   void generateExitBlocks();
 
