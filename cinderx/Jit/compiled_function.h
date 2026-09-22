@@ -127,11 +127,6 @@ struct CompiledFunctionData {
   CompiledFunctionData() = default;
 };
 
-// The key used to store the CompiledFunction in a function's __dict__.
-extern PyObject* kCompiledFunctionKey;
-// The key used to store nested compiled functions in a function's __dict__.
-extern PyObject* kNestedCompiledFunctionsKey;
-
 class CompiledFunction;
 class NestedCompileData;
 

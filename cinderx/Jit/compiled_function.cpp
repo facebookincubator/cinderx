@@ -35,9 +35,6 @@ bool isJitCompiled(const PyFunctionObject* func) {
 
 namespace cinderx::jit {
 
-// The key used to store the CompiledFunction in a function's __dict__.
-PyObject *kCompiledFunctionKey, *kNestedCompiledFunctionsKey = nullptr;
-
 namespace {
 
 void compiledfunc_dealloc(PyObject* self) {
@@ -70,11 +67,9 @@ int compiledfunc_clear(PyObject* self) {
 }
 
 // A CompiledFunction holds per-process JIT state (machine code, native entry
-// point, CodeRuntime) stashed under a function's __dict__.  It cannot and need
-// not survive pickling or copying: the underlying function serializes normally
-// and is re-JIT'd in the destination process.  Reduce it to a call that yields
-// a harmless None placeholder so cloudpickle/pickle/copy of any JIT-compiled
-// function succeed.
+// point, CodeRuntime). It cannot and need not survive pickling or copying: the
+// underlying function serializes normally and is re-JIT'd in the destination
+// process. Reduce it to a call that yields a harmless None placeholder.
 PyObject* compiledfunc_reduce(PyObject* /*self*/, PyObject* /*ignored*/) {
   // The reconstructor lives in the native cinderjit module (not the cinderx
   // Python layer), keeping this a native -> native reference.  It is always
@@ -198,19 +193,6 @@ int initCompiledFunctionType() {
     return -1;
   }
   mod_state->compiled_function_type = Ref<PyTypeObject>::steal(func_type);
-
-  // Create the key used to store CompiledFunction in function's __dict__.
-  kCompiledFunctionKey =
-      PyUnicode_InternFromString("__cinderx_compiled_func__");
-  if (kCompiledFunctionKey == nullptr) {
-    return -1;
-  }
-
-  kNestedCompiledFunctionsKey =
-      PyUnicode_InternFromString("__cinderx_nested_compiled_funcs__");
-  if (kNestedCompiledFunctionsKey == nullptr) {
-    return -1;
-  }
 
   return 0;
 }
