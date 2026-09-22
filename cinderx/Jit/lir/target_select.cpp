@@ -478,6 +478,49 @@ void selectA64Guard(
 
 /* Convert from:
  *
+ *     cmp x0, x1
+ *     cset w2, cc
+ *     cmp w2, 0
+ *     csel x3, x4, x5, ne
+ *
+ * to:
+ *
+ *     cmp x0, x1
+ *     csel x3, x4, x5, cc
+ */
+void selectA64Select(
+    BasicBlock* block,
+    instr_iter_t instr_iter,
+    const UseCounts& use_counts) {
+  Instruction* select = instr_iter->get();
+  JIT_DCHECK(select->isSelect(), "Expected Select, got {}", select->opname());
+
+  Operand* input = select->getInput(0);
+  if (!input->isLinked()) {
+    return;
+  }
+
+  Instruction* compare = input->getLinkedInstr();
+  if (!isCompare(compare->opcode()) || compare->basicBlock() != block ||
+      use_counts.at(compare) != 1) {
+    return;
+  }
+
+  instr_iter_t compare_iter = block->iterator_to(compare);
+  if (!makeCompareFlagsAvailable(block, compare_iter, instr_iter)) {
+    return;
+  }
+
+  Condition cond = compare->condition();
+  compare->setOpcode(Opcode::kCmp);
+  compare->output()->setNone();
+
+  select->setOpcode(Opcode::kA64SelectCC);
+  select->getInput(0)->setConstant(static_cast<uint64_t>(cond));
+}
+
+/* Convert from:
+ *
  *     tst w0, w0
  *     b.mi label
  *
@@ -584,6 +627,7 @@ void selectA64Opcodes(Function* func) {
           break;
         case Opcode::kSelect:
           legalizeA64SelectStackInputs(block, cur_iter);
+          selectA64Select(block, cur_iter, use_counts);
           break;
         case Opcode::kInc:
         case Opcode::kDec:

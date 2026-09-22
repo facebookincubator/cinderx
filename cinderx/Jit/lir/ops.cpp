@@ -235,6 +235,9 @@ bool writesFlags(Opcode opcode) {
     case Opcode::kUnreachable:
     case Opcode::kVariadicPush:
     case Opcode::kZext:
+#if defined(CINDER_AARCH64)
+    case Opcode::kA64SelectCC:
+#endif
 #if defined(CINDER_X86_64)
     case Opcode::kX64Cdq:
     case Opcode::kX64Cqo:
@@ -295,6 +298,9 @@ bool isEssential(Opcode opcode) {
     case Opcode::kVarArgCall:
     case Opcode::kXor:
     case Opcode::kZext:
+#if defined(CINDER_AARCH64)
+    case Opcode::kA64SelectCC:
+#endif
       return false;
     default:
       break;
@@ -382,6 +388,11 @@ bool inputMustBeRegister(Opcode opcode, size_t idx) {
     case Opcode::kSelect:
       return idx <= 2;
 
+#if defined(CINDER_AARCH64)
+    case Opcode::kA64SelectCC:
+      return idx >= 1 && idx <= 2;
+#endif
+
     case Opcode::kGuard:
       return idx >= 2 && idx <= 3;
 
@@ -403,6 +414,9 @@ bool inputsLiveAcross(Opcode opcode) {
     case Opcode::kFsub:
     case Opcode::kSelect:
     case Opcode::kSub:
+#if defined(CINDER_AARCH64)
+    case Opcode::kA64SelectCC:
+#endif
       return true;
     default:
       break;

@@ -99,7 +99,9 @@ namespace cinderx::jit::lir {
   X(X64Cwd)
 
 // LIR opcodes exclusive to aarch64.
-#define FOREACH_LIR_OPCODE_AARCH64(X) X(A64GuardCC)
+#define FOREACH_LIR_OPCODE_AARCH64(X) \
+  X(A64GuardCC)                       \
+  X(A64SelectCC)
 
 #if defined(CINDER_X86_64)
 #define FOREACH_LIR_OPCODE(X)  \

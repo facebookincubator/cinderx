@@ -1484,6 +1484,7 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     // Instructions that natively support memory operands or don't have
     // register-only constraints — no rewriting needed.
     case Opcode::kA64GuardCC:
+    case Opcode::kA64SelectCC:
     case Opcode::kBind:
     case Opcode::kBranch:
     case Opcode::kBranchCC:

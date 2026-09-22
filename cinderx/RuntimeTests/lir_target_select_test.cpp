@@ -374,6 +374,33 @@ BB %0
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kGuard));
 }
 
+TEST_F(LIRTargetSelectTest, SelectsA64SelectCCAcrossFlagClobber) {
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:64bit = Move 1
+  %2:64bit = Move 2
+  %3:8bit = LessThanUnsigned %1, %2
+  %4:64bit = Add %1, %2
+  %5:64bit = Select %3, %1, %2
+  Return %5
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func).opcode(Opcode::kAdd).outVreg(4),
+      Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2),
+      Query(*lir_func)
+          .opcode(Opcode::kA64SelectCC)
+          .outVreg(5)
+          .inImm(0, static_cast<uint64_t>(Condition::kUnsignedLT))
+          .inVreg(1, 1)
+          .inVreg(2, 2));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kSelect));
+}
+
 TEST_F(LIRTargetSelectTest, LegalizesGuardFPInputToGPInput) {
   const char* lir_input_str = R"(Function:
 BB %0
@@ -582,6 +609,27 @@ def func(x: int64, y: int64) -> int64:
       Query(*lir_func)
           .opcode(Opcode::kBranchCC)
           .condition(Condition::kSignedLT));
+}
+
+TEST_F(LIRTargetSelectTest, SelectsA64SelectCCForStaticPythonCompareResult) {
+  const char* src = R"(
+from __static__ import box, int64
+
+def func(x: int64, y: int64) -> bool:
+  return box(x < y)
+)";
+
+  Ref<PyObject> pyfunc(compileStaticAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getSelectedLIRFunction(pyfunc.get());
+
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func).opcode(Opcode::kCmp),
+      Query(*lir_func).opcode(Opcode::kA64SelectCC));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kSelect));
 }
 #endif
 

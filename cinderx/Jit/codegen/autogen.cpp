@@ -2641,6 +2641,14 @@ void translateSelect(Environ* env, const Instruction* instr) {
   as->csel(output, true_val_reg, false_val_reg, a64::CondCode::kNE);
 }
 
+void translateA64SelectCC(Environ* env, const Instruction* instr) {
+  auto output = AT::getGpOutput(instr->output());
+  auto true_val = AT::getGpWiden(instr->getInput(1));
+  auto false_val = AT::getGpWiden(instr->getInput(2));
+  auto cond = static_cast<Condition>(instr->getInput(0)->getConstant());
+  env->as->csel(output, true_val, false_val, asmCondCode(cond));
+}
+
 } // namespace
 
 #endif
@@ -3365,6 +3373,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       return;
     case Opcode::kA64GuardCC:
       translateA64GuardCC(env, instr);
+      return;
+    case Opcode::kA64SelectCC:
+      translateA64SelectCC(env, instr);
       return;
     case Opcode::kInc:
       translateInc(env, instr);
