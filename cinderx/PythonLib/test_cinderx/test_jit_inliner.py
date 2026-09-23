@@ -774,12 +774,12 @@ def lazy_global_caller():
 
 @passUnless(INLINER, "Testing the inliner")
 class InlinedFunctionTests(unittest.TestCase):
-    def assert_method_rewritten(self, func) -> None:
+    def assert_method_rewritten(self, func, *, vector_calls: int = 0) -> None:
         counts = cinderx.jit.get_function_hir_opcode_counts(func)
         self.assertIsNotNone(counts)
         self.assertEqual(counts.get("LoadMethod", 0), 0)
         self.assertEqual(counts.get("CallMethod", 0), 0)
-        self.assertEqual(counts.get("VectorCall", 0), 1)
+        self.assertEqual(counts.get("VectorCall", 0), vector_calls)
         self.assertEqual(counts.get("GuardType", 0), 1)
         self.assertEqual(counts.get("CompareBool", 0), 0)
 
@@ -803,7 +803,7 @@ class InlinedFunctionTests(unittest.TestCase):
         self.assert_method_rewritten(call_method_on_exact_global_instance)
         self.assertEqual(
             cinderx.jit.get_num_inlined_functions(call_method_on_exact_global_instance),
-            0,
+            1,
         )
         self.assertEqual(call_method_on_exact_global_instance(41), 42)
 
@@ -882,7 +882,7 @@ class InlinedFunctionTests(unittest.TestCase):
     def test_rewrite_method_call_with_kwargs(self) -> None:
         cinderx.jit.force_compile(call_method_with_kwargs)
 
-        self.assert_method_rewritten(call_method_with_kwargs)
+        self.assert_method_rewritten(call_method_with_kwargs, vector_calls=0)
         self.assertEqual(call_method_with_kwargs(34), 42)
 
     @passIf(
@@ -976,20 +976,6 @@ class InlinedFunctionTests(unittest.TestCase):
 
         _UNSEEDED_INLINE_METHOD_INSTANCE.method = lambda x: x + 2
         self.assertEqual(call_unseeded_inline_method(40), 42)
-
-    @unittest.skip("Requires ordinary method dependency preloading")
-    @jit_suppress
-    def test_inline_method_on_exact_global_instance(self) -> None:
-        cinderx.jit.force_compile(call_method_on_exact_global_instance)
-
-        self.assertTrue(
-            cinderx.jit.is_jit_compiled(call_method_on_exact_global_instance)
-        )
-        self.assertEqual(
-            cinderx.jit.get_num_inlined_functions(call_method_on_exact_global_instance),
-            1,
-        )
-        self.assertEqual(call_method_on_exact_global_instance(41), 42)
 
     @jit_suppress
     def test_deopt_when_func_defaults_change(self) -> None:

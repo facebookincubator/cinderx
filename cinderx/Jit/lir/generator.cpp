@@ -5062,9 +5062,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           func_reg = bbb.appendInstr(OutVReg{}, Opcode::kMove, func);
         }
 
-        bool is_generator =
-            reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags &
-            kCoFlagsAnyGenerator;
+        bool is_generator = code->co_flags & kCoFlagsAnyGenerator;
         // An inlined frame never owns cell references (cells flow through
         // HIR registers; deopt materialization installs owned cells itself
         // and the fast unlink below delegates to the full unlink for

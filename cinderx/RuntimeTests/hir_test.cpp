@@ -8,16 +8,22 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/dominance.h"
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/Jit/hir/inliner.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/refcount_insertion.h"
 #include "cinderx/Jit/hir/ssa.h"
+#include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+
+#include <array>
+#include <thread>
 
 extern "C" {
 
@@ -1173,10 +1179,27 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
 
 class CppInlinerTest : public RuntimeTest {};
 
-void expectDirectMethodRewrite(
+class CppInlinerAnnotationTest : public CppInlinerTest {
+ public:
+  void SetUp() override {
+    CppInlinerTest::SetUp();
+    saved_config_ = getConfig();
+    getMutableConfig().emit_type_annotation_guards = true;
+  }
+
+  void TearDown() override {
+    getMutableConfig() = saved_config_;
+    CppInlinerTest::TearDown();
+  }
+
+ private:
+  Config saved_config_;
+};
+
+void expectInlinedMethodRewrite(
     const Function& irfunc,
     bool has_instance_dict_guard = false) {
-  EXPECT_EQ(irfunc.inline_function_stats.num_inlined_functions, 0);
+  EXPECT_EQ(irfunc.inline_function_stats.num_inlined_functions, 1);
   bool has_direct_vector_call = false;
   bool has_exact_type_guard = false;
   bool has_inline_values_check = false;
@@ -1204,7 +1227,7 @@ void expectDirectMethodRewrite(
       }
     }
   }
-  EXPECT_TRUE(has_direct_vector_call);
+  EXPECT_FALSE(has_direct_vector_call);
   EXPECT_TRUE(has_exact_type_guard);
   EXPECT_EQ(has_inline_values_check, has_instance_dict_guard);
   EXPECT_FALSE(has_combined_dict_check);
@@ -1249,7 +1272,7 @@ def test(x):
 
   Compiler::runPasses(*irfunc, PassConfig::kAll);
 
-  expectDirectMethodRewrite(*irfunc);
+  expectInlinedMethodRewrite(*irfunc);
 }
 
 TEST_F(CppInlinerTest, RewriteMethodOnExactGlobalInstanceWithSharedKeys) {
@@ -1277,7 +1300,7 @@ def test(x):
 
   Compiler::runPasses(*irfunc, PassConfig::kAll);
 
-  expectDirectMethodRewrite(*irfunc, true);
+  expectInlinedMethodRewrite(*irfunc, true);
 #else
   SKIP("Shared-key changes do not notify type watchers");
 #endif
@@ -1365,6 +1388,238 @@ def test(x):
   }
 
   expectMethodCallRemainsGeneric(*irfunc);
+}
+
+TEST_F(
+    CppInlinerAnnotationTest,
+    CodeChangedReentrantlyDuringThreadedPreloadIsNotInlined) {
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* pycode = R"(
+swaps = 0
+
+def replacement(x, y):
+  return x + y
+
+def change_code():
+  global swaps
+  swaps += 1
+  callee.__code__ = replacement.__code__
+  return int
+
+def callee(x: change_code()):
+  return x + 1
+
+def test(x):
+  return callee(x)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  BorrowedRef<PyFunctionObject> callee{getGlobal("callee")};
+  Ref<PyCodeObject> original_code =
+      Ref<PyCodeObject>::create(callee->func_code);
+  std::unique_ptr<Preloader> preloader =
+      Preloader::make(pyfunc, makeFrameReifier(pyfunc->func_code));
+  ASSERT_NE(preloader, nullptr);
+  std::unique_ptr<Function> irfunc = hir::buildHIR(*preloader);
+  ASSERT_NE(irfunc, nullptr);
+
+  {
+    ThreadedCompileContext threaded_compile;
+    threaded_compile.releaseGil();
+    Compiler::runPasses(*irfunc, PassConfig::kAll);
+  }
+
+  EXPECT_EQ(irfunc->inline_function_stats.num_inlined_functions, 1);
+  EXPECT_TRUE(isIntEquals(getGlobal("swaps"), 1));
+  BorrowedRef<PyFunctionObject> replacement{getGlobal("replacement")};
+  EXPECT_EQ(callee->func_code, replacement->func_code);
+  Preloader* original_preloader = preloaderManager().find(
+      original_code,
+      BorrowedRef<PyDictObject>{callee->func_builtins},
+      BorrowedRef<PyDictObject>{callee->func_globals});
+  ASSERT_NE(original_preloader, nullptr);
+  EXPECT_EQ(original_preloader->code(), original_code);
+  EXPECT_EQ(
+      preloaderManager().find(
+          BorrowedRef<PyCodeObject>{replacement->func_code},
+          BorrowedRef<PyDictObject>{callee->func_builtins},
+          BorrowedRef<PyDictObject>{callee->func_globals}),
+      nullptr);
+#else
+  SKIP("Deferred annotations require Python 3.14+");
+#endif
+}
+
+TEST_F(
+    CppInlinerAnnotationTest,
+    MethodChangedReentrantlyDuringPreloadInvalidatesRewrite) {
+#if PY_VERSION_HEX >= 0x030E0000
+  if constexpr (kFreeThreadedBuild) {
+    SKIP(
+        "Mutable-type LoadMethod elimination is disabled in "
+        "free-threaded builds");
+  }
+
+  const char* pycode = R"(
+swaps = 0
+
+class C:
+  __slots__ = ()
+
+def replacement(self, x):
+  return x + 100
+
+def change_method():
+  global swaps
+  swaps += 1
+  C.method = replacement
+  return int
+
+def original(self, x: change_method()):
+  return x + 1
+
+C.method = original
+INSTANCE = C()
+
+def test(x):
+  return INSTANCE.method(x)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  std::unique_ptr<Preloader> preloader =
+      Preloader::make(pyfunc, makeFrameReifier(pyfunc->func_code));
+  ASSERT_NE(preloader, nullptr);
+  std::unique_ptr<Function> irfunc = hir::buildHIR(*preloader);
+  ASSERT_NE(irfunc, nullptr);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAll);
+
+  EXPECT_EQ(irfunc->inline_function_stats.num_inlined_functions, 1);
+  EXPECT_TRUE(isIntEquals(getGlobal("swaps"), 1));
+  Ref<> current_method =
+      Ref<>::steal(PyObject_GetAttrString(getGlobal("C"), "method"));
+  EXPECT_EQ(current_method, getGlobal("replacement"));
+#else
+  SKIP("Deferred annotations require Python 3.14+");
+#endif
+}
+
+TEST_F(
+    CppInlinerAnnotationTest,
+    MethodProofInvalidatedWhenPreloadCallbackRaises) {
+#if PY_VERSION_HEX >= 0x030E0000
+  if constexpr (kFreeThreadedBuild) {
+    SKIP(
+        "Mutable-type LoadMethod elimination is disabled in "
+        "free-threaded builds");
+  }
+
+  const char* pycode = R"(
+class C:
+  __slots__ = ()
+
+def replacement(self, x):
+  return x + 100
+
+def change_method_and_raise():
+  C.method = replacement
+  raise RuntimeError("annotation failed")
+
+def original(self, x: change_method_and_raise()):
+  return x + 1
+
+C.method = original
+INSTANCE = C()
+
+def test(x):
+  return INSTANCE.method(x)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  std::unique_ptr<Preloader> preloader =
+      Preloader::make(pyfunc, makeFrameReifier(pyfunc->func_code));
+  ASSERT_NE(preloader, nullptr);
+  std::unique_ptr<Function> irfunc = hir::buildHIR(*preloader);
+  ASSERT_NE(irfunc, nullptr);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAll);
+
+  EXPECT_EQ(irfunc->inline_function_stats.num_inlined_functions, 0);
+  Ref<> current_method =
+      Ref<>::steal(PyObject_GetAttrString(getGlobal("C"), "method"));
+  EXPECT_EQ(current_method, getGlobal("replacement"));
+#else
+  SKIP("Deferred annotations require Python 3.14+");
+#endif
+}
+
+TEST_F(
+    CppInlinerAnnotationTest,
+    MethodProofInvalidatedWhenPreloadChangesMethodAndCode) {
+#if PY_VERSION_HEX >= 0x030E0000
+  if constexpr (kFreeThreadedBuild) {
+    SKIP(
+        "Mutable-type LoadMethod elimination is disabled in "
+        "free-threaded builds");
+  }
+
+  const char* pycode = R"(
+class C:
+  __slots__ = ()
+
+def replacement(self, x, y):
+  return x + y
+
+def change_method_and_code():
+  C.method = replacement
+  original.__code__ = replacement.__code__
+  return int
+
+def original(self, x: change_method_and_code()):
+  return x + 1
+
+C.method = original
+INSTANCE = C()
+
+def test(x):
+  return INSTANCE.method(x)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  std::unique_ptr<Preloader> preloader =
+      Preloader::make(pyfunc, makeFrameReifier(pyfunc->func_code));
+  ASSERT_NE(preloader, nullptr);
+  std::unique_ptr<Function> irfunc = hir::buildHIR(*preloader);
+  ASSERT_NE(irfunc, nullptr);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAll);
+
+  EXPECT_EQ(irfunc->inline_function_stats.num_inlined_functions, 1);
+  Ref<> current_method =
+      Ref<>::steal(PyObject_GetAttrString(getGlobal("C"), "method"));
+  EXPECT_EQ(current_method, getGlobal("replacement"));
+#else
+  SKIP("Deferred annotations require Python 3.14+");
+#endif
+}
+
+TEST_F(CppInlinerTest, ScheduleJitCompileDefersDuringThreadedCompile) {
+  const char* pycode = R"(
+def helper():
+  return 1
+)";
+  Ref<PyFunctionObject> func(compileAndGet(pycode, "helper"));
+  ASSERT_NE(func, nullptr);
+
+  auto saved_calls = getConfig().compile_after_n_calls;
+  getMutableConfig().compile_after_n_calls = 0;
+  bool scheduled;
+  {
+    ThreadedCompileContext threaded_compile;
+    scheduled = scheduleJitCompile(func);
+  }
+  getMutableConfig().compile_after_n_calls = saved_calls;
+  EXPECT_FALSE(scheduled);
 }
 
 TEST_F(CppInlinerTest, ChangingCalleeFunctionCodeCausesDeopt) {

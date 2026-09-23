@@ -147,10 +147,31 @@ void addDeoptPatcher(
     Function& irfunc,
     MethodInvoke& invoke,
     Register* receiver,
-    std::vector<Instr*>& replacement) {
-  auto patchpoint =
-      DeoptPatchpoint::create(irfunc.allocateCodePatcher<TypeDeoptPatcher>(
-          receiver->type().runtimePyType()));
+    std::vector<Instr*>& replacement,
+    MethodTarget& target,
+    BorrowedRef<> name) {
+  JIT_DCHECK(
+      receiver->type().runtimePyType() != nullptr, "should have receiver");
+  BorrowedRef<PyTypeObject> type{receiver->type().runtimePyType()};
+  auto method_patcher = irfunc.allocateCodePatcher<TypeDeoptPatcher>(type);
+  // The type is kept alive by the preloader, the name by the code object, and
+  // the target we added a strong reference to (if necessary) when we looked it
+  // up in getMethodObjectFromType.
+  irfunc.env.setWatchValidator(
+      method_patcher,
+      [type,
+       name,
+       target,
+       needs_dict_guard = target.needs_instance_dict_guard] {
+        InstanceDictCheck dict_check = instanceDictCheck(type, name);
+        return PyType_HasFeature(type, Py_TPFLAGS_READY) &&
+            type->tp_getattro == PyObject_GenericGetAttr &&
+            _PyType_Lookup(type, name) == target.callable &&
+            PyUnstable_Type_AssignVersionTag(type) &&
+            (dict_check == InstanceDictCheck::kRuntime) == needs_dict_guard &&
+            dict_check != InstanceDictCheck::kUnsupported;
+      });
+  auto patchpoint = DeoptPatchpoint::create(method_patcher);
   patchpoint->setBytecodeOffset(invoke.load_method->bytecodeOffset());
   patchpoint->setGuiltyReg(receiver);
   patchpoint->setDescr("Python method");
@@ -278,7 +299,7 @@ bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
                                 : receiver_type.unspecialized());
   std::vector<Instr*> replacement{use_type};
   if (target.needs_type_patcher) {
-    addDeoptPatcher(irfunc, invoke, receiver, replacement);
+    addDeoptPatcher(irfunc, invoke, receiver, replacement, target, name);
   }
   replacement.push_back(load_const);
   if (target.needs_instance_dict_guard) {

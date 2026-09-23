@@ -10,6 +10,7 @@
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/eligibility.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/vtable_builder.h"
@@ -785,43 +786,88 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
   return target;
 }
 
-void PreloaderManager::add(
-    BorrowedRef<PyCodeObject> code,
-    std::unique_ptr<Preloader> preloader) {
-  auto [_, inserted] = preloaders_.emplace(code, std::move(preloader));
-  JIT_CHECK(
-      inserted,
-      "Trying to create a duplicate preloader for {}",
-      PyUnicode_AsUTF8(code->co_qualname));
+Preloader* PreloaderManager::add(std::unique_ptr<Preloader> preloader) {
+  CompilationKey key{
+      preloader->code(), preloader->builtins(), preloader->globals()};
+  JITCompilationLock lock;
+  auto [val, inserted] = preloaders_.try_emplace(key, std::move(preloader));
+  return val->second.get();
 }
 
-Preloader* PreloaderManager::find(BorrowedRef<PyCodeObject> code) {
-  auto it = preloaders_.find(code);
+Preloader* PreloaderManager::add(
+    BorrowedRef<PyFunctionObject> func,
+    Ref<> reifier) {
+  JIT_DCHECK(
+      ThreadedCompileContext::canAccessSharedData(),
+      "preloading requires Python runtime access");
+
+  std::unique_ptr<Preloader> preloader =
+      Preloader::make(func, std::move(reifier));
+  if (preloader == nullptr) {
+    PyErr_Clear();
+    return nullptr;
+  }
+
+  CompilationKey key{
+      preloader->code(), preloader->builtins(), preloader->globals()};
+  JITCompilationLock lock;
+  auto [it, inserted] = preloaders_.try_emplace(key, nullptr);
+  if (inserted) {
+    it->second = std::move(preloader);
+  }
+  return it->second.get();
+}
+
+Preloader* PreloaderManager::find(
+    BorrowedRef<PyCodeObject> code,
+    BorrowedRef<PyDictObject> builtins,
+    BorrowedRef<PyDictObject> globals) {
+  // Preloaders are kept alive by their PreloaderManager which is typically a
+  // thread-local which gets cleaned up when the compilation is done. In
+  // multi-threaded compile the PreloaderManager is shared until all the
+  // compiling threads are released. The lock is only necessary for
+  // multi-threaded compile.
+  JITCompilationLock lock;
+  auto it = preloaders_.find(CompilationKey{code, builtins, globals});
   return it != preloaders_.end() ? it->second.get() : nullptr;
 }
 
 Preloader* PreloaderManager::find(BorrowedRef<PyFunctionObject> func) {
-  BorrowedRef<PyCodeObject> code = func->func_code;
-  return find(code);
+  JIT_DCHECK(PyCode_Check(func->func_code), "always code");
+  JIT_DCHECK(PyDict_Check(func->func_builtins), "always dict");
+  if (!PyDict_Check(func->func_builtins)) {
+    return nullptr;
+  }
+  return find(
+      BorrowedRef<PyCodeObject>{func->func_code},
+      BorrowedRef<PyDictObject>{func->func_builtins},
+      BorrowedRef<PyDictObject>{func->func_globals});
 }
 
 bool PreloaderManager::empty() const {
+  JITCompilationLock lock;
   return preloaders_.empty();
 }
 
 size_t PreloaderManager::size() const {
+  JITCompilationLock lock;
   return preloaders_.size();
 }
 
 void PreloaderManager::clear() {
+  JITCompilationLock lock;
   preloaders_.clear();
 }
 
 PreloaderMap PreloaderManager::extract() {
-  return std::move(preloaders_);
+  JITCompilationLock lock;
+  PreloaderMap result;
+  result.swap(preloaders_);
+  return result;
 }
 
 void PreloaderManager::install(PreloaderMap preloaders) {
+  JITCompilationLock lock;
   preloaders_ = std::move(preloaders);
 }
 

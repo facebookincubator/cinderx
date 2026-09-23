@@ -110,7 +110,7 @@ void Function::invalidateDomTree() {
 BorrowedRef<PyCodeObject> Function::codeFor(const Instr& instr) const {
   if (instr.isBeginInlinedFunction()) {
     auto bif = static_cast<const BeginInlinedFunction*>(&instr);
-    return bif->func()->func_code;
+    return bif->code();
   }
   if (instr.isLoadGlobalCached()) {
     auto load_global = static_cast<const LoadGlobalCached*>(&instr);

@@ -6,6 +6,7 @@
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
@@ -16,6 +17,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <optional>
 #include <queue>
 #include <unordered_set>
@@ -349,9 +351,21 @@ bool ensurePreloader(Function& irfunc, AbstractCall& call) {
   Preloader* preloader = preloaderManager().find(call.func);
   if (!preloader) {
     ThreadedCompileGILHolder gil;
-    logInlineFailure(
-        irfunc, funcFullname(call.func), InlineFailureType::kNeedsPreload);
-    return false;
+    try {
+      preloader = preloaderManager().add(
+          call.func, makeFrameReifier(call.func->func_code));
+    } catch (const std::exception& exn) {
+      LOG_INLINER(
+          "Failed to preload a call in {}: {}",
+          funcFullname(call.func),
+          exn.what());
+    }
+    if (preloader == nullptr) {
+      PyErr_Clear();
+      logInlineFailure(
+          irfunc, funcFullname(call.func), InlineFailureType::kNeedsPreload);
+      return false;
+    }
   }
 
   call.preloader = preloader;
@@ -495,8 +509,9 @@ std::vector<Register*> resolveArgs(
 }
 
 // Attempt to inline a single call.  On success returns the spliced-in callee
-// region (entry/exit blocks) so the caller can re-scan it for nested calls; on
-// failure returns nullopt (the reason is logged into the caller's stats).
+// region and its snapshotted metadata so the caller can re-scan it for nested
+// calls. On failure returns nullopt (the reason is logged into the caller's
+// stats).
 std::optional<InlineResult> inlineFunctionCall(
     Function& caller,
     const AbstractCall& call_instr) {

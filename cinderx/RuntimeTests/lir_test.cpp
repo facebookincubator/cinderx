@@ -22,6 +22,7 @@
 #include <math.h>
 
 #include <algorithm>
+#include <functional>
 #include <memory>
 #include <ostream>
 #include <regex>
@@ -760,7 +761,10 @@ TEST(LIRBlockTest, BatchRemovePredecessorsHandlesDuplicateEdges) {
 
 class LIRGeneratorTest : public RuntimeTest {
  public:
-  std::unique_ptr<Function> getLIRFunction(PyObject* func_obj) {
+  std::unique_ptr<Function> getLIRFunction(
+      PyObject* func_obj,
+      PassConfig pass_config = PassConfig::kAllExceptInliner,
+      const std::function<void()>& before_lowering = {}) {
     JIT_CHECK(
         PyFunction_Check(func_obj),
         "Trying to compile something that isn't a function");
@@ -781,7 +785,10 @@ class LIRGeneratorTest : public RuntimeTest {
     std::unique_ptr<hir::Function>& irfunc =
         hir_funcs_.emplace_back(buildHIR(func));
 
-    Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+    Compiler::runPasses(*irfunc, pass_config);
+    if (before_lowering) {
+      before_lowering();
+    }
 
     std::unique_ptr<CodeRuntime>& runtime =
         runtimes_.emplace_back(std::make_unique<CodeRuntime>(func));
@@ -1174,6 +1181,51 @@ def func(x) -> int:
   EXPECT_NO_LIR(Query(*lir_func)
                     .opcode(Opcode::kCall)
                     .inAddr(0, reinterpret_cast<uint64_t>(rt::cast)));
+}
+
+TEST_F(LIRGeneratorTest, InlinedFrameTeardownUsesSnapshottedCodeFlags) {
+  const char* pycode = R"(
+import sys
+
+def callee(x):
+  sys._getframe()
+  return x + 1
+
+def baseline(x):
+  return callee(x)
+
+def swapped(x):
+  return callee(x)
+
+def generator(x):
+  yield x
+)";
+  Ref<PyFunctionObject> baseline(compileAndGet(pycode, "baseline"));
+  ASSERT_NE(baseline, nullptr);
+  BorrowedRef<PyFunctionObject> swapped{getGlobal("swapped")};
+  BorrowedRef<PyFunctionObject> callee{getGlobal("callee")};
+  BorrowedRef<PyFunctionObject> generator{getGlobal("generator")};
+
+  auto baseline_lir = getLIRFunction(baseline, PassConfig::kAll);
+  auto swapped_lir = getLIRFunction(swapped, PassConfig::kAll, [&]() {
+    EXPECT_EQ(
+        PyObject_SetAttrString(callee, "__code__", generator->func_code), 0);
+  });
+
+  auto count_func_deallocs = [](const Function& func) {
+    Query query{func};
+    query.opcode(Opcode::kCall)
+        .inAddr(0, reinterpret_cast<uint64_t>(PyFunction_Type.tp_dealloc));
+    size_t count = 0;
+    for (const BasicBlock* block : func.basicBlocks()) {
+      for (const auto& instr : block->instructions()) {
+        count += query.matches(*instr);
+      }
+    }
+    return count;
+  };
+  EXPECT_EQ(
+      count_func_deallocs(*swapped_lir), count_func_deallocs(*baseline_lir));
 }
 
 TEST_F(LIRGeneratorTest, StaticLoadInteger) {

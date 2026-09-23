@@ -6,6 +6,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/sorted_vec_map.h"
+#include "cinderx/Jit/compilation_key.h"
 #include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/type.h"
@@ -233,18 +234,25 @@ class Preloader {
 };
 
 using PreloaderMap =
-    std::unordered_map<BorrowedRef<PyCodeObject>, std::unique_ptr<Preloader>>;
+    std::unordered_map<CompilationKey, std::unique_ptr<Preloader>>;
 
-// Manages a map of code objects to their associated preloaders.
+// Manages preloaders keyed by the code, globals, and builtins identity that
+// determines their compilation context.
 class PreloaderManager {
  public:
-  // Add a new code object and preloader pair.  Duplicates are not allowed.
-  void add(
-      BorrowedRef<PyCodeObject> code,
-      std::unique_ptr<Preloader> preloader);
+  // Trys to add the preloader and returns either the added preloader or the
+  // existing preloader
+  Preloader* add(std::unique_ptr<Preloader> preloader);
 
-  // Find the preloader for the given code object or function object.
-  Preloader* find(BorrowedRef<PyCodeObject> code);
+  // Creates and adds a new preloader from the given function and reifier.
+  Preloader* add(BorrowedRef<PyFunctionObject> func, Ref<> reifier);
+
+  // Find the preloader for the given compilation context or function object.
+  // A code-only lookup succeeds only when the code has a single context.
+  Preloader* find(
+      BorrowedRef<PyCodeObject> code,
+      BorrowedRef<PyDictObject> builtins,
+      BorrowedRef<PyDictObject> globals);
   Preloader* find(BorrowedRef<PyFunctionObject> func);
 
   // Check if there are any preloaders registered.

@@ -1141,6 +1141,22 @@ PyThreadState* acquireCompileWorkerThreadState(PyInterpreterState* interp) {
   return tstate;
 }
 
+hir::Preloader* findPreloader(BorrowedRef<> unit) {
+  auto [func, code] = splitUnit(unit);
+  if (func != nullptr) {
+    return hir::preloaderManager().find(func);
+  }
+
+  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+  auto it = jit_code_outer_funcs.find(code);
+  if (it == jit_code_outer_funcs.end()) {
+    return nullptr;
+  }
+  BorrowedRef<PyFunctionObject>& outer_func = it->second;
+  return hir::preloaderManager().find(
+      code, outer_func->func_builtins, outer_func->func_globals);
+}
+
 // Load the preloader for a given function or code object.  If it doesn't exist
 // yet, then preload the function and return the new preloader.
 //
@@ -1151,7 +1167,8 @@ hir::Preloader* preload(
     BorrowedRef<PyFunctionObject> outer_func = nullptr) {
   auto [func, borrowed_code] = splitUnit(unit);
   auto code = Ref<PyCodeObject>::create(borrowed_code);
-  if (hir::Preloader* existing = hir::preloaderManager().find(code)) {
+  hir::Preloader* existing = findPreloader(unit);
+  if (existing != nullptr) {
     return existing;
   }
 
@@ -1199,16 +1216,7 @@ hir::Preloader* preload(
     return nullptr;
   }
 
-  // Have to check again for an existing preloader, because the preloader might
-  // have re-entered itself when running Python code.
-  if (hir::Preloader* existing = hir::preloaderManager().find(code)) {
-    return existing;
-  }
-
-  // Grab a copy of the raw pointer before it gets moved away.
-  auto copy = preloader.get();
-  hir::preloaderManager().add(code, std::move(preloader));
-  return copy;
+  return hir::preloaderManager().add(std::move(preloader));
 }
 
 // The isolated manager owns these preloaders until all batch workers finish.
@@ -1473,7 +1481,6 @@ bool compile_all(size_t workers = 0) {
   }
 
   std::vector<CompilationUnit> compilation_units;
-  PreloadedUnitMap preloaders;
   struct PreloadUnit {
     Ref<> unit;
     Ref<PyCodeObject> code;
@@ -1566,7 +1573,6 @@ bool compile_all(size_t workers = 0) {
         if (!preloader) {
           return false;
         }
-        preloaders.emplace(target.unit, preloader);
       }
     }
   }
@@ -1578,12 +1584,11 @@ bool compile_all(size_t workers = 0) {
     FreeThreadedJITEntrypointGuard guard;
     compilation_units.reserve(owned_units.size());
     for (const auto& target : owned_units) {
-      auto it = preloaders.find(target.unit);
-      if (it == preloaders.end() || !target.isCurrent() ||
-          it->second->code() != target.code) {
+      const hir::Preloader* preloader = findPreloader(target.unit);
+      if (!target.isCurrent() || !preloader ||
+          preloader->code() != target.code) {
         continue;
       }
-      const hir::Preloader* preloader = it->second;
       auto [func, code] = splitUnit(target.unit);
       auto admitted = admitCompile(
           jitCtx(),
@@ -1669,9 +1674,12 @@ bool canCompileFunctionLater() {
     return false;
   }
 
-  JIT_CHECK(
-      !ThreadedCompileContext::compileRunning(),
-      "Not intended for using during threaded compilation");
+  // Functions can be created re-entrantly while a worker preloads a callee
+  // (e.g. imports or class bodies run annotation code). Registering them
+  // here would race with the threaded compile, so defer them instead.
+  if (ThreadedCompileContext::compileRunning()) {
+    return false;
+  }
 
   return true;
 }
@@ -4244,7 +4252,8 @@ void processBackgroundCompile(
   // so the inliner can find dependent preloaders during compilation.
 
   std::optional<CompiledFunctionData> compiled_func;
-  hir::Preloader* preloader = hir::preloaderManager().find(code);
+  hir::Preloader* preloader =
+      hir::preloaderManager().find(code, task->builtins, task->globals);
   if (preloader != nullptr && !isOverMaxCodeSize()) {
     {
       // Hand the task's reference to the function down into the compile so
@@ -4826,6 +4835,13 @@ inline std::optional<bool> scheduleNestedFunction(
 
 bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
+
+  // Re-entrant creation during a threaded compile (e.g. a worker preloading
+  // a callee runs Python that defines new functions) must not touch shared
+  // JIT state. Leave new functions interpreted; they compile later.
+  if (ThreadedCompileContext::compileRunning()) {
+    return false;
+  }
 
   // The preloader registers a code object's NestedCompileData on the code
   // object itself, so this works no matter how the function was created.
