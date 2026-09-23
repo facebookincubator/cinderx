@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
+import ctypes
 import dis
 import functools
 import importlib
@@ -350,6 +351,46 @@ def is_emulated() -> bool:
     # the best we have for now.
     processor = platform.processor()
     return processor != "" and processor != platform.machine()
+
+
+@functools.cache
+def can_read_cross_thread_frames() -> bool:
+    """Whether this environment supports cross-thread frame reads.
+
+    Linux cross-thread JIT deopt uses process_vm_readv. Some environments do
+    not provide that syscall, so cross-thread walks return no frames.
+    """
+    if not sys.platform.startswith("linux"):
+        # macOS and Windows read frames through other mechanisms that we don't
+        # need to gate on here.
+        return True
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    process_vm_readv = getattr(libc, "process_vm_readv", None)
+    if process_vm_readv is None:
+        return False
+
+    class _IoVec(ctypes.Structure):
+        _fields_ = [("iov_base", ctypes.c_void_p), ("iov_len", ctypes.c_size_t)]
+
+    process_vm_readv.argtypes = [
+        ctypes.c_int,
+        ctypes.POINTER(_IoVec),
+        ctypes.c_ulong,
+        ctypes.POINTER(_IoVec),
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+    ]
+    process_vm_readv.restype = ctypes.c_ssize_t
+
+    src = ctypes.create_string_buffer(b"probe", 8)
+    dst = ctypes.create_string_buffer(8)
+    local = _IoVec(ctypes.cast(dst, ctypes.c_void_p), 8)
+    remote = _IoVec(ctypes.cast(src, ctypes.c_void_p), 8)
+    read = process_vm_readv(
+        os.getpid(), ctypes.byref(local), 1, ctypes.byref(remote), 1, 0
+    )
+    return read == 8
 
 
 # This is long because ASAN + JIT + subprocess + the Python compiler can be

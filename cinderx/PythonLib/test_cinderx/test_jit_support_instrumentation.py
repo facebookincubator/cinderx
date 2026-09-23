@@ -10,8 +10,8 @@ from typing import Callable, Generator
 
 from cinderx.jit import force_compile, is_jit_compiled
 from cinderx.test_support import (
-    is_emulated,
-    passIf,
+    can_read_cross_thread_frames,
+    passUnless,
     run_in_fresh_process,
     skip_unless_jit,
     skip_unless_lightweight_frames,
@@ -507,7 +507,10 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
     def tearDown(self) -> None:
         sys.settrace(None)
 
-    @passIf(is_emulated(), "QEMU doesn't support process_vm_readv")
+    @passUnless(
+        can_read_cross_thread_frames(),
+        "Cross-thread stack walking requires process_vm_readv",
+    )
     @skip_unless_lightweight_frames("Lightweight frames needed for OSR")
     @run_with_instrumentation
     def test_looping_thread_deopted_on_instrumentation(self) -> None:
@@ -1141,7 +1144,10 @@ class JitStackFrameDeoptTest(unittest.TestCase):
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
-    @passIf(is_emulated(), "QEMU doesn't support process_vm_readv")
+    @passUnless(
+        can_read_cross_thread_frames(),
+        "Cross-thread stack walking requires process_vm_readv",
+    )
     @run_with_instrumentation
     def test_multithread_grandparent_frame_deopted(self) -> None:
         # Worker thread's grandparent frame should receive LINE events
