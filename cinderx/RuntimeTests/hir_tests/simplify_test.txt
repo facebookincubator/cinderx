@@ -783,6 +783,7 @@ fun jittestmodule:test {
     v15:ImmortalBool = PrimitiveBoxBool v14
     Snapshot
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v16
     CondBranch<1, 2> v14
   }
 
@@ -839,6 +840,7 @@ fun jittestmodule:test {
     v15:ImmortalBool = PrimitiveBoxBool v14
     Snapshot
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v16
     CondBranch<1, 2> v14
   }
 
@@ -895,6 +897,7 @@ fun jittestmodule:test {
     v15:ImmortalBool = PrimitiveBoxBool v14
     Snapshot
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v16
     CondBranch<1, 2> v14
   }
 
@@ -953,6 +956,7 @@ fun jittestmodule:test {
     v17:ImmortalBool = PrimitiveBoxBool v16
     Snapshot
     v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v18
     CondBranch<1, 2> v16
   }
 
@@ -1064,6 +1068,7 @@ fun jittestmodule:test {
     v16:ImmortalBool = PrimitiveBoxBool v15
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v17
     CondBranch<1, 2> v15
   }
 
@@ -1115,6 +1120,7 @@ fun jittestmodule:test {
     v16:ImmortalBool = PrimitiveBoxBool v15
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v17
     CondBranch<1, 2> v15
   }
 
@@ -1166,6 +1172,7 @@ fun jittestmodule:test {
     v16:ImmortalBool = PrimitiveBoxBool v15
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v17
     CondBranch<1, 2> v15
   }
 
@@ -1219,6 +1226,7 @@ fun jittestmodule:test {
     v18:ImmortalBool = PrimitiveBoxBool v17
     Snapshot
     v19:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v19
     CondBranch<1, 2> v17
   }
 
@@ -1343,6 +1351,7 @@ fun jittestmodule:test {
     v20:ImmortalBool = PrimitiveBoxBool v19
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v21
     CondBranch<1, 3> v19
   }
 
@@ -1359,6 +1368,7 @@ fun jittestmodule:test {
     v26:ImmortalBool = PrimitiveBoxBool v25
     Snapshot
     v27:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v27
     CondBranch<2, 3> v25
   }
 
@@ -1415,6 +1425,7 @@ fun jittestmodule:test {
     v20:ImmortalBool = PrimitiveBoxBool v19
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v21
     CondBranch<1, 3> v19
   }
 
@@ -1431,6 +1442,7 @@ fun jittestmodule:test {
     v26:ImmortalBool = PrimitiveBoxBool v25
     Snapshot
     v27:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v27
     CondBranch<2, 3> v25
   }
 
@@ -1487,6 +1499,7 @@ fun jittestmodule:test {
     v20:ImmortalBool = PrimitiveBoxBool v19
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v21
     CondBranch<1, 3> v19
   }
 
@@ -1503,6 +1516,7 @@ fun jittestmodule:test {
     v26:ImmortalBool = PrimitiveBoxBool v25
     Snapshot
     v27:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v27
     CondBranch<2, 3> v25
   }
 
@@ -1561,6 +1575,7 @@ fun jittestmodule:test {
     v22:ImmortalBool = PrimitiveBoxBool v21
     Snapshot
     v23:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v23
     CondBranch<1, 3> v21
   }
 
@@ -1577,6 +1592,7 @@ fun jittestmodule:test {
     v28:ImmortalBool = PrimitiveBoxBool v27
     Snapshot
     v29:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v29
     CondBranch<2, 3> v27
   }
 
@@ -3082,6 +3098,7 @@ fun jittestmodule:test {
     v30:ImmortalBool = PrimitiveBoxBool v29
     Snapshot
     v31:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v31
     CondBranch<1, 2> v29
   }
 
@@ -3121,6 +3138,7 @@ fun jittestmodule:test {
     v43:ImmortalBool = PrimitiveBoxBool v42
     Snapshot
     v44:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v44
     CondBranch<4, 5> v42
   }
 
@@ -3210,6 +3228,7 @@ fun jittestmodule:test {
     v30:ImmortalBool = PrimitiveBoxBool v29
     Snapshot
     v31:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v31
     CondBranch<1, 2> v29
   }
 
@@ -3249,6 +3268,7 @@ fun jittestmodule:test {
     v43:ImmortalBool = PrimitiveBoxBool v42
     Snapshot
     v44:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v44
     CondBranch<4, 5> v42
   }
 
@@ -3338,6 +3358,7 @@ fun jittestmodule:test {
     v30:ImmortalBool = PrimitiveBoxBool v29
     Snapshot
     v31:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v31
     CondBranch<1, 2> v29
   }
 
@@ -3377,6 +3398,7 @@ fun jittestmodule:test {
     v43:ImmortalBool = PrimitiveBoxBool v42
     Snapshot
     v44:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v44
     CondBranch<4, 5> v42
   }
 
@@ -3467,6 +3489,7 @@ fun jittestmodule:test {
     v30:ImmortalBool = PrimitiveBoxBool v29
     Snapshot
     v31:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v31
     CondBranch<1, 2> v29
   }
 
@@ -3506,6 +3529,7 @@ fun jittestmodule:test {
     v43:ImmortalBool = PrimitiveBoxBool v42
     Snapshot
     v44:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v44
     CondBranch<4, 5> v42
   }
 
@@ -6920,6 +6944,7 @@ fun test {
     v11:ImmortalBool = PrimitiveBoxBool v10
     UseType<Bool> v11
     v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v12
     CondBranch<2, 1> v10
   }
 
@@ -6956,6 +6981,7 @@ fun test {
     v11:ImmortalBool = PrimitiveBoxBool v10
     UseType<Bool> v11
     v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v12
     CondBranch<2, 1> v10
   }
 
@@ -6992,6 +7018,7 @@ fun test {
     v11:ImmortalBool = PrimitiveBoxBool v10
     UseType<Bool> v11
     v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v12
     CondBranch<2, 1> v10
   }
 
@@ -7028,6 +7055,7 @@ fun test {
     v11:ImmortalBool = PrimitiveBoxBool v10
     UseType<Bool> v11
     v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v12
     CondBranch<2, 1> v10
   }
 
@@ -7064,6 +7092,7 @@ fun test {
     v11:ImmortalBool = PrimitiveBoxBool v10
     UseType<Bool> v11
     v12:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v12
     CondBranch<2, 1> v10
   }
 
@@ -7133,6 +7162,7 @@ fun test {
     v17:ImmortalBool = PrimitiveBoxBool v16
     UseType<Bool> v17
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v9
     CondBranch<2, 1> v16
   }
 
@@ -7172,6 +7202,7 @@ fun test {
     v17:ImmortalBool = PrimitiveBoxBool v16
     UseType<Bool> v17
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v9
     CondBranch<2, 1> v16
   }
 
@@ -7211,6 +7242,7 @@ fun test {
     v17:ImmortalBool = PrimitiveBoxBool v16
     UseType<Bool> v17
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v9
     CondBranch<2, 1> v16
   }
 
@@ -7250,6 +7282,7 @@ fun test {
     v17:ImmortalBool = PrimitiveBoxBool v16
     UseType<Bool> v17
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v9
     CondBranch<2, 1> v16
   }
 
@@ -7289,6 +7322,7 @@ fun test {
     v17:ImmortalBool = PrimitiveBoxBool v16
     UseType<Bool> v17
     v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v9
     CondBranch<2, 1> v16
   }
 
@@ -7351,6 +7385,7 @@ fun test {
     v9:ImmortalBool = PrimitiveBoxBool v8
     UseType<Bool> v9
     v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v10
     CondBranch<2, 1> v8
   }
 
@@ -7383,6 +7418,7 @@ fun test {
     v9:ImmortalBool = PrimitiveBoxBool v8
     UseType<Bool> v9
     v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v10
     CondBranch<2, 1> v8
   }
 
@@ -7415,6 +7451,7 @@ fun test {
     v9:ImmortalBool = PrimitiveBoxBool v8
     UseType<Bool> v9
     v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v10
     CondBranch<2, 1> v8
   }
 
@@ -7447,6 +7484,7 @@ fun test {
     v9:ImmortalBool = PrimitiveBoxBool v8
     UseType<Bool> v9
     v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v10
     CondBranch<2, 1> v8
   }
 
@@ -7479,6 +7517,7 @@ fun test {
     v9:ImmortalBool = PrimitiveBoxBool v8
     UseType<Bool> v9
     v10:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v10
     CondBranch<2, 1> v8
   }
 
@@ -8746,6 +8785,7 @@ fun jittestmodule:test {
     v16:ImmortalBool = PrimitiveBoxBool v23
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v17
     CondBranch<1, 2> v23
   }
 
@@ -8804,6 +8844,7 @@ fun jittestmodule:test {
     v16:ImmortalBool = PrimitiveBoxBool v23
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v17
     CondBranch<1, 2> v23
   }
 
@@ -8862,6 +8903,7 @@ fun jittestmodule:test {
     v16:ImmortalBool = PrimitiveBoxBool v23
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v17
     CondBranch<1, 2> v23
   }
 
@@ -8923,6 +8965,7 @@ fun jittestmodule:test {
     v16:ImmortalBool = PrimitiveBoxBool v15
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v17
     CondBranch<1, 2> v15
   }
 
@@ -12255,6 +12298,7 @@ fun test {
     v0:CBool = LoadArg<0, CBool>
     v1:ImmortalBool = PrimitiveBoxBool v0
     v2:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v2
     Return<CBool> v0
   }
 }
@@ -12264,6 +12308,7 @@ fun test {
     v0:CBool = LoadArg<0, CBool>
     v1:ImmortalBool = PrimitiveBoxBool v0
     v2:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v2
     Return<CBool> v0
   }
 }
@@ -12273,6 +12318,7 @@ fun test {
     v0:CBool = LoadArg<0, CBool>
     v1:ImmortalBool = PrimitiveBoxBool v0
     v2:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v2
     Return<CBool> v0
   }
 }
@@ -12282,6 +12328,7 @@ fun test {
     v0:CBool = LoadArg<0, CBool>
     v1:ImmortalBool = PrimitiveBoxBool v0
     v2:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v2
     Return<CBool> v0
   }
 }
@@ -12291,6 +12338,7 @@ fun test {
     v0:CBool = LoadArg<0, CBool>
     v1:ImmortalBool = PrimitiveBoxBool v0
     v2:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v2
     Return<CBool> v0
   }
 }
@@ -14491,6 +14539,7 @@ fun jittestmodule:test {
     v15:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<Bool> v14
     UseType<Bool> v15
+    UseType<ImmortalBool[True]> v15
     v19:ImmortalBool = PrimitiveBoxBool v13
     Snapshot
     Return v19
@@ -14526,6 +14575,7 @@ fun jittestmodule:test {
     v15:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<Bool> v14
     UseType<Bool> v15
+    UseType<ImmortalBool[True]> v15
     v19:ImmortalBool = PrimitiveBoxBool v13
     Snapshot
     Return v19
@@ -14563,6 +14613,7 @@ fun jittestmodule:test {
     Snapshot
     UseType<Bool> v14
     UseType<Bool> v15
+    UseType<ImmortalBool[True]> v15
     v19:ImmortalBool = PrimitiveBoxBool v13
     Snapshot
     Return v19
@@ -14600,6 +14651,7 @@ fun jittestmodule:test {
     Snapshot
     UseType<Bool> v14
     UseType<Bool> v15
+    UseType<ImmortalBool[True]> v15
     v19:ImmortalBool = PrimitiveBoxBool v13
     Snapshot
     Return v19
@@ -14637,6 +14689,7 @@ fun jittestmodule:test {
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<Bool> v16
     UseType<Bool> v17
+    UseType<ImmortalBool[True]> v17
     v21:ImmortalBool = PrimitiveBoxBool v15
     Snapshot
     Return v21
@@ -17823,6 +17876,176 @@ fun test {
       }
     }
     Return<CInt64> v0
+  }
+}
+--- Test Name ---
+IsTruthyOfBoxedPrimitiveUsesOriginalPrimitive
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0; "a", CInt64>
+    v1 = PrimitiveBox<CInt64> v0
+    v2 = IsTruthy v1
+    Return<CBool> v2
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:CBool = CIntToCBool v0
+    Return<CBool> v3
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:CBool = CIntToCBool v0
+    Return<CBool> v3
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:CBool = CIntToCBool v0
+    Return<CBool> v3
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:CBool = CIntToCBool v0
+    Return<CBool> v3
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:CBool = CIntToCBool v0
+    Return<CBool> v3
+  }
+}
+--- Test Name ---
+CompareBoxedPrimitiveToZeroUsesOriginalPrimitive
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0; "a", CInt64>
+    v1 = PrimitiveBox<CInt64> v0
+    v2 = LoadConst<LongExact[0]>
+    v3 = PrimitiveCompare<Equal> v1 v2
+    Return<CBool> v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    v4:CInt64[0] = LoadConst<CInt64[0]>
+    v5:CBool = PrimitiveCompare<Equal> v0 v4
+    Return<CBool> v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    v4:CInt64[0] = LoadConst<CInt64[0]>
+    v5:CBool = PrimitiveCompare<Equal> v0 v4
+    Return<CBool> v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    v4:CInt64[0] = LoadConst<CInt64[0]>
+    v5:CBool = PrimitiveCompare<Equal> v0 v4
+    Return<CBool> v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    v4:CInt64[0] = LoadConst<CInt64[0]>
+    v5:CBool = PrimitiveCompare<Equal> v0 v4
+    Return<CBool> v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:LongExact = PrimitiveBox<CInt64> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    UseType<ImmortalLongExact[0]> v2
+    v4:CInt64[0] = LoadConst<CInt64[0]>
+    v5:CBool = PrimitiveCompare<Equal> v0 v4
+    Return<CBool> v5
   }
 }
 --- Test Name ---

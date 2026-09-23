@@ -642,6 +642,14 @@ Register* simplifyCondBranchCheckType(
   return nullptr;
 }
 
+const PrimitiveBox* asInt64Box(Register* reg) {
+  if (!reg->instr()->isPrimitiveBox()) {
+    return nullptr;
+  }
+  auto box = static_cast<const PrimitiveBox*>(reg->instr());
+  return box->type() <= TCInt64 ? box : nullptr;
+}
+
 Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
   Type ty = instr->getOperand(0)->type();
   PyObject* obj = ty.asObject();
@@ -677,6 +685,9 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
   if (Register* size = emitGetLengthInt64(env, instr->getOperand(0))) {
     return env.emit<CIntToCBool>(size);
   }
+  if (const PrimitiveBox* box = asInt64Box(instr->getOperand(0))) {
+    return env.emit<CIntToCBool>(box->value());
+  }
   if (ty <= TLongExact) {
     Register* left = instr->getOperand(0);
     env.emit<UseType>(left, ty);
@@ -703,11 +714,8 @@ Register* simplifyIsCompactLong(Env& env, const IsCompactLong* instr) {
 
   // IsCompactLong(box(n)) --> IsCompactLong(n).
   Register* operand = instr->getOperand(0);
-  if (operand->instr()->isPrimitiveBox()) {
-    auto* box = static_cast<const PrimitiveBox*>(operand->instr());
-    if (box->type() <= TCInt64) {
-      return env.emit<IsCompactLong>(box->value());
-    }
+  if (const PrimitiveBox* box = asInt64Box(operand)) {
+    return env.emit<IsCompactLong>(box->value());
   }
 
   return nullptr;
@@ -729,12 +737,8 @@ Register* simplifyCompactLongUnbox(Env& env, const CompactLongUnbox* instr) {
   }
 
   // CompactLongUnbox(box(n)) --> n.
-  Register* operand = instr->getOperand(0);
-  if (operand->instr()->isPrimitiveBox()) {
-    auto* box = static_cast<const PrimitiveBox*>(operand->instr());
-    if (box->type() <= TCInt64) {
-      return box->value();
-    }
+  if (const PrimitiveBox* box = asInt64Box(instr->getOperand(0))) {
+    return box->value();
   }
 
   return nullptr;
@@ -1446,6 +1450,7 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
   bool commutative =
       op == PrimitiveCompareOp::kEqual || op == PrimitiveCompareOp::kNotEqual;
 
+  // Constant folding.
   if (commutative) {
     auto do_cbool = [&](bool value) {
       env.emit<UseType>(left, left->type());
@@ -1464,24 +1469,26 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
     }
   }
 
-  // Canonicalize boolean constants to the right for == and !=.
-  if (commutative && left->isA(TBool) && right->isA(TBool) &&
-      left->type().hasObjectSpec() && !right->type().hasObjectSpec()) {
-    return env.emit<PrimitiveCompare>(op, right, left);
+  // Canonicalize constants to the right for == and !=.
+  if (commutative &&
+      ((left->type().hasObjectSpec() && !right->type().hasObjectSpec()) ||
+       (left->type().hasIntSpec() && !right->type().hasIntSpec()))) {
+    std::swap(left, right);
   }
-  if (commutative && left->isA(TCBool) && right->isA(TCBool) &&
-      left->type().hasIntSpec() && !right->type().hasIntSpec()) {
-    return env.emit<PrimitiveCompare>(op, right, left);
-  }
+
+  // Note: PrimitiveCompare for boxed objects only applies for == and !=, which
+  // are pointer comparisons.  == means `is` and != means `not is`.
 
   // box(b) == True --> b
   if (op == PrimitiveCompareOp::kEqual && left->instr()->isPrimitiveBoxBool() &&
       right->type().asObject() == Py_True) {
+    env.emit<UseType>(right, right->type());
     return left->instr()->getOperand(0);
   }
   // box(b) == False --> !b
   if (op == PrimitiveCompareOp::kEqual && left->instr()->isPrimitiveBoxBool() &&
       right->type().asObject() == Py_False) {
+    env.emit<UseType>(right, right->type());
     return env.emit<PrimitiveUnaryOp>(
         PrimitiveUnaryOpKind::kNotInt, left->instr()->getOperand(0));
   }
@@ -1490,6 +1497,16 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
       right->instr()->isPrimitiveBoxBool()) {
     return env.emit<PrimitiveCompare>(
         op, left->instr()->getOperand(0), right->instr()->getOperand(0));
+  }
+
+  // box(n) CMP 0 --> n CMP 0, special case as boxing or constructing a 0 will
+  // always result in the same cached Python object.
+  if (const PrimitiveBox* box = asInt64Box(left)) {
+    if (commutative && right->type().asObject() == _PyLong_GetZero()) {
+      env.emit<UseType>(right, right->type());
+      Register* zero = env.emit<LoadConst>(Type::fromCInt(0, TCInt64));
+      return env.emit<PrimitiveCompare>(op, box->value(), zero);
+    }
   }
 
   return nullptr;

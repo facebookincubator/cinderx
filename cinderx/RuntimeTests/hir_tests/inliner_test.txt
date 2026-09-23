@@ -4311,6 +4311,7 @@ fun jittestmodule:test {
     v23:ImmortalBool = PrimitiveBoxBool v22
     Snapshot
     v24:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v24
     CondBranch<1, 2> v22
   }
 
@@ -4388,6 +4389,7 @@ fun jittestmodule:test {
     v58:ImmortalBool = PrimitiveBoxBool v57
     Snapshot
     v59:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v59
     CondBranch<6, 7> v57
   }
 
@@ -4489,6 +4491,7 @@ fun jittestmodule:test {
     v23:ImmortalBool = PrimitiveBoxBool v22
     Snapshot
     v24:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v24
     CondBranch<1, 2> v22
   }
 
@@ -4566,6 +4569,7 @@ fun jittestmodule:test {
     v58:ImmortalBool = PrimitiveBoxBool v57
     Snapshot
     v59:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v59
     CondBranch<6, 7> v57
   }
 
@@ -4667,6 +4671,7 @@ fun jittestmodule:test {
     v23:ImmortalBool = PrimitiveBoxBool v22
     Snapshot
     v24:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v24
     CondBranch<1, 2> v22
   }
 
@@ -4744,6 +4749,7 @@ fun jittestmodule:test {
     v58:ImmortalBool = PrimitiveBoxBool v57
     Snapshot
     v59:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v59
     CondBranch<6, 7> v57
   }
 
@@ -4847,6 +4853,7 @@ fun jittestmodule:test {
     v25:ImmortalBool = PrimitiveBoxBool v24
     Snapshot
     v26:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v26
     CondBranch<1, 2> v24
   }
 
@@ -4926,6 +4933,7 @@ fun jittestmodule:test {
     v62:ImmortalBool = PrimitiveBoxBool v61
     Snapshot
     v63:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v63
     CondBranch<6, 7> v61
   }
 
