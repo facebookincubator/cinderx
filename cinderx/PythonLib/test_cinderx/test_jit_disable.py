@@ -107,7 +107,7 @@ class DisableEnableTests(unittest.TestCase):
             # Counting the compiles is what makes this airtight: an identical
             # object address could in principle be a fresh compile that landed
             # in the freed one's memory.
-            env = {**subprocess_env(), "PYTHONJITDEBUG": "1"}
+            env = {**subprocess_env(), "CINDERX_JIT_DEBUG": "1"}
             proc = subprocess.run(
                 [sys.executable, str(test_file)],
                 check=True,

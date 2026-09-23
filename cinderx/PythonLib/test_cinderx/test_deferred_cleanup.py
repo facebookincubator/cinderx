@@ -274,7 +274,7 @@ class NestedCompileLifetimeTest(unittest.TestCase):
     """
 
     def _count_compiles(self, code: str, qualname: str) -> int:
-        env = {**subprocess_env(), "PYTHONJITDEBUG": "1"}
+        env = {**subprocess_env(), "CINDERX_JIT_DEBUG": "1"}
         with tempfile.TemporaryDirectory() as tmp:
             mod = Path(tmp) / "mod.py"
             mod.write_text(textwrap.dedent(code))

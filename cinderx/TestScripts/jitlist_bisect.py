@@ -30,7 +30,7 @@ COMPILED_FUNC_RE = re.compile(r" -- (Compiling|Inlining function) ([^ ]+)($| int
 
 def get_compiled_funcs(command: list[str]) -> list[str]:
     environ = dict(os.environ)
-    environ.update({"PYTHONJITDEBUG": "1"})
+    environ.update({"CINDERX_JIT_DEBUG": "1"})
 
     logger.info("Generating initial jit-list")
     proc = subprocess.run(
@@ -76,11 +76,11 @@ def run_bisect(command: list[str], jit_list_file: str | None) -> None:
     else:
         jitlist = read_jitlist(jit_list_file)
 
-    # Build shell command that sets environment variables and runs the original command
-    # The $BISECT_FILE will be used as PYTHONJITLISTFILE
+    # Build shell command that sets environment variables and runs the original command.
+    # The $BISECT_FILE will be used as CINDERX_JIT_LIST_FILE.
     escaped_command = " ".join(shlex.quote(arg) for arg in command)
     shell_command = (
-        f'PYTHONJITLISTFILE="$BISECT_FILE" IS_BISECTING_JITLIST=1 {escaped_command}'
+        f'CINDERX_JIT_LIST_FILE="$BISECT_FILE" IS_BISECTING_JITLIST=1 {escaped_command}'
     )
 
     logger.info("Verifying jit-list")

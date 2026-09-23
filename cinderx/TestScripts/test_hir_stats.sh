@@ -25,7 +25,7 @@ fi
 
 function run_workload() {
     # Run through cinder_test_runner to skip tests known to break in JIT
-    CINDERX_JIT_BACKGROUND_COMPILE=0 PYTHONJITDUMPHIRSTATS=1 PYTHONJITALL=1 PYTHONJITDEBUG=1 \
+    CINDERX_JIT_BACKGROUND_COMPILE=0 CINDERX_JIT_DUMP_HIR_STATS=1 CINDERX_JIT_ALL=1 CINDERX_JIT_DEBUG=1 \
         buck run @//mode/opt "fbcode//cinderx:python$PYTHON_VERSION" -- cinder_test_runner.py test "$@"  -- --randseed=1
 }
 

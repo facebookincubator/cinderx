@@ -353,8 +353,8 @@ BasicBlock* LIRGenerator::generateEntryBlock() {
 
 namespace {
 
-// Set a pending annotation that labels a section of generated code
-// in PYTHONJITDUMPASM=1 output. The annotation covers all subsequent
+// Set a pending annotation that labels a section of generated code in
+// CINDERX_JIT_DUMP_ASM=1 output. The annotation covers all subsequent
 // instructions until the next annotation or end of block.
 void emitAnnotation(BasicBlock* bb, std::string text) {
   bb->pending_annotation_ = std::move(text);
@@ -397,7 +397,7 @@ struct FrameFieldEntry {
   int32_t offset; // Relative to _PyInterpreterFrame pointer
   DataType data_type; // Size of the store
   Instruction* value; // VReg producing the value to store
-  const char* name; // Annotation label (for PYTHONJITDUMPASM)
+  const char* name; // Annotation label (for CINDERX_JIT_DUMP_ASM)
 };
 
 // Unified frame initialization plan.  Walks kFrameInitTable (one shared

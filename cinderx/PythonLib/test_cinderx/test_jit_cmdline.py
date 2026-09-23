@@ -107,8 +107,8 @@ class CmdLineTest(unittest.TestCase):
         Run a child with the option set as an ``-X`` flag and again with it set
         as an environment variable, running ``check`` over both results.
 
-        ``flag`` and ``env_var`` may carry a value, e.g. ``jit-huge-pages=0``
-        and ``PYTHONJITHUGEPAGES=0``.  A valueless option is treated as if it
+        ``flag`` and ``env_var`` may carry a value, e.g. ``cinderx-jit-debug=0``
+        and ``CINDERX_JIT_DEBUG=0``.  A valueless option is treated as if it
         were set to 1, matching how the JIT reads ``-X`` flags.
         """
 
@@ -133,12 +133,14 @@ class CmdLineTest(unittest.TestCase):
         name rather than the legacy alias the option was given as.
         """
 
-        proc = self._run(["-X", "jit-debug", "-X", flag, "-c", _HELLO])
+        proc = self._run(["-X", "cinderx-jit-debug", "-X", flag, "-c", _HELLO])
         self._assert_ok(proc)
         self.assertIn(f"{canonical_flag} has been specified", proc.stderr)
 
         name, _, value = env_var.partition("=")
-        proc = self._run(["-X", "jit-debug", "-c", _HELLO], {name: value or "1"})
+        proc = self._run(
+            ["-X", "cinderx-jit-debug", "-c", _HELLO], {name: value or "1"}
+        )
         self._assert_ok(proc)
         self.assertIn(f"{canonical_env_var} has been specified", proc.stderr)
 
@@ -157,7 +159,9 @@ class CmdLineTest(unittest.TestCase):
             self._assert_ok(proc)
             self.assertRegex(proc.stderr, r"JIT: cinderx[/\\]")
 
-        self._check_both_forms("jit-debug", "PYTHONJITDEBUG", ["-c", _HELLO], check)
+        self._check_both_forms(
+            "cinderx-jit-debug", "CINDERX_JIT_DEBUG", ["-c", _HELLO], check
+        )
 
     def test_debug_refcount(self) -> None:
         self._check_acknowledged(
@@ -181,7 +185,10 @@ class CmdLineTest(unittest.TestCase):
             self.assertIn("Initial HIR for __main__:sample", proc.stderr)
 
         self._check_both_forms(
-            "jit-dump-hir", "PYTHONJITDUMPHIR", ["-c", _COMPILE_SAMPLE], check
+            "cinderx-jit-dump-hir",
+            "CINDERX_JIT_DUMP_HIR",
+            ["-c", _COMPILE_SAMPLE],
+            check,
         )
 
     def test_dump_hir_passes(self) -> None:
@@ -191,8 +198,8 @@ class CmdLineTest(unittest.TestCase):
             self.assertIn("HIR for __main__:sample after pass", proc.stderr)
 
         self._check_both_forms(
-            "jit-dump-hir-passes",
-            "PYTHONJITDUMPHIRPASSES",
+            "cinderx-jit-dump-hir-passes",
+            "CINDERX_JIT_DUMP_HIR_PASSES",
             ["-c", _COMPILE_SAMPLE],
             check,
         )
@@ -203,8 +210,8 @@ class CmdLineTest(unittest.TestCase):
             self.assertIn("Optimized HIR for __main__:sample", proc.stderr)
 
         self._check_both_forms(
-            "jit-dump-final-hir",
-            "PYTHONJITDUMPFINALHIR",
+            "cinderx-jit-dump-final-hir",
+            "CINDERX_JIT_DUMP_FINAL_HIR",
             ["-c", _COMPILE_SAMPLE],
             check,
         )
@@ -215,7 +222,10 @@ class CmdLineTest(unittest.TestCase):
             self.assertIn("LIR for __main__:sample", proc.stderr)
 
         self._check_both_forms(
-            "jit-dump-lir", "PYTHONJITDUMPLIR", ["-c", _COMPILE_SAMPLE], check
+            "cinderx-jit-dump-lir",
+            "CINDERX_JIT_DUMP_LIR",
+            ["-c", _COMPILE_SAMPLE],
+            check,
         )
 
     def test_dump_lir_origin(self) -> None:
@@ -227,13 +237,13 @@ class CmdLineTest(unittest.TestCase):
             self.assertIn("\n# ", proc.stderr)
 
         self._check_both_forms(
-            "jit-dump-lir-origin",
-            "PYTHONJITDUMPLIRORIGIN",
+            "cinderx-jit-dump-lir-origin",
+            "CINDERX_JIT_DUMP_LIR_ORIGIN",
             ["-c", _COMPILE_SAMPLE],
             check,
         )
 
-        proc = self._run(["-X", "jit-dump-lir-origin=0", "-c", _COMPILE_SAMPLE])
+        proc = self._run(["-X", "cinderx-jit-dump-lir-origin=0", "-c", _COMPILE_SAMPLE])
         self._assert_ok(proc)
         self.assertIn("LIR for __main__:sample", proc.stderr)
         self.assertNotIn("\n# ", proc.stderr)
@@ -249,7 +259,10 @@ class CmdLineTest(unittest.TestCase):
             )
 
         self._check_both_forms(
-            "jit-dump-asm", "PYTHONJITDUMPASM", ["-c", _COMPILE_SAMPLE], check
+            "cinderx-jit-dump-asm",
+            "CINDERX_JIT_DUMP_ASM",
+            ["-c", _COMPILE_SAMPLE],
+            check,
         )
 
     def test_gdb_support(self) -> None:
@@ -259,7 +272,7 @@ class CmdLineTest(unittest.TestCase):
             self.assertRegex(proc.stderr, r"JIT: cinderx[/\\]")
 
         self._check_both_forms(
-            "jit-gdb-support", "PYTHONJITGDBSUPPORT", ["-c", _HELLO], check
+            "cinderx-jit-gdb-support", "CINDERX_JIT_GDB_SUPPORT", ["-c", _HELLO], check
         )
 
     def test_gdb_write_elf(self) -> None:
@@ -268,7 +281,10 @@ class CmdLineTest(unittest.TestCase):
             self.assertRegex(proc.stderr, r"JIT: cinderx[/\\]")
 
         self._check_both_forms(
-            "jit-gdb-write-elf", "PYTHONJITGDBWRITEELF", ["-c", _HELLO], check
+            "cinderx-jit-gdb-write-elf",
+            "CINDERX_JIT_GDB_WRITE_ELF",
+            ["-c", _HELLO],
+            check,
         )
 
     def test_dump_stats(self) -> None:
@@ -277,8 +293,8 @@ class CmdLineTest(unittest.TestCase):
             self.assertIn("JIT runtime stats:", proc.stderr)
 
         self._check_both_forms(
-            "jit-dump-stats",
-            "PYTHONJITDUMPSTATS",
+            "cinderx-jit-dump-stats",
+            "CINDERX_JIT_DUMP_STATS",
             ["-c", _COMPILE_SAMPLE],
             check,
         )
@@ -302,9 +318,9 @@ class CmdLineTest(unittest.TestCase):
                 log_file.unlink()
 
             self._check_both_forms(
-                f"jit-log-file={log_file}",
-                f"PYTHONJITLOGFILE={log_file}",
-                ["-X", "jit-debug", "-c", source],
+                f"cinderx-jit-log-file={log_file}",
+                f"CINDERX_JIT_LOG_FILE={log_file}",
+                ["-X", "cinderx-jit-debug", "-c", source],
                 check,
             )
 
@@ -337,10 +353,10 @@ class CmdLineTest(unittest.TestCase):
             self.assertIn("SMALL", proc.stdout)
 
         self._check_both_forms(
-            "jit-huge-pages=1", "PYTHONJITHUGEPAGES=1", args, check_on
+            "cinderx-jit-huge-pages=1", "CINDERX_JIT_HUGE_PAGES=1", args, check_on
         )
         self._check_both_forms(
-            "jit-huge-pages=0", "PYTHONJITHUGEPAGES=0", args, check_off
+            "cinderx-jit-huge-pages=0", "CINDERX_JIT_HUGE_PAGES=0", args, check_off
         )
 
     # Compilation options.
@@ -356,7 +372,7 @@ class CmdLineTest(unittest.TestCase):
             """
         )
         self._check_both_forms(
-            "jit-all", "PYTHONJITALL", ["-c", source], self._assert_ok
+            "cinderx-jit-all", "CINDERX_JIT_ALL", ["-c", source], self._assert_ok
         )
 
     def test_jit_disable(self) -> None:
@@ -369,7 +385,10 @@ class CmdLineTest(unittest.TestCase):
             """
         )
         self._check_both_forms(
-            "jit-disable", "PYTHONJITDISABLE", ["-c", source], self._assert_ok
+            "cinderx-jit-disable",
+            "CINDERX_JIT_DISABLE",
+            ["-c", source],
+            self._assert_ok,
         )
 
     def test_multithreaded_compile_test(self) -> None:
@@ -386,8 +405,8 @@ class CmdLineTest(unittest.TestCase):
             """
         )
         self._check_both_forms(
-            "jit-multithreaded-compile-test",
-            "PYTHONJITMULTITHREADEDCOMPILETEST",
+            "cinderx-jit-multithreaded-compile-test",
+            "CINDERX_JIT_MULTITHREADED_COMPILE_TEST",
             ["-c", source],
             self._assert_ok,
         )
@@ -426,8 +445,8 @@ class CmdLineTest(unittest.TestCase):
                 self.assertIn("COMPILED", proc.stdout)
 
             self._check_both_forms(
-                f"jit-list-file={jit_list}",
-                f"PYTHONJITLISTFILE={jit_list}",
+                f"cinderx-jit-list-file={jit_list}",
+                f"CINDERX_JIT_LIST_FILE={jit_list}",
                 [str(module)],
                 check,
             )
@@ -437,15 +456,15 @@ class CmdLineTest(unittest.TestCase):
             module = self._write_jit_list_module(tmp_dir)
             jit_list = Path(tmp_dir) / "jitlist.txt"
             jit_list.write_text("__main__:*\n")
-            args = ["-X", f"jit-list-file={jit_list}", str(module)]
+            args = ["-X", f"cinderx-jit-list-file={jit_list}", str(module)]
 
             def check(proc: subprocess.CompletedProcess[str]) -> None:
                 self._assert_ok(proc)
                 self.assertIn("COMPILED", proc.stdout)
 
             self._check_both_forms(
-                "jit-enable-jit-list-wildcards",
-                "PYTHONJITENABLEJITLISTWILDCARDS",
+                "cinderx-jit-enable-jit-list-wildcards",
+                "CINDERX_JIT_ENABLE_JIT_LIST_WILDCARDS",
                 args,
                 check,
             )
@@ -470,9 +489,9 @@ class CmdLineTest(unittest.TestCase):
                 self.assertIn("COMPILED", proc.stdout)
 
             self._check_both_forms(
-                "jit-list-match-line-numbers",
-                "PYTHONJITLISTMATCHLINENUMBERS",
-                ["-X", f"jit-list-file={matching}", str(module)],
+                "cinderx-jit-list-match-line-numbers",
+                "CINDERX_JIT_LIST_MATCH_LINE_NUMBERS",
+                ["-X", f"cinderx-jit-list-file={matching}", str(module)],
                 check,
             )
 
@@ -480,16 +499,16 @@ class CmdLineTest(unittest.TestCase):
             proc = self._run(
                 [
                     "-X",
-                    "jit-list-match-line-numbers",
+                    "cinderx-jit-list-match-line-numbers",
                     "-X",
-                    f"jit-list-file={stale}",
+                    f"cinderx-jit-list-file={stale}",
                     str(module),
                 ]
             )
             self._assert_ok(proc)
             self.assertIn("NOT_COMPILED", proc.stdout)
 
-            proc = self._run(["-X", f"jit-list-file={stale}", str(module)])
+            proc = self._run(["-X", f"cinderx-jit-list-file={stale}", str(module)])
             self._assert_ok(proc)
             self.assertIn("COMPILED", proc.stdout)
 
@@ -507,7 +526,7 @@ class CmdLineTest(unittest.TestCase):
         self._check_both_forms(
             "cinderx-jit-perf-map",
             "CINDERX_JIT_PERF_MAP",
-            ["-X", "jit-debug", "-c", _COMPILE_SAMPLE],
+            ["-X", "cinderx-jit-debug", "-c", _COMPILE_SAMPLE],
             check,
         )
 
@@ -542,7 +561,7 @@ class CmdLineTest(unittest.TestCase):
         # jit-help prints the option list and stops the interpreter from
         # starting up, so the child's body never runs.  It has no environment
         # variable equivalent.
-        proc = self._run(["-X", "jit-help", "-c", _HELLO])
+        proc = self._run(["-X", "cinderx-jit-help", "-c", _HELLO])
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("-X opt : set Cinder JIT-specific option.", proc.stdout)
         self.assertNotIn(_OK, proc.stdout)

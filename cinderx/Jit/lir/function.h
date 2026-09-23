@@ -89,7 +89,7 @@ class Function {
 
   // Associate a debug annotation string with an instruction. The annotation
   // covers that instruction and all subsequent instructions until the next
-  // annotated instruction or end of block (used by PYTHONJITDUMPASM=1).
+  // annotated instruction or end of block (used by CINDERX_JIT_DUMP_ASM=1).
   void annotate(const Instruction* instr, std::string text) {
     annotations_.emplace(instr, std::move(text));
   }
@@ -135,7 +135,7 @@ class Function {
   // The next id to assign to a BasicBlock or Instruction.
   int next_id_{0};
 
-  // Debug annotation map: instruction → label string for PYTHONJITDUMPASM.
+  // Debug annotation map: instruction → label string for CINDERX_JIT_DUMP_ASM.
   UnorderedMap<const Instruction*, std::string> annotations_;
 };
 
