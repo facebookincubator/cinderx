@@ -63,9 +63,7 @@ class BorrowSupport {
     return bits_.getBit(bit);
   }
 
-  bool operator==(const BorrowSupport& other) const {
-    return bits_ == other.bits_;
-  }
+  bool operator==(const BorrowSupport& other) const = default;
 
   const util::BitVector& bits() const {
     return bits_;
@@ -101,10 +99,7 @@ struct RegState {
     addCopy(model);
   }
 
-  bool operator==(const RegState& other) const {
-    return model_ == other.model_ && copies_ == other.copies_ &&
-        kind_ == other.kind_ && support_ == other.support_;
-  }
+  bool operator==(const RegState& other) const = default;
 
   // The model Register, or the original version that may or may not have been
   // copied.
@@ -275,9 +270,7 @@ class StateMap {
     return map_.erase(model);
   }
 
-  bool operator==(const StateMap& other) const {
-    return map_ == other.map_;
-  }
+  bool operator==(const StateMap& other) const = default;
 
  private:
   map_t map_;

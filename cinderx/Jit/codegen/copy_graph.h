@@ -37,9 +37,7 @@ class CopyGraph {
 
     Op(Kind kind, int from, int to) : kind{kind}, from{from}, to{to} {}
 
-    bool operator==(const Op& other) const {
-      return kind == other.kind && from == other.from && to == other.to;
-    }
+    bool operator==(const Op& other) const = default;
 
     Kind kind;
     int from;

@@ -20,10 +20,7 @@ struct ExecutionBlock {
   // Level to pop the operand stack when the block is exited
   int stack_level;
 
-  bool operator==(const ExecutionBlock& other) const {
-    return (opcode == other.opcode) && (handler_off == other.handler_off) &&
-        (stack_level == other.stack_level);
-  }
+  bool operator==(const ExecutionBlock& other) const = default;
 
   bool isTryBlock() const {
     return opcode == SETUP_FINALLY;

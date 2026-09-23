@@ -85,10 +85,7 @@ struct RegState {
   RegState(Register* reg, RefKind ref_kind, ValueKind value_kind)
       : reg{reg}, ref_kind{ref_kind}, value_kind{value_kind} {}
 
-  bool operator==(const RegState& other) const {
-    return (reg == other.reg) && (ref_kind == other.ref_kind) &&
-        (value_kind == other.value_kind);
-  }
+  bool operator==(const RegState& other) const = default;
 
   Register* reg{nullptr};
   RefKind ref_kind{RefKind::kUncounted};
