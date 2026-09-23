@@ -131,7 +131,10 @@ class InlineCacheStatsTests(unittest.TestCase):
         def trigger_load_method_with_stats():
             a = BinOps()
             a.instance_mul(100, 1)
-            a.mul(100, 1)  # This should be a cache miss.
+            # Staticmethods are cached, but not when shadowed by an instance
+            # attribute.  This should be a cache miss.
+            a.mul = BinOps.mul
+            a.mul(100, 1)
 
             # This should be a cache miss.
             b = linecache.getline("abc", 123)  # noqa: F841
