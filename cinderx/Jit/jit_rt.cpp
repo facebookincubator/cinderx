@@ -2124,7 +2124,12 @@ LoadMethodResult loadSpecial(
   _PyStackRef method_and_self[2] = {
       PyStackRef_NULL, PyStackRef_FromPyObjectNew(self)};
   PyObject* name = _Py_SpecialMethods[special_idx].name;
+#if PY_VERSION_HEX >= 0x03100000
+  int err = _PyObject_LookupSpecialMethod(
+      name, &method_and_self[0], &method_and_self[1]);
+#else
   int err = _PyObject_LookupSpecialMethod(name, method_and_self);
+#endif
   if (err <= 0) {
     PyStackRef_CLOSE(method_and_self[1]);
     if (err < 0) {

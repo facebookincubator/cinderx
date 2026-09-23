@@ -16,6 +16,8 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/module_state.h"
+// NOLINTNEXTLINE(facebook-unused-include-check)
+#include "internal/pycore_ceval.h" // SPECIAL___ENTER__
 
 #include <cstdarg>
 #include <cstddef>
@@ -359,6 +361,51 @@ def get_user_id(user):
   ASSERT_TRUE(PyLong_CheckExact(result)) << "Incorrect type returned";
   ASSERT_EQ(PyLong_AsLong(result), PyLong_AsLong(user_id))
       << "Incorrect user id returned";
+}
+
+TEST_F(BackendTest, LoadSpecial) {
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* src = R"(
+class Ctx:
+  def __enter__(self):
+    return 42
+  def __exit__(self, *exc):
+    return False
+)";
+  Ref<PyObject> globals(MakeGlobals());
+  ASSERT_NE(globals.get(), nullptr) << "Failed creating globals";
+
+  auto locals = Ref<>::steal(PyDict_New());
+  ASSERT_NE(locals.get(), nullptr) << "Failed creating locals";
+
+  auto st = Ref<>::steal(PyRun_String(src, Py_file_input, globals, locals));
+  ASSERT_NE(st.get(), nullptr) << "Failed executing code";
+
+  // Borrowed from locals
+  PyObject* ctx_klass = PyDict_GetItemString(locals, "Ctx");
+  ASSERT_NE(ctx_klass, nullptr) << "Couldn't get class Ctx";
+
+  auto ctx = Ref<>::steal(PyObject_CallNoArgs(ctx_klass));
+  ASSERT_NE(ctx.get(), nullptr) << "Couldn't create Ctx instance";
+
+  LoadMethodResult enter = rt::loadSpecial(ctx, SPECIAL___ENTER__);
+  ASSERT_TRUE(PyErr_Occurred() == nullptr);
+  ASSERT_NE(enter.callable, nullptr);
+  // __enter__ is returned unbound with the instance as explicit receiver.
+  ASSERT_EQ(enter.self_or_null, ctx.get());
+  auto enter_callable = Ref<>::steal(enter.callable);
+  auto enter_self = Ref<>::steal(enter.self_or_null);
+  auto enter_result = Ref<>::steal(
+      PyObject_CallFunctionObjArgs(enter_callable, enter_self.get(), nullptr));
+  ASSERT_NE(enter_result.get(), nullptr) << "Failed calling __enter__";
+  ASSERT_EQ(PyLong_AsLong(enter_result), 42);
+
+  LoadMethodResult missing = rt::loadSpecial(Py_None, SPECIAL___ENTER__);
+  ASSERT_EQ(missing.callable, nullptr);
+  ASSERT_EQ(missing.self_or_null, nullptr);
+  ASSERT_TRUE(PyErr_ExceptionMatches(PyExc_TypeError));
+  PyErr_Clear();
+#endif
 }
 
 #ifdef ENABLE_INTERPRETER_LOOP
