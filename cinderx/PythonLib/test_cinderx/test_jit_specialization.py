@@ -519,27 +519,28 @@ class SpecializationTests(CinderXTestCase):
         self.assertIn("UNPACK_SEQUENCE_TWO_TUPLE", opnames(f))
         self.assertEqual(f(("c", "d")), "c")
 
-    def test_for_iter_range_unused_loop_variable(self) -> None:
-        def count(n: int) -> int:
-            result = 0
-            for _ in range(n):
-                result += 1
-            return result
+    def test_for_iter_range_basic_loop_variable_usage(self) -> None:
+        def superstitious(n: int) -> str:
+            for i in range(n):
+                if i == 13:
+                    return "Oh no!"
+            return "Ok"
 
         # Warm up so FOR_ITER specializes to FOR_ITER_RANGE before compiling.
-        cinderx.jit.jit_suppress(count)
+        cinderx.jit.jit_suppress(superstitious)
         for _ in range(100):
-            count(10)
-        cinderx.jit.jit_unsuppress(count)
+            superstitious(10)
+        cinderx.jit.jit_unsuppress(superstitious)
 
         # Windows uses 32-bit longs, whose boxes are not optimized away yet.
         self.assertHIROpcodes(
-            count,
+            superstitious,
             present=["GuardType", "IntBinaryOp"],
             absent=[] if sys.platform == "win32" else ["PrimitiveBox"],
         )
 
-        self.assertEqual(count(100), 100)
+        self.assertEqual(superstitious(10), "Ok")
+        self.assertEqual(superstitious(100), "Oh no!")
 
     def test_for_iter_range_reused_loop_variable(self) -> None:
         """

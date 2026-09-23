@@ -510,6 +510,55 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
   return nullptr;
 }
 
+const PrimitiveBox* asInt64Box(Register* reg) {
+  if (!reg->instr()->isPrimitiveBox()) {
+    return nullptr;
+  }
+  auto box = static_cast<const PrimitiveBox*>(reg->instr());
+  return box->type() <= TCInt64 ? box : nullptr;
+}
+
+std::optional<Py_ssize_t> getLongConstant(Type t) {
+  if (!t.hasObjectSpec()) {
+    return std::nullopt;
+  }
+  ThreadedCompileGILHolder lock;
+  BorrowedRef<> obj = t.objectSpec();
+  Py_ssize_t result = PyLong_AsSsize_t(obj);
+  if (PyErr_Occurred()) {
+    PyErr_Clear();
+    return std::nullopt;
+  }
+  return result;
+}
+
+// Get the op that gives the same result when the operands are swapped, e.g.
+// `a < b` is `b > a`.
+PrimitiveCompareOp swapOperandsCompareOp(PrimitiveCompareOp op) {
+  switch (op) {
+    case PrimitiveCompareOp::kEqual:
+    case PrimitiveCompareOp::kNotEqual:
+      return op;
+    case PrimitiveCompareOp::kLessThan:
+      return PrimitiveCompareOp::kGreaterThan;
+    case PrimitiveCompareOp::kLessThanEqual:
+      return PrimitiveCompareOp::kGreaterThanEqual;
+    case PrimitiveCompareOp::kGreaterThan:
+      return PrimitiveCompareOp::kLessThan;
+    case PrimitiveCompareOp::kGreaterThanEqual:
+      return PrimitiveCompareOp::kLessThanEqual;
+    case PrimitiveCompareOp::kLessThanUnsigned:
+      return PrimitiveCompareOp::kGreaterThanUnsigned;
+    case PrimitiveCompareOp::kLessThanEqualUnsigned:
+      return PrimitiveCompareOp::kGreaterThanEqualUnsigned;
+    case PrimitiveCompareOp::kGreaterThanUnsigned:
+      return PrimitiveCompareOp::kLessThanUnsigned;
+    case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
+      return PrimitiveCompareOp::kLessThanEqualUnsigned;
+  }
+  JIT_ABORT("Unknown PrimitiveCompareOp {}", static_cast<int>(op));
+}
+
 Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
   Register* left = instr->getOperand(0);
   Register* right = instr->getOperand(1);
@@ -520,6 +569,36 @@ Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
   auto prim_op = toPrimitiveCompareOp(op);
   if (!prim_op.has_value()) {
     return nullptr;
+  }
+
+  // Normalize constants to the right.
+  if (left->type().hasObjectSpec() && !right->type().hasObjectSpec()) {
+    std::swap(left, right);
+    prim_op = swapOperandsCompareOp(*prim_op);
+  }
+
+  // box(n) CMP LoadConst[k] --> n CMP k.
+  if (const PrimitiveBox* box = asInt64Box(left)) {
+    if (right->type().hasObjectSpec()) {
+      auto right_res = getLongConstant(right->type());
+      if (right_res.has_value()) {
+        env.emit<UseType>(right, right->type());
+        Register* right_obj =
+            env.emit<LoadConst>(Type::fromCInt(*right_res, TCInt64));
+        Register* unboxed_result =
+            env.emit<PrimitiveCompare>(*prim_op, box->value(), right_obj);
+        return env.emit<PrimitiveBoxBool>(unboxed_result);
+      }
+    }
+  }
+
+  // box(m) CMP box(n) --> m CMP n.
+  if (const PrimitiveBox* left_box = asInt64Box(left)) {
+    if (const PrimitiveBox* right_box = asInt64Box(right)) {
+      Register* unboxed_result = env.emit<PrimitiveCompare>(
+          *prim_op, left_box->value(), right_box->value());
+      return env.emit<PrimitiveBoxBool>(unboxed_result);
+    }
   }
 
   // Guard that both sides are compact longs.
@@ -640,14 +719,6 @@ Register* simplifyCondBranchCheckType(
     return env.emit<Branch>(instr->false_bb());
   }
   return nullptr;
-}
-
-const PrimitiveBox* asInt64Box(Register* reg) {
-  if (!reg->instr()->isPrimitiveBox()) {
-    return nullptr;
-  }
-  auto box = static_cast<const PrimitiveBox*>(reg->instr());
-  return box->type() <= TCInt64 ? box : nullptr;
 }
 
 Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
@@ -1246,20 +1317,6 @@ Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
     return env.emit<FloatBinaryOp>(op, lhs, rhs, *instr->frameState());
   }
   return nullptr;
-}
-
-std::optional<Py_ssize_t> getLongConstant(Type t) {
-  if (!t.hasObjectSpec()) {
-    return std::nullopt;
-  }
-  ThreadedCompileGILHolder lock;
-  BorrowedRef<> obj = t.objectSpec();
-  Py_ssize_t result = PyLong_AsSsize_t(obj);
-  if (PyErr_Occurred()) {
-    PyErr_Clear();
-    return std::nullopt;
-  }
-  return result;
 }
 
 Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
