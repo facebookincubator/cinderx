@@ -569,11 +569,9 @@ void LinearScanAllocator::calculateLiveIntervals() {
         int range_end = live_across ? instr_loc + kIdsPerInstr : instr_loc + 1;
         vreg_intervals_.at(id).addRange({bb_start_id, range_end});
 
-        if (!live.count(id) && operand->isLinked()) {
+        if (live.insert(id).second && operand->isLinked()) {
           vreg_last_uses_.at(id).emplace_back(operand, instr_loc);
         }
-
-        live.insert(id);
         if (reguse) {
           vreg_phy_uses_.at(id).push_back(instr_loc);
           if (live_across) {
@@ -710,15 +708,11 @@ void LinearScanAllocator::calculateLiveIntervals() {
     state_iter->second.livein = std::move(live);
 
     // record a loop end
-    for (auto& succ : bb->successors()) {
-      if (visited_blocks.contains(bb)) {
-        continue;
+    if (visited_blocks.insert(bb).second) {
+      for (auto& succ : bb->successors()) {
+        loop_ends[succ].push_back(bb_start_id + bb_instrs + 1);
       }
-
-      loop_ends[succ].push_back(bb_start_id + bb_instrs + 1);
     }
-
-    visited_blocks.insert(bb);
   }
 
   for (auto& uses : vreg_phy_uses_) {

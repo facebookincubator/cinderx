@@ -138,9 +138,7 @@ void InsertUpdatePrevInstr::run([[maybe_unused]] Function& func) {
 
         auto begin = static_cast<BeginInlinedFunction*>(&instr);
         auto code = begin->code();
-        if (code_bc_idx_map.find(code) == code_bc_idx_map.end()) {
-          code_bc_idx_map.emplace(code, BytecodeIndexToLine(code));
-        }
+        code_bc_idx_map.try_emplace(code, code);
         parents[begin] = parent;
         parent = begin;
         last_emitted = nullptr;
@@ -185,9 +183,8 @@ void InsertUpdatePrevInstr::run([[maybe_unused]] Function& func) {
     auto term = block->getTerminator();
     for (std::size_t i = 0, n = term->numEdges(); i < n; ++i) {
       BasicBlock* succ = term->successor(i);
-      if (!enqueued.contains(succ)) {
+      if (enqueued.insert(succ).second) {
         worklist.emplace(succ, parent);
-        enqueued.insert(succ);
       }
     }
   }

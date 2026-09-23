@@ -144,12 +144,10 @@ void CompilationPhaseTimer::dumpPhaseTimingsAndTidy() {
 
     phase_info += "      ";
 
-    if (subphase_to_group_total_time.contains(phase)) {
+    if (auto it = subphase_to_group_total_time.find(phase);
+        it != subphase_to_group_total_time.end()) {
       phase_info += fmt::format(
-          "{:>5.1f}",
-          (time_span /
-           (static_cast<double>(subphase_to_group_total_time[phase]))) *
-              100);
+          "{:>5.1f}", (time_span / (static_cast<double>(it->second))) * 100);
     } else {
       phase_info += "100.0";
     }

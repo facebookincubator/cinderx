@@ -857,10 +857,9 @@ void HIRBuilder::translate(
   while (!queue.empty()) {
     auto tc = std::move(queue.front());
     queue.pop_front();
-    if (processed.contains(tc.block)) {
+    if (!processed.insert(tc.block).second) {
       continue;
     }
-    processed.emplace(tc.block);
 
     // Translate remaining instructions into HIR
     auto& bc_block = map_get(block_map_.bc_blocks, tc.block);

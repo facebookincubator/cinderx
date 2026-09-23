@@ -828,10 +828,9 @@ bool removeUnreachableBlocks(Function& func) {
   while (!stack.empty()) {
     BasicBlock* block = stack.back();
     stack.pop_back();
-    if (visited.contains(block)) {
+    if (!visited.insert(block).second) {
       continue;
     }
-    visited.insert(block);
     auto term = block->getTerminator();
     for (std::size_t i = 0, n = term->numEdges(); i < n; ++i) {
       BasicBlock* succ = term->successor(i);

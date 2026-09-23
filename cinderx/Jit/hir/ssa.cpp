@@ -82,7 +82,7 @@ bool checkCFG(const Function& func, std::ostream& err) {
     std::unordered_set<BasicBlock*> seen;
     for (auto edge : block.inEdges()) {
       auto pred = edge->from();
-      if (seen.contains(pred)) {
+      if (!seen.insert(pred).second) {
         fmt::print(
             err,
             "ERROR: bb {} has > 1 edge from predecessor bb {}\n",
@@ -90,7 +90,6 @@ bool checkCFG(const Function& func, std::ostream& err) {
             pred->id);
         return false;
       }
-      seen.insert(pred);
     }
   }
 
