@@ -16,6 +16,7 @@ FuncAny = Callable[..., Any]
 try:  # noqa: C901
     from cinderjit import (
         _deopt_gen,
+        _has_lightweight_frames,
         _would_tag_if_deferred,
         append_jit_list,
         auto,
@@ -79,6 +80,9 @@ except ImportError:
         | AsyncGenerator[TDeoptGenYield, TDeoptGenSend]
         | Coroutine[TDeoptGenYield, TDeoptGenSend, TDeoptGenReturn],
     ) -> bool:
+        return False
+
+    def _has_lightweight_frames() -> bool:
         return False
 
     def _would_tag_if_deferred(obj: object) -> bool:

@@ -3283,6 +3283,10 @@ PyObject* disable_specialized_opcodes(PyObject* /* self */, PyObject*) {
   Py_RETURN_NONE;
 }
 
+PyObject* has_lightweight_frames(PyObject* /* self */, PyObject* /* args */) {
+  return PyBool_FromLong(kLightweightFrames);
+}
+
 // If the given generator-like object is a suspended JIT generator, deopt it
 // and return 1. Otherwise, return 0.
 int deopt_gen_impl(PyGenObject* gen) {
@@ -3836,6 +3840,12 @@ PyMethodDef jit_methods[] = {
          "generator. If it is a JIT generator, deopt it, so it will resume in "
          "the interpreter the next time it executes, and return True. "
          "Otherwise, return False. Intended only for use in tests.")},
+    {"_has_lightweight_frames",
+     has_lightweight_frames,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Check whether CinderX has been built with lightweight frame support. "
+         "This is currently limited to Meta Python.")},
     {nullptr, nullptr, 0, nullptr},
 };
 

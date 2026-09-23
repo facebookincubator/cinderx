@@ -88,6 +88,15 @@ constexpr bool kPreforkModel =
     false;
 #endif
 
+// Whether CinderX has been built to use lightweight frames, which are only
+// supported by the Meta Python runtime currently.
+constexpr bool kLightweightFrames =
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+    true;
+#else
+    false;
+#endif
+
 // The CPU architecture targeted by the current build.
 enum class Arch {
   kX86_64,

@@ -13,8 +13,8 @@ from cinderx.test_support import (
     is_emulated,
     passIf,
     run_in_fresh_process,
-    skip_test_if_oss,
     skip_unless_jit,
+    skip_unless_lightweight_frames,
 )
 
 
@@ -508,7 +508,7 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         sys.settrace(None)
 
     @passIf(is_emulated(), "QEMU doesn't support process_vm_readv")
-    @skip_test_if_oss("Requires lightweight frames from Meta Python")
+    @skip_unless_lightweight_frames("Lightweight frames needed for OSR")
     @run_with_instrumentation
     def test_looping_thread_deopted_on_instrumentation(self) -> None:
         # A worker thread in a tight JIT loop should have its topmost frame
@@ -764,7 +764,7 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
 
 
 @skip_unless_jit("Tests functionality on the JIT")
-@skip_test_if_oss("Requires lightweight frames from Meta Python")
+@skip_unless_lightweight_frames("Lightweight frames needed for OSR")
 class JitStackFrameDeoptTest(unittest.TestCase):
     """
     Test that JIT frames on the stack are deopted when instrumentation attaches.

@@ -195,6 +195,12 @@ def skip_unless_lazy_imports(
     return passUnless(hasattr(importlib, "set_lazy_imports"), reason)
 
 
+def skip_unless_lightweight_frames(
+    reason: str,
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    return passUnless(cinderx.jit._has_lightweight_frames(), reason)
+
+
 TRet = TypeVar("TRet")
 
 
