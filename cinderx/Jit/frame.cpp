@@ -438,7 +438,6 @@ Ref<> makeFrameReifier([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
   PyObject* reifier =
       PyUnstable_MakeJITExecutable(reifyRunningFrame, code, nullptr);
   if (reifier == nullptr) {
-    PyErr_Print();
     throw std::runtime_error(
         fmt::format("failed to make reifier {}", codeQualname(code)));
   }
