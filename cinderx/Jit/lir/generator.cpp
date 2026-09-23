@@ -3994,7 +3994,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         }
         size_t flags = 0;
         Instruction* instr;
-        if (hir_instr.func()->type() <= TFunc) {
+        const Type func_type = hir_instr.func()->type();
+        vectorcallfunc type_vectorcall = nullptr;
+        if (func_type <= TType && func_type.hasObjectSpec()) {
+          BorrowedRef<PyTypeObject> type{func_type.objectSpec()};
+          if (PyType_HasFeature(type, Py_TPFLAGS_IMMUTABLETYPE)) {
+            type_vectorcall = type->tp_vectorcall;
+          }
+        }
+        if (func_type <= TFunc) {
           // TFunc is exactly PyFunctionObject, so its vectorcall slot is
           // always populated. Load and call it directly rather than paying for
           // the type-flag test, slot load, and result check that
@@ -4012,10 +4020,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               Opcode::kVectorCall,
               VReg{vectorcall_ptr},
               Imm{flags});
+        } else if (type_vectorcall != nullptr) {
+          instr = bbb.appendInstr(
+              hir_instr.output(),
+              Opcode::kVectorCall,
+              Imm{reinterpret_cast<uint64_t>(type_vectorcall)},
+              Imm{flags});
         } else {
-          // Calls to things which aren't simple Python functions will
-          // need to check the eval breaker. We do this in a helper instead
-          // of injecting it after every call.
+          // Calls without a known direct vectorcall target need to check the
+          // eval breaker. We do this in a helper instead of injecting it after
+          // every call.
           instr = bbb.appendInstr(
               hir_instr.output(),
               Opcode::kVectorCallTstate,

@@ -938,6 +938,25 @@ def func(x):
   expectPhiInputsFollowPredecessors(findPhiWithInputCount(lir_func.get(), 2));
 }
 
+TEST_F(LIRGeneratorTest, ExactTypeVectorCallUsesDirectTarget) {
+  const char* src = R"(
+def func():
+  return set()
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  ASSERT_NE(PySet_Type.tp_vectorcall, nullptr);
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+  EXPECT_LIR(
+      Query(*lir_func)
+          .opcode(Opcode::kVectorCall)
+          .inImm(0, reinterpret_cast<uint64_t>(PySet_Type.tp_vectorcall)));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
+}
+
 TEST_F(LIRGeneratorTest, GeneratedPhiCoversDuplicateIncomingEdges) {
   const char* hir = R"(
 fun test {
