@@ -4,8 +4,20 @@
 import sys
 
 from .test_api import ApiTests
-from .test_code_sbs import CodeTests
-from .test_corpus import SbsCorpusCompileTests
+
+# _TEST_CINDER_COMMON_EXCLUDE keeps these two out of the test-cinder targets --
+# they have their own -- so they are not importable there.  Discovery imports
+# this package, so an unconditional import takes the whole listing down wherever
+# the harness lists tests by importing rather than statically.
+try:
+    # pyre-ignore[21]: not included in every buck test build
+    from .test_code_sbs import CodeTests
+
+    # pyre-ignore[21]: not included in every buck test build
+    from .test_corpus import SbsCorpusCompileTests
+except ImportError:
+    pass
+
 from .test_errors import ErrorTests, ErrorTestsBuiltin
 from .test_flags import FlagTests
 from .test_graph import GraphTests
