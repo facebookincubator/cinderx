@@ -5,10 +5,9 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
 import fnmatch
 import functools
-import os
-import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,32 +20,25 @@ from cinderx.TestScripts.skip_list_support import (
     parse_skip_lists,
 )
 from cpython_tests.skipped_tests import SKIPPED_TESTS
+from test.support import os_helper
 
-_temp_cwd: str | None = None
+_temp_cwd: contextlib.ExitStack | None = None
 
 
-def _use_temp_cwd() -> None:
-    """Run from a scratch directory, as regrtest does.
-
-    A good number of CPython tests write into the working directory or assert on
-    paths relative to it, and fail if it is the repo root. `cinder_test_runner.py`
-    wraps each worker in `os_helper.temp_cwd()` for the same reason; the TPX
-    adapter has no equivalent, so do it here on behalf of every shim.
-    """
+def use_temp_cwd() -> None:
+    """Run from a scratch directory, as regrtest does."""
     global _temp_cwd
     if _temp_cwd is not None:
         return
-    original = os.getcwd()
-    _temp_cwd = tempfile.mkdtemp(prefix=f"cpython-tests-{os.getpid()}-")
-    # atexit runs LIFO, so this pair leaves the directory before removing it.
-    # Finalising the interpreter from inside a deleted directory can fail the
-    # process after every test has already passed.
-    atexit.register(shutil.rmtree, _temp_cwd, ignore_errors=True)
-    atexit.register(os.chdir, original)
-    os.chdir(_temp_cwd)
-
-
-_use_temp_cwd()
+    _temp_cwd = contextlib.ExitStack()
+    cwd = _temp_cwd.enter_context(os_helper.temp_cwd(name=None))
+    env = _temp_cwd.enter_context(os_helper.EnvironmentVarGuard())
+    for name in ("TMPDIR", "TEMP", "TMP"):
+        env[name] = cwd
+    original_tempdir = tempfile.tempdir
+    _temp_cwd.callback(setattr, tempfile, "tempdir", original_tempdir)
+    tempfile.tempdir = cwd
+    atexit.register(_temp_cwd.close)
 
 
 @functools.lru_cache(maxsize=1)
