@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/jit_rt.h"
@@ -163,6 +164,25 @@ uint8_t* allocPages(size_t size) {
       res != nullptr, "Failed to allocate {} bytes of memory for code", size);
 #endif
   return static_cast<uint8_t*>(res);
+}
+
+// Every code allocation starts on this boundary.  On free-threaded x86-64 a
+// deopt patchpoint is replaced by a single atomic 8-byte store, and
+// TranslateDeoptPatchpoint() can only align it within the buffer it emits --
+// which means nothing unless the buffer's own base is aligned too.  The bump
+// pointers below therefore move in whole multiples of this rather than by the
+// exact size of the code, which would leave every later allocation skewed by
+// however much the previous one was short of a boundary.
+constexpr size_t kCodeAlignment = 16;
+
+// Step a bump pointer up to the next boundary, charging the padding to the
+// same free counter the allocation was taken from.  Callers reserve the
+// rounded-up size, so the counter always has room for it.
+void alignBump(uint8_t*& alloc, size_t& alloc_free) {
+  auto addr = reinterpret_cast<uintptr_t>(alloc);
+  size_t padding = roundUp(addr, kCodeAlignment) - addr;
+  alloc += padding;
+  alloc_free -= padding;
 }
 
 } // namespace
@@ -349,15 +369,17 @@ AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
     // On ARM64, branch displacements are limited (±128MB for B/BL, ±1MB for
     // B.cond). Allocate hot and cold from a single contiguous region so
     // cross-section jumps are always in range.
-    ensureSplitSpace(hot_size, cold_size);
+    ensureSplitSpace(
+        roundUp(hot_size, kCodeAlignment), roundUp(cold_size, kCodeAlignment));
 #else
     // On x86-64, RIP-relative addressing has a ±2GB range which is large enough
     // that independent allocations are unlikely to exceed it in practice.
-    ensureSpace(hot_alloc_, hot_alloc_free_, hot_size, true);
+    ensureSpace(
+        hot_alloc_, hot_alloc_free_, roundUp(hot_size, kCodeAlignment), true);
     ensureSpace(
         cold_alloc_,
         cold_alloc_free_,
-        cold_size,
+        roundUp(cold_size, kCodeAlignment),
         getConfig().mem.cold_code_huge_pages);
 #endif
 
@@ -410,6 +432,9 @@ AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
     }
     total_size += buffer_size;
   }
+  alignBump(hot_alloc_, hot_alloc_free_);
+  alignBump(cold_alloc_, cold_alloc_free_);
+
   jitEnableExecuting(addr, hot_size);
   if (cold_size > 0) {
     jitEnableExecuting(cold_addr, cold_size);
@@ -430,7 +455,11 @@ AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
   PROPAGATE_ERROR(code->resolveUnresolvedLinks());
 
   size_t max_code_size = code->codeSize();
-  ensureSpace(hot_alloc_, hot_alloc_free_, max_code_size, true);
+  ensureSpace(
+      hot_alloc_,
+      hot_alloc_free_,
+      roundUp(max_code_size, kCodeAlignment),
+      true);
 
   PROPAGATE_ERROR(code->relocateToBase(uintptr_t(hot_alloc_)));
 
@@ -460,6 +489,7 @@ AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
 
   hot_alloc_ += actual_code_size;
   hot_alloc_free_ -= actual_code_size;
+  alignBump(hot_alloc_, hot_alloc_free_);
   used_bytes_.fetch_add(actual_code_size, std::memory_order_relaxed);
 
   return AllocateResult{addr, asmjit::kErrorOk};
