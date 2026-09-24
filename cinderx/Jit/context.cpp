@@ -645,16 +645,27 @@ void Context::finalizePendingCompiles() {
   {
     FreeThreadedJITEntrypointGuard guard;
     fixupFunctionEntryCachePostMultiThreadedCompile();
-    watchPendingTypes();
-    watchPendingFuncs();
 
-    for (auto& codes : completed_compiles_) {
-      makeCompiledFunction(
-          codes.second.second, codes.first, std::move(codes.second.first));
+    {
+      JITCompilationLock lock;
+      watchPendingTypes();
+      watchPendingFuncs();
+      completed.swap(completed_compiles_);
+      deferred.swap(deferred_finalizations_);
     }
-    completed.swap(completed_compiles_);
 
-    for (auto& [func, key] : deferred_finalizations_) {
+    std::vector<Ref<CompiledFunction>> compiled_funcs;
+    compiled_funcs.reserve(completed.size());
+    for (auto& codes : completed) {
+      if (auto cf = makeCompiledFunction(
+              codes.second.second,
+              codes.first,
+              std::move(codes.second.first))) {
+        compiled_funcs.emplace_back(std::move(cf));
+      }
+    }
+
+    for (auto& [func, key] : deferred) {
       // Re-resolve the compile rather than trusting a pointer cached while the
       // GIL was released; the CompiledFunction may have been freed since, in
       // which case it has already erased itself from compiled_codes_ and there
@@ -665,7 +676,8 @@ void Context::finalizePendingCompiles() {
         finalizeFunc(func, it->second);
       }
     }
-    deferred.swap(deferred_finalizations_);
+
+    compiled_funcs.clear();
   }
 }
 
@@ -1111,6 +1123,7 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
   // If the original function changed, let waiting siblings keep the compile
   // alive by attaching to it.
   if (compiled->numFunctions() == 0) {
+    JITCompilationLock lock;
     for (auto& [deferred_func, deferred_key] : deferred_finalizations_) {
       if (deferred_key == key && CompilationKey{deferred_func} == key &&
           !isJitCompiled(deferred_func)) {
@@ -1118,6 +1131,7 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
       }
     }
   }
+
   return compiled;
 }
 

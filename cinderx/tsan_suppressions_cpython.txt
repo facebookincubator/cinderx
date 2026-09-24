@@ -34,12 +34,10 @@ race:jit::Context::didCompile
 race:jit::Context::finalizeFunc
 race:jit::Context::lookupCode
 race:jit::Context::lookupFunc
-race:jit::Context::codeCompiled
 race:jit::Context::makeCompiledFunction
 race:jit::funcDestroyed
 race:jit::scheduleJitCompile
 race:jit::FreeThreadedJITEntrypointGuard
-race:phmap::priv::raw_hash_set
 
 # CinderX code extra read/write race during JIT compilation.
 race:codeExtraReadOnly
