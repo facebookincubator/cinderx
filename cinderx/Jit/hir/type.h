@@ -96,7 +96,8 @@ class Type {
   // Return the PyTypeObject* that uniquely represents this type, or nullptr if
   // there isn't one. The PyTypeObject* may be from a type specialization.
   // "Uniquely" here means that there should be no loss of information in the
-  // Type -> PyTypeObject* conversion, other than mortality and exactness.
+  // Type -> PyTypeObject* conversion, other than mortality, exactness and
+  // compactness.
   //
   // Some examples:
   // TLong.uniquePyType() == &PyLong_Type

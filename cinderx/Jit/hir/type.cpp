@@ -82,6 +82,8 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyTypeWithExact() {
         result_map.emplace(TObjectExact, &PyBaseObject_Type);
       } else if (pair.first == TLong) {
         result_map.emplace(TLongExact, &PyLong_Type);
+        result_map.emplace(TLongCompact, &PyLong_Type);
+        result_map.emplace(TLongNonCompact, &PyLong_Type);
       } else {
         result_map.emplace(pair.first & TBuiltinExact, pair.second);
       }

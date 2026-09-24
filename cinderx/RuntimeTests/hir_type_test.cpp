@@ -82,6 +82,71 @@ TEST_F(HIRTypeTest, BuiltinSubtypes) {
   EXPECT_FALSE(TMortalLong < TImmortalObject);
 }
 
+TEST_F(HIRTypeTest, LongCompact) {
+  // TLongCompact is a strict subtype of TLongExact, which is now a union of
+  // compact and non-compact exact longs.
+  EXPECT_TRUE(TLongCompact < TLongExact);
+  EXPECT_TRUE(TLongCompact <= TLongExact);
+  EXPECT_TRUE(TLongNonCompact < TLongExact);
+  EXPECT_TRUE(TLongNonCompact <= TLongExact);
+  EXPECT_EQ(TLongExact, TLongCompact | TLongNonCompact);
+
+  // Both are subtypes of TLong and exact-like types.
+  EXPECT_TRUE(TLongCompact < TLong);
+  EXPECT_TRUE(TLongCompact <= TLong);
+  EXPECT_TRUE(TLongNonCompact < TLong);
+  EXPECT_TRUE(TLongNonCompact <= TLong);
+  EXPECT_TRUE(TLongCompact < TBuiltinExact);
+  EXPECT_TRUE(TLongNonCompact < TBuiltinExact);
+  EXPECT_TRUE(TLongCompact < TObject);
+  EXPECT_TRUE(TLongNonCompact < TObject);
+  EXPECT_EQ(TLong, TLongCompact | TLongNonCompact | TLongUser | TBool);
+
+  // Compact and non-compact are disjoint.
+  EXPECT_FALSE(TLongCompact <= TLongNonCompact);
+  EXPECT_FALSE(TLongNonCompact <= TLongCompact);
+  EXPECT_EQ(TLongCompact & TLongNonCompact, TBottom);
+  EXPECT_EQ(TLongExact - TLongCompact, TLongNonCompact);
+  EXPECT_EQ(TLongExact - TLongNonCompact, TLongCompact);
+
+  // Mortality refinements preserve subtyping.
+  EXPECT_TRUE(TMortalLongCompact < TLongCompact);
+  EXPECT_TRUE(TMortalLongCompact < TLongExact);
+  EXPECT_TRUE(TMortalLongCompact < TMortalLong);
+  EXPECT_TRUE(TMortalLongCompact < TLong);
+  EXPECT_TRUE(TImmortalLongCompact < TLongCompact);
+  EXPECT_TRUE(TImmortalLongCompact < TLongExact);
+  EXPECT_TRUE(TImmortalLongCompact < TLong);
+  EXPECT_FALSE(TMortalLongCompact.couldBe(TImmortalLongExact));
+  EXPECT_TRUE(TOptLongCompact < TOptLongExact);
+
+  // Exactness and PyType identity match other exact types.
+  EXPECT_TRUE(TLongCompact.isExact());
+  EXPECT_TRUE(TLongNonCompact.isExact());
+  EXPECT_TRUE(TMortalLongCompact.isExact());
+  EXPECT_EQ(TLongCompact.uniquePyType(), &PyLong_Type);
+  EXPECT_EQ(TLongNonCompact.uniquePyType(), &PyLong_Type);
+  EXPECT_EQ(TLongExact.uniquePyType(), &PyLong_Type);
+  EXPECT_EQ(TMortalLongCompact.uniquePyType(), &PyLong_Type);
+  EXPECT_EQ(TLongCompact.runtimePyType(), &PyLong_Type);
+  EXPECT_EQ(TLongNonCompact.runtimePyType(), &PyLong_Type);
+  EXPECT_EQ(TLongExact.runtimePyType(), &PyLong_Type);
+  EXPECT_TRUE(TLongCompact.isLeafScalar());
+  EXPECT_TRUE(TLongNonCompact.isLeafScalar());
+
+  // String representations use the new predefined names.
+  EXPECT_EQ(TLongCompact.toString(), "LongCompact");
+  EXPECT_EQ(TLongNonCompact.toString(), "LongNonCompact");
+  EXPECT_EQ(TLongExact.toString(), "LongExact");
+  EXPECT_EQ(TMortalLongCompact.toString(), "MortalLongCompact");
+
+  // Guard/check elimination: a LongCompact value always passes LongExact and
+  // Long checks.
+  EXPECT_TRUE(TLongCompact.couldBe(TLongExact));
+  EXPECT_TRUE(TLongCompact.couldBe(TLong));
+  EXPECT_TRUE(TLongExact.couldBe(TLongCompact));
+}
+
 TEST_F(HIRTypeTest, BuiltinCouldBe) {
   EXPECT_TRUE(TBuiltinExact.couldBe(TLong));
   EXPECT_TRUE(TBytes.couldBe(TBuiltinExact));

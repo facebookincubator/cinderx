@@ -78,7 +78,8 @@ BUILTIN_PYTYPES: set[str] = {
 }
 
 BASIC_EXACT_TYPES: list[str] = [
-    "LongExact",
+    "LongNonCompact",
+    "LongCompact",
     "ObjectExact",
     *[ty + "Exact" for ty in BASIC_BASE_TYPES],
 ]
@@ -124,7 +125,8 @@ BASIC_TYPES: list[str] = BASIC_PYTYPES + BASIC_PRIMITIVE_TYPES
 PYTYPE_UNIONS: list[UnionSpec] = [
     UnionSpec("BuiltinExact", BASIC_FINAL_TYPES + BASIC_EXACT_TYPES),
     *[UnionSpec(ty, [ty + "User", ty + "Exact"]) for ty in BASIC_BASE_TYPES],
-    UnionSpec("Long", ["LongExact", "LongUser", "Bool"]),
+    UnionSpec("LongExact", ["LongNonCompact", "LongCompact"]),
+    UnionSpec("Long", ["LongNonCompact", "LongCompact", "LongUser", "Bool"]),
     UnionSpec("User", BASIC_USER_TYPES),
     UnionSpec("Object", BASIC_PYTYPES),
 ]
