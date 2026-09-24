@@ -24,11 +24,21 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/stats.h"
 #include "cinderx/Jit/jit_time_log.h"
+#include "cinderx/Jit/threaded_compile.h"
 
 #include <chrono>
 #include <iostream>
 
 namespace cinderx::jit {
+
+// Formatting an HIR function reads Python objects (argument names, constant
+// reprs), so a dump needs the GIL.  Background and multi-threaded compiles run
+// without it.
+#define DUMP_HIR_IF(PRED, ...)      \
+  if (PRED) {                       \
+    ThreadedCompileGILHolder guard; \
+    JIT_LOG(__VA_ARGS__);           \
+  }
 
 namespace {
 
@@ -59,7 +69,7 @@ template <typename T>
 void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
   COMPILE_TIMER(func.compilation_phase_timer,
                 pass.name(),
-                JIT_LOGIF(
+                DUMP_HIR_IF(
                     getConfig().log.dump_hir_passes,
                     "HIR for {} before pass {}:\n{}",
                     func.fullname,
@@ -71,7 +81,7 @@ void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
                 std::size_t time_ns = timer.finish().count();
                 callback(func, pass.name(), time_ns);
 
-                JIT_LOGIF(
+                DUMP_HIR_IF(
                     getConfig().log.dump_hir_passes,
                     "HIR for {} after pass {}:\n{}",
                     func.fullname,
@@ -160,7 +170,7 @@ void Compiler::runPasses(
   runPassIf(
       jit::hir::InsertUpdatePrevInstr{}, PassConfig::kInsertUpdatePrevInstr);
 
-  JIT_LOGIF(
+  DUMP_HIR_IF(
       getConfig().log.dump_hir_final,
       "Optimized HIR for {}:\n{}",
       irfunc.fullname,
@@ -240,9 +250,11 @@ std::optional<CompiledFunctionData> Compiler::compile(
     compilation_phase_timer->end();
   }
 
-  if (getConfig().log.dump_hir_initial) {
-    JIT_LOG("Initial HIR for {}:\n{}", fullname, *irfunc);
-  }
+  DUMP_HIR_IF(
+      getConfig().log.dump_hir_initial,
+      "Initial HIR for {}:\n{}",
+      fullname,
+      *irfunc);
 
   if (nullptr != compilation_phase_timer) {
     irfunc->setCompilationPhaseTimer(std::move(compilation_phase_timer));
