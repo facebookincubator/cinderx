@@ -296,7 +296,6 @@ BB %0
   auto pre_alloc_func = runPostGenRewrite(lir_input_str);
   std::string pre_alloc_lir = lirFuncString(*pre_alloc_func);
   auto allocated_func = runRegAllocFunc(pre_alloc_lir.c_str());
-  std::string allocated_lir = lirFuncString(*allocated_func);
 
   // This constructs the postgen/regalloc hazard directly.  VectorCallTstate
   // receives PyObject* operands that must have deferred-RC tag bits stripped
@@ -344,13 +343,6 @@ BB %0
   EXPECT_LIR(Query(*pre_alloc_func)
                  .opcode(Opcode::kAnd)
                  .outType(DataType::kObjectUntagged));
-  // Post-allocation the strip reads the register holding the adjacent copy.
-  // Query doesn't model physical-register shapes, so check these by text.
-  EXPECT_NE(
-      allocated_lir.find("RCX:Object = Move RBX:Object"), std::string::npos);
-  EXPECT_NE(
-      allocated_lir.find("RBX:ObjectUntagged = And RCX:Object"),
-      std::string::npos);
 
   // Immediate PyObject* constants also flow through call-operand stripping.
   // They do not need a register-producing strip: the tag can be removed while
@@ -359,9 +351,6 @@ BB %0
                  .opcode(Opcode::kMove)
                  .outType(DataType::kObjectUntagged)
                  .inImm(0, 4660));
-  EXPECT_NE(
-      allocated_lir.find("RAX:ObjectUntagged = Move 4660(0x1234):64bit"),
-      std::string::npos);
 
   // The fragile shape is an `And` that directly consumes an older, non-local
   // tagged object definition. The `And` must not strip directly from a
@@ -369,6 +358,26 @@ BB %0
   // (each is copied locally first).
   EXPECT_NO_LIR(Query(*pre_alloc_func).opcode(Opcode::kAnd).inVreg(0, 10));
   EXPECT_NO_LIR(Query(*pre_alloc_func).opcode(Opcode::kAnd).inVreg(0, 60));
+
+  // Post-allocation the strip reads the register holding the adjacent copy.
+  EXPECT_LIR(Query(*allocated_func)
+                 .opcode(Opcode::kMove)
+                 .outPhyReg(codegen::RCX)
+                 .outType(DataType::kObject)
+                 .inPhyReg(0, codegen::RBX)
+                 .inType(0, DataType::kObject));
+  EXPECT_LIR(Query(*allocated_func)
+                 .opcode(Opcode::kAnd)
+                 .outPhyReg(codegen::RBX)
+                 .outType(DataType::kObjectUntagged)
+                 .inPhyReg(0, codegen::RCX)
+                 .inType(0, DataType::kObject));
+  EXPECT_LIR(Query(*allocated_func)
+                 .opcode(Opcode::kMove)
+                 .outPhyReg(codegen::RAX)
+                 .outType(DataType::kObjectUntagged)
+                 .inImm(0, 4660)
+                 .inType(0, DataType::k64bit));
 #endif
 }
 
