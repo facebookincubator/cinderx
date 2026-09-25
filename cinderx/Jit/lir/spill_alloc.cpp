@@ -7,6 +7,7 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/printer.h"
 
+#include <list>
 #include <utility>
 #include <vector>
 
@@ -465,13 +466,7 @@ void SpillAllocator::resolveControlFlow() {
 void SpillAllocator::removePhis() {
   for (BasicBlock* block : func_->basicBlocks()) {
     auto& instrs = block->instructions();
-    for (auto it = instrs.begin(); it != instrs.end();) {
-      if ((*it)->isPhi()) {
-        it = instrs.erase(it);
-      } else {
-        ++it;
-      }
-    }
+    std::erase_if(instrs, [](auto const& instr) { return instr->isPhi(); });
   }
 }
 
