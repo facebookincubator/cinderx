@@ -3461,23 +3461,12 @@ fun jittestmodule:test {
         Stack<1> v38
       }
     }
-    v40:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v49:CBool = IsCompactLong v38
-    v50:CBool = IsCompactLong v40
-    v44:CBool = IntBinaryOp<And> v49 v50
-    Guard v44 {
-      LiveValues<6> b:v15 o:v19 o:v21 s:v38 s:v40 bool:v44
-      FrameState {
-        CurInstrOffset 56
-        Locals<3> v15 v19 v21
-        Stack<2> v38 v40
-      }
-    }
     Decref v19
+    v40:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
     Decref v21
-    v47:CBool = PrimitiveCompare<LessThan> v38 v40
-    v48:ImmortalBool = PrimitiveBoxBool v47
-    Return v48
+    v42:CBool = PrimitiveCompare<LessThan> v38 v40
+    v43:ImmortalBool = PrimitiveBoxBool v42
+    Return v43
   }
 }
 --- Expected 3.14 ---

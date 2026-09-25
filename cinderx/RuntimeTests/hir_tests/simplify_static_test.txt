@@ -1639,7 +1639,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 4, 10) {
     v29:CInt64 = Phi<4, 10> v26 v38
-    v30:OptObject = Phi<4, 10> v24 v57
+    v30:OptObject = Phi<4, 10> v24 v55
     v31:CInt32 = LoadEvalBreaker
     CondBranch<7, 1> v31
   }
@@ -1676,18 +1676,15 @@ fun jittestmodule:test {
     }
     UseType<TupleExact> v21
     UseType<LongExact> v35
-    v59:CBool = IsCompactLong v29
-    Guard v59 {
-    }
     UseType<TupleExact> v21
-    v51:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v52:CInt64[0] = LoadConst<CInt64[0]>
-    v53:CBool = PrimitiveCompare<LessThan> v29 v52
-    CondBranch<8, 9> v53
+    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v50:CInt64[0] = LoadConst<CInt64[0]>
+    v51:CBool = PrimitiveCompare<LessThan> v29 v50
+    CondBranch<8, 9> v51
   }
 
   bb 8 (preds 2) {
-    v54:CInt64 = IntBinaryOp<Add> v29 v51
+    v52:CInt64 = IntBinaryOp<Add> v29 v49
     Branch<10>
   }
 
@@ -1696,12 +1693,12 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v55:CInt64 = Phi<8, 9> v54 v29
+    v53:CInt64 = Phi<8, 9> v52 v29
     Snapshot
-    v56:CBool = PrimitiveCompare<LessThanUnsigned> v55 v51
-    Guard v56 {
+    v54:CBool = PrimitiveCompare<LessThanUnsigned> v53 v49
+    Guard v54 {
     }
-    v57:Object = LoadArrayItem<Offset[24]> v21 v55 v21
+    v55:Object = LoadArrayItem<Offset[24]> v21 v53 v21
     Snapshot
     v37:CInt64[1] = LoadConst<CInt64[1]>
     v38:CInt64 = IntBinaryOp<Add> v29 v37
@@ -1712,10 +1709,10 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
     }
     Snapshot
-    v58:Object = VectorCall<1> v43 v57 {
+    v56:Object = VectorCall<1> v43 v55 {
       FrameState {
         CurInstrOffset 54
-        Locals<3> v21 v38 v57
+        Locals<3> v21 v38 v55
         Stack<1> v21
       }
     }
@@ -1761,7 +1758,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 4, 10) {
     v29:CInt64 = Phi<4, 10> v26 v38
-    v30:OptObject = Phi<4, 10> v24 v56
+    v30:OptObject = Phi<4, 10> v24 v54
     v31:CInt64 = LoadEvalBreaker
     CondBranch<7, 1> v31
   }
@@ -1798,18 +1795,15 @@ fun jittestmodule:test {
     }
     UseType<TupleExact> v21
     UseType<LongExact> v35
-    v58:CBool = IsCompactLong v29
-    Guard v58 {
-    }
     UseType<TupleExact> v21
-    v50:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v51:CInt64[0] = LoadConst<CInt64[0]>
-    v52:CBool = PrimitiveCompare<LessThan> v29 v51
-    CondBranch<8, 9> v52
+    v48:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v49:CInt64[0] = LoadConst<CInt64[0]>
+    v50:CBool = PrimitiveCompare<LessThan> v29 v49
+    CondBranch<8, 9> v50
   }
 
   bb 8 (preds 2) {
-    v53:CInt64 = IntBinaryOp<Add> v29 v50
+    v51:CInt64 = IntBinaryOp<Add> v29 v48
     Branch<10>
   }
 
@@ -1818,12 +1812,12 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v54:CInt64 = Phi<8, 9> v53 v29
+    v52:CInt64 = Phi<8, 9> v51 v29
     Snapshot
-    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
-    Guard v55 {
+    v53:CBool = PrimitiveCompare<LessThanUnsigned> v52 v48
+    Guard v53 {
     }
-    v56:Object = LoadArrayItem<Offset[32]> v21 v54 v21
+    v54:Object = LoadArrayItem<Offset[32]> v21 v52 v21
     Snapshot
     v37:CInt64[1] = LoadConst<CInt64[1]>
     v38:CInt64 = IntBinaryOp<Add> v29 v37
@@ -1834,10 +1828,10 @@ fun jittestmodule:test {
     }
     v43:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v57:Object = VectorCall<1> v42 v56 {
+    v55:Object = VectorCall<1> v42 v54 {
       FrameState {
         CurInstrOffset 84
-        Locals<3> v21 v38 v56
+        Locals<3> v21 v38 v54
         Stack<1> v21
       }
     }
@@ -1883,7 +1877,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 4, 10) {
     v29:CInt64 = Phi<4, 10> v26 v38
-    v30:OptObject = Phi<4, 10> v24 v56
+    v30:OptObject = Phi<4, 10> v24 v54
     v31:CInt64 = LoadEvalBreaker
     CondBranch<7, 1> v31
   }
@@ -1920,18 +1914,15 @@ fun jittestmodule:test {
     }
     UseType<TupleExact> v21
     UseType<LongExact> v35
-    v58:CBool = IsCompactLong v29
-    Guard v58 {
-    }
     UseType<TupleExact> v21
-    v50:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v51:CInt64[0] = LoadConst<CInt64[0]>
-    v52:CBool = PrimitiveCompare<LessThan> v29 v51
-    CondBranch<8, 9> v52
+    v48:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v49:CInt64[0] = LoadConst<CInt64[0]>
+    v50:CBool = PrimitiveCompare<LessThan> v29 v49
+    CondBranch<8, 9> v50
   }
 
   bb 8 (preds 2) {
-    v53:CInt64 = IntBinaryOp<Add> v29 v50
+    v51:CInt64 = IntBinaryOp<Add> v29 v48
     Branch<10>
   }
 
@@ -1940,12 +1931,12 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v54:CInt64 = Phi<8, 9> v53 v29
+    v52:CInt64 = Phi<8, 9> v51 v29
     Snapshot
-    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
-    Guard v55 {
+    v53:CBool = PrimitiveCompare<LessThanUnsigned> v52 v48
+    Guard v53 {
     }
-    v56:Object = LoadArrayItem<Offset[32]> v21 v54 v21
+    v54:Object = LoadArrayItem<Offset[32]> v21 v52 v21
     Snapshot
     v37:CInt64[1] = LoadConst<CInt64[1]>
     v38:CInt64 = IntBinaryOp<Add> v29 v37
@@ -1956,10 +1947,10 @@ fun jittestmodule:test {
     }
     v43:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v57:Object = VectorCall<1> v42 v56 {
+    v55:Object = VectorCall<1> v42 v54 {
       FrameState {
         CurInstrOffset 86
-        Locals<3> v21 v38 v56
+        Locals<3> v21 v38 v54
         Stack<1> v21
       }
     }
@@ -2006,7 +1997,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 4, 10) {
     v29:CInt64 = Phi<4, 10> v26 v38
-    v30:OptObject = Phi<4, 10> v24 v56
+    v30:OptObject = Phi<4, 10> v24 v54
     v31:CInt64 = LoadEvalBreaker
     CondBranch<7, 1> v31
   }
@@ -2043,18 +2034,15 @@ fun jittestmodule:test {
     }
     UseType<TupleExact> v21
     UseType<LongExact> v35
-    v58:CBool = IsCompactLong v29
-    Guard v58 {
-    }
     UseType<TupleExact> v21
-    v50:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v51:CInt64[0] = LoadConst<CInt64[0]>
-    v52:CBool = PrimitiveCompare<LessThan> v29 v51
-    CondBranch<8, 9> v52
+    v48:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v49:CInt64[0] = LoadConst<CInt64[0]>
+    v50:CBool = PrimitiveCompare<LessThan> v29 v49
+    CondBranch<8, 9> v50
   }
 
   bb 8 (preds 2) {
-    v53:CInt64 = IntBinaryOp<Add> v29 v50
+    v51:CInt64 = IntBinaryOp<Add> v29 v48
     Branch<10>
   }
 
@@ -2063,12 +2051,12 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v54:CInt64 = Phi<8, 9> v53 v29
+    v52:CInt64 = Phi<8, 9> v51 v29
     Snapshot
-    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
-    Guard v55 {
+    v53:CBool = PrimitiveCompare<LessThanUnsigned> v52 v48
+    Guard v53 {
     }
-    v56:Object = LoadArrayItem<Offset[32]> v21 v54 v21
+    v54:Object = LoadArrayItem<Offset[32]> v21 v52 v21
     Snapshot
     v37:CInt64[1] = LoadConst<CInt64[1]>
     v38:CInt64 = IntBinaryOp<Add> v29 v37
@@ -2079,10 +2067,10 @@ fun jittestmodule:test {
     }
     v43:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v57:Object = VectorCall<1> v42 v56 {
+    v55:Object = VectorCall<1> v42 v54 {
       FrameState {
         CurInstrOffset 86
-        Locals<3> v21 v38 v56
+        Locals<3> v21 v38 v54
         Stack<1> v21
       }
     }
@@ -2131,7 +2119,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 4, 10) {
     v31:CInt64 = Phi<4, 10> v28 v40
-    v32:OptObject = Phi<4, 10> v26 v58
+    v32:OptObject = Phi<4, 10> v26 v56
     AtQuiescentState
     v33:CInt64 = LoadEvalBreaker
     CondBranch<7, 1> v33
@@ -2169,18 +2157,15 @@ fun jittestmodule:test {
     }
     UseType<TupleExact> v25
     UseType<LongExact> v37
-    v60:CBool = IsCompactLong v31
-    Guard v60 {
-    }
     UseType<TupleExact> v25
-    v52:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v25
-    v53:CInt64[0] = LoadConst<CInt64[0]>
-    v54:CBool = PrimitiveCompare<LessThan> v31 v53
-    CondBranch<8, 9> v54
+    v50:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v25
+    v51:CInt64[0] = LoadConst<CInt64[0]>
+    v52:CBool = PrimitiveCompare<LessThan> v31 v51
+    CondBranch<8, 9> v52
   }
 
   bb 8 (preds 2) {
-    v55:CInt64 = IntBinaryOp<Add> v31 v52
+    v53:CInt64 = IntBinaryOp<Add> v31 v50
     Branch<10>
   }
 
@@ -2189,12 +2174,12 @@ fun jittestmodule:test {
   }
 
   bb 10 (preds 8, 9) {
-    v56:CInt64 = Phi<8, 9> v55 v31
+    v54:CInt64 = Phi<8, 9> v53 v31
     Snapshot
-    v57:CBool = PrimitiveCompare<LessThanUnsigned> v56 v52
-    Guard v57 {
+    v55:CBool = PrimitiveCompare<LessThanUnsigned> v54 v50
+    Guard v55 {
     }
-    v58:Object = LoadArrayItem<Offset[48]> v25 v56 v25
+    v56:Object = LoadArrayItem<Offset[48]> v25 v54 v25
     Snapshot
     v39:CInt64[1] = LoadConst<CInt64[1]>
     v40:CInt64 = IntBinaryOp<Add> v31 v39
@@ -2205,10 +2190,10 @@ fun jittestmodule:test {
     }
     v45:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v59:Object = VectorCall<1> v44 v58 {
+    v57:Object = VectorCall<1> v44 v56 {
       FrameState {
         CurInstrOffset 84
-        Locals<3> v25 v40 v58
+        Locals<3> v25 v40 v56
         Stack<1> v25
       }
     }

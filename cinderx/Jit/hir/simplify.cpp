@@ -525,6 +525,7 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
 }
 
 const PrimitiveBox* asInt64Box(Register* reg) {
+  reg = chaseAssignOperand(reg);
   if (!reg->instr()->isPrimitiveBox()) {
     return nullptr;
   }
@@ -1015,10 +1016,15 @@ Register* unboxAndCheckListOrTupleIndex(
   env.emit<UseType>(lhs, lhs->isA(TListExact) ? TListExact : TTupleExact);
   env.emit<UseType>(rhs, TLongExact);
 
-  // Unbox
-  Register* is_compact_long = env.emit<IsCompactLong>(rhs);
-  env.emit<Guard>(is_compact_long);
-  Register* unboxed_index = env.emit<CompactLongUnbox>(rhs);
+  // Unbox.  Optimize for the common case where the value is compact.
+  Register* unboxed_index;
+  if (const PrimitiveBox* box = asInt64Box(rhs)) {
+    unboxed_index = box->value();
+  } else {
+    Register* is_compact_long = env.emit<IsCompactLong>(rhs);
+    env.emit<Guard>(is_compact_long);
+    unboxed_index = env.emit<CompactLongUnbox>(rhs);
+  }
 
   // Normalize
   Register* length = emitGetLengthInt64(env, lhs);
