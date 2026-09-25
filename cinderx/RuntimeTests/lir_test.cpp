@@ -46,6 +46,33 @@ TEST(LIRTypeTest, DataTypeByteShift) {
   EXPECT_EQ(byteShift(DataType::kObject), 3);
 }
 
+TEST(LIRQueryTest, MatchesPhysicalRegisters) {
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  const PhyLocation output_reg{0};
+  const PhyLocation input_reg{1};
+  Instruction* move = block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{output_reg, DataType::k32bit},
+      PhyReg{input_reg, DataType::k32bit});
+
+  EXPECT_TRUE(Query(function)
+                  .opcode(Opcode::kMove)
+                  .outPhyReg(output_reg)
+                  .outType(DataType::k32bit)
+                  .inPhyReg(0, input_reg)
+                  .inType(0, DataType::k32bit)
+                  .matches(*move));
+  EXPECT_FALSE(Query(function).outPhyReg(input_reg).matches(*move));
+  EXPECT_FALSE(Query(function).inPhyReg(0, output_reg).matches(*move));
+
+  Instruction* vreg_move =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{0});
+  EXPECT_FALSE(Query(function).outPhyReg(output_reg).matches(*vreg_move));
+  EXPECT_FALSE(Query(function).inPhyReg(0, input_reg).matches(*vreg_move));
+}
+
 // Conditions drive both the encoding and the printed spelling now, so a
 // transcription slip in the table would quietly mis-encode a comparison rather
 // than fail to build.

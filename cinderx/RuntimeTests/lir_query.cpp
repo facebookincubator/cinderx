@@ -64,6 +64,10 @@ Query& Query::outVreg(int id) {
   out_vreg_ = id;
   return *this;
 }
+Query& Query::outPhyReg(PhyLocation reg) {
+  out_phy_reg_ = reg;
+  return *this;
+}
 Query& Query::outInd(
     int base_vreg,
     int32_t offset,
@@ -122,6 +126,10 @@ Query& Query::inVreg(size_t index, int id) {
   input(index).vreg = id;
   return *this;
 }
+Query& Query::inPhyReg(size_t index, PhyLocation reg) {
+  input(index).phy_reg = reg;
+  return *this;
+}
 Query& Query::inType(size_t index, DataType dt) {
   input(index).type = dt;
   return *this;
@@ -172,6 +180,11 @@ bool Query::matchesOutput(const Instruction& ins) const {
     if (out == nullptr || out->dataType() != *out_type_) {
       return false;
     }
+  }
+  if (out_phy_reg_ &&
+      (out == nullptr || !out->isReg() ||
+       out->getPhyRegister() != *out_phy_reg_)) {
+    return false;
   }
   if (out_ind_base_vreg_ || out_ind_index_vreg_ || out_ind_offset_ ||
       out_ind_no_index_) {
@@ -228,6 +241,9 @@ bool Query::matchesInput(const Instruction& ins, const InputMatch& im) const {
     return false;
   }
   if (im.vreg && !isLinkedVreg(*in, *im.vreg)) {
+    return false;
+  }
+  if (im.phy_reg && (!in->isReg() || in->getPhyRegister() != *im.phy_reg)) {
     return false;
   }
   if (im.type && in->dataType() != *im.type) {

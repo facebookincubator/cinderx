@@ -37,6 +37,8 @@ class Query {
   // Match the output operand's data type / LIR id (`%id`).
   Query& outType(DataType dt);
   Query& outVreg(int id);
+  // Match physical-register identity. Combine with outType() to match width.
+  Query& outPhyReg(PhyLocation reg);
   Query& outInd(
       int base_vreg,
       int32_t offset,
@@ -53,6 +55,8 @@ class Query {
   Query& inAddr(size_t index, uint64_t addr);
   // Match input operand `index` as a reference to the definition `%id`.
   Query& inVreg(size_t index, int id);
+  // Match physical-register identity. Combine with inType() to match width.
+  Query& inPhyReg(size_t index, PhyLocation reg);
   // Match input operand `index`'s data type.
   Query& inType(size_t index, DataType dt);
   Query& guard(uint64_t deopt_id, uint64_t frame_index, DataType guard_type);
@@ -78,6 +82,7 @@ class Query {
     std::optional<uint64_t> imm;
     std::optional<uint64_t> addr;
     std::optional<int> vreg;
+    std::optional<PhyLocation> phy_reg;
     std::optional<DataType> type;
     std::optional<Opcode> def_opcode;
     std::vector<DefInputMatch> def_inputs;
@@ -96,6 +101,7 @@ class Query {
   std::optional<MemoryOrder> mem_order_;
   std::optional<DataType> out_type_;
   std::optional<int> out_vreg_;
+  std::optional<PhyLocation> out_phy_reg_;
   std::optional<int> out_ind_base_vreg_;
   std::optional<int> out_ind_index_vreg_;
   std::optional<int32_t> out_ind_offset_;
