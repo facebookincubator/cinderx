@@ -828,6 +828,7 @@ int module_clear(PyObject* mod) {
 void module_free(void* raw_mod) {
   auto mod = reinterpret_cast<PyObject*>(raw_mod);
   auto state = cinderx::getModuleState(mod);
+  state->unloading = true;
 
   // If the module was never fully initialized (e.g. subinterpreter), just
   // destroy the state object and return. Skip all global cleanup since it

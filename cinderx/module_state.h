@@ -181,6 +181,10 @@ struct ModuleState {
   // where _cinderx does not support loading.
   bool fully_initialized{false};
 
+  // Set once the module has started deallocating, after which taking a new
+  // reference to cinderx_module would resurrect it.
+  bool unloading{false};
+
   bool tstate_offset_inited{false};
   int32_t tstate_offset{-1};
 

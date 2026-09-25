@@ -5081,6 +5081,14 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   if (!mod_state) {
     return;
   }
+  // Releasing compiled code can drop the last reference to the CinderX module
+  // at shutdown, which would run jit::finalize() and free the Context while
+  // Context::funcDestroyed() is still on the stack.  Declared before the guard
+  // so any finalize happens after it is released.
+  Ref<> module_keepalive;
+  if (!mod_state->unloading) {
+    module_keepalive = Ref<>::create(mod_state->cinderx_module);
+  }
   FreeThreadedJITEntrypointGuard guard;
 
   unregisterFunctionCodes(func);

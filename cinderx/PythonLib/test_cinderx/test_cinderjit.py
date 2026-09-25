@@ -14,6 +14,7 @@ from typing import Any, Callable, cast, TYPE_CHECKING
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
+from cinderx import freeze_type
 from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.jit import (
     compile_after_n_bytecodes,
@@ -32,6 +33,7 @@ from cinderx.test_support import (
     passIf,
     passUnless,
     run_in_fork,
+    run_in_fresh_process,
     skip_if_ft,
     skip_if_prefork,
     skip_test_if_oss,
@@ -2549,6 +2551,31 @@ class CompileTimeTests(unittest.TestCase):
             f"child failed\nstdout={proc.stdout!r}\nstderr={proc.stderr!r}",
         )
         self.assertIn("COMPILE_TIME_OK", proc.stdout)
+
+
+def _call_freeze_type(cls: type[object]) -> object:
+    return freeze_type(cls)
+
+
+class ShutdownTests(unittest.TestCase):
+    @skip_unless_jit("Needs JIT-compiled code")
+    @run_in_fresh_process
+    def test_last_module_ref_in_compiled_code(self) -> None:
+        self.assertTrue(force_compile(_call_freeze_type))
+        _call_freeze_type(type("C", (), {}))
+
+        # Leave the compiled code of _call_freeze_type holding the last
+        # reference to _cinderx, so that destroying it at shutdown frees the
+        # module and runs jit::finalize().
+        mod = sys.modules["_cinderx"]
+        builtins = [
+            o for o in gc.get_referrers(mod) if getattr(o, "__self__", None) is mod
+        ]
+        for obj in [mod, *builtins]:
+            for d in gc.get_referrers(obj):
+                if isinstance(d, dict):
+                    for k in [k for k, v in d.items() if v is obj]:
+                        del d[k]
 
 
 class SimplifyCompileTimeTests(unittest.TestCase):
