@@ -193,6 +193,8 @@ TEST_F(HIRTypeTest, FromBuiltinType) {
   EXPECT_EQ(Type::fromTypeExact(&PyComplex_Type), TComplexExact);
   EXPECT_EQ(Type::fromType(&PyByteArray_Type), TByteArray);
   EXPECT_EQ(Type::fromTypeExact(&PyByteArray_Type), TByteArrayExact);
+  EXPECT_EQ(Type::fromType(&PyFrozenSet_Type), TFrozenSet);
+  EXPECT_EQ(Type::fromTypeExact(&PyFrozenSet_Type), TFrozenSetExact);
 
   EXPECT_EQ(
       Type::fromType(reinterpret_cast<PyTypeObject*>(PyExc_BaseException)),
@@ -220,6 +222,8 @@ TEST_F(HIRTypeTest, UniquePyType) {
   EXPECT_EQ(TComplexExact.uniquePyType(), &PyComplex_Type);
   EXPECT_EQ(TByteArray.uniquePyType(), &PyByteArray_Type);
   EXPECT_EQ(TByteArrayExact.uniquePyType(), &PyByteArray_Type);
+  EXPECT_EQ(TFrozenSet.uniquePyType(), &PyFrozenSet_Type);
+  EXPECT_EQ(TFrozenSetExact.uniquePyType(), &PyFrozenSet_Type);
   EXPECT_EQ(TUnicode.uniquePyType(), &PyUnicode_Type);
   EXPECT_EQ(TList.uniquePyType(), &PyList_Type);
   EXPECT_EQ(TListExact.uniquePyType(), &PyList_Type);
@@ -510,8 +514,9 @@ TEST_F(HIRTypeTest, SimpleIntersection) {
 TEST_F(HIRTypeTest, SimpleSubtraction) {
   EXPECT_EQ(TLong - TBool - TLongUser, TLongExact);
   EXPECT_EQ(
-      TUser - TBytes - TByteArray - TComplex - TDict - TSet - TFloat - TList -
-          TTuple - TUnicode - TType - TBaseException - TLong - TArray,
+      TUser - TBytes - TByteArray - TComplex - TDict - TSet - TFrozenSet -
+          TFloat - TList - TTuple - TUnicode - TType - TBaseException - TLong -
+          TArray,
       TObjectUser);
   EXPECT_EQ(TUnicode - TUnicodeExact, TUnicodeUser);
   EXPECT_EQ(TLong - TBool, TLongExact | TLongUser);

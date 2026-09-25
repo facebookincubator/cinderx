@@ -62,6 +62,7 @@ BASIC_BASE_TYPES: list[str] = [
     "Complex",
     "Dict",
     "Float",
+    "FrozenSet",
     "List",
     "Set",
     "Tuple",

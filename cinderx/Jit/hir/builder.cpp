@@ -1024,7 +1024,7 @@ void HIRBuilder::translate(
           break;
         }
         case CONTAINS_OP: {
-          emitContainsOp(tc, bc_instr.oparg());
+          emitContainsOp(irfunc.cfg, tc, bc_instr);
           break;
         }
         case COMPARE_OP: {
@@ -2648,12 +2648,46 @@ void HIRBuilder::emitIsOp(TranslationContext& tc, int oparg) {
   stack.push(result);
 }
 
-void HIRBuilder::emitContainsOp(TranslationContext& tc, int oparg) {
+void HIRBuilder::emitContainsOp(
+    CFG& cfg,
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
   auto& stack = tc.frame.stack;
+
+  if (getConfig().specialized_opcodes) {
+    Register* container = stack.top();
+    switch (bc_instr.specializedOpcode()) {
+      case CONTAINS_OP_DICT:
+        tc.emit<GuardType>(container, TDictExact, container, tc.frame);
+        break;
+      case CONTAINS_OP_SET: {
+        // The interpreter accepts either a set or a frozenset here, and
+        // GuardType can only check for a single exact type.
+        TranslationContext set_path{cfg.allocateBlock(), tc.frame};
+        TranslationContext frozenset_path{cfg.allocateBlock(), tc.frame};
+        frozenset_path.emitSnapshot();
+        tc.emit<CondBranchCheckType>(
+            container, TSetExact, set_path.block, frozenset_path.block);
+        tc.block = cfg.allocateBlock();
+
+        set_path.emit<RefineType>(container, TSetExact, container);
+        set_path.emit<Branch>(tc.block);
+
+        frozenset_path.emit<GuardType>(
+            container, TFrozenSetExact, container, frozenset_path.frame);
+        frozenset_path.emit<Branch>(tc.block);
+        tc.emitSnapshot();
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   Register* right = stack.pop();
   Register* left = stack.pop();
   Register* result = allocateTemp();
-  CompareOp op = oparg == 0 ? CompareOp::kIn : CompareOp::kNotIn;
+  CompareOp op = bc_instr.oparg() == 0 ? CompareOp::kIn : CompareOp::kNotIn;
   tc.emit<Compare>(result, op, left, right, tc.frame);
   stack.push(result);
 }

@@ -3718,6 +3718,20 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                 PyUnicode_Contains,
                 instr->right(),
                 instr->left());
+          } else if (instr->right()->type() <= TDictExact) {
+            call_instr = bbb.appendCallInstruction(
+                instr->output(),
+                PyDict_Contains,
+                instr->right(),
+                instr->left());
+          } else if (instr->right()->type() <= (TSetExact | TFrozenSetExact)) {
+            // Not PySet_Contains, which skips the fallback for set keys, e.g.
+            // `{1} in {frozenset({1})}`.
+            call_instr = bbb.appendCallInstruction(
+                instr->output(),
+                PySet_Type.tp_as_sequence->sq_contains,
+                instr->right(),
+                instr->left());
           } else {
             call_instr = bbb.appendCallInstruction(
                 instr->output(),

@@ -507,6 +507,20 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
     }
   }
 
+  // Membership tests on exact dicts and sets produce an unboxed result, which
+  // lets a branch on the result skip the bool object.
+  if ((op == CompareOp::kIn || op == CompareOp::kNotIn) &&
+      (right->isA(TDictExact) || right->isA(TSetExact | TFrozenSetExact))) {
+    env.emit<UseType>(right, right->type());
+    Register* result = env.emit<CompareBool>(
+        CompareOp::kIn, left, right, *instr->frameState());
+    if (op == CompareOp::kNotIn) {
+      result =
+          env.emit<PrimitiveUnaryOp>(PrimitiveUnaryOpKind::kNotInt, result);
+    }
+    return env.emit<PrimitiveBoxBool>(result);
+  }
+
   return nullptr;
 }
 

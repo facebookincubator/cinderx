@@ -90,6 +90,8 @@ int BytecodeInstruction::specializedOpcode() const {
     case COMPARE_OP_FLOAT:
     case COMPARE_OP_INT:
     case COMPARE_OP_STR:
+    case CONTAINS_OP_DICT:
+    case CONTAINS_OP_SET:
     case FOR_ITER_RANGE:
     case LOAD_ATTR_MODULE:
     case STORE_SUBSCR_DICT:

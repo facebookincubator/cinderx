@@ -5,6 +5,7 @@
 import contextlib
 import dis
 import sys
+from collections.abc import Container
 from types import ModuleType
 from typing import Callable, Iterator, TypeVar
 
@@ -313,6 +314,73 @@ class SpecializationTests(CinderXTestCase):
         self.assertNotIn("COMPARE_OP", opnames(f))
         self.assertIn("COMPARE_OP_STR", opnames(f))
         self.assertEqual(f("b", "b"), True)
+
+    @passUnless(sys.version_info >= (3, 14), "CONTAINS_OP_DICT was added in 3.13")
+    def test_contains_op_dict(self) -> None:
+        def f(a: object, b: Container[object]) -> bool:
+            return a in b
+
+        def g(a: object, b: Container[object]) -> bool:
+            return a not in b
+
+        specialize(f, lambda: f(1, {1: 2}))
+        specialize(g, lambda: g(1, {1: 2}))
+
+        self.assertNotIn("CONTAINS_OP", opnames(f))
+        self.assertIn("CONTAINS_OP_DICT", opnames(f))
+        self.assertIn("CONTAINS_OP_DICT", opnames(g))
+        self.assertEqual(f(1, {1: 2}), True)
+        self.assertEqual(f(2, {1: 2}), False)
+        self.assertEqual(g(1, {1: 2}), False)
+        self.assertEqual(g(2, {1: 2}), True)
+        self.assertEqual(f(1, [1]), True)
+        self.assertEqual(g("d", "abc"), True)
+
+    @passUnless(sys.version_info >= (3, 14), "CONTAINS_OP_SET was added in 3.13")
+    def test_contains_op_set(self) -> None:
+        def f(a: object, b: Container[object]) -> bool:
+            return a in b
+
+        def g(a: object, b: Container[object]) -> bool:
+            return a not in b
+
+        specialize(f, lambda: f(1, {1, 2}))
+        specialize(g, lambda: g(1, {1, 2}))
+
+        self.assertNotIn("CONTAINS_OP", opnames(f))
+        self.assertIn("CONTAINS_OP_SET", opnames(f))
+        self.assertIn("CONTAINS_OP_SET", opnames(g))
+        self.assertEqual(f(1, {1, 2}), True)
+        self.assertEqual(f(3, {1, 2}), False)
+        self.assertEqual(g(1, {1, 2}), False)
+        self.assertEqual(g(3, {1, 2}), True)
+        self.assertEqual(f({1}, {frozenset({1})}), True)
+        self.assertEqual(f(1, [1]), True)
+        self.assertEqual(g(1, (2,)), True)
+
+    @passUnless(sys.version_info >= (3, 14), "CONTAINS_OP_SET was added in 3.13")
+    def test_contains_op_set_frozenset(self) -> None:
+        def f(a: object, b: Container[object]) -> str:
+            if a in b:
+                return "y"
+            return "n"
+
+        specialize(f, lambda: f(1, {1, 2}))
+
+        self.assertIn("CONTAINS_OP_SET", opnames(f))
+
+        cinderx.jit.get_and_clear_runtime_stats()
+        self.assertEqual(f(1, frozenset({1, 2})), "y")
+        self.assertEqual(f(3, frozenset({1, 2})), "n")
+        self.assertEqual(f({1}, frozenset({frozenset({1})})), "y")
+        self.assertEqual(f(1, {1, 2}), "y")
+        self.assertEqual(f(3, {1, 2}), "n")
+        deopts = cinderx.jit.get_and_clear_runtime_stats().get("deopt") or []
+        if not isinstance(deopts, list):
+            self.fail("Deopt runtime stats are not a list")
+        self.assertEqual(
+            [e for e in deopts if e["normal"]["func_qualname"].endswith(".f")], []
+        )
 
     def test_load_attr_module(self) -> None:
         s: ModuleType = sys

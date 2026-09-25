@@ -43,6 +43,8 @@
   X(CALL_FUNCTION_KW)                  \
   X(CALL_KW)                           \
   X(CALL_METHOD)                       \
+  X(CONTAINS_OP_DICT)                  \
+  X(CONTAINS_OP_SET)                   \
   X(CONVERT_VALUE)                     \
   X(COPY_DICT_WITHOUT_KEYS)            \
   X(DUP_TOP)                           \

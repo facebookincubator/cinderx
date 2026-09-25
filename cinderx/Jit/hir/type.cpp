@@ -42,6 +42,7 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
         {TBaseException, reinterpret_cast<PyTypeObject*>(PyExc_BaseException)},
         {TFloat, &PyFloat_Type},
         {TFrame, &PyFrame_Type},
+        {TFrozenSet, &PyFrozenSet_Type},
         {TFunc, &PyFunction_Type},
         {TGen, &PyGen_Type},
         {TList, &PyList_Type},
