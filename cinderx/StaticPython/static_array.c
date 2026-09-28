@@ -43,7 +43,7 @@ static PyObject* staticarray_to_list(PyObject* sa) {
 
   for (Py_ssize_t i = 0; i < Py_SIZE(sa); i++) {
     ArrayItemType val = array->ob_item[i];
-    PyObject* boxed_val = PyLong_FromLong(val);
+    PyObject* boxed_val = PyLong_FromLongLong(val);
     if (boxed_val == NULL) {
       Py_DECREF(list);
       return NULL;
@@ -147,8 +147,8 @@ static PyObject* staticarray_getitem(
     PyErr_SetString(PyExc_IndexError, "array index out of range");
     return NULL;
   }
-  assert(PyStaticArray_Spec.itemsize == sizeof(long));
-  return PyLong_FromLong(array->ob_item[index]);
+  assert(PyStaticArray_Spec.itemsize == sizeof(long long));
+  return PyLong_FromLongLong(array->ob_item[index]);
 }
 
 static int staticarray_setitem(
@@ -160,8 +160,8 @@ static int staticarray_setitem(
     PyErr_SetString(PyExc_IndexError, "array index out of range");
     return -1;
   }
-  assert(PyStaticArray_Spec.itemsize == sizeof(long));
-  ArrayItemType val = PyLong_AsLong(value);
+  assert(PyStaticArray_Spec.itemsize == sizeof(long long));
+  ArrayItemType val = PyLong_AsLongLong(value);
   if (val == -1 && PyErr_Occurred()) {
     return -1;
   }
