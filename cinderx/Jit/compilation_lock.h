@@ -33,26 +33,31 @@ void freeThreadedJITEntrypointAtForkPrepare();
 void freeThreadedJITEntrypointAtForkParent();
 void freeThreadedJITEntrypointAtForkChild();
 
+template <typename Mutex>
+void lockWithThreadStateDetachment(Mutex& mutex) {
+  if (mutex.try_lock()) {
+    return;
+  }
+  // Detach while waiting so we don't block stop-the-world pauses.
+#if PY_VERSION_HEX >= 0x030E0000
+  auto* tstate = PyThreadState_GetUnchecked();
+#else
+  auto* tstate = _PyThreadState_UncheckedGet();
+#endif
+  if (tstate != nullptr) {
+    tstate = PyEval_SaveThread();
+  }
+  mutex.lock();
+  if (tstate != nullptr) {
+    PyEval_RestoreThread(tstate);
+  }
+}
+
 class FreeThreadedJITEntrypointGuard {
  public:
   FreeThreadedJITEntrypointGuard() {
     if constexpr (kFreeThreadedBuild) {
-      auto& mutex = freeThreadedJITEntrypointMutex();
-      if (!mutex.try_lock()) {
-        // Detach while waiting so we don't block stop-the-world pauses.
-#if PY_VERSION_HEX >= 0x030E0000
-        auto* tstate = PyThreadState_GetUnchecked();
-#else
-        auto* tstate = _PyThreadState_UncheckedGet();
-#endif
-        if (tstate != nullptr) {
-          tstate = PyEval_SaveThread();
-        }
-        mutex.lock();
-        if (tstate != nullptr) {
-          PyEval_RestoreThread(tstate);
-        }
-      }
+      lockWithThreadStateDetachment(freeThreadedJITEntrypointMutex());
       ++freeThreadedJITEntrypointLockDepth;
     }
   }
@@ -79,7 +84,11 @@ inline thread_local int jitCompilationLockDepth = 0;
 class JITCompilationLock {
  public:
   JITCompilationLock() {
-    jitCompilationMutex().lock();
+    if constexpr (kFreeThreadedBuild) {
+      lockWithThreadStateDetachment(jitCompilationMutex());
+    } else {
+      jitCompilationMutex().lock();
+    }
     ++jitCompilationLockDepth;
   }
 

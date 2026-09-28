@@ -55,7 +55,11 @@ void jitCompilationAtForkChild() {
   // across the fork, so unlock() would fail with EPERM and leave the lock held
   // forever.  Destroying it isn't an option either, as it is still locked by
   // atForkPrepare(), so its lifetime ends without running its destructor.
-  resetMutexAfterFork(jitCompilationMutex());
+  auto& mutex = jitCompilationMutex();
+  resetMutexAfterFork(mutex);
+  for (int i = 0; i < jitCompilationLockDepth; ++i) {
+    mutex.lock();
+  }
 }
 
 } // namespace cinderx::jit
