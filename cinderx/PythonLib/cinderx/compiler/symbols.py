@@ -109,6 +109,10 @@ class Scope:
         self.frees: dict[str, int] = {}
         self.cells: dict[str, int] = {}
         self.type_params: set[str] = set()
+        # Names this scope only has because a nested inlined comprehension
+        # merged its defs up. They belong to that nested comprehension's own
+        # lexical scope, so this scope must not isolate them again.
+        self.inlined_child_defs: set[str] = set()
         self.children: list[Scope] = []
         # Names imported in this scope (the symbols, not the modules)
         self.imports: set[str] = set()
@@ -1202,6 +1206,11 @@ class SymbolVisitor312(BaseSymbolVisitor):
         comp.inlined = True
         for v in comp.defs:
             if v != ".0":
+                # A name the enclosing scope doesn't bind itself belongs to the
+                # comprehension's lexical scope; it stays that way however many
+                # levels of inlining it is merged through.
+                if v not in scope.defs:
+                    scope.inlined_child_defs.add(v)
                 scope.add_def(v)
 
         # for names that are free in comprehension

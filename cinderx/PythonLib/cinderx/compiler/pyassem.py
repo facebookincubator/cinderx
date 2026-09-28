@@ -1002,6 +1002,10 @@ class PyFlowGraph(FlowGraph):
         return (name_idx << 2) | ((not zero_args) << 1) | mask[op]
 
     def _convert_DEREF(self, arg: object) -> int:
+        if isinstance(arg, int):
+            # Already resolved by the code generator, which had the scope
+            # information needed to disambiguate a cell from a free var.
+            return arg
         # Sometimes, both cellvars and freevars may contain the same var
         # (e.g., for class' __class__). In this case, prefer freevars.
         assert isinstance(arg, str)
@@ -2253,6 +2257,10 @@ class PyFlowGraph312(PyFlowGraph):
         return self.opcode.CMP_OP.index(arg) << 4 | PyFlowGraph312.COMPARE_MASKS[arg]
 
     def _convert_LOAD_CLOSURE(self: PyFlowGraph, oparg: object) -> int:
+        if isinstance(oparg, int):
+            # Already resolved by the code generator, which had the scope
+            # information needed to disambiguate a cell from a free var.
+            return oparg
         # __class__ and __classdict__ are special cased to be cell vars in classes
         # in get_ref_type in compile.c
         if isinstance(self.scope, ClassScope) and oparg in (

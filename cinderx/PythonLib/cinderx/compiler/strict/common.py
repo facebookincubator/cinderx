@@ -79,7 +79,10 @@ class StrictModuleError(Exception):
 
 
 def _is_scoped_generator_node(node: AST) -> bool:
-    return sys.version_info < (3, 12) or not isinstance(
+    # gh-124697: 3.16 gives inlined comprehensions their own symtable entry.
+    if sys.version_info < (3, 12) or sys.version_info >= (3, 16):
+        return True
+    return not isinstance(
         node,
         (
             ast.ListComp,
@@ -173,7 +176,7 @@ class SymbolMapBuilder(ast.NodeVisitor):
         self.visit(comprehensions[0].iter)
         # everything else is in the inner scope
         if _is_scoped_generator_node(node):
-            # In 3.12 list comprehensions are inlined
+            # In 3.12-3.15 list comprehensions are inlined into the parent symtable
             self._process_scope_node(node)
         # process first comprehension, without iter
         for child in comprehensions[0].ifs:
@@ -327,7 +330,7 @@ class ScopeStack(Generic[TVar, TScopeData]):
     ) -> ScopeContextManager[TVar, TScopeData] | nullcontext[None]:
         if not _is_scoped_generator_node(node):
             assert isinstance(node, (ast.ListComp, ast.DictComp, ast.SetComp))
-            # In 3.12 list/dict/set comprehensions are inlined
+            # In 3.12-3.15 list/dict/set comprehensions are inlined into the parent symtable
             return nullcontext()
 
         next_symtable = self.symbol_map[node]

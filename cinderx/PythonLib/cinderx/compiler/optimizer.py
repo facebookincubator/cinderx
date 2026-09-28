@@ -489,6 +489,11 @@ class AstOptimizer312(AstOptimizer):
 
 
 class AstOptimizer314(AstOptimizer312):
+    # Unary operators that fold into a constant inside a match pattern; a
+    # pattern whose operator isn't folded away is later rejected as not being a
+    # literal.
+    match_pattern_unary_ops: tuple[type[ast.unaryop], ...] = (ast.USub,)
+
     def has_starred(self, node: ast.Tuple) -> bool:
         return any(isinstance(e, ast.Starred) for e in node.elts)
 
@@ -525,7 +530,9 @@ class AstOptimizer314(AstOptimizer312):
 
     def fold_const_match_patterns(self, node: ast.expr) -> ast.expr:
         if isinstance(node, ast.UnaryOp):
-            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Constant):
+            if isinstance(node.op, self.match_pattern_unary_ops) and isinstance(
+                node.operand, ast.Constant
+            ):
                 return super().visitUnaryOp(node)
         elif isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
             if isinstance(node.right, ast.Constant):
@@ -545,3 +552,9 @@ class AstOptimizer314(AstOptimizer312):
     def _visitIter(self, node: ast.expr) -> ast.expr:
         # This optimization has been removed in 3.14
         return node
+
+
+class AstOptimizer316(AstOptimizer314):
+    # gh-152708: unary plus is no longer dropped by the parser, so the
+    # preprocessor has to fold it like unary minus.
+    match_pattern_unary_ops: tuple[type[ast.unaryop], ...] = (ast.USub, ast.UAdd)

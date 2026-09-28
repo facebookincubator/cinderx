@@ -51,7 +51,12 @@ try:
 
     # pyrefly: ignore [missing-module-attribute]
     from .opcodes import find_op_idx, INTRINSIC_1, INTRINSIC_2
-    from .optimizer import AstOptimizer, AstOptimizer312, AstOptimizer314
+    from .optimizer import (
+        AstOptimizer,
+        AstOptimizer312,
+        AstOptimizer314,
+        AstOptimizer316,
+    )
     from .pyassem import (
         Block,
         FVC_ASCII,
@@ -363,6 +368,9 @@ class CodeGenerator(ASTVisitor):
     flow_graph: type[PyFlowGraph] = PyFlowGraph312
     _SymbolVisitor: type[BaseSymbolVisitor] = BaseSymbolVisitor
     pattern_context: type[PatternContext] = PatternContext
+    # Names an active inlined comprehension binds as its own cell while the
+    # enclosing scope also has them as free variables
+    inlined_comp_cells: frozenset[str] = frozenset()
     # gh-issue-151907: a list comprehension used as an expression statement
     # (its result discarded) skips building the list. Only enabled for the
     # Python versions whose compiler performs this optimization.
@@ -2722,6 +2730,15 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         raise NotImplementedError()
 
+    def deref_oparg(self, name: str) -> str | int:
+        # PyFlowGraph resolves closure opargs by name alone and prefers the free
+        # slot when a name is both a cell and a free variable. That is right for
+        # a class' __class__, but not for an inlined comprehension's own cell,
+        # so hand those over already resolved.
+        if name in self.inlined_comp_cells:
+            return self.graph.cellvars.get_index(name)
+        return name
+
     def emit_closure(self, gen: CodeHolder, flags: int) -> None:
         prefix = ""
         # pyrefly: ignore [missing-attribute]
@@ -2731,7 +2748,7 @@ class CodeGenerator(ASTVisitor):
         frees = gen.scope.get_free_vars()
         if frees:
             for name in frees:
-                self.emit("LOAD_CLOSURE", name)
+                self.emit("LOAD_CLOSURE", self.deref_oparg(name))
             self.emit("BUILD_TUPLE", len(frees))
             flags |= MAKE_FUNCTION_CLOSURE
 
@@ -2847,6 +2864,9 @@ def _is_empty_starred_literal(elt: ast.expr) -> bool:
 class CodeGenerator312(CodeGenerator):
     flow_graph: type[PyFlowGraph] = PyFlowGraph312
     _SymbolVisitor = SymbolVisitor312
+    # Whether an inlined comprehension is its own symbol table entry rather than
+    # being folded into the enclosing one. See the uses below for what changes.
+    _inlined_comprehension_has_own_symtable_entry: bool = False
     # pyrefly: ignore [bad-assignment]
     unqualified_asts: tuple[type[ast.AST]] = (
         ast.ClassDef,
@@ -2958,7 +2978,11 @@ class CodeGenerator312(CodeGenerator):
         scope = self.scope
         while scope.parent is not None:
             scope = scope.parent
-        if self.temp_symbols is not None and e.id in self.temp_symbols:
+        if (
+            not self._inlined_comprehension_has_own_symtable_entry
+            and self.temp_symbols is not None
+            and e.id in self.temp_symbols
+        ):
             return False
         return scope.is_import(e.id)
 
@@ -4122,7 +4146,7 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("LOAD_DEREF", "__classdict__")
                 self.emit("LOAD_FROM_DICT_OR_DEREF", name)
             else:
-                self.emit(prefix + "_DEREF", name)
+                self.emit(prefix + "_DEREF", self.deref_oparg(name))
         elif scope == SC_UNKNOWN:
             self.emit(prefix + "_NAME", name)
         else:
@@ -4907,6 +4931,7 @@ class CodeGenerator312(CodeGenerator):
     ) -> None:
         self.inlined_comp_depth -= 1
         self.temp_symbols = inlined_state.prev_temp_symbols
+        self.inlined_comp_cells = inlined_state.prev_inlined_comp_cells
         if inlined_state.pushed_locals:
             self.emit_noline("POP_BLOCK")
             self.emit_jump_forward_noline(inlined_state.end)
@@ -5028,12 +5053,14 @@ class InlinedComprehensionState:
         prev_temp_symbols: dict[str, int] | None,
         end: Block,
         cleanup: Block,
+        prev_inlined_comp_cells: frozenset[str] = frozenset(),
     ) -> None:
         self.pushed_locals = pushed_locals
         self.fast_hidden = fast_hidden
         self.prev_temp_symbols = prev_temp_symbols
         self.end = end
         self.cleanup = cleanup
+        self.prev_inlined_comp_cells = prev_inlined_comp_cells
 
 
 class CinderCodeGenBase(CodeGenerator):
@@ -5496,6 +5523,16 @@ class CodeGenerator314(CodeGenerator312):
         pushed_locals: list[str] = []
         self.inlined_comp_depth += 1
 
+        prev_inlined_comp_cells = self.inlined_comp_cells
+        if self._inlined_comprehension_has_own_symtable_entry:
+            self.inlined_comp_cells = prev_inlined_comp_cells | {
+                name
+                for name in scope.symbols
+                if scope.check_name(name) == SC_CELL
+                and name in self.graph.cellvars
+                and name in self.graph.freevars
+            }
+
         # iterate over names bound in the comprehension and ensure we isolate
         # them from the outer scope as needed
         for name in scope.symbols:
@@ -5508,19 +5545,34 @@ class CodeGenerator314(CodeGenerator312):
             # the flag set. We simulate this by checking if we're in the module scope and
             # always putting a value in temp_symbols, we then disable the is_import_originated
             # check for these names (this is really ugly, and CPython probably doesn't mean
-            # to lose the DEF_IMPORTED flag in these cases).
+            # to lose the DEF_IMPORTED flag in these cases). Once the comprehension has its
+            # own entry the flag survives, and a name can be a cell in the comprehension
+            # while staying free in the enclosing scope, so that pair no longer has to be
+            # flattened to "free throughout".
             if (
-                isinstance(self.scope, ModuleScope) and outsc == SC_GLOBAL_IMPLICIT
+                not self._inlined_comprehension_has_own_symtable_entry
+                and isinstance(self.scope, ModuleScope)
+                and outsc == SC_GLOBAL_IMPLICIT
             ) or (
                 compsc != outsc
                 and compsc != SC_FREE
-                and not (compsc == SC_CELL and outsc == SC_FREE)
+                and (
+                    self._inlined_comprehension_has_own_symtable_entry
+                    or not (compsc == SC_CELL and outsc == SC_FREE)
+                )
             ):
                 if temp_symbols is None:
                     temp_symbols = {}
                 temp_symbols[name] = compsc
 
             if name in scope.params:
+                continue
+            if (
+                self._inlined_comprehension_has_own_symtable_entry
+                and name in scope.inlined_child_defs
+            ):
+                # The name belongs to a comprehension nested inside this one,
+                # which now has its own entry and isolates the name itself.
                 continue
             if name in scope.defs and name not in scope.nonlocals:
                 # local names bound in comprehension must be isolated from
@@ -5532,6 +5584,7 @@ class CodeGenerator314(CodeGenerator312):
                         # Matching PyFlowGraph._convert_DEREF offset for free var index
                         (self.graph.freevars.get_index(name) + len(self.graph.cellvars))
                         if name in self.scope.frees
+                        and name not in self.inlined_comp_cells
                         else self.graph.cellvars.get_index(name)
                     )
                     self.emit("MAKE_CELL", name_idx)
@@ -5546,7 +5599,12 @@ class CodeGenerator314(CodeGenerator312):
         prev_temp_symbols = self.temp_symbols
         self.temp_symbols = temp_symbols
         return InlinedComprehensionState(
-            pushed_locals, fast_hidden, prev_temp_symbols, end, cleanup
+            pushed_locals,
+            fast_hidden,
+            prev_temp_symbols,
+            end,
+            cleanup,
+            prev_inlined_comp_cells,
         )
 
     def _compile_async_comprehension(
@@ -6843,6 +6901,24 @@ class CodeGenerator316(CodeGenerator315):
     # gh-150737: 3.16 skips unpacking empty `*()`, `*[]` and `*{}` literals in
     # displays and starred calls.
     _skip_empty_starred_literals: bool = True
+    # gh-124697: 3.16 gives each inlined comprehension its own symbol table
+    # entry (symtable.SymbolTableType.INLINED_COMPREHENSION) instead of folding
+    # its symbols into the enclosing entry.
+    _inlined_comprehension_has_own_symtable_entry: bool = True
+
+    @classmethod
+    def optimize_tree(
+        cls,
+        optimize: int,
+        tree: AST,
+        string_anns: bool,
+    ) -> AST:
+        result = AstOptimizer316(optimize=optimize > 0, string_anns=string_anns).visit(
+            tree
+        )
+
+        assert isinstance(result, AST)
+        return result
 
     @staticmethod
     def _call_stack_use(nargs: int, nkwds: int) -> int:
