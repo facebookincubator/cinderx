@@ -37,6 +37,11 @@ for i in range(N_SBS_TEST_CLASSES):
     class_name = f"SbsCompileTests{i}"
     new_class = type(class_name, (TestCase,), {})
     SbsCompileTests.append(new_class)
+    # Bind the class into the module as well.  Discovery finds these through
+    # TestCase's subclasses, but a runner asked for one test by name resolves
+    # it with getattr() on the module, which a class living only in the list
+    # above cannot satisfy.
+    globals()[class_name] = new_class
     del new_class
 
 
