@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import types
 import unittest
 import weakref
 from typing import Any, Callable, cast, TYPE_CHECKING
@@ -31,7 +32,6 @@ from cinderx.test_support import (
     is_jit_compiled_after_call,
     is_oss,
     passIf,
-    passUnless,
     run_in_fork,
     run_in_fresh_process,
     skip_if_ft,
@@ -2260,6 +2260,35 @@ class ForceUncompileTests(unittest.TestCase):
         self.assertTrue(force_uncompile(f))
         self.assertFalse(is_jit_compiled(f))
 
+    def test_wrapped(self) -> None:
+        class C:
+            def f(self) -> int:
+                return 1
+
+            @classmethod
+            def g(cls) -> int:
+                return 2
+
+            @staticmethod
+            def h() -> int:
+                return 3
+
+        g = C.__dict__["g"].__func__
+        for wrapper, func in (
+            (C().f, C.f),
+            (C.g, g),
+            (C.__dict__["g"], g),
+            (C.__dict__["h"], C.h),
+        ):
+            with self.subTest(wrapper=wrapper):
+                self.assertTrue(force_compile(wrapper))
+                self.assertTrue(is_jit_compiled(func))
+                self.assertTrue(is_jit_compiled(wrapper))
+
+                self.assertTrue(force_uncompile(wrapper))
+                self.assertFalse(is_jit_compiled(func))
+                self.assertFalse(is_jit_compiled(wrapper))
+
 
 class LazyCompileTests(unittest.TestCase):
     def test_basic(self) -> None:
@@ -2290,6 +2319,160 @@ class JITSuppressTests(unittest.TestCase):
         jit_unsuppress(f)
         force_compile(f)
         self.assertTrue(is_jit_compiled(f))
+
+    def assertSuppressed(self, func: Callable[..., object], suppressed: bool) -> None:
+        self.assertEqual(bool(func.__code__.co_flags & CO_SUPPRESS_JIT), suppressed)
+
+    def test_bound_method(self) -> None:
+        class C:
+            def f(self) -> int:
+                return 1
+
+        m = C().f
+        self.assertIs(jit_suppress(m), m)
+        self.assertSuppressed(C.f, True)
+
+        with self.assertRaisesRegex(RuntimeError, "CANNOT_SPECIALIZE"):
+            force_compile(C.f)
+
+        jit_unsuppress(m)
+        self.assertSuppressed(C.f, False)
+
+    def test_classmethod(self) -> None:
+        class C:
+            @jit_suppress
+            @classmethod
+            def f(cls) -> int:
+                return 1
+
+        self.assertIsInstance(C.__dict__["f"], classmethod)
+        self.assertEqual(C.f(), 1)
+        self.assertSuppressed(C.f, True)
+
+        # A classmethod looked up on the class is a method bound to the class.
+        jit_unsuppress(C.f)
+        self.assertSuppressed(C.f, False)
+
+    def test_staticmethod(self) -> None:
+        class C:
+            @jit_suppress
+            @staticmethod
+            def f() -> int:
+                return 1
+
+        self.assertIsInstance(C.__dict__["f"], staticmethod)
+        self.assertEqual(C.f(), 1)
+        self.assertSuppressed(C.f, True)
+
+        jit_unsuppress(C.__dict__["f"])
+        self.assertSuppressed(C.f, False)
+
+    def test_wrapped_non_function(self) -> None:
+        with self.assertRaisesRegex(TypeError, "received 'builtin_function"):
+            jit_suppress(classmethod(len))
+        # Holds NULL or None depending on the Python version.
+        with self.assertRaises(TypeError):
+            # pyrefly: ignore [bad-argument-type]
+            jit_suppress(classmethod.__new__(classmethod))
+
+
+class WrappedCallableTests(unittest.TestCase):
+    def make_cases(self) -> list[tuple[Any, Callable[..., int], Callable[[], int]]]:
+        """Return (wrapper, wrapped function, zero-arg call) triples."""
+
+        class C:
+            def f(self) -> int:
+                return 1
+
+            @classmethod
+            def g(cls) -> int:
+                return 2
+
+            @staticmethod
+            def h() -> int:
+                return 3
+
+        g = C.__dict__["g"].__func__
+        return [
+            (C().f, C.f, lambda: C().f()),
+            (C.g, g, C.g),
+            (C.__dict__["g"], g, C.g),
+            (C.__dict__["h"], C.h, C.h),
+        ]
+
+    def test_query_compiled(self) -> None:
+        queries = (
+            cinderx.jit.count_interpreted_bytecodes,
+            cinderx.jit.count_interpreted_calls,
+            cinderx.jit.get_compiled_size,
+            cinderx.jit.get_compiled_spill_stack_size,
+            cinderx.jit.get_compiled_stack_size,
+        )
+        for wrapper, func, _ in self.make_cases():
+            with self.subTest(wrapper=wrapper):
+                self.assertTrue(force_compile(func))
+                try:
+                    self.assertGreater(cinderx.jit.get_compiled_size(wrapper), 0)
+                    self.assertIs(
+                        cinderx.jit.get_compiled_function(wrapper),
+                        cinderx.jit.get_compiled_function(func),
+                    )
+                    for query in queries:
+                        self.assertEqual(query(wrapper), query(func), query.__name__)
+                finally:
+                    force_uncompile(func)
+                self.assertIsNone(cinderx.jit.get_compiled_function(wrapper))
+
+    def test_lazy_compile(self) -> None:
+        for wrapper, func, call in self.make_cases():
+            with self.subTest(wrapper=wrapper):
+                self.assertTrue(cinderx.jit.lazy_compile(wrapper))
+                self.assertFalse(is_jit_compiled(func))
+                call()
+                self.assertTrue(is_jit_compiled(func))
+                force_uncompile(func)
+
+    def test_rejects_wrapped_non_function(self) -> None:
+        class ClassMethodSubclass(classmethod):
+            pass
+
+        def f() -> None:
+            pass
+
+        apis = (
+            cinderx.jit.count_interpreted_bytecodes,
+            cinderx.jit.count_interpreted_calls,
+            cinderx.jit.get_compiled_function,
+            cinderx.jit.get_compiled_size,
+            cinderx.jit.get_compiled_spill_stack_size,
+            cinderx.jit.get_compiled_stack_size,
+            cinderx.jit.lazy_compile,
+            force_compile,
+            force_uncompile,
+            is_jit_compiled,
+            jit_suppress,
+            jit_unsuppress,
+        )
+        bad_args: tuple[tuple[Any, str], ...] = (
+            (types.MethodType(len, object()), "builtin_function_or_method"),
+            # Only one layer of wrapping is removed.
+            (classmethod(staticmethod(f)), "staticmethod"),
+            # Subclasses are not unwrapped.
+            # pyrefly: ignore [bad-argument-type]
+            (ClassMethodSubclass(f), "ClassMethodSubclass"),
+        )
+        for api in apis:
+            for arg, type_name in bad_args:
+                with self.subTest(api=api.__name__, arg=type(arg).__name__):
+                    with self.assertRaisesRegex(
+                        TypeError,
+                        f"^{api.__name__} expected a Python callable, "
+                        f"received '{type_name}' object$",
+                    ):
+                        api(arg)
+
+        self.assertFalse(f.__code__.co_flags & CO_SUPPRESS_JIT)
+        self.assertFalse(is_jit_compiled(f))
 
 
 class BadArgumentTests(unittest.TestCase):

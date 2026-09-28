@@ -13,6 +13,7 @@
 #include "cinderx/Common/define.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/fork_support.h"
+#include "cinderx/Common/func.h"
 #include "cinderx/Common/hugepages.h"
 #include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
@@ -2247,14 +2248,30 @@ PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
 BorrowedRef<PyFunctionObject> get_func_arg(
     const char* method_name,
     BorrowedRef<> arg) {
-  if (PyFunction_Check(arg)) {
-    return BorrowedRef<PyFunctionObject>{arg};
+  // Unwrap bound methods, classmethods, and staticmethods into their inner
+  // functions.
+  BorrowedRef<> func = arg;
+  if (PyMethod_Check(arg)) {
+    func = PyMethod_GET_FUNCTION(arg);
+  } else if (
+      Py_TYPE(arg) == &PyClassMethod_Type ||
+      Py_TYPE(arg) == &PyStaticMethod_Type) {
+    // An uninitialized classmethod or staticmethod has no callable.
+    func = Ci_PyClassMethod_GetFunc(arg);
+    if (func == nullptr) {
+      func = arg;
+    }
   }
+
+  if (PyFunction_Check(func)) {
+    return BorrowedRef<PyFunctionObject>{func};
+  }
+
   PyErr_Format(
       PyExc_TypeError,
-      "%s expected a Python function, received '%s' object",
+      "%s expected a Python callable, received '%s' object",
       method_name,
-      Py_TYPE(arg)->tp_name);
+      Py_TYPE(func)->tp_name);
   return nullptr;
 }
 
@@ -3099,27 +3116,41 @@ PyObject* clear_runtime_stats(PyObject* /* self */, PyObject*) {
   Py_RETURN_NONE;
 }
 
-PyObject* get_compiled_size(PyObject* /* self */, PyObject* func) {
+PyObject* get_compiled_size(PyObject* /* self */, PyObject* arg) {
   if (jitCtx() == nullptr) {
     return PyLong_FromLong(0);
+  }
+  BorrowedRef<PyFunctionObject> func = get_func_arg("get_compiled_size", arg);
+  if (func == nullptr) {
+    return nullptr;
   }
   CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->codeSize() : -1;
   return PyLong_FromLong(size);
 }
 
-PyObject* get_compiled_stack_size(PyObject* /* self */, PyObject* func) {
+PyObject* get_compiled_stack_size(PyObject* /* self */, PyObject* arg) {
   if (jitCtx() == nullptr) {
     return PyLong_FromLong(0);
+  }
+  BorrowedRef<PyFunctionObject> func =
+      get_func_arg("get_compiled_stack_size", arg);
+  if (func == nullptr) {
+    return nullptr;
   }
   CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->stackSize() : -1;
   return PyLong_FromLong(size);
 }
 
-PyObject* get_compiled_spill_stack_size(PyObject* /* self */, PyObject* func) {
+PyObject* get_compiled_spill_stack_size(PyObject* /* self */, PyObject* arg) {
   if (jitCtx() == nullptr) {
     return PyLong_FromLong(0);
+  }
+  BorrowedRef<PyFunctionObject> func =
+      get_func_arg("get_compiled_spill_stack_size", arg);
+  if (func == nullptr) {
+    return nullptr;
   }
   CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->spillStackSize() : -1;
@@ -3755,11 +3786,12 @@ PyMethodDef jit_methods[] = {
     {"jit_suppress",
      jit_suppress,
      METH_O,
-     PyDoc_STR("Decorator to prevent the JIT from running on a function.")},
+     PyDoc_STR(
+         "Decorator to prevent the JIT from running on a Python callable.")},
     {"jit_unsuppress",
      jit_unsuppress,
      METH_O,
-     PyDoc_STR("Decorator to allow the JIT to run on a function.")},
+     PyDoc_STR("Decorator to allow the JIT to run on a Python callable.")},
     {"multithreaded_compile_test",
      multithreaded_compile_test,
      METH_NOARGS,
