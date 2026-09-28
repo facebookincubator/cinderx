@@ -166,7 +166,7 @@ class JitListTest(unittest.TestCase):
 
     def test_batch_compile_nested_func(self) -> None:
         root = Path(
-            os.path.join(os.path.dirname(__file__), "data/batch_compile_nested_func")
+            os.path.join(os.path.dirname(__file__), "data", "batch_compile_nested_func")
         )
         cmd = [
             sys.executable,

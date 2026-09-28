@@ -231,7 +231,8 @@ hello from b_func!
         ):
             root = os.path.join(
                 os.path.dirname(__file__),
-                "data/preload_error_recursive" if recursive else "data/preload_error",
+                "data",
+                "preload_error_recursive" if recursive else "preload_error",
             )
             jitlist = os.path.join(root, "jitlist.txt")
             cmd = [
@@ -268,7 +269,9 @@ hello from b_func!
         sys.platform == "win32", "asyncio is failing to load in subprocess on Windows"
     )
     def test_error_preloading_inlined(self) -> None:
-        root = os.path.join(os.path.dirname(__file__), "data/error_preloading_inlined")
+        root = os.path.join(
+            os.path.dirname(__file__), "data", "error_preloading_inlined"
+        )
         jitlist = os.path.join(root, "jitlist.txt")
         main = os.path.join(root, "main.py")
         for lazy_imports, jit in itertools.product(
