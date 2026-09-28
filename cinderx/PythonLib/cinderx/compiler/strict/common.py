@@ -41,7 +41,7 @@ from .runtime import freeze_type, mutable
 MAGIC_NUMBER = 55
 
 
-DEFAULT_STUB_PATH: str = os.path.dirname(__file__) + "/stubs"
+DEFAULT_STUB_PATH: str = os.path.join(os.path.dirname(__file__), "stubs")
 
 
 def make_fixed_modules() -> Mapping[str, Mapping[str, object]]:
