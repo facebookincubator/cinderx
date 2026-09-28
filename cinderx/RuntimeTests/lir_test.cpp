@@ -25,7 +25,6 @@
 #include <functional>
 #include <memory>
 #include <ostream>
-#include <regex>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -71,6 +70,29 @@ TEST(LIRQueryTest, MatchesPhysicalRegisters) {
       block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{0});
   EXPECT_FALSE(Query(function).outPhyReg(output_reg).matches(*vreg_move));
   EXPECT_FALSE(Query(function).inPhyReg(0, input_reg).matches(*vreg_move));
+}
+
+TEST(LIRQueryTest, MatchesDefiningInstructionAddresses) {
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  constexpr uintptr_t kAddress = 0x1234;
+
+  Instruction* call = block->allocateInstr(
+      Opcode::kCall,
+      nullptr,
+      OutVReg{DataType::k8bit},
+      MemImm{reinterpret_cast<void*>(kAddress), DataType::k64bit});
+  Instruction* move = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, VReg{call});
+
+  EXPECT_TRUE(Query(function)
+                  .opcode(Opcode::kMove)
+                  .inDefAddr(0, 0, kAddress)
+                  .matches(*move));
+  EXPECT_FALSE(Query(function)
+                   .opcode(Opcode::kMove)
+                   .inDefAddr(0, 0, kAddress + 1)
+                   .matches(*move));
 }
 
 // Conditions drive both the encoding and the printed spelling now, so a
@@ -184,6 +206,18 @@ void expectPhiInputsFollowPredecessors(Instruction* phi) {
     EXPECT_EQ(phi->phiPredecessor(index), block->predecessor(index));
     EXPECT_NE(phi->phiInput(index), nullptr);
   }
+}
+
+bool isVregAddressWithScale(const Operand* operand, uint8_t scale) {
+  if (operand == nullptr || !operand->isInd()) {
+    return false;
+  }
+  const MemoryIndirect* ind = operand->getMemoryIndirect();
+  const Operand* base = ind->getBaseRegOperand();
+  const Operand* index = ind->getIndexRegOperand();
+  return base != nullptr && base->isLinked() && index != nullptr &&
+      index->isLinked() && (1U << ind->getMultiplier()) == scale &&
+      ind->getOffset() == 0;
 }
 
 } // namespace
@@ -1757,26 +1791,11 @@ fun foo {
 
   auto lir_func = lir_gen.translateFunction();
 
-  std::stringstream ss;
-
-  lir_func->sortBasicBlocks();
-  ss << *lir_func << '\n';
-
-  std::string lir_str = ss.str();
-  lir_str.erase(
-      std::remove(lir_str.begin(), lir_str.end(), '\n'), lir_str.end());
-
-  std::string lir_expected_re = fmt::format(
-      R"(# CondBranchCheckType<1, 3, Tuple> v1\s+%\d+:8bit = Call {0}\({0:#x}\):64bit, %\d+:Object\s+CondBranch %\d+:8bit, BB%\d+, BB%\d+)",
-      reinterpret_cast<uint64_t>(__Invoke_PyTuple_Check));
-
-  std::regex re(lir_expected_re);
-  if (!std::regex_search(lir_str, re)) {
-    FAIL() << "Couldn't find expected string \n"
-           << lir_expected_re << '\n'
-           << "In:\n"
-           << lir_str << '\n';
-  }
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kCondBranch)
+                 .inType(0, DataType::k8bit)
+                 .inDefOpcode(0, Opcode::kCall)
+                 .inDefAddr(0, 0, __Invoke_PyTuple_Check));
 }
 
 TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
@@ -2073,8 +2092,8 @@ def func(value):
   Ref<PyObject> pyfunc(compileAndGet(src, "func"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
+  auto lir_func = getLIRFunction(pyfunc.get());
   if constexpr (kFreeThreadedBuild) {
-    auto lir_func = getLIRFunction(pyfunc.get());
     EXPECT_LIR(Query(*lir_func)
                    .opcode(Opcode::kCall)
                    .inAddr(0, reinterpret_cast<uint64_t>(rt::listSubscript)));
@@ -2084,14 +2103,23 @@ def func(value):
     return;
   }
 
-  auto lir_str = getLIRString(pyfunc.get());
-  const std::regex scaled_array_load{
-      R"(:Object = Load \[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object)"};
-  const std::regex scaled_array_store{
-      R"(\[%\d+:\w+ \+ %\d+:\w+ \* 8(?: \+ 0x0)?\]:Object = Store %\d+:Object)"};
-
-  EXPECT_TRUE(std::regex_search(lir_str, scaled_array_load)) << lir_str;
-  EXPECT_TRUE(std::regex_search(lir_str, scaled_array_store)) << lir_str;
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kLoad)
+                 .outType(DataType::kObject)
+                 .inType(0, DataType::kObject)
+                 .with([](const Instruction* instr) {
+                   return instr->getNumInputs() > 0 &&
+                       isVregAddressWithScale(instr->getInput(0), 8);
+                 }));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kStore)
+                 .outType(DataType::kObject)
+                 .inType(0, DataType::kObject)
+                 .with([](const Instruction* instr) {
+                   return instr->getNumInputs() > 0 &&
+                       instr->getInput(0)->isLinked() &&
+                       isVregAddressWithScale(instr->output(), 8);
+                 }));
 }
 
 } // namespace cinderx

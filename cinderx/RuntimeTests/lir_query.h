@@ -52,7 +52,7 @@ class Query {
   // Match input operand `index` as the immediate `v`.
   Query& inImm(size_t index, uint64_t v);
   // Match input operand `index` as the immediate or memory address `addr`.
-  Query& inAddr(size_t index, uint64_t addr);
+  Query& inAddr(size_t index, uintptr_t addr);
   // Match input operand `index` as a reference to the definition `%id`.
   Query& inVreg(size_t index, int id);
   // Match physical-register identity. Combine with inType() to match width.
@@ -63,6 +63,11 @@ class Query {
   // Match properties of the instruction defining linked input operand `index`.
   Query& inDefOpcode(size_t index, Opcode op);
   Query& inDefImm(size_t index, size_t def_input_index, uint64_t v);
+  Query& inDefAddr(size_t index, size_t def_input_index, uintptr_t addr);
+  template <typename T>
+  Query& inDefAddr(size_t index, size_t def_input_index, T* addr) {
+    return inDefAddr(index, def_input_index, reinterpret_cast<uintptr_t>(addr));
+  }
   // Arbitrary extra predicate on the instruction.
   Query& with(std::function<bool(const Instruction*)> pred);
 
@@ -75,12 +80,13 @@ class Query {
   struct DefInputMatch {
     size_t index{0};
     std::optional<uint64_t> imm;
+    std::optional<uintptr_t> addr;
   };
 
   struct InputMatch {
     size_t index{0};
     std::optional<uint64_t> imm;
-    std::optional<uint64_t> addr;
+    std::optional<uintptr_t> addr;
     std::optional<int> vreg;
     std::optional<PhyLocation> phy_reg;
     std::optional<DataType> type;

@@ -14,12 +14,12 @@
 namespace cinderx::jit::lir {
 namespace {
 
-std::optional<uint64_t> immOrMemoryAddress(const Operand& operand) {
+std::optional<uintptr_t> immOrMemoryAddress(const Operand& operand) {
   if (operand.isImm()) {
     return operand.getConstant();
   }
   if (operand.isMem()) {
-    return reinterpret_cast<uint64_t>(operand.getMemoryAddress());
+    return reinterpret_cast<uintptr_t>(operand.getMemoryAddress());
   }
   return std::nullopt;
 }
@@ -38,6 +38,14 @@ bool matchesInputImm(const Instruction& ins, size_t index, uint64_t imm) {
   }
   const Operand* in = ins.getInput(index);
   return in != nullptr && in->isImm() && in->getConstant() == imm;
+}
+
+bool matchesInputAddr(const Instruction& ins, size_t index, uintptr_t addr) {
+  if (ins.getNumInputs() <= index) {
+    return false;
+  }
+  const Operand* in = ins.getInput(index);
+  return in != nullptr && immOrMemoryAddress(*in) == addr;
 }
 
 } // namespace
@@ -118,7 +126,7 @@ Query& Query::inImm(size_t index, uint64_t v) {
   input(index).imm = v;
   return *this;
 }
-Query& Query::inAddr(size_t index, uint64_t addr) {
+Query& Query::inAddr(size_t index, uintptr_t addr) {
   input(index).addr = addr;
   return *this;
 }
@@ -149,6 +157,11 @@ Query& Query::inDefOpcode(size_t index, Opcode op) {
 Query& Query::inDefImm(size_t index, size_t def_input_index, uint64_t v) {
   input(index).def_inputs.push_back(
       DefInputMatch{.index = def_input_index, .imm = v});
+  return *this;
+}
+Query& Query::inDefAddr(size_t index, size_t def_input_index, uintptr_t addr) {
+  input(index).def_inputs.push_back(
+      DefInputMatch{.index = def_input_index, .addr = addr});
   return *this;
 }
 Query& Query::with(std::function<bool(const Instruction*)> pred) {
@@ -272,6 +285,10 @@ bool Query::matchesInputDef(const Operand& in, const InputMatch& im) const {
   for (const DefInputMatch& def_input : im.def_inputs) {
     if (def_input.imm &&
         !matchesInputImm(*def, def_input.index, *def_input.imm)) {
+      return false;
+    }
+    if (def_input.addr &&
+        !matchesInputAddr(*def, def_input.index, *def_input.addr)) {
       return false;
     }
   }
