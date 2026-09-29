@@ -140,7 +140,11 @@ void CodeRuntime::setGenResumeEntry(GenResumeFunc resume_entry) {
 }
 
 DebugInfo* CodeRuntime::debugInfo() {
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   return &debug_info_;
+#else
+  return nullptr;
+#endif
 }
 
 void** CodeRuntime::allocateTypeCheckJumpTable(size_t num_entries) {

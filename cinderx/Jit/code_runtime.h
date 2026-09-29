@@ -162,7 +162,9 @@ class alignas(16) CodeRuntime {
   bool is_cleared_{false};
   int16_t frame_size_{-1};
   uint32_t spill_size_{0};
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   DebugInfo debug_info_;
+#endif
 };
 
 } // namespace cinderx::jit

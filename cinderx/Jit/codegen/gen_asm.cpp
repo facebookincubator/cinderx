@@ -1533,8 +1533,10 @@ void NativeGenerator::generateCode(
       codeholder.labelOffset(vectorcall_entry_label));
 
   linkDeoptPatchers(codeholder);
-  env_.code_rt->debugInfo()->resolvePending(
-      env_.pending_debug_locs, *getFunction(), codeholder);
+  if constexpr (kLightweightFrames) {
+    env_.code_rt->debugInfo()->resolvePending(
+        env_.pending_debug_locs, *getFunction(), codeholder);
+  }
 
   // Resolve callsite->deopt-exit label pairs (recorded in TranslateGuard)
   // to addresses now that code is finalized.
