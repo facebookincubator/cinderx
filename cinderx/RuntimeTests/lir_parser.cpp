@@ -65,7 +65,13 @@ Parser::Token Parser::getNextToken(const char* str) {
 
   std::cmatch m;
   for (auto& pattern : patterns) {
-    if (!std::regex_search(str, m, pattern.re)) {
+    // The caller advances by the match length from the position it passed in,
+    // so a token has to start there.  The '^' the patterns are built with is
+    // not enough on its own: MSVC's std::regex honours it at embedded line
+    // starts, so regex_search() can return a match from further along and the
+    // parse silently desynchronizes.  match_continuous says what is meant.
+    if (!std::regex_search(
+            str, m, pattern.re, std::regex_constants::match_continuous)) {
       continue;
     }
 
