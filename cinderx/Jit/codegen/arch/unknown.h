@@ -107,6 +107,10 @@ constexpr PhyRegisterSet CALLER_SAVE_REGS = INIT_REGISTERS - CALLEE_SAVE_REGS;
 
 constexpr auto ARGUMENT_REGS = std::to_array({R0});
 constexpr auto RETURN_REGS = std::to_array({R0});
+
+// Scratch register for the static type-check prologue.  This arch is a stub
+// that never generates code; the value only has to exist.
+constexpr PhyLocation TYPECHECK_SCRATCH_REG = R1;
 constexpr auto FP_ARGUMENT_REGS = std::to_array({D0});
 
 // This is where the function prologue will initially store this data at entry

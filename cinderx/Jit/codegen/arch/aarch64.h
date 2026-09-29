@@ -188,6 +188,9 @@ constexpr PhyRegisterSet CALLER_SAVE_REGS = INIT_REGISTERS - CALLEE_SAVE_REGS;
 
 constexpr auto ARGUMENT_REGS = std::to_array({X0, X1, X2, X3, X4, X5, X6, X7});
 
+// Scratch register for the static type-check prologue.
+constexpr PhyLocation TYPECHECK_SCRATCH_REG = X4;
+
 constexpr auto RETURN_REGS = std::to_array({X0, X1});
 
 constexpr auto FP_ARGUMENT_REGS =

@@ -197,6 +197,19 @@ constexpr auto ARGUMENT_REGS = [] {
   }
 }();
 
+// Scratch register for the static type-check prologue.  A failing check jumps
+// to a stub that calls reportStaticArgTypecheckErrors with the incoming
+// vectorcall arguments still in their registers, so the scratch has to be one
+// that stub does not read.
+//
+// System V passes those four arguments in RDI/RSI/RDX/RCX and leaves the fifth
+// argument register free.  Windows passes them in RCX/RDX/R8/R9, so R8 holds
+// nargsf and the stub does read it.  That leaves R9, free only because the
+// dispatch block has already repurposed it for the defaulted-argument count,
+// which is dead once the jump table has been indexed and which the stub
+// ignores -- it documents the kwnames slot as a place to smuggle that count.
+constexpr PhyLocation TYPECHECK_SCRATCH_REG = kOS == OS::kWindows ? R9 : R8;
+
 constexpr auto RETURN_REGS = std::to_array({RAX, RDX});
 
 constexpr auto FP_ARGUMENT_REGS = [] {

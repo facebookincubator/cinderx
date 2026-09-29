@@ -762,13 +762,14 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
   // Register assignments:
   //   ARGUMENT_REGS[1] — args array pointer (read-only)
   //   ARGUMENT_REGS[3] — defaulted arg count (read-only)
-  //   TYPECHECK_SCRATCH_REG — main scratch register (an arg that's not passed)
+  //   TYPECHECK_SCRATCH_REG — main scratch register (free once dispatch is
+  //     done; on Windows this is the defaulted-count register itself)
   //   INITIAL_EXTRA_ARGS_REG — type pointer for MRO search
   //   INITIAL_TSTATE_REG — MRO end pointer
   //   arch::reg_scratch_0_loc — compare scratch
   auto args_reg = codegen::ARGUMENT_REGS[1];
   auto defaulted_count_reg = codegen::ARGUMENT_REGS[3];
-  auto tc_scratch = codegen::ARGUMENT_REGS[4];
+  auto tc_scratch = codegen::TYPECHECK_SCRATCH_REG;
   auto mro_type = codegen::INITIAL_EXTRA_ARGS_REG;
   auto mro_end = codegen::INITIAL_TSTATE_REG;
   auto scratch = codegen::arch::reg_scratch_0_loc;
@@ -852,14 +853,16 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
   emitAnnotation(dispatch_block, "Static type check dispatch");
   dispatch_block->allocateInstr(
       Opcode::kMove, nullptr, OutPhyReg(defaulted_count_reg), Imm{0});
+  // Index the table through `scratch` rather than `tc_scratch`: on Windows the
+  // two share a register with `defaulted_count_reg`, which is still live here.
   dispatch_block->allocateInstr(
-      Opcode::kMove, nullptr, OutPhyReg(tc_scratch), Imm(table_addr));
+      Opcode::kMove, nullptr, OutPhyReg(scratch), Imm(table_addr));
   dispatch_block->allocateInstr(
       Opcode::kLea,
       nullptr,
-      OutPhyReg(tc_scratch),
-      Ind(tc_scratch, defaulted_count_reg, 8, 0));
-  dispatch_block->allocateInstr(Opcode::kBranch, nullptr, Ind(tc_scratch));
+      OutPhyReg(scratch),
+      Ind(scratch, defaulted_count_reg, 8, 0));
+  dispatch_block->allocateInstr(Opcode::kBranch, nullptr, Ind(scratch));
 
   // --- Emit check blocks ---
   // check_blocks[k] checks typed_args[typed_args.size()-1-k]
