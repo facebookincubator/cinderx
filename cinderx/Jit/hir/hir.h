@@ -1108,9 +1108,20 @@ class INSTR_CLASS(CallInd, (TTop), HasOutput, Operands<>, DeoptBase) {
     return getOperand(arg + 1);
   }
 
+  // Whether the callee returns a two-word struct by value, the second word
+  // being read with GetSecondOutput.
+  bool returnsTwoValues() const {
+    return returns_two_values_;
+  }
+
+  void setReturnsTwoValues(bool returns_two_values) {
+    returns_two_values_ = returns_two_values;
+  }
+
  private:
   const char* name_;
   Type ret_type_;
+  bool returns_two_values_{false};
 };
 
 class INSTR_CLASS(

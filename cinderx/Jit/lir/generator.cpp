@@ -4091,12 +4091,44 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case hir::Opcode::kCallInd: {
         auto& hir_instr = i.as<CallInd>();
-        Instruction* instr = bbb.appendInstr(
-            hir_instr.output(),
-            Opcode::kCall,
-            VReg{bbb.getDefInstr(hir_instr.func())});
+        // Non-null only for a two-word struct return on Windows, which is the
+        // one case not returned in registers.
+        Instruction* ret_struct = nullptr;
+#if defined(CINDER_X86_64) && defined(_WIN32)
+        if (hir_instr.returnsTwoValues()) {
+          // The Microsoft x64 ABI returns such a struct through a hidden
+          // buffer whose pointer is passed ahead of the declared arguments,
+          // rather than in a second register.
+          JIT_CHECK(
+              !(hir_instr.retType() <= TPrimitive),
+              "CallInd<{}> returns both a two-word struct and a primitive",
+              hir_instr.name());
+          ret_struct = bbb.appendInstr(
+              OutVReg{},
+              Opcode::kLea,
+              Stk{PhyLocation(env_->win_struct_ret_offset)});
+        }
+#endif
+        Instruction* instr = ret_struct == nullptr
+            ? bbb.appendInstr(
+                  hir_instr.output(),
+                  Opcode::kCall,
+                  VReg{bbb.getDefInstr(hir_instr.func())})
+            : bbb.appendInstr(
+                  OutVReg{},
+                  Opcode::kCall,
+                  VReg{bbb.getDefInstr(hir_instr.func())},
+                  VReg{ret_struct});
         for (std::size_t op = 0; op < hir_instr.argCount(); op++) {
           instr->addOperands(VReg{bbb.getDefInstr(hir_instr.arg(op))});
+        }
+        if (ret_struct != nullptr) {
+          bbb.appendInstr(
+              hir_instr.output(), Opcode::kLoad, Ind{ret_struct, 0});
+          bbb.appendInstr(
+              OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
+              Opcode::kLoad,
+              Ind{ret_struct, 8});
         }
         auto kind = InstrGuardKind::kNotZero;
         Type ret_type = hir_instr.retType();

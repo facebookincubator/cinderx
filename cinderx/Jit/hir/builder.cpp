@@ -2585,6 +2585,8 @@ void HIRBuilder::emitLoadMethodStatic(
   auto call = tc.emit<CallInd>(
       3, func_obj, "vte_load", TOptObject, vtable_load, func_obj, self);
   call->setFrameState(tc.frame);
+  // loadmethodfunc returns StaticMethodInfo, two words wide.
+  call->setReturnsTwoValues(true);
 
   if (target.is_statically_typed) {
     // the entry func isn't used by the interpreter and can't be de-opted but
