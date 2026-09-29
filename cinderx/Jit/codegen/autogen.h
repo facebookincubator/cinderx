@@ -5,6 +5,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/environ.h"
+#include "cinderx/Jit/lir/printer.h"
 
 namespace cinderx::jit::codegen::autogen {
 
@@ -101,7 +102,10 @@ class AutoTranslator {
       case jit::lir::Operand::kDouble:
         return asmjit::x86::xmm(op->getPhyRegister().loc - VECD_REG_BASE);
       default:
-        JIT_ABORT("incorrect register type.");
+        JIT_ABORT(
+            "incorrect register type {} for vector operand in {}",
+            data_type,
+            *op->instr());
     }
 #elif defined(CINDER_AARCH64)
     auto data_type = op->dataType();
