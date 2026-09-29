@@ -298,12 +298,28 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
   return suite;
 }
 
+void setEnvVar(const std::string& key, const std::string& value) {
+#ifdef _WIN32
+  _putenv_s(key.c_str(), value.c_str());
+#else
+  setenv(key.c_str(), value.c_str(), 1);
+#endif
+}
+
+void unsetEnvVar(const std::string& key) {
+#ifdef _WIN32
+  _putenv_s(key.c_str(), "");
+#else
+  unsetenv(key.c_str());
+#endif
+}
+
 std::string parseAndSetEnvVar(std::string_view env_name) {
   auto delim_pos = env_name.find('=');
   std::string key{env_name.substr(0, delim_pos)};
   std::string value{
       delim_pos == env_name.npos ? "1" : env_name.substr(delim_pos + 1)};
-  setenv(key.c_str(), value.c_str(), 1);
+  setEnvVar(key, value);
   return key;
 }
 

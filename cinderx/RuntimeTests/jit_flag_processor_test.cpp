@@ -118,7 +118,7 @@ void try_flag_and_envvar_effect(
     flag_processor.setFlags(xoptions);
     conditions_to_check();
     reset_vars();
-    unsetenv(key.c_str());
+    unsetEnvVar(key);
     if (capture_stderr) {
       testing::internal::CaptureStderr();
     }

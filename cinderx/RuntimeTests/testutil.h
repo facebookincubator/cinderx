@@ -48,8 +48,12 @@ std::string runtimeTestPythonVersion();
 //
 std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& path);
 
+// Platform independent helpers for manipulating env vars.
+void setEnvVar(const std::string& key, const std::string& value);
+void unsetEnvVar(const std::string& key);
+
 // flag string will be added to environment variables and a key will be
-// returned, the key can be later used to remove the item via unsetenv
+// returned, the key can be later used to remove the item via unsetEnvVar
 std::string parseAndSetEnvVar(std::string_view env_name);
 
 // flag string will be added to XArgs dictionary and a key will be
