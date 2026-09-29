@@ -1239,7 +1239,12 @@ void NativeGenerator::generateStaticEntryPoint(
   if (total_args + 1 > ARGUMENT_REGS.size()) {
     // Capture the extra args pointer from the stack. For generators on 3.12+
     // this must happen before frame linking replaces rbp.
-    as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
+    //
+    // Stack arguments sit above the saved rbp and the return address, and on
+    // Windows above the caller's shadow space as well.  Reading from rbp+16
+    // there returns the shadow space's contents -- the caller's spilled
+    // registers and return addresses -- instead of the arguments.
+    as_->lea(x86::r10, x86::ptr(x86::rbp, 16 + kShadowSpaceSize));
   } else {
     for (int i = 0; i < 4; i++) {
       as_->nop();
