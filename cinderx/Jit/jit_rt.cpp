@@ -1648,9 +1648,18 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
   // ...
   // previous frame pointer
   // return address to JITed code
+  // shadow space (Windows only, 4 slots)
   // memory argument 0 - first stack argument
   // memory argument 1
   // ...
+
+  // Slots between the end of the register block and the first stack argument.
+  // Mirrors NATIVE_STACK_ARG_OFFSET in StaticPython/vtable_defs.c.
+#ifdef _WIN32
+  constexpr int kStackArgSkip = 6;
+#else
+  constexpr int kStackArgSkip = 2;
+#endif
 
   PyObject** dest_args;
   std::vector<PyObject*> final_args;
@@ -1665,7 +1674,7 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
       final_args[i] = args[i + 1];
     }
     for (int i = cc_reg_args - 1; i < total_args; i++) {
-      final_args[i] = args[i + 3];
+      final_args[i] = args[i + 1 + kStackArgSkip];
     }
     dest_args = final_args.data();
   }
@@ -1682,12 +1691,16 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
     for (Py_ssize_t i = 0; i < Py_SIZE(arg_info); i++) {
       if (arg_info->tai_args[i].tai_primitive_type != -1) {
         // primitive type, box...
-        int arg = arg_info->tai_args[i].tai_argnum + 1;
-        uint64_t arg_val;
-        if (arg >= cc_reg_args) {
-          arg += 4;
+        int argnum = arg_info->tai_args[i].tai_argnum;
+        // Same slot the compaction loop above reads for this argument: one
+        // past the function object, and for a stack argument the skip past
+        // the saved frame pointer, the return address and, on Windows, the
+        // shadow space.
+        int slot = argnum + 1;
+        if (slot >= cc_reg_args) {
+          slot += kStackArgSkip;
         }
-        arg_val = (uint64_t)args[arg];
+        uint64_t arg_val = (uint64_t)args[slot];
 
         PyObject* new_val = _PyClassLoader_Box(
             arg_val, arg_info->tai_args[i].tai_primitive_type);
@@ -1701,8 +1714,9 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
 
         // we can update the incoming arg array, either it's
         // the pushed values on the stack by the trampoline, or
-        // it's final_args we allocated above.
-        dest_args[arg - 1] = new_val;
+        // it's final_args we allocated above.  Either way it is already
+        // compacted, so it is indexed by argument number rather than by slot.
+        dest_args[argnum] = new_val;
         allocated_args[allocated_count++] = new_val;
       }
     }

@@ -6554,8 +6554,50 @@ void GenerateFailedDeferredCompileBlocks(
     vpush->addOperands(PhyReg{codegen::ARGUMENT_REGS[i]});
   }
 
-  // arg0 = pointer to saved argument registers on the stack.
   constexpr auto sp_reg = codegen::arch::reg_stack_pointer_loc;
+
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // The shim returns a 16-byte `StaticCallReturn`, which the ABI returns
+  // through a hidden sret pointer in RCX, so the saved-register pointer
+  // becomes the second argument. Reserve the buffer plus the shim's shadow
+  // space -- which would otherwise be the saved registers themselves:
+  //   [RSP + 0x20] sret struct (16 bytes)
+  //   [RSP + 0x00] shadow space (32 bytes)
+  // 48 bytes keeps RSP 16-byte aligned, and `kLeave` restores it from RBP,
+  // so none of it is undone.
+  constexpr int kSretFrameSize = 48;
+  constexpr int kSretStructOffset = codegen::kShadowSpaceSize;
+
+  block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[1]},
+      PhyReg{sp_reg});
+  block->allocateInstr(
+      Opcode::kLea, nullptr, OutPhyReg{sp_reg}, Ind(sp_reg, -kSretFrameSize));
+  block->allocateInstr(
+      Opcode::kLea,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[0]},
+      Ind(sp_reg, kSretStructOffset));
+
+  block->allocateInstr(
+      Opcode::kCall,
+      nullptr,
+      Imm{reinterpret_cast<uint64_t>(failed_deferred_compile_shim)});
+
+  block->allocateInstr(
+      Opcode::kLoad,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_general_return_loc},
+      Ind(sp_reg, kSretStructOffset));
+  block->allocateInstr(
+      Opcode::kLoad,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
+      Ind(sp_reg, kSretStructOffset + 8));
+#else
+  // arg0 = pointer to saved argument registers on the stack.
   block->allocateInstr(
       Opcode::kLea,
       nullptr,
@@ -6567,6 +6609,7 @@ void GenerateFailedDeferredCompileBlocks(
       Opcode::kCall,
       nullptr,
       Imm{reinterpret_cast<uint64_t>(failed_deferred_compile_shim)});
+#endif
 
   // Tear down the frame and return.
   block->allocateInstr(Opcode::kLeave, nullptr);

@@ -2600,6 +2600,36 @@ class PrimitivesTests(StaticTestBase):
                 print(mod.n(128))
             self.assert_not_jitted(n)
 
+    def test_primitive_stack_args_funcdef_unjitable(self):
+        # More primitive arguments than either ABI hands over in registers, so
+        # the trampoline's boxing has to reach past the register block for some
+        # of them.  System V leaves five argument registers after the function
+        # object, Windows three.
+        codestr = """
+            from __static__ import int8, box
+
+            X = 42
+            def n(a: int8, b: int8, c: int8, d: int8,
+                  e: int8, f: int8, g: int8, h: int8):
+                global X; X = 42; del X
+                return (box(a), box(b), box(c), box(d),
+                        box(e), box(f), box(g), box(h))
+
+            def x():
+                a: int8 = 1
+                b: int8 = 2
+                c: int8 = 3
+                d: int8 = 4
+                e: int8 = 5
+                f: int8 = 6
+                g: int8 = 7
+                h: int8 = 8
+                return n(a, b, c, d, e, f, g, h)
+        """
+        with self.in_strict_module(codestr) as mod:
+            self.assertEqual(mod.x(), (1, 2, 3, 4, 5, 6, 7, 8))
+            self.assert_not_jitted(mod.n)
+
     def test_primitive_args_funcdef_too_many_args(self):
         codestr = """
             from __static__ import int8, box
