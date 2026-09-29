@@ -3,6 +3,9 @@
 
 #include "cinderx/Jit/dataflow.h"
 
+#include <array>
+#include <string>
+
 using namespace cinderx::jit::optimizer;
 
 // This test runs the example found in Section 8.1 of

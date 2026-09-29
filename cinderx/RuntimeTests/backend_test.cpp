@@ -41,20 +41,20 @@ class BackendTest : public RuntimeTest {
   // this function is used to test LIR, rewrite passes, register allocation,
   // and machine code generation.
   void* SimpleCompile(Function* lir_func, int arg_buffer_size = 0) {
-    Environ environ;
-    InitEnviron(environ);
-    PostGenerationRewrite post_gen(lir_func, &environ);
+    Environ env;
+    InitEnviron(env);
+    PostGenerationRewrite post_gen(lir_func, &env);
     post_gen.run();
 
     LinearScanAllocator lsalloc(lir_func);
     lsalloc.run();
 
-    environ.shadow_frames_and_spill_size = lsalloc.getFrameSize();
-    environ.changed_regs = lsalloc.getChangedRegs();
+    env.shadow_frames_and_spill_size = lsalloc.getFrameSize();
+    env.changed_regs = lsalloc.getChangedRegs();
 
-    PostRegAllocRewrite post_rewrite(lir_func, &environ);
+    PostRegAllocRewrite post_rewrite(lir_func, &env);
     post_rewrite.run();
-    arg_buffer_size = std::max(arg_buffer_size, environ.max_arg_buffer_size);
+    arg_buffer_size = std::max(arg_buffer_size, env.max_arg_buffer_size);
 
     asmjit::CodeHolder code;
     ICodeAllocator* code_allocator =
@@ -63,7 +63,7 @@ class BackendTest : public RuntimeTest {
 
     arch::Builder as(&code);
 
-    environ.as = &as;
+    env.as = &as;
 
 #if defined(CINDER_X86_64)
     as.push(asmjit::x86::rbp);
@@ -75,7 +75,7 @@ class BackendTest : public RuntimeTest {
     CINDER_UNSUPPORTED
 #endif
 
-    auto saved_regs = environ.changed_regs & CALLEE_SAVE_REGS;
+    auto saved_regs = env.changed_regs & CALLEE_SAVE_REGS;
 
 #if defined(CINDER_X86_64)
     int saved_regs_size = saved_regs.count() * 8;
@@ -91,7 +91,7 @@ class BackendTest : public RuntimeTest {
     // If the stack size is not a multiple of 16, add 8 bytes to the stack size.
     // This is to ensure that the stack is aligned to 16 bytes.
 
-    int allocate_stack = std::max(environ.shadow_frames_and_spill_size, 8);
+    int allocate_stack = std::max(env.shadow_frames_and_spill_size, 8);
     if ((allocate_stack + saved_regs_size + arg_buffer_size) % 16 != 0) {
       allocate_stack += 8;
     }
@@ -115,7 +115,7 @@ class BackendTest : public RuntimeTest {
 
     NativeGeneratorFactory factory;
     NativeGenerator gen(nullptr, factory);
-    gen.env_ = std::move(environ);
+    gen.env_ = std::move(env);
     gen.lir_func_.reset(lir_func);
     gen.generateAssemblyBody(code);
 
@@ -166,7 +166,7 @@ class BackendTest : public RuntimeTest {
 
     NativeGeneratorFactory factory;
     NativeGenerator gen(nullptr, factory);
-    gen.env_ = std::move(environ);
+    gen.env_ = std::move(env);
     gen.lir_func_.reset(lir_func);
     gen.generateAssemblyBody(code);
 
@@ -208,9 +208,9 @@ class BackendTest : public RuntimeTest {
     return result.addr;
   }
 
-  void InitEnviron(Environ& environ) {
+  void InitEnviron(Environ& env) {
     for (const auto& loc : ARGUMENT_REGS) {
-      environ.arg_locations.push_back(loc);
+      env.arg_locations.push_back(loc);
     }
   }
 
@@ -219,15 +219,15 @@ class BackendTest : public RuntimeTest {
   // machine code, bypassing register allocation.  Used for tests that need
   // precise control over which registers and stack slots are used.
   void* CompilePreAllocated(Function* lir_func, int spill_size) {
-    Environ environ;
-    InitEnviron(environ);
+    Environ env;
+    InitEnviron(env);
 
     // Skip PostGenerationRewrite and LinearScanAllocator — the instructions
     // are already in post-alloc form with physical registers and stack slots.
-    environ.shadow_frames_and_spill_size = spill_size;
-    environ.changed_regs = {};
+    env.shadow_frames_and_spill_size = spill_size;
+    env.changed_regs = {};
 
-    PostRegAllocRewrite post_rewrite(lir_func, &environ);
+    PostRegAllocRewrite post_rewrite(lir_func, &env);
     post_rewrite.run();
 
     asmjit::CodeHolder code;
@@ -236,7 +236,7 @@ class BackendTest : public RuntimeTest {
     code.init(code_allocator->asmJitEnvironment());
 
     arch::Builder as(&code);
-    environ.as = &as;
+    env.as = &as;
 
     // Prologue: save frame pointer and link register, set up frame.
     as.stp(arch::fp, arch::lr, asmjit::a64::ptr_pre(asmjit::a64::sp, -16));
@@ -251,7 +251,7 @@ class BackendTest : public RuntimeTest {
 
     NativeGeneratorFactory factory;
     NativeGenerator gen(nullptr, factory);
-    gen.env_ = std::move(environ);
+    gen.env_ = std::move(env);
     gen.lir_func_.reset(lir_func);
     gen.generateAssemblyBody(code);
 

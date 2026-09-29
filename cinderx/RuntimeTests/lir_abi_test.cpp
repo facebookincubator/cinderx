@@ -36,9 +36,9 @@ class LIRABITest : public RuntimeTest {
       T&&... args) {
     hir::Function hirFunction;
 
-    Environ environ;
-    environ.ctx = getContext();
-    environ.code_rt = environ.ctx->allocateCodeRuntime(
+    Environ env;
+    env.ctx = getContext();
+    env.code_rt = env.ctx->allocateCodeRuntime(
         hirFunction.code.get(),
         hirFunction.builtins.get(),
         hirFunction.globals.get());
@@ -50,7 +50,7 @@ class LIRABITest : public RuntimeTest {
     code.init(code_allocator->asmJitEnvironment());
 
     arch::Builder as(&code);
-    environ.as = &as;
+    env.as = &as;
 
     Function function;
     BasicBlock bb(&function);
@@ -63,23 +63,23 @@ class LIRABITest : public RuntimeTest {
         // a label if no operands were already provided (i.e., the caller did
         // not pass an Ind operand).
         if (insn->getNumInputs() == 0) {
-          environ.block_label_map.emplace(&bb, as.newLabel());
+          env.block_label_map.emplace(&bb, as.newLabel());
           insn->addOperands(Lbl{&bb});
         }
         break;
       case Opcode::kBranchCC:
       case Opcode::kBranchBitSet:
       case Opcode::kBranchBitNotSet:
-        environ.block_label_map.emplace(&bb, as.newLabel());
+        env.block_label_map.emplace(&bb, as.newLabel());
         insn->addOperands(Lbl{&bb});
         break;
       case Opcode::kDeoptPatchpoint:
       case Opcode::kGuard: {
-        environ.code_rt->addRawDeoptMetadata(DeoptMetadata{});
+        env.code_rt->addRawDeoptMetadata(DeoptMetadata{});
         // Create a dummy deopt exit block for the translator to look up.
         auto* deopt_bb = function.allocateBasicBlock();
-        environ.deopt_exit_blocks[0] = deopt_bb;
-        environ.block_label_map.emplace(deopt_bb, as.newLabel());
+        env.deopt_exit_blocks[0] = deopt_bb;
+        env.block_label_map.emplace(deopt_bb, as.newLabel());
         break;
       }
       default:
@@ -87,7 +87,7 @@ class LIRABITest : public RuntimeTest {
     }
 
     // Translate the instruction using the auto translator.
-    autogen::AutoTranslator::getInstance().translateInstr(&environ, insn);
+    autogen::AutoTranslator::getInstance().translateInstr(&env, insn);
   }
 
   template <typename... T>
@@ -203,9 +203,9 @@ TEST_F(LIRABITest, TestkCall_PhyReg) {
 TEST_F(LIRABITest, TestkStorePair_SPBase) {
   hir::Function hir_function;
 
-  Environ environ;
-  environ.ctx = getContext();
-  environ.code_rt = environ.ctx->allocateCodeRuntime(
+  Environ env;
+  env.ctx = getContext();
+  env.code_rt = env.ctx->allocateCodeRuntime(
       hir_function.code.get(),
       hir_function.builtins.get(),
       hir_function.globals.get());
@@ -216,7 +216,7 @@ TEST_F(LIRABITest, TestkStorePair_SPBase) {
   code.init(code_allocator->asmJitEnvironment());
 
   arch::Builder as(&code);
-  environ.as = &as;
+  env.as = &as;
 
   Function function;
   BasicBlock bb(&function);
@@ -228,7 +228,7 @@ TEST_F(LIRABITest, TestkStorePair_SPBase) {
       PhyReg{X25, DataType::k64bit},
       PhyReg{X20, DataType::k64bit});
 
-  autogen::AutoTranslator::getInstance().translateInstr(&environ, instr);
+  autogen::AutoTranslator::getInstance().translateInstr(&env, instr);
 
   EXPECT_EQ(as.finalize(), asmjit::kErrorOk);
   EXPECT_EQ(code.textSection()->bufferSize(), 4);
@@ -245,9 +245,9 @@ TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
 
   hir::Function hir_function;
 
-  Environ environ;
-  environ.ctx = getContext();
-  environ.code_rt = environ.ctx->allocateCodeRuntime(
+  Environ env;
+  env.ctx = getContext();
+  env.code_rt = env.ctx->allocateCodeRuntime(
       hir_function.code.get(),
       hir_function.builtins.get(),
       hir_function.globals.get());
@@ -258,7 +258,7 @@ TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
   code.init(code_allocator->asmJitEnvironment());
 
   arch::Builder as(&code);
-  environ.as = &as;
+  env.as = &as;
 
   Function function;
   BasicBlock bb(&function);
@@ -286,15 +286,14 @@ TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
           hir::RefKind::kOwned,
           hir::ValueKind::kObject,
           LiveValue::Source::kUnknown}};
-  std::size_t deopt_idx =
-      environ.code_rt->addRawDeoptMetadata(std::move(metadata));
-  environ.callsite_live_value_metadata.emplace(
+  std::size_t deopt_idx = env.code_rt->addRawDeoptMetadata(std::move(metadata));
+  env.callsite_live_value_metadata.emplace(
       call, Environ::CallSiteLiveValueMetadata{deopt_idx, live_values});
 
-  autogen::AutoTranslator::getInstance().translateInstr(&environ, call);
+  autogen::AutoTranslator::getInstance().translateInstr(&env, call);
 
   const DeoptMetadata& filled_metadata =
-      environ.code_rt->getDeoptMetadata(deopt_idx);
+      env.code_rt->getDeoptMetadata(deopt_idx);
   EXPECT_EQ(filled_metadata.live_values[0].location, kRegisterLocation);
   EXPECT_EQ(filled_metadata.live_values[1].location, kStackLocation);
 }
