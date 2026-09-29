@@ -51,6 +51,13 @@ class DummyTest(TestCase):
         pass
 
 
+def load_tests(loader, standard_tests, pattern):
+    # Each SbsCompileTests class is run by its own test_compiler_sbs_stdlib_N
+    # module.  Loading them here as well would run every shard serially in one
+    # worker, which exceeds the test runner's worker timeout.
+    return loader.loadTestsFromTestCase(DummyTest)
+
+
 # Add a test case for each standard library file to SbsCompileTests.  Individual
 # tests can be run with:
 #  python -m test.test_compiler SbsCompileTestsN.test_Lib_test_test_unary
