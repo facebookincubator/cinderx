@@ -28,11 +28,19 @@
 #endif
 
 #include <fmt/format.h>
+
+#ifndef _WIN32
 #include <sys/resource.h>
+#endif
 
 #include <cstdlib>
 #include <cstring>
 #include <string>
+
+#if defined(CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES) && defined(_WIN32)
+#include <filesystem>
+#include <stdexcept>
+#endif
 
 namespace {
 
@@ -191,8 +199,46 @@ PyMODINIT_FUNC PyInit__cinderx() {
 }
 #endif
 
+#if defined(CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES) && defined(_WIN32)
+// Directory holding the interpreter this binary is linked against, found by
+// asking the loader which module a Python symbol came from.
+std::filesystem::path pythonInstallRootFromLoadedDll() {
+  HMODULE python_dll = nullptr;
+  if (!GetModuleHandleExA(
+          GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+              GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+          reinterpret_cast<LPCSTR>(&Py_Initialize),
+          &python_dll)) {
+    throw std::runtime_error{
+        "Could not find the module exporting Py_Initialize"};
+  }
+  char dll_path[MAX_PATH];
+  DWORD len = GetModuleFileNameA(python_dll, dll_path, MAX_PATH);
+  if (len == 0 || len == MAX_PATH) {
+    throw std::runtime_error{"Could not read the path of the Python DLL"};
+  }
+  return std::filesystem::path{dll_path}.parent_path();
+}
+#endif
+
 void registerCinderX() {
-#ifdef CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES
+#if defined(CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES) && defined(_WIN32)
+  // Windows links CinderX against the interpreter deployed on the host rather
+  // than one Buck builds, so the matching stdlib is the one sitting beside the
+  // loaded python DLL.  Locate it from the DLL rather than shipping a copy as
+  // a resource: third-party's Windows distribution is an MSBuild genrule that
+  // wants network access, far too heavy to pull into a unit test.
+  std::filesystem::path python_install = pythonInstallRootFromLoadedDll();
+  // Windows spells the stdlib layout Lib\ and DLLs\, and separates PATH-style
+  // lists with ';'.  The cinderx package is ours rather than the deployed
+  // interpreter's, so it comes from a resource as it does elsewhere.
+  boost::filesystem::path cinderx_lib =
+      build::getResourcePath("cinderx/RuntimeTests/cinderx_pythonlib");
+  setEnvVar(
+      "PYTHONPATH",
+      (python_install / "Lib").string() + ";" +
+          (python_install / "DLLs").string() + ";" + cinderx_lib.string());
+#elif defined(CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES)
   try {
     boost::filesystem::path python_install =
         build::getResourcePath("cinderx/RuntimeTests/python_install");
@@ -205,7 +251,7 @@ void registerCinderX() {
     boost::filesystem::path lib_dynload_path = lib_path / "lib-dynload";
     std::string python_install_str =
         lib_path.string() + ":" + lib_dynload_path.string();
-    setenv("PYTHONPATH", python_install_str.c_str(), 1);
+    setEnvVar("PYTHONPATH", python_install_str);
   } catch (const std::exception&) {
     std::cerr << "Error: Failed to access bundled Python installation in buck "
                  "build, re-running usually fixes the issue\n";
@@ -235,9 +281,9 @@ int main(int argc, char* argv[]) {
 #ifdef CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE
   // OSS path: point PYTHONPATH at the in-tree cinderx package so
   // RuntimeTest::SetUp() can explicitly import cinderx after Py_Initialize().
-  setenv("PYTHONPATH", _CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE, 1);
+  setEnvVar("PYTHONPATH", _CINDERX_RUNTIME_TESTS_PYTHONPATH_PACKAGE);
 #elif defined(BAKED_IN_PYTHONPATH)
-  setenv("PYTHONPATH", _BAKED_IN_PYTHONPATH, 1);
+  setEnvVar("PYTHONPATH", _BAKED_IN_PYTHONPATH);
 #endif
 
   registerCinderX();
@@ -289,11 +335,15 @@ int main(int argc, char* argv[]) {
   // Prevent any test failures due to transient pointer values.
   setUseStablePointers(true);
 
-  // Particularly with ASAN, we might need a really large stack size.
+#ifndef _WIN32
+  // Particularly with ASAN, we might need a really large stack size.  Windows
+  // fixes the stack reservation at link time instead, so there is nothing to
+  // raise here.
   struct rlimit rl;
   rl.rlim_cur = RLIM_INFINITY;
   rl.rlim_max = RLIM_INFINITY;
   setrlimit(RLIMIT_STACK, &rl);
+#endif
 
   return RUN_ALL_TESTS();
 }
