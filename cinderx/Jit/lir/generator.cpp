@@ -1130,13 +1130,15 @@ void GenerateArgcountCheckBlocks(
         argcount_check->allocateInstr(
             Opcode::kLoad,
             nullptr,
-            OutPhyReg{codegen::arch::reg_double_return_loc},
-            Ind(sp_reg, kSretStructOffset));
+            OutPhyReg{codegen::arch::reg_double_return_loc, Operand::kDouble},
+            Ind(sp_reg, kSretStructOffset, Operand::kDouble));
         argcount_check->allocateInstr(
             Opcode::kLoad,
             nullptr,
-            OutPhyReg{codegen::arch::reg_double_auxilary_return_loc},
-            Ind(sp_reg, kSretStructOffset + 8));
+            OutPhyReg{
+                codegen::arch::reg_double_auxilary_return_loc,
+                Operand::kDouble},
+            Ind(sp_reg, kSretStructOffset + 8, Operand::kDouble));
       } else {
         argcount_check->allocateInstr(
             Opcode::kLoad,
