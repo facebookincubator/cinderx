@@ -8,6 +8,10 @@ import textwrap
 import unittest
 
 
+# Give child processes enough time to compiler the cinderx compiler from source.
+SUBPROCESS_TIMEOUT = 120
+
+
 class TestStaticModuleRunner(unittest.TestCase):
     def test_entry_script_is_statically_compiled(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
@@ -31,7 +35,7 @@ class TestStaticModuleRunner(unittest.TestCase):
                 [sys.executable, "-m", "__static__", script_path],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=SUBPROCESS_TIMEOUT,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
         finally:
@@ -70,7 +74,7 @@ class TestStaticModuleRunner(unittest.TestCase):
                 [sys.executable, "-m", "__static__", main_path],
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=SUBPROCESS_TIMEOUT,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
 
