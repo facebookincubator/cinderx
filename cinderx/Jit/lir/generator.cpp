@@ -1184,31 +1184,111 @@ void GeneratePrimitiveArgsPrologueBlock(
     PyObject* prim_args_info,
     bool returns_primitive_double,
     asmjit::Label prologue_exit) {
-  // The primitive-args prologue loads the _PyTypedArgsInfo* into the 5th
-  // argument register (ARGUMENT_REGS[4] = R8 on x86-64, x4 on aarch64),
-  // calls the appropriate rt::callStaticallyWithPrimitiveSignature helper,
-  // then exits. If the helper decides the call can proceed statically, it
-  // returns to the reentry point; otherwise it handles the call itself and
-  // the prologue_exit stub tears down the frame and returns.
-  auto arg4_reg = codegen::ARGUMENT_REGS[4];
-
+  // The primitive-args prologue passes the _PyTypedArgsInfo* as the 5th
+  // argument to the appropriate rt::callStaticallyWithPrimitiveSignature
+  // helper, then exits. If the helper decides the call can proceed
+  // statically, it returns to the reentry point; otherwise it handles the
+  // call itself and the prologue_exit stub tears down the frame and returns.
   auto* block = lir_func->allocateBasicBlock();
 
   emitAnnotation(block, "Primitive args prologue");
 
-  // Load _PyTypedArgsInfo* into ARGUMENT_REGS[4].
-  block->allocateInstr(
-      Opcode::kMove,
-      nullptr,
-      OutPhyReg{arg4_reg},
-      Imm{reinterpret_cast<uint64_t>(prim_args_info)});
-
-  // Call the appropriate helper.
   auto helper = returns_primitive_double
       ? reinterpret_cast<uint64_t>(rt::callStaticallyWithPrimitiveSignatureFP)
       : reinterpret_cast<uint64_t>(rt::callStaticallyWithPrimitiveSignature);
 
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // Both helpers return 16-byte structs, which the ABI returns through a
+  // hidden sret pointer in RCX. That shifts every visible argument one
+  // register along, so kwnames and the _PyTypedArgsInfo* no longer fit in
+  // registers at all. Allocate temporary stack space, shuffle, call, then
+  // extract the two return values into the registers JITed code expects.
+  // Stack layout (64 bytes, keeps 16-byte alignment):
+  //   [RSP + 0x30] sret struct (16 bytes)
+  //   [RSP + 0x28] 6th arg (_PyTypedArgsInfo*)
+  //   [RSP + 0x20] 5th arg (kwnames)
+  //   [RSP + 0x00] shadow space (32 bytes)
+  constexpr int kSretFrameSize = 64;
+  constexpr int kSretStructOffset = 0x30;
+  auto sp_reg = codegen::arch::reg_stack_pointer_loc;
+  auto scratch = codegen::arch::reg_scratch_0_loc;
+
+  block->allocateInstr(
+      Opcode::kLea, nullptr, OutPhyReg{sp_reg}, Ind(sp_reg, -kSretFrameSize));
+
+  // Spill the two stack arguments before the shuffle overwrites kwnames.
+  block->allocateInstr(
+      Opcode::kStore,
+      nullptr,
+      OutInd(sp_reg, 0x20),
+      PhyReg{codegen::ARGUMENT_REGS[3]});
+  block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{scratch},
+      Imm{reinterpret_cast<uint64_t>(prim_args_info)});
+  block->allocateInstr(
+      Opcode::kStore, nullptr, OutInd(sp_reg, 0x28), PhyReg{scratch});
+
+  // Before: RCX=func, RDX=args, R8=nargsf, R9=kwnames
+  // After:  RCX=sret, RDX=func, R8=args, R9=nargsf
+  block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[3]},
+      PhyReg{codegen::ARGUMENT_REGS[2]});
+  block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[2]},
+      PhyReg{codegen::ARGUMENT_REGS[1]});
+  block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[1]},
+      PhyReg{codegen::ARGUMENT_REGS[0]});
+  block->allocateInstr(
+      Opcode::kLea,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[0]},
+      Ind(sp_reg, kSretStructOffset));
+
   block->allocateInstr(Opcode::kCall, nullptr, Imm{helper});
+
+  if (returns_primitive_double) {
+    block->allocateInstr(
+        Opcode::kLoad,
+        nullptr,
+        OutPhyReg{codegen::arch::reg_double_return_loc, Operand::kDouble},
+        Ind(sp_reg, kSretStructOffset, Operand::kDouble));
+    block->allocateInstr(
+        Opcode::kLoad,
+        nullptr,
+        OutPhyReg{
+            codegen::arch::reg_double_auxilary_return_loc, Operand::kDouble},
+        Ind(sp_reg, kSretStructOffset + 8, Operand::kDouble));
+  } else {
+    block->allocateInstr(
+        Opcode::kLoad,
+        nullptr,
+        OutPhyReg{codegen::arch::reg_general_return_loc},
+        Ind(sp_reg, kSretStructOffset));
+    block->allocateInstr(
+        Opcode::kLoad,
+        nullptr,
+        OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
+        Ind(sp_reg, kSretStructOffset + 8));
+  }
+#else
+  // Load _PyTypedArgsInfo* into ARGUMENT_REGS[4].
+  block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{codegen::ARGUMENT_REGS[4]},
+      Imm{reinterpret_cast<uint64_t>(prim_args_info)});
+
+  block->allocateInstr(Opcode::kCall, nullptr, Imm{helper});
+#endif
 
   // The helper either handled the call (result in return register) and we
   // exit, or it set up args for the normal path and we fall through.
