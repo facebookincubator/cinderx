@@ -866,36 +866,36 @@ void Context::clearForMultithreadedCompileTest() {
   }
 }
 
-void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
-  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
-  FreeThreadedJITEntrypointGuard guard;
-  releaseFuncRegistration(func);
-  releaseNestedCompiles(func);
-  // This doesn't modify compiled_codes_, so if this is a nested function it can
-  // easily be reopted later.
-}
-
-void Context::releaseCompiledFuncRef(BorrowedRef<PyFunctionObject> func) {
+std::vector<Ref<CompiledFunction>> Context::releaseFunction(
+    BorrowedRef<PyFunctionObject> func) {
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   FreeThreadedJITEntrypointGuard guard;
   JITCompilationLock lock;
-  releaseFuncRegistration(func);
+  std::vector<Ref<CompiledFunction>> compiled_funcs;
+  if (Ref<CompiledFunction> compiled = stealFuncRegistration(func)) {
+    compiled_funcs.emplace_back(std::move(compiled));
+  }
+  stealNestedCompiles(func, compiled_funcs);
+  // This doesn't modify compiled_codes_, so if this is a nested function it can
+  // easily be reopted later.
+  return compiled_funcs;
 }
 
-void Context::releaseFuncRegistration(BorrowedRef<PyFunctionObject> func) {
+Ref<CompiledFunction> Context::stealFuncRegistration(
+    BorrowedRef<PyFunctionObject> func) {
   if (BorrowedRef<CompiledFunction> parked = removeDeoptedFunc(func)) {
     // Parked by a deopt-all: it still owns a reference to its compile even
-    // though its vectorcall no longer says so, and removeFunction() would miss
-    // it for exactly that reason.  Released against the compile it was parked
-    // on, which is not necessarily the one currently registered for its code.
-    parked->releaseDeoptedFunction(func);
-    return;
+    // though its vectorcall no longer says so, and stealFunction() would miss
+    // it for exactly that reason.  Taken from the compile it was parked on,
+    // which is not necessarily the one currently registered for its code.
+    return parked->stealDeoptedFunction(func);
   }
   if (BorrowedRef<CompiledFunction> compiled = lookupFunc(func)) {
     // Puts the function back on the interpreter entry point if it was using
-    // this compile, and drops the reference that went with it.
-    compiled->removeFunction(func);
+    // this compile, and steals the reference that went with it.
+    return compiled->stealFunction(func);
   }
+  return nullptr;
 }
 
 void Context::releaseFunctionCompileRefs() {
@@ -998,22 +998,20 @@ int Context::traverseNestedCompiles(
   return 0;
 }
 
-void Context::releaseNestedCompiles(BorrowedRef<PyFunctionObject> outer) {
-  JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
-  FreeThreadedJITEntrypointGuard guard;
+void Context::stealNestedCompiles(
+    BorrowedRef<PyFunctionObject> outer,
+    std::vector<Ref<CompiledFunction>>& funcs) {
   auto it = nested_compile_anchors_.find(outer);
   if (it == nested_compile_anchors_.end()) {
     return;
   }
-  // Detach before releasing: dropping the last reference to a CompiledFunction
-  // re-enters forgetCompiledFunction(), and we must not be holding an iterator
-  // into this map when it does.
-  std::vector<NestedCompileData*> anchored = std::move(it->second);
-  nested_compile_anchors_.erase(it);
-  for (NestedCompileData* data : anchored) {
+  for (NestedCompileData* data : it->second) {
     data->setOuterFunc(nullptr);
-    data->setCompiledFunction(nullptr);
+    if (Ref<CompiledFunction> compiled = data->stealCompiledFunction()) {
+      funcs.emplace_back(std::move(compiled));
+    }
   }
+  nested_compile_anchors_.erase(it);
 }
 
 void Context::addDeoptedFunc(

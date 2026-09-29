@@ -2740,25 +2740,43 @@ def _call_freeze_type(cls: type[object]) -> object:
     return freeze_type(cls)
 
 
+def _drop_cinderx_module_refs() -> None:
+    # Leave the compiled code of _call_freeze_type holding the last reference to
+    # _cinderx, so that destroying it at shutdown frees the module and runs
+    # jit::finalize().
+    mod = sys.modules["_cinderx"]
+    builtins = [o for o in gc.get_referrers(mod) if getattr(o, "__self__", None) is mod]
+    for obj in [mod, *builtins]:
+        for d in gc.get_referrers(obj):
+            if isinstance(d, dict):
+                for k in [k for k, v in d.items() if v is obj]:
+                    del d[k]
+
+
 class ShutdownTests(unittest.TestCase):
     @skip_unless_jit("Needs JIT-compiled code")
     @run_in_fresh_process
     def test_last_module_ref_in_compiled_code(self) -> None:
         self.assertTrue(force_compile(_call_freeze_type))
         _call_freeze_type(type("C", (), {}))
+        _drop_cinderx_module_refs()
 
-        # Leave the compiled code of _call_freeze_type holding the last
-        # reference to _cinderx, so that destroying it at shutdown frees the
-        # module and runs jit::finalize().
-        mod = sys.modules["_cinderx"]
-        builtins = [
-            o for o in gc.get_referrers(mod) if getattr(o, "__self__", None) is mod
-        ]
-        for obj in [mod, *builtins]:
-            for d in gc.get_referrers(obj):
-                if isinstance(d, dict):
-                    for k in [k for k, v in d.items() if v is obj]:
-                        del d[k]
+    @skip_unless_jit("Needs JIT-compiled code")
+    @run_in_fresh_process
+    def test_last_module_ref_in_compiled_code_cleared_by_gc(self) -> None:
+        func = globals().pop("_call_freeze_type")
+        self.assertTrue(force_compile(func))
+        func(type("C", (), {}))
+        _drop_cinderx_module_refs()
+
+        # Tuples have no tp_clear, so the collector can only break this cycle by
+        # clearing the function, which releases its compiled code from
+        # jitFuncClear() rather than the function watcher.
+        func.__defaults__ = (func,)
+
+        # Collecting while Python code is still running would trip the JIT_CHECK
+        # in module_free() instead.  The shutdown collection ignores this.
+        gc.disable()
 
 
 class SimplifyCompileTimeTests(unittest.TestCase):

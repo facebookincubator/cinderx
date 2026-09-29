@@ -426,9 +426,10 @@ void CompiledFunction::addFunction(BorrowedRef<PyFunctionObject> func) {
   setVectorcall(func, vectorcallEntry());
 }
 
-void CompiledFunction::removeFunction(BorrowedRef<PyFunctionObject> func) {
+Ref<CompiledFunction> CompiledFunction::stealFunction(
+    BorrowedRef<PyFunctionObject> func) {
   if (num_functions_ == 0 || func->vectorcall != vectorcallEntry()) {
-    return;
+    return nullptr;
   }
 #if Py_DEBUG
   JIT_DCHECK(functions_.contains(func), "should be registered");
@@ -436,9 +437,13 @@ void CompiledFunction::removeFunction(BorrowedRef<PyFunctionObject> func) {
 #endif
   num_functions_--;
   setVectorcall(func, getInterpretedVectorcall(func));
-  // Releases func's reference; this may be the last one, so nothing may touch
-  // the object after this point.
-  Py_DECREF(this);
+  return Ref<CompiledFunction>::steal(this);
+}
+
+void CompiledFunction::removeFunction(BorrowedRef<PyFunctionObject> func) {
+  // This may be the last reference, so nothing may touch the object after
+  // this point.
+  stealFunction(func).reset();
 }
 
 void CompiledFunction::deoptFunction(BorrowedRef<PyFunctionObject> func) {
@@ -459,20 +464,25 @@ void CompiledFunction::reoptFunction(BorrowedRef<PyFunctionObject> func) {
   setVectorcall(func, vectorcallEntry());
 }
 
-void CompiledFunction::releaseDeoptedFunction(
+Ref<CompiledFunction> CompiledFunction::stealDeoptedFunction(
     BorrowedRef<PyFunctionObject> func) {
   if (num_functions_ == 0) {
     // releaseFunctionRefs() already handed every registration back.
-    return;
+    return nullptr;
   }
 #if Py_DEBUG
   JIT_DCHECK(functions_.contains(func), "should be registered");
   functions_.erase(func.get());
 #endif
   num_functions_--;
-  // Releases func's reference; this may be the last one, so nothing may touch
-  // the object after this point.
-  Py_DECREF(this);
+  return Ref<CompiledFunction>::steal(this);
+}
+
+void CompiledFunction::releaseDeoptedFunction(
+    BorrowedRef<PyFunctionObject> func) {
+  // This may be the last reference, so nothing may touch the object after
+  // this point.
+  stealDeoptedFunction(func).reset();
 }
 
 int CompiledFunction::traverse(visitproc visit, void* arg) {

@@ -4059,16 +4059,10 @@ constexpr std::string_view getCpuArchName() {
 // Unregister a function and its nested code objects from
 // jit_code_outer_funcs. Called when a function is destroyed or its code object
 // is being replaced.
-void unregisterFunctionCodes(BorrowedRef<PyFunctionObject> func) {
-  if (!jitCtx()) {
-    return;
-  }
-  auto mod_state = cinderx::getModuleState();
-  if (!mod_state) {
-    return;
-  }
-
-  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+void unregisterFunctionCodes(
+    CompilerContext<Compiler>& ctx,
+    BorrowedRef<PyFunctionObject> func) {
+  auto& jit_code_outer_funcs = ctx.codeOuterFunctions();
 
   BorrowedRef<PyCodeObject> top_code{func->func_code};
   NestedCompileData* nested_data = nestedCompileData(top_code);
@@ -5093,57 +5087,47 @@ std::vector<CompilationUnit> preloadFuncAndDeps(
 
 void codeDestroyed(BorrowedRef<PyCodeObject> code) {
   FreeThreadedJITEntrypointGuard guard;
-  if (auto* ctx = jitCtx()) {
-    ctx->eraseNestedCompileData(code);
+
+  // Context might already be destroyed.
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    ctx->codeOuterFunctions().erase(code);
     ctx->clearFunctionEntryCache(code);
-  }
-  if (isJitUsable()) {
-    auto mod_state = cinderx::getModuleState();
-    if (!mod_state) {
-      return;
-    }
-    if (auto* ctx = jitCtx()) {
-      ctx->codeOuterFunctions().erase(code);
-    }
+
+    // This can destroy the context.  Do not use `ctx` after this.
+    ctx->eraseNestedCompileData(code);
   }
 }
 
 void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
-  auto mod_state = cinderx::getModuleState();
-  if (!mod_state) {
-    return;
-  }
-  // Releasing compiled code can drop the last reference to the CinderX module
-  // at shutdown, which would run jit::finalize() and free the Context while
-  // Context::funcDestroyed() is still on the stack.  Declared before the guard
-  // so any finalize happens after it is released.
-  Ref<> module_keepalive;
-  if (!mod_state->unloading) {
-    module_keepalive = Ref<>::create(mod_state->cinderx_module);
-  }
+  // Releasing these can destroy the context.  Declared before the guard so
+  // that happens after it is released.
+  std::vector<Ref<CompiledFunction>> released;
   FreeThreadedJITEntrypointGuard guard;
 
-  unregisterFunctionCodes(func);
-
-  // Have to check if context exists as this can fire after jit::finalize().
-  if (jitCtx()) {
-    jitCtx()->funcDestroyed(func);
+  // Context might already be destroyed.
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    unregisterFunctionCodes(*ctx, func);
+    released = ctx->releaseFunction(func);
   }
 }
 
 void funcModified(BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
-  deoptFunc(func);
-  // Patch any callers that inlined the old code object. Have to check if
-  // context exists as this can fire after jit::finalize().
-  if (jitCtx()) {
-    jitCtx()->notifyFuncModified(func);
+
+  // Context might already be destroyed.
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    // Patch any callers that inlined the old code object.
+    ctx->notifyFuncModified(func);
+
+    // Clean up registrations for the old code object. At this point
+    // func->func_code still refers to the old code. The caller will update
+    // func->func_code and call scheduleCompile() to re-register with the new
+    // code.
+    unregisterFunctionCodes(*ctx, func);
+
+    // This can destroy the context.  Do not use `ctx` after this.
+    deoptFuncImpl(func);
   }
-  // Clean up registrations for the old code object. At this point
-  // func->func_code still refers to the old code. The caller will update
-  // func->func_code and call scheduleCompile() to re-register with the new
-  // code.
-  unregisterFunctionCodes(func);
 }
 
 void typeDestroyed(BorrowedRef<PyTypeObject> type) {

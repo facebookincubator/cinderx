@@ -80,6 +80,12 @@ class NestedCompileData {
     Py_XDECREF(old);
   }
 
+  // Detach the compile and hand its reference to the caller.
+  [[nodiscard]] Ref<CompiledFunction> stealCompiledFunction() {
+    return Ref<CompiledFunction>::steal(
+        compiled_function_.exchange(nullptr, std::memory_order_acq_rel));
+  }
+
   void clearCompiledFunction(BorrowedRef<CompiledFunction> compiled) {
     CompiledFunction* expected = compiled.get();
     if (compiled_function_.compare_exchange_strong(

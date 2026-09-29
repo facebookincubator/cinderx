@@ -149,13 +149,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       BorrowedRef<PyFunctionObject> func);
 
   /*
-   * Give up whatever registration `func` has on `compiled`, whether it is on
-   * the compiled entry point or parked by a deopt-all.  This can free the
-   * CompiledFunction, so callers must not use it afterwards.
-   */
-  void releaseFuncRegistration(BorrowedRef<PyFunctionObject> func);
-
-  /*
    * Fully remove all effects of compilation from a function.
    */
   void uncompile(BorrowedRef<PyFunctionObject> func);
@@ -260,16 +253,17 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   void clearForMultithreadedCompileTest();
 
   /*
-   * Callbacks invoked by the runtime when a PyFunctionObject is destroyed.
+   * Drop everything held on behalf of `func`, when it is destroyed or when the
+   * collector clears it: its own registration on its compile, which also puts
+   * it back on the interpreter entry point, and the nested compiles it is the
+   * anchor for.
+   *
+   * The references come back to the caller rather than being released here.
+   * Releasing the last one can run arbitrary code, including freeing this
+   * Context at shutdown, so the caller must be done with the Context first.
    */
-  void funcDestroyed(BorrowedRef<PyFunctionObject> func);
-
-  /*
-   * Release the reference `func` owns on its CompiledFunction, if it has one,
-   * and put it back on the interpreter entry point.  Used by the patched
-   * function tp_clear to break reference cycles.
-   */
-  void releaseCompiledFuncRef(BorrowedRef<PyFunctionObject> func);
+  [[nodiscard]] std::vector<Ref<CompiledFunction>> releaseFunction(
+      BorrowedRef<PyFunctionObject> func);
 
   /*
    * Put every function that is still running one of this Context's compiles
@@ -328,9 +322,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       BorrowedRef<PyFunctionObject> outer,
       visitproc visit,
       void* arg);
-
-  /* Release the nested compiles `outer` is the anchor for. */
-  void releaseNestedCompiles(BorrowedRef<PyFunctionObject> outer);
 
   /* Cheap gate so processes with no nested compiles pay nothing per traverse.
    */
@@ -643,6 +634,18 @@ class Context : public IJitContext, public CompiledFunctionOwner {
  private:
   /* Deopts a function but doesn't touch deopted_funcs_. */
   bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func);
+
+  /*
+   * Steal whatever registration `func` has on its compile, whether it is on the
+   * compiled entry point or parked by a deopt-all.
+   */
+  Ref<CompiledFunction> stealFuncRegistration(
+      BorrowedRef<PyFunctionObject> func);
+
+  /* Steal the nested compiles that `outer` is the anchor for. */
+  void stealNestedCompiles(
+      BorrowedRef<PyFunctionObject> outer,
+      std::vector<Ref<CompiledFunction>>& funcs);
 
 #ifndef ENABLE_PREFORK_MODEL
   InlineCacheStats getAndClearInlineCacheStats(InlineCacheSite::Kind kind);

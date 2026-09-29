@@ -58,9 +58,10 @@ int jitFuncClear(PyObject* self) {
   Context* ctx = getContext();
   if (ctx != nullptr) {
     // Must happen before the base implementation, which clears func_globals and
-    // func_builtins and so makes the compilation key unrecoverable.
-    ctx->releaseCompiledFuncRef(BorrowedRef<PyFunctionObject>{self});
-    ctx->releaseNestedCompiles(BorrowedRef<PyFunctionObject>{self});
+    // func_builtins and so makes the compilation key unrecoverable.  Releasing
+    // these at the end of the scope can destroy the context.
+    std::vector<Ref<CompiledFunction>> released =
+        ctx->releaseFunction(BorrowedRef<PyFunctionObject>{self});
   }
   return original_func_clear(self);
 }

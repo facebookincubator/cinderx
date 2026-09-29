@@ -233,8 +233,13 @@ class CompiledFunction {
   // entry point, the function will keep the compiled code alive.
   void addFunction(BorrowedRef<PyFunctionObject> func);
 
-  // Undo addFunction(): put the function back on the interpreter entry point
-  // and allow the compiled function to be freed.
+  // Undo addFunction().  Put the function back on the interpreter entry point
+  // and hand back the reference it owned, or null if it wasn't registered.
+  [[nodiscard]] Ref<CompiledFunction> stealFunction(
+      BorrowedRef<PyFunctionObject> func);
+
+  // Same as stealFunction(), but drops the reference.  This can free the
+  // CompiledFunction, so callers must not use it afterwards.
   void removeFunction(BorrowedRef<PyFunctionObject> func);
 
   // Marks a dunction as being deopted
@@ -244,10 +249,14 @@ class CompiledFunction {
   // compiled entry point.
   void reoptFunction(BorrowedRef<PyFunctionObject> func);
 
-  // Release the registration of a function that is currently parked by
-  // deoptFunction().  Same as removeFunction(), which cannot be used because
-  // the function is not on the compiled entry point any more.  This can free
-  // the CompiledFunction, so callers must not use it afterwards.
+  // Steal the registration of a function that is currently parked by
+  // deoptFunction().  Same as stealFunction(), which cannot be used because the
+  // function is not on the compiled entry point any more.
+  [[nodiscard]] Ref<CompiledFunction> stealDeoptedFunction(
+      BorrowedRef<PyFunctionObject> func);
+
+  // Same as stealDeoptedFunction(), but drops the reference.  This can free the
+  // CompiledFunction, so callers must not use it afterwards.
   void releaseDeoptedFunction(BorrowedRef<PyFunctionObject> func);
 
   // How many functions are currently registered, i.e. how many of this object's
