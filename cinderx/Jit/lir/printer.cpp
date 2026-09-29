@@ -118,7 +118,14 @@ void Printer::print(std::ostream& out, const Operand& operand) {
       out << PhyLocation(operand.getStackSlot());
       break;
     case Operand::kMem:
-      out << "[" << std::hex << operand.getMemoryAddress() << "]" << std::dec;
+      // Don't stream the pointer: that formatting is implementation-defined,
+      // and std::hex does not apply to it.  libstdc++ writes 0x5 where the
+      // MSVC STL writes 0000000000000005, which the parser -- which wants a
+      // 0x-prefixed address -- cannot read back.
+      fmt::print(
+          out,
+          "[{:#x}]",
+          reinterpret_cast<uintptr_t>(operand.getMemoryAddress()));
       break;
     case Operand::kInd:
       out << *operand.getMemoryIndirect();
