@@ -2,204 +2,115 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/lir/dce.h"
-#include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/lir_parser.h"
 
-using namespace cinderx::jit;
+#include <cstdint>
+#include <initializer_list>
 
 namespace cinderx::jit::lir {
-class LIRDeadCodeEliminationTest : public RuntimeTest {};
+namespace {
 
-TEST_F(LIRDeadCodeEliminationTest, TestEliminateMov) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %7 %10
-         %1:8bit = Bind {}:8bit
-        %2:32bit = Bind {}:32bit
-        %3:16bit = Bind {}:16bit
-        %4:64bit = Bind {}:64bit
-       %5:Object = Move 0(0x0):Object
-                   CondBranch %5:Object, BB%7, BB%10
-       %6:Object = Move 0(0x0):Object
-
-BB %7 - preds: %0 - succs: %10
-       %8:Object = Move [0x5]:Object
-                   Return %8:Object
-
-BB %10 - preds: %0 %7
-
-)",
-      PhyLocation{7, 8},
-      PhyLocation{6, 32},
-      PhyLocation{9, 16},
-      PhyLocation{10, 64});
-  auto lir_expected_str = fmt::format(R"(Function:
-BB %0 - succs: %7 %10
-       %5:Object = Move 0(0x0):Object
-                   CondBranch %5:Object, BB%7, BB%10
-
-BB %7 - preds: %0 - succs: %10
-       %8:Object = Move [0x5]:Object
-                   Return %8:Object
-
-BB %10 - preds: %0 %7
-
-)");
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-  eliminateDeadCode(parsed_func.get());
-  std::stringstream ss;
-  ss << *parsed_func;
-  // Assume that the parser assigns basic block and register numbers
-  // based on the parsing order of the instructions.
-  // If the parser behavior is modified and assigns numbers differently,
-  // then the assert may fail.
-  ASSERT_EQ(lir_expected_str, ss.str());
+Instruction* allocateLoadImmediate(BasicBlock* block, uint64_t value) {
+  return block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{}, Imm{value, DataType::kObject});
 }
 
-TEST_F(LIRDeadCodeEliminationTest, TestLocalBaseForIndirectNotEliminated) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %8 %10
-         %1:8bit = Bind {}:8bit
-        %2:32bit = Bind {}:32bit
-        %3:16bit = Bind {}:16bit
-        %4:64bit = Bind {}:64bit
-       %5:Object = Move 0(0x0):Object
-       %6:Object = Move 0(0x0):Object
-       %7:Object = Move [%5:Object + 0x18]:Object
-                   CondBranch %7:Object, BB%8, BB%10
-
-BB %8 - preds: %0 - succs: %10
-       %9:Object = Move [0x5]:Object
-                   Return %9:Object
-
-BB %10 - preds: %0 %8
-
-)",
-      PhyLocation{7, 8},
-      PhyLocation{6, 32},
-      PhyLocation{9, 16},
-      PhyLocation{10, 64});
-  auto lir_expected_str = fmt::format(R"(Function:
-BB %0 - succs: %8 %10
-       %5:Object = Move 0(0x0):Object
-       %7:Object = Move [%5:Object + 0x18]:Object
-                   CondBranch %7:Object, BB%8, BB%10
-
-BB %8 - preds: %0 - succs: %10
-       %9:Object = Move [0x5]:Object
-                   Return %9:Object
-
-BB %10 - preds: %0 %8
-
-)");
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-  eliminateDeadCode(parsed_func.get());
-  std::stringstream ss;
-  ss << *parsed_func;
-  // Assume that the parser assigns basic block and register numbers
-  // based on the parsing order of the instructions.
-  // If the parser behavior is modified and assigns numbers differently,
-  // then the assert may fail.
-  ASSERT_EQ(lir_expected_str, ss.str());
+void expectInstructions(
+    BasicBlock* block,
+    std::initializer_list<Instruction*> expected) {
+  ASSERT_EQ(block->getNumInstrs(), expected.size());
+  auto actual = block->instructions().begin();
+  for (Instruction* instruction : expected) {
+    EXPECT_EQ(actual->get(), instruction);
+    ++actual;
+  }
 }
 
-TEST_F(LIRDeadCodeEliminationTest, TestLocalIndexForIndirectNotEliminated) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %8 %10
-         %1:8bit = Bind {}:8bit
-        %2:32bit = Bind {}:32bit
-        %3:16bit = Bind {}:16bit
-        %4:64bit = Bind {}:64bit
-       %5:Object = Move 0(0x0):Object
-       %6:Object = Move 0(0x0):Object
-       %7:Object = Move [{}:Object + %6:Object]:Object
-                   CondBranch %7:Object, BB%8, BB%10
+} // namespace
 
-BB %8 - preds: %0 - succs: %10
-       %9:Object = Move [0x5]:Object
-                   Return %9:Object
+TEST(LIRDeadCodeEliminationTest, TestEliminateMov) {
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
 
-BB %10 - preds: %0 %8
+  Instruction* live = allocateLoadImmediate(entry, 1);
+  Instruction* branch = entry->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      VReg{live},
+      Lbl{true_block},
+      Lbl{false_block});
 
-)",
-      PhyLocation{7, 8},
-      PhyLocation{6, 32},
-      PhyLocation{9, 16},
-      PhyLocation{10, 64},
-      PhyLocation{7, 64});
-  auto lir_expected_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %8 %10
-       %6:Object = Move 0(0x0):Object
-       %7:Object = Move [{}:Object + %6:Object]:Object
-                   CondBranch %7:Object, BB%8, BB%10
+  allocateLoadImmediate(entry, 2); /* should be eliminated */
 
-BB %8 - preds: %0 - succs: %10
-       %9:Object = Move [0x5]:Object
-                   Return %9:Object
+  Instruction* returned_value = true_block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{}, MemImm{reinterpret_cast<void*>(0x5)});
+  Instruction* ret =
+      true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{returned_value});
 
-BB %10 - preds: %0 %8
+  eliminateDeadCode(&function);
 
-)",
-      PhyLocation{7, 64});
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-  eliminateDeadCode(parsed_func.get());
-  std::stringstream ss;
-  ss << *parsed_func;
-  // Assume that the parser assigns basic block and register numbers
-  // based on the parsing order of the instructions.
-  // If the parser behavior is modified and assigns numbers differently,
-  // then the assert may fail.
-  ASSERT_EQ(lir_expected_str, ss.str());
+  expectInstructions(entry, {live, branch});
+  expectInstructions(true_block, {returned_value, ret});
 }
 
-TEST_F(
+TEST(LIRDeadCodeEliminationTest, TestLocalBaseForIndirectNotEliminated) {
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+
+  Instruction* base = allocateLoadImmediate(block, 1);
+
+  allocateLoadImmediate(block, 2); /* should be eliminated */
+
+  Instruction* load =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Ind{base, 0x18});
+  Instruction* ret = block->allocateInstr(Opcode::kReturn, nullptr, VReg{load});
+
+  eliminateDeadCode(&function);
+
+  expectInstructions(block, {base, load, ret});
+}
+
+TEST(LIRDeadCodeEliminationTest, TestLocalIndexForIndirectNotEliminated) {
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+
+  Instruction* index = allocateLoadImmediate(block, 1);
+
+  allocateLoadImmediate(block, 2); /* should be eliminated */
+
+  Instruction* load = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{}, Ind{PhyLocation{7, 64}, index});
+  Instruction* ret = block->allocateInstr(Opcode::kReturn, nullptr, VReg{load});
+
+  eliminateDeadCode(&function);
+
+  expectInstructions(block, {index, load, ret});
+}
+
+TEST(
     LIRDeadCodeEliminationTest,
     TestLocalBaseForIndirectNotEliminatedInOutput) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0
-         %1:8bit = Bind {}:8bit
-         %2:32bit = Bind {}:32bit
-         %3:16bit = Bind {}:16bit
-         %4:64bit = Bind {}:64bit
-         %5:Object = Move 0(0x0):Object
-         %6:Object = Move 0(0x0):Object
-         [%5:Object + 0x18]:Object = Move %4:64bit
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
 
-)",
-      PhyLocation{7, 8},
-      PhyLocation{6, 32},
-      PhyLocation{9, 16},
-      PhyLocation{10, 64});
-  auto lir_expected_str = fmt::format(
-      R"(Function:
-BB %0
-        %4:64bit = Bind {}:64bit
-       %5:Object = Move 0(0x0):Object
-[%5:Object + 0x18]:Object = Move %4:64bit
+  Instruction* source = block->allocateInstr(
+      Opcode::kBind,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      PhyReg{PhyLocation{10, 64}, DataType::k64bit});
+  Instruction* base = allocateLoadImmediate(block, 0);
 
-)",
-      PhyLocation{10, 64});
+  allocateLoadImmediate(block, 1); /* should be eliminated */
 
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-  eliminateDeadCode(parsed_func.get());
-  std::stringstream ss;
-  ss << *parsed_func;
-  // Assume that the parser assigns basic block and register numbers
-  // based on the parsing order of the instructions.
-  // If the parser behavior is modified and assigns numbers differently,
-  // then the assert may fail.
-  ASSERT_EQ(lir_expected_str, ss.str());
+  Instruction* store = block->allocateInstr(
+      Opcode::kMove, nullptr, OutInd{base, 0x18}, VReg{source});
+
+  eliminateDeadCode(&function);
+
+  expectInstructions(block, {source, base, store});
 }
 
 } // namespace cinderx::jit::lir
