@@ -1005,6 +1005,23 @@ UnresolvedJumpTable GenerateStaticTypeCheckBlocks(
   return result;
 }
 
+// Reserve the callee's shadow space for a call made from a prologue block.
+// RSP is still at RBP there -- the body's frame is set up further down -- so
+// those 32 bytes would otherwise be this frame's saved RBP and return address.
+// Every prologue block exits through a `leave`, which restores RSP from RBP,
+// so the reservation is never undone. A no-op where the ABI has no shadow
+// space.
+[[maybe_unused]] static void reserveShadowSpace(BasicBlock* block) {
+  if constexpr (kBuildArch == Arch::kX86_64 && codegen::kShadowSpaceSize > 0) {
+    constexpr auto sp_reg = codegen::arch::reg_stack_pointer_loc;
+    block->allocateInstr(
+        Opcode::kLea,
+        nullptr,
+        OutPhyReg{sp_reg},
+        Ind(sp_reg, -codegen::kShadowSpaceSize));
+  }
+}
+
 void GenerateArgcountCheckBlocks(
     Function* lir_func,
     const hir::Function* func,
@@ -1044,6 +1061,7 @@ void GenerateArgcountCheckBlocks(
         Opcode::kBranchCC, nullptr, Condition::kZero, Lbl{argcount_check});
     kw_dispatch->addSuccessor(argcount_check);
 
+    reserveShadowSpace(kw_dispatch);
     kw_dispatch->allocateInstr(
         Opcode::kCall,
         nullptr,
@@ -1164,6 +1182,7 @@ void GenerateArgcountCheckBlocks(
 
     emitAnnotation(kw_dispatch, "Keyword argument dispatch (varargs/kwonly)");
 
+    reserveShadowSpace(kw_dispatch);
     kw_dispatch->allocateInstr(
         Opcode::kCall,
         nullptr,
