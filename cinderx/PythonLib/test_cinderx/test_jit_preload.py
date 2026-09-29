@@ -143,6 +143,10 @@ class PreloadTests(unittest.TestCase):
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
     @skip_if_ft("Batch multi-threaded compile not supported with free threading")
+    @passIf(
+        sys.platform == "win32",
+        "The helper asks for the 'fork' start method, which Windows does not have",
+    )
     def test_func_destroyed_during_preload_multiprocessing(self) -> None:
         """
         Repro for T266490160 / D101755188 in a multiprocessing setup.
