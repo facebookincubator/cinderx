@@ -511,7 +511,7 @@ StaticMethodInfo _PyVTable_load_descr_typecheck(
   return res;
 }
 
-static _PyClassLoader_StaticCallReturn descr_get_native(
+[[gnu::used]] _PyClassLoader_StaticCallReturn descr_get_native(
     PyObject* descr,
     PyObject* self) {
   _PyClassLoader_StaticCallReturn res;
@@ -520,10 +520,48 @@ static _PyClassLoader_StaticCallReturn descr_get_native(
   return res;
 }
 
+#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
+#ifdef _WIN32
+// JITed code calls a native entry point expecting the two-word result in
+// RAX:RDX, which is how System V returns this struct. Windows returns it
+// through a hidden sret pointer in RCX instead, shifting both real arguments
+// along, so `descr_get_native` cannot be installed as an entry point directly
+// the way it is elsewhere. Bridge it the same way `_PyVTable_native_entry`
+// bridges its own callee.
+//
+// Declared as returning a single pointer, also like `_PyVTable_native_entry`:
+// a naked function whose return type needs an sret slot crashes clang's X86
+// instruction selection. It really returns the pair in RAX:RDX.
+__attribute__((naked)) static PyObject* descr_get_native_entry(
+    PyObject* descr,
+    PyObject* self) {
+  __asm__(
+      "push %rbp\n"
+      "mov %rsp, %rbp\n"
+      /* 32 bytes of shadow space plus a 16-byte return buffer above it, */
+      /* which together keep RSP 16-byte aligned for the call. */
+      "sub $48, %rsp\n"
+      "mov %rdx, %r8\n"
+      "mov %rcx, %rdx\n"
+      "lea 32(%rsp), %rcx\n"
+      "call descr_get_native\n"
+      "mov 32(%rsp), %rax\n"
+      "mov 40(%rsp), %rdx\n"
+      "leave\n"
+      "ret\n");
+}
+#define DESCR_GET_NATIVE_ENTRY descr_get_native_entry
+#endif
+#endif
+
+#ifndef DESCR_GET_NATIVE_ENTRY
+#define DESCR_GET_NATIVE_ENTRY descr_get_native
+#endif
+
 StaticMethodInfo _PyVTable_load_descr(PyObject* state, PyObject* self) {
   StaticMethodInfo res;
   res.lmr_func = Py_NewRef(state);
-  res.lmr_entry = (nativeentrypoint)descr_get_native;
+  res.lmr_entry = (nativeentrypoint)DESCR_GET_NATIVE_ENTRY;
   return res;
 }
 
