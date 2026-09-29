@@ -1328,6 +1328,18 @@ void GenerateBoxedReturnWrapperBlocks(
   // Set up a minimal frame for the wrapper itself.
   wrapper_entry->allocateInstr(Opcode::kPrologue, nullptr);
 
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // The box function below is a C function entitled to a shadow space, which
+  // without this would be the saved RBP and return address this frame's
+  // `leave; ret` reads back. 32 bytes keeps RSP 16-byte aligned, and
+  // `wrapper_exit` restores it from RBP, so it is never undone.
+  wrapper_entry->allocateInstr(
+      Opcode::kLea,
+      nullptr,
+      OutPhyReg{arch::reg_stack_pointer_loc},
+      Ind(arch::reg_stack_pointer_loc, -codegen::kShadowSpaceSize));
+#endif
+
   // Call the inner JIT function.
   wrapper_entry->allocateInstr(Opcode::kCall, nullptr, AsmLbl{generic_entry});
 
