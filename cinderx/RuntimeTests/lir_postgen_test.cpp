@@ -91,20 +91,30 @@ BB %0
 #endif
 
 TEST_F(LIRPostGenerationRewriteTest, DoesNotAllowMultipleLSCRPerCall) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %10 = Call 0
-  %11 = LoadSecondCallResult %10
-  CondBranch %11, BB%1, BB%2
-BB %1
-  %12 = LoadSecondCallResult %10
-  Return %12
-BB %2
-  Return %10
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
 
+  Instruction* call =
+      entry->allocateInstr(Opcode::kCall, nullptr, OutVReg{}, Imm{0});
+  Instruction* first_result = entry->allocateInstr(
+      Opcode::kLoadSecondCallResult, nullptr, OutVReg{}, VReg{call});
+  entry->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      VReg{first_result},
+      Lbl{true_block},
+      Lbl{false_block});
+
+  Instruction* second_result = true_block->allocateInstr(
+      Opcode::kLoadSecondCallResult, nullptr, OutVReg{}, VReg{call});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{second_result});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{call});
+
+  codegen::Environ env;
   EXPECT_DEATH(
-      runPostGenRewriteStr(lir_input_str),
+      PostGenerationRewrite(&function, &env).run(),
       "Call output consumed by multiple LoadSecondCallResult instructions");
 }
 
