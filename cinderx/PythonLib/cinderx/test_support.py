@@ -347,8 +347,17 @@ def is_sanitizer_build() -> bool:
 
 def is_emulated() -> bool:
     """Check if the program is running under an emulator like QEMU."""
-    # Assumes that people only use emulators to run different CPU architectures.  It's
-    # the best we have for now.
+    # qemu-user rewrites /proc/self/exe to the emulated binary, but not the per-thread
+    # link, which still names the emulator.
+    try:
+        if os.path.basename(os.readlink("/proc/thread-self/exe")).startswith("qemu-"):
+            return True
+    except OSError:
+        pass
+
+    # platform.processor() comes from `uname -p`, which is "unknown" (reported as "")
+    # on some distros.  Assumes that people only use emulators to run different CPU
+    # architectures.
     processor = platform.processor()
     return processor != "" and processor != platform.machine()
 
