@@ -236,6 +236,7 @@ bool writesFlags(Opcode opcode) {
     case Opcode::kVariadicPush:
     case Opcode::kZext:
 #if defined(CINDER_AARCH64)
+    case Opcode::kA64GuardCC:
     case Opcode::kA64SelectCC:
 #endif
 #if defined(CINDER_X86_64)
