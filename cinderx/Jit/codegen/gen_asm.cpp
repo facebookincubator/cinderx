@@ -832,38 +832,64 @@ void* NativeGenerator::getVectorcallEntry() {
   // arguments.
   const std::vector<TypedArgument>& checks = getFunction()->typed_args;
 
+  // Whether argument `i` is a primitive double, and therefore wants a vector
+  // register rather than a general-purpose one.
+  auto is_double_arg = [&checks](size_t i, size_t& check_index) {
+    if (check_index >= checks.size() ||
+        checks[check_index].locals_idx != static_cast<int>(i)) {
+      return false;
+    }
+    bool is_double = checks[check_index].jit_type <= TCDouble;
+    check_index++;
+    return is_double;
+  };
+
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // Windows x64 gives general-purpose and vector arguments the same four
+  // positional slots: slot N arrives in either ARGUMENT_REGS[N] or
+  // FP_ARGUMENT_REGS[N] according to its type, and the slot is spent either
+  // way.  rewriteRegularFunction() in postalloc.cpp assigns the caller's
+  // registers on the same rule; the two have to agree, or a double written to
+  // one register is read back from another.  Slot 0 holds the function, as it
+  // does on System V.
+  for (size_t i = 0, check_index = 0, slot = 1;
+       i < static_cast<size_t>(getFunction()->numArgs());
+       i++) {
+    bool is_double = is_double_arg(i, check_index);
+    if (slot >= ARGUMENT_REGS.size()) {
+      // The argument comes in on the stack, and the backend will access it
+      // via __asm_extra_args.
+      env_.arg_locations.emplace_back(PhyLocation::REG_INVALID);
+      continue;
+    }
+    env_.arg_locations.push_back(
+        is_double ? FP_ARGUMENT_REGS[slot] : ARGUMENT_REGS[slot]);
+    slot++;
+  }
+#else
+  // System V draws general-purpose and vector arguments from independent
+  // pools, so a double never consumes a general-purpose register.
+  //
   // gp_index starts at 1 because the first argument is reserved for the
   // function
   for (size_t i = 0, check_index = 0, gp_index = 1, fp_index = 0;
        i < static_cast<size_t>(getFunction()->numArgs());
        i++) {
-    auto add_gp = [&]() {
-      if (gp_index < ARGUMENT_REGS.size()) {
-        env_.arg_locations.push_back(ARGUMENT_REGS[gp_index++]);
+    if (is_double_arg(i, check_index)) {
+      if (fp_index < FP_ARGUMENT_REGS.size()) {
+        env_.arg_locations.push_back(FP_ARGUMENT_REGS[fp_index++]);
       } else {
+        // The register will come in on the stack, and the backend
+        // will access it via __asm_extra_args.
         env_.arg_locations.emplace_back(PhyLocation::REG_INVALID);
       }
-    };
-
-    if (check_index < checks.size() &&
-        checks[check_index].locals_idx == static_cast<int>(i)) {
-      if (checks[check_index].jit_type <= TCDouble) {
-        if (fp_index < FP_ARGUMENT_REGS.size()) {
-          env_.arg_locations.push_back(FP_ARGUMENT_REGS[fp_index++]);
-        } else {
-          // The register will come in on the stack, and the backend
-          // will access it via __asm_extra_args.
-          env_.arg_locations.emplace_back(PhyLocation::REG_INVALID);
-        }
-      } else {
-        add_gp();
-      }
-      check_index++;
-      continue;
+    } else if (gp_index < ARGUMENT_REGS.size()) {
+      env_.arg_locations.push_back(ARGUMENT_REGS[gp_index++]);
+    } else {
+      env_.arg_locations.emplace_back(PhyLocation::REG_INVALID);
     }
-
-    add_gp();
   }
+#endif
 
   auto func = getFunction();
 
