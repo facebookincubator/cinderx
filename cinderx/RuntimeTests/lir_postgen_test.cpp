@@ -27,26 +27,31 @@ static std::string runPostGenRewriteStr(const char* lir_input_str) {
 }
 
 TEST_F(LIRPostGenerationRewriteTest, RetainsLoadSecondCallResultDataType) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %10 = Call 0
-  %11:16bit = LoadSecondCallResult %10
-  Return %11
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* call = block->allocateInstr(
+      Opcode::kCall,
+      nullptr,
+      OutVReg{DataType::kObject},
+      Imm{0, DataType::k64bit});
+  Instruction* second_result = block->allocateInstr(
+      Opcode::kLoadSecondCallResult,
+      nullptr,
+      OutVReg{DataType::k16bit},
+      VReg{call});
+  Instruction* ret =
+      block->allocateInstr(Opcode::kReturn, nullptr, VReg{second_result});
 
-  std::string expected_lir_str = fmt::format(
-      R"(Function:
-BB %0
-{}      %10:Object = Call {}
-       %11:16bit = Move {}:16bit
-                   Return %11:16bit
+  codegen::Environ env;
+  PostGenerationRewrite(&function, &env).run();
 
-)",
-      "",
-      "0(0x0):64bit",
-      PhyLocation{codegen::arch::reg_general_auxilary_return_loc.loc, 16});
-
-  EXPECT_EQ(runPostGenRewriteStr(lir_input_str), expected_lir_str.c_str());
+  ASSERT_EQ(block->getNumInstrs(), 3);
+  EXPECT_EQ(second_result->opcode(), Opcode::kMove);
+  EXPECT_EQ(second_result->output()->dataType(), DataType::k16bit);
+  EXPECT_EQ(
+      second_result->getInput(0)->getPhyRegister(),
+      PhyLocation(codegen::arch::reg_general_auxilary_return_loc.loc, 16));
+  EXPECT_EQ(ret->getInput(0)->getLinkedInstr(), second_result);
 }
 
 #if defined(CINDER_X86_64) && defined(_WIN32)
