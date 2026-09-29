@@ -1473,7 +1473,47 @@ void NativeGenerator::generateCode(
     auto static_typecheck_cursor = as_->cursor();
     as_->bind(env_.static_arg_typecheck_failed_label);
 
-#if defined(CINDER_X86_64)
+#if defined(CINDER_X86_64) && defined(_WIN32)
+    // RSP is still at RBP here -- the body's frame is set up further down --
+    // so the callee's shadow space would otherwise be this frame's saved RBP
+    // and return address, which the `leave; ret` below reads back.
+    //
+    // The two primitive variants also return 16-byte structs, which the ABI
+    // returns through a hidden sret pointer in RCX, shifting the four
+    // vectorcall arguments one register along and kwnames onto the stack:
+    //   [RSP + 0x30] sret struct (16 bytes)
+    //   [RSP + 0x20] 4th arg (kwnames)
+    //   [RSP + 0x00] shadow space (32 bytes)
+    constexpr int kSretFrameSize = 64;
+    constexpr int kSretStructOffset = 0x30;
+    if (getFunction()->returnsPrimitive()) {
+      as_->sub(x86::rsp, kSretFrameSize);
+      as_->mov(x86::ptr(x86::rsp, 0x20), x86::r9);
+      as_->mov(x86::r9, x86::r8);
+      as_->mov(x86::r8, x86::rdx);
+      as_->mov(x86::rdx, x86::rcx);
+      as_->lea(x86::rcx, x86::ptr(x86::rsp, kSretStructOffset));
+      if (getFunction()->returnsPrimitiveDouble()) {
+        as_->call(
+            reinterpret_cast<uint64_t>(
+                rt::reportStaticArgTypecheckErrorsWithDoubleReturn));
+        as_->movsd(x86::xmm0, x86::ptr(x86::rsp, kSretStructOffset));
+        as_->movsd(x86::xmm1, x86::ptr(x86::rsp, kSretStructOffset + 8));
+      } else {
+        as_->call(
+            reinterpret_cast<uint64_t>(
+                rt::reportStaticArgTypecheckErrorsWithPrimitiveReturn));
+        as_->mov(x86::rax, x86::ptr(x86::rsp, kSretStructOffset));
+        as_->mov(x86::rdx, x86::ptr(x86::rsp, kSretStructOffset + 8));
+      }
+    } else {
+      as_->sub(x86::rsp, kShadowSpaceSize);
+      as_->call(reinterpret_cast<uint64_t>(rt::reportStaticArgTypecheckErrors));
+    }
+    // `leave` restores RSP from RBP, so none of the above is undone here.
+    as_->leave();
+    as_->ret();
+#elif defined(CINDER_X86_64)
     if (getFunction()->returnsPrimitive()) {
       if (getFunction()->returnsPrimitiveDouble()) {
         as_->call(
