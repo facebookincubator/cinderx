@@ -1119,6 +1119,36 @@ void translatePrologue(Environ* env, const Instruction*) {
 
 // Allocate the full stack frame and save callee-saved registers.
 // All frame layout values come from Environ, populated after register
+#if defined(CINDER_X86_64)
+// Grow the stack by `bytes`, touching every page on the way down.
+//
+// Windows commits stack pages lazily behind a single guard page, so a bare
+// `sub rsp, N` that steps past that page leaves it untouched: the first write
+// lands on reserved-but-uncommitted memory and raises an access violation
+// instead of growing the stack. Anything larger than a page has to walk down
+// one page at a time. The walk is unrolled rather than looped so that it needs
+// no scratch register -- nothing is reliably free this early in the prologue,
+// and `__chkstk` would clobber R10/R11, which can still hold live values.
+// A plain `sub` where the OS grows the stack on demand.
+void emitStackAlloc(arch::Builder* as, int bytes) {
+  if (bytes <= 0) {
+    return;
+  }
+  if constexpr (kOS == OS::kWindows) {
+    constexpr int kPageSize = 4096;
+    int remaining = bytes;
+    while (remaining > kPageSize) {
+      as->sub(x86::rsp, kPageSize);
+      as->or_(x86::qword_ptr(x86::rsp), 0);
+      remaining -= kPageSize;
+    }
+    as->sub(x86::rsp, remaining);
+    return;
+  }
+  as->sub(x86::rsp, bytes);
+}
+#endif
+
 // allocation.
 void translateSetupFrame(Environ* env, const Instruction*) {
   arch::Builder* as = env->as;
@@ -1126,7 +1156,7 @@ void translateSetupFrame(Environ* env, const Instruction*) {
 #if defined(CINDER_X86_64)
   // Allocate header + spill space, then save callee-saved registers.
   asmjit::BaseNode* alloc_cursor = as->cursor();
-  as->sub(x86::rsp, env->resume_header_and_spill_size);
+  emitStackAlloc(as, env->resume_header_and_spill_size);
   env->addAnnotation(std::string("Allocate stack frame"), alloc_cursor);
 
   asmjit::BaseNode* save_cursor = as->cursor();
@@ -1155,7 +1185,7 @@ void translateSetupFrame(Environ* env, const Instruction*) {
         env->resume_header_and_spill_size - gp_save_count * kPointerSize -
         vecd_area_size;
     if (vecd_area_size + arg_buffer_size > 0) {
-      as->sub(x86::rsp, vecd_area_size + arg_buffer_size);
+      emitStackAlloc(as, vecd_area_size + arg_buffer_size);
     }
     // Save XMM registers into [rsp + arg_buffer_size + offset]
     int xmm_offset = arg_buffer_size;
@@ -1169,9 +1199,7 @@ void translateSetupFrame(Environ* env, const Instruction*) {
   } else {
     int arg_buffer_size = env->resume_frame_total_size -
         env->resume_header_and_spill_size - gp_save_count * kPointerSize;
-    if (arg_buffer_size > 0) {
-      as->sub(x86::rsp, arg_buffer_size);
-    }
+    emitStackAlloc(as, arg_buffer_size);
   }
   env->addAnnotation(std::string("Save callee-saved registers"), save_cursor);
 #elif defined(CINDER_AARCH64)

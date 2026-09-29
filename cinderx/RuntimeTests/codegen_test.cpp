@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/codegen/arch.h"
+#include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
@@ -91,5 +92,104 @@ TEST_F(CodegenTest, PopulateCodeSectionsIncludesNonemptyExecutableSections) {
   };
   EXPECT_EQ(sections, expected);
 }
+
+#if defined(CINDER_X86_64)
+
+namespace {
+
+// The page size emitStackAlloc() walks in.  Spelled out rather than shared so
+// the test fails if the emitter's notion of a page changes silently.
+constexpr int kProbePageSize = 4096;
+
+struct StackAllocShape {
+  std::vector<int> subs;
+  int probes{0};
+};
+
+// Emit a stack allocation and report the `sub rsp` immediates and the number
+// of `or qword [rsp], 0` probes between them.
+StackAllocShape emitStackAllocShape(int bytes) {
+  asmjit::CodeHolder code;
+  code.init(asmjit::Environment::host());
+  arch::Builder as{&code};
+
+  autogen::emitStackAlloc(&as, bytes);
+
+  StackAllocShape shape;
+  for (asmjit::BaseNode* node = as.firstNode(); node != nullptr;
+       node = node->next()) {
+    if (!node->isInst()) {
+      continue;
+    }
+    auto* inst = node->as<asmjit::InstNode>();
+    if (inst->id() == asmjit::x86::Inst::kIdSub) {
+      shape.subs.push_back(
+          static_cast<int>(inst->op(1).as<asmjit::Imm>().value()));
+    } else if (inst->id() == asmjit::x86::Inst::kIdOr) {
+      shape.probes++;
+    }
+  }
+  return shape;
+}
+
+// Only Windows commits stack pages lazily behind a guard page.
+constexpr bool kWalksPages = kOS == OS::kWindows;
+
+} // namespace
+
+TEST(StackAllocTest, NothingIsEmittedForAnEmptyFrame) {
+  EXPECT_TRUE(emitStackAllocShape(0).subs.empty());
+  EXPECT_TRUE(emitStackAllocShape(-8).subs.empty());
+}
+
+TEST(StackAllocTest, AFrameWithinAPageIsASingleSub) {
+  // Nothing can be skipped over, so there is no reason to walk.
+  for (int bytes : {8, 512, kProbePageSize}) {
+    StackAllocShape shape = emitStackAllocShape(bytes);
+    EXPECT_EQ(shape.subs, std::vector<int>{bytes}) << "for " << bytes;
+    EXPECT_EQ(shape.probes, 0) << "for " << bytes;
+  }
+}
+
+TEST(StackAllocTest, AFrameSpanningPagesTouchesEachOne) {
+  constexpr int kRemainder = 1600;
+  constexpr int kBytes = 2 * kProbePageSize + kRemainder;
+
+  StackAllocShape shape = emitStackAllocShape(kBytes);
+
+  if (kWalksPages) {
+    // One step per page, each followed by a write that lands on it, then the
+    // rest.  Reaching the last page without touching the ones above it is the
+    // bug this guards.
+    EXPECT_EQ(
+        shape.subs,
+        (std::vector<int>{kProbePageSize, kProbePageSize, kRemainder}));
+    EXPECT_EQ(shape.probes, 2);
+  } else {
+    EXPECT_EQ(shape.subs, std::vector<int>{kBytes});
+    EXPECT_EQ(shape.probes, 0);
+  }
+}
+
+TEST(StackAllocTest, TheWalkCoversTheWholeFrame) {
+  for (int bytes : {kProbePageSize + 1, 9792, 64 * 1024}) {
+    StackAllocShape shape = emitStackAllocShape(bytes);
+    int total = 0;
+    for (int sub : shape.subs) {
+      total += sub;
+    }
+    EXPECT_EQ(total, bytes) << "for " << bytes;
+    if (kWalksPages) {
+      // More than a page, so it has to be more than one step -- without this
+      // the probe count below is satisfied by not walking at all.
+      EXPECT_GT(shape.subs.size(), 1u) << "for " << bytes;
+      // Every step but the last is a whole page, so each has a probe.
+      EXPECT_EQ(shape.probes, static_cast<int>(shape.subs.size()) - 1)
+          << "for " << bytes;
+    }
+  }
+}
+
+#endif
 
 } // namespace cinderx::jit::codegen

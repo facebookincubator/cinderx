@@ -9,6 +9,14 @@
 
 namespace cinderx::jit::codegen::autogen {
 
+#if defined(CINDER_X86_64)
+// Grow the stack by `bytes`.  Where the platform commits stack pages lazily
+// behind a guard page, this walks down a page at a time rather than moving the
+// stack pointer past it in one step.  Declared here so the shape of what it
+// emits can be tested directly.
+void emitStackAlloc(arch::Builder* as, int bytes);
+#endif
+
 // A machine code generator from LIR.
 class AutoTranslator {
  public:
