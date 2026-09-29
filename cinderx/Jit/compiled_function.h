@@ -10,13 +10,31 @@
 extern "C" {
 #endif
 
+// Mirrors CINDER_X86_64 from Common/define.h, which this part of the header
+// cannot include: everything down to the closing `extern "C"` has to stay
+// compilable as C, and that header declares C++.  The offsets below have to
+// agree with the encodings gen_asm.cpp emits under CINDER_X86_64, so both
+// blocks key off one condition rather than spelling it out twice.
+#if defined(__x86_64__) || defined(_M_AMD64)
+#define JITRT_ENTRY_OFFSETS_X86_64
+#endif
+
 // Specifies the offset from a JITed function entry point where the re-entry
 // point for calling with the correct bound args lives.
-#if defined(__x86_64__)
-// push rbp
-// mov rbp, rsp
-// jmp correct-bound-args
+#if defined(JITRT_ENTRY_OFFSETS_X86_64)
+// push rbp                 1 byte
+// mov rbp, rsp             3 bytes
+// jmp correct-bound-args   2 bytes short, 5 bytes near
+//
+// Windows needs the near form. The sret bridge that the ABI forces into the
+// argcount check puts `correct-bound-args` beyond the 127 bytes a short jump
+// can reach, and this offset is what pins the jump to one encoding or the
+// other. Everywhere else keeps the short form and the smaller offset.
+#if defined(_WIN32)
+#define JITRT_CALL_REENTRY_OFFSET (-9)
+#else
 #define JITRT_CALL_REENTRY_OFFSET (-6)
+#endif
 #elif defined(__aarch64__)
 // stp fp, lr, [sp, #-16]!
 // mov fp, sp
@@ -33,14 +51,22 @@ extern "C" {
 
 // Specifies the offset from a JITed function entry point where the static
 // entry point lives.
-#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
+#if defined(JITRT_ENTRY_OFFSETS_X86_64)
+// The static entry point is a fixed 13 bytes and sits immediately before the
+// re-entry point, so this offset tracks JITRT_CALL_REENTRY_OFFSET.
+#if defined(_WIN32)
+#define JITRT_STATIC_ENTRY_OFFSET (-22)
+#else
 #define JITRT_STATIC_ENTRY_OFFSET (-19)
+#endif
 #elif defined(__aarch64__)
 #define JITRT_STATIC_ENTRY_OFFSET (-28)
 #else
 // Without JIT support there's no entry offset.
 #define JITRT_STATIC_ENTRY_OFFSET (0)
 #endif
+
+#undef JITRT_ENTRY_OFFSETS_X86_64
 
 // Fixes the JITed function entry point up to be the static entry point after
 // binding the args.

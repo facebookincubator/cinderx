@@ -1418,7 +1418,12 @@ void NativeGenerator::generateCode(
   as_->bind(correct_args_entry);
   generateFunctionEntry();
 
-#if defined(CINDER_X86_64)
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // The near form, to match JITRT_CALL_REENTRY_OFFSET. A short jump cannot
+  // reach `correct_arg_count` on Windows: the sret bridge the ABI forces into
+  // the argcount check pushes it past the 127-byte limit.
+  as_->long_().jmp(env_.correct_arg_count);
+#elif defined(CINDER_X86_64)
   as_->short_().jmp(env_.correct_arg_count);
 #elif defined(CINDER_AARCH64)
   as_->b(env_.correct_arg_count);
@@ -1538,7 +1543,7 @@ void NativeGenerator::generateCode(
   // ------------- code_start_
   // ^
   // | JITRT_STATIC_ENTRY_OFFSET
-  // | JITRT_CALL_REENTRY_OFFSET (6 bytes)
+  // | JITRT_CALL_REENTRY_OFFSET (6 bytes, 9 on Windows)
   // v
   // ------------- vectorcall_entry_
   if (has_static_entry) {
