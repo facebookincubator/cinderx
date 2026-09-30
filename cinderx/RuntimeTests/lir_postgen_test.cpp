@@ -119,39 +119,49 @@ TEST_F(LIRPostGenerationRewriteTest, DoesNotAllowMultipleLSCRPerCall) {
 }
 
 TEST_F(LIRPostGenerationRewriteTest, MovesLoadSecondCallResultIntoPhiBlock) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %2
-  %10 = Call 0
-  CondBranch %10, BB%1, BB%2
-BB %1 - succs: %3
-  %11 = Call 0
-  Branch BB%3
-BB %2 - succs: %3
-  %12 = Call 0
-  Branch BB%3
-BB %3 - succs: %4
-  %13 = Phi (BB%1, %11), (BB%2, %12)
-  Branch BB%4
-BB %4
-  %14:32bit = LoadSecondCallResult %13
-  Return %14
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* left = function.allocateBasicBlock();
+  BasicBlock* right = function.allocateBasicBlock();
+  BasicBlock* phi_block = function.allocateBasicBlock();
+  BasicBlock* return_block = function.allocateBasicBlock();
 
-  auto function = runPostGenRewrite(lir_input_str);
-  Instruction* source_phi = nullptr;
-  Instruction* rewritten = nullptr;
-  for (BasicBlock* block : function->basicBlocks()) {
-    for (auto& instruction : block->instructions()) {
-      if (instruction->id() == 13) {
-        source_phi = instruction.get();
-      } else if (instruction->id() == 14) {
-        rewritten = instruction.get();
-      }
-    }
-  }
+  entry->addSuccessor(left);
+  entry->addSuccessor(right);
 
-  ASSERT_NE(source_phi, nullptr);
-  ASSERT_NE(rewritten, nullptr);
+  IncomingEdge left_edge = left->addSuccessor(phi_block);
+  IncomingEdge right_edge = right->addSuccessor(phi_block);
+  phi_block->addSuccessor(return_block);
+
+  Instruction* entry_call =
+      entry->allocateInstr(Opcode::kCall, nullptr, OutVReg{}, Imm{0});
+  entry->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{entry_call}, Lbl{left}, Lbl{right});
+
+  Instruction* left_call =
+      left->allocateInstr(Opcode::kCall, nullptr, OutVReg{}, Imm{0});
+  left->allocateInstr(Opcode::kBranch, nullptr, Lbl{phi_block});
+
+  Instruction* right_call =
+      right->allocateInstr(Opcode::kCall, nullptr, OutVReg{}, Imm{0});
+  right->allocateInstr(Opcode::kBranch, nullptr, Lbl{phi_block});
+
+  Instruction* source_phi =
+      phi_block->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  source_phi->addPhiInput(left_edge, left_call);
+  source_phi->addPhiInput(right_edge, right_call);
+  phi_block->allocateInstr(Opcode::kBranch, nullptr, Lbl{return_block});
+
+  Instruction* rewritten = return_block->allocateInstr(
+      Opcode::kLoadSecondCallResult,
+      nullptr,
+      OutVReg{DataType::k32bit},
+      VReg{source_phi});
+  return_block->allocateInstr(Opcode::kReturn, nullptr, VReg{rewritten});
+
+  codegen::Environ env;
+  PostGenerationRewrite(&function, &env).run();
+
   EXPECT_TRUE(rewritten->isPhi());
   EXPECT_EQ(rewritten->basicBlock(), source_phi->basicBlock());
   EXPECT_EQ(rewritten->output()->dataType(), DataType::k32bit);
