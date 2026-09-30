@@ -1871,12 +1871,9 @@ BB %10
 )",
       PhyLocation{10, 64},
       PhyLocation{11, 64},
-#if defined(CINDER_X86_64)
-      PhyLocation{7, 64}
-#else
-      PhyLocation{0, 64}
-#endif
-  );
+      // The function argument, in whichever register the ABI passes it: RDI on
+      // System V, RCX on Windows, X0 on AArch64.
+      PhyLocation{codegen::ARGUMENT_REGS[0].loc, 64});
 #else
   auto lir_expected = fmt::format(
       R"(Function:
@@ -1912,12 +1909,9 @@ BB %10
 )",
       PhyLocation{10, 64},
       PhyLocation{11, 64},
-#if defined(CINDER_X86_64)
-      PhyLocation{7, 64}
-#else
-      PhyLocation{0, 64}
-#endif
-  );
+      // The function argument, in whichever register the ABI passes it: RDI on
+      // System V, RCX on Windows, X0 on AArch64.
+      PhyLocation{codegen::ARGUMENT_REGS[0].loc, 64});
 #endif
   ASSERT_EQ(ss.str(), lir_expected.c_str());
 }

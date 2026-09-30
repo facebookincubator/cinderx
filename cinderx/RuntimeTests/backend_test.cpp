@@ -19,6 +19,7 @@
 // NOLINTNEXTLINE(facebook-unused-include-check)
 #include "internal/pycore_ceval.h" // SPECIAL___ENTER__
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstddef>
 // NOLINTNEXTLINE(facebook-hte-BadInclude-regex)
@@ -681,7 +682,20 @@ TEST_F(BackendTest, ManyArguments) {
   auto epilogue = lirfunc->allocateBasicBlock();
   bb->addSuccessor(epilogue);
 
-  constexpr int kArgBufferSize = 32; // 4 arguments need to pass by stack
+  // rt_func takes 8 integers and 10 doubles.  System V draws the two kinds
+  // from separate register files -- 6 general-purpose and 8 vector -- so 2 of
+  // each spill and the buffer holds 4.  Windows gives them one shared set of 4
+  // positional slots, so everything from the fifth argument on spills, and the
+  // buffer also has to cover the callee's shadow space.
+  constexpr int kNumIntArgs = 8;
+  constexpr int kNumFpArgs = 10;
+  constexpr int kNumStackArgs = kOS == OS::kWindows
+      ? (kNumIntArgs + kNumFpArgs) - static_cast<int>(ARGUMENT_REGS.size())
+      : std::max<int>(0, kNumIntArgs - static_cast<int>(ARGUMENT_REGS.size())) +
+          std::max<int>(
+              0, kNumFpArgs - static_cast<int>(FP_ARGUMENT_REGS.size()));
+  constexpr int kArgBufferSize =
+      kShadowSpaceSize + kNumStackArgs * kPointerSize;
   auto func = (double (*)())SimpleCompile(lirfunc.get(), kArgBufferSize);
 
   double expected = std::apply(rt_func, args);
