@@ -11,6 +11,7 @@ extern "C" {
 #include "internal/pycore_interp.h"
 #include "internal/pycore_intrinsics.h"
 #include "internal/pycore_pyerrors.h"
+#include "internal/pycore_pystate.h"
 #include "internal/pycore_unicodeobject.h"
 
 #if PY_VERSION_HEX >= 0x030D0000
@@ -71,6 +72,11 @@ namespace {
 
 #ifndef Py_GIL_DISABLED
 constexpr size_t kRefcountOffset = offsetof(PyObject, ob_refcnt);
+#else
+// ob_tid stores _Py_ThreadId(), which is not PyThreadState.thread_id on every
+// platform. CPython caches the ownership token in the BRC thread state.
+constexpr size_t kBrcThreadIdOffset =
+    offsetof(_PyThreadStateImpl, brc) + offsetof(_brc_thread_state, tid);
 #endif
 
 bool instructionHasDeoptExit(const Instruction* instr) {
@@ -2015,9 +2021,8 @@ void LIRGenerator::makeIncrefFreeThreaded(
     lir::Instruction* instr,
     BasicBlock* end_incref) {
   // Inline the common-case incref for free-threading. Check thread ownership
-  // (ob_tid == tstate->thread_id) and use a relaxed atomic store for
-  // thread-owned objects. Fall back to rt::incRefShared for objects owned
-  // by other threads.
+  // and use a relaxed atomic store for thread-owned objects. Fall back to
+  // rt::incRefShared for objects owned by other threads.
 
   BasicBlock* slow_incref = bbb.allocateBlock();
 
@@ -2045,7 +2050,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
   bbb.appendInstr(Opcode::kInc, ref_local);
   bbb.appendBranch(Condition::kEqual, end_incref);
 
-  // Check thread ownership: ob_tid vs tstate->thread_id.
+  // Check thread ownership: ob_tid vs the current BRC thread ID.
   BasicBlock* check_owner = bbb.allocateBlock();
   bbb.appendBlock(check_owner);
   Instruction* ob_tid = bbb.appendInstr(
@@ -2053,12 +2058,11 @@ void LIRGenerator::makeIncrefFreeThreaded(
       Opcode::kLoad,
       MemoryOrder::kRelaxed,
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
-  Instruction* thread_id = bbb.appendInstr(
+  Instruction* brc_thread_id = bbb.appendInstr(
       OutVReg{DataType::k64bit},
       Opcode::kLoad,
-      Ind{env_->asm_tstate,
-          static_cast<int>(offsetof(PyThreadState, thread_id))});
-  bbb.appendInstr(Opcode::kCmp, ob_tid, thread_id);
+      Ind{env_->asm_tstate, static_cast<int>(kBrcThreadIdOffset)});
+  bbb.appendInstr(Opcode::kCmp, ob_tid, brc_thread_id);
   bbb.appendBranch(Condition::kNotEqual, slow_incref);
 
   // Fast path: thread-owned, store incremented ob_ref_local with relaxed
@@ -2257,7 +2261,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
   bbb.appendInstr(Opcode::kTest32, ref_local, ref_local);
   bbb.appendBranch(Condition::kSign, end_decref);
 
-  // Check thread ownership: ob_tid vs tstate->thread_id.
+  // Check thread ownership: ob_tid vs the current BRC thread ID.
   BasicBlock* check_owner = bbb.allocateBlock();
   bbb.appendBlock(check_owner);
   Instruction* ob_tid = bbb.appendInstr(
@@ -2265,12 +2269,11 @@ void LIRGenerator::makeDecrefFreeThreaded(
       Opcode::kLoad,
       MemoryOrder::kRelaxed,
       Ind{instr, static_cast<int>(offsetof(PyObject, ob_tid))});
-  Instruction* thread_id = bbb.appendInstr(
+  Instruction* brc_thread_id = bbb.appendInstr(
       OutVReg{DataType::k64bit},
       Opcode::kLoad,
-      Ind{env_->asm_tstate,
-          static_cast<int>(offsetof(PyThreadState, thread_id))});
-  bbb.appendInstr(Opcode::kCmp, ob_tid, thread_id);
+      Ind{env_->asm_tstate, static_cast<int>(kBrcThreadIdOffset)});
+  bbb.appendInstr(Opcode::kCmp, ob_tid, brc_thread_id);
   bbb.appendBranch(Condition::kNotEqual, slow_decref);
 
   // Fast path: thread-owned, decrement and store with relaxed semantics.
