@@ -7,7 +7,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <mutex>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -16,6 +15,8 @@ namespace cinderx {
 
 // A mixed-type bump allocator that keeps allocated addresses stable and
 // destroys non-trivially-destructible objects when the arena is destroyed.
+// BumpArena is not thread-safe; callers must confine each instance to one
+// thread or provide external synchronization.
 class BumpArena {
  public:
   BumpArena() = default;
@@ -31,8 +32,6 @@ class BumpArena {
       typename SizeTrait = ObjectSizeTrait<T>,
       typename... Args>
   T* allocate(Args&&... args) {
-    std::lock_guard<std::mutex> guard{mutex_};
-
     const size_t size = SizeTrait::size();
     JIT_CHECK(size >= sizeof(T), "SizeTrait must allocate enough space");
 
@@ -69,7 +68,6 @@ class BumpArena {
   std::vector<Block> blocks_;
   std::vector<Destructor> destructors_;
   size_t next_block_size_{size_t{kPageSize}};
-  std::mutex mutex_;
 };
 
 } // namespace cinderx
