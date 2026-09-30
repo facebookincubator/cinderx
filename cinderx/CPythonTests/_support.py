@@ -6,17 +6,19 @@ from __future__ import annotations
 
 import atexit
 import contextlib
-import fnmatch
 import functools
+import importlib
 import tempfile
 import unittest
 from pathlib import Path
 
 from cinderx.TestScripts.skip_list_support import (
+    expand_test_patterns,
     get_required_skip_list_files,
     get_skip_list_files,
     is_test_module_skipped,
     iter_tests,
+    matches_test_patterns,
     parse_skip_lists,
 )
 from cpython_tests.skipped_tests import SKIPPED_TESTS
@@ -42,53 +44,55 @@ def use_temp_cwd() -> None:
 
 
 @functools.lru_cache(maxsize=1)
-def _skip_list_rules() -> tuple[frozenset[str], tuple[str, ...]]:
-    skip_list_files = get_skip_list_files(
-        include_platform=False,
-    )
+def _exclusions() -> tuple[frozenset[str], tuple[str, ...]]:
+    """Excluded top-level modules, and test-id patterns, from both sources.
+
+    The runner's shared skip lists and Tier 1's own SKIPPED_TESTS are applied
+    identically once expanded, so they share one cache and one matching pass.
+    Expanding SKIPPED_TESTS lets a class or module entry cover its members,
+    which matters for suites whose failing member varies between runs.
+    """
+    skip_list_files = get_skip_list_files(include_platform=False)
     modules, patterns = parse_skip_lists(
         Path(__file__).parent / "skip_lists",
         skip_list_files,
         required=get_required_skip_list_files(skip_list_files),
     )
-    return frozenset(modules), tuple(patterns)
-
-
-def _is_skip_listed(test_id: str) -> bool:
-    modules, patterns = _skip_list_rules()
-    if is_test_module_skipped(test_id, modules):
-        return True
-    parts = test_id.split(".")
-    return any(
-        fnmatch.fnmatchcase(test_id, pattern)
-        or any(fnmatch.fnmatchcase(part, pattern) for part in parts)
-        for pattern in patterns
+    return frozenset(modules), tuple(patterns) + tuple(
+        expand_test_patterns(SKIPPED_TESTS)
     )
 
 
-def _is_skipped(test_id: str) -> bool:
-    """Match an exact test id, or any prefix of it at a dotted boundary.
-
-    Prefixes let a whole class or module be excluded with one entry, which
-    matters for suites whose members fail interchangeably from run to run --
-    listing them individually never converges.
-    """
-    if test_id in SKIPPED_TESTS:
-        return True
-    parts = test_id.split(".")
-    return any(".".join(parts[:i]) in SKIPPED_TESTS for i in range(1, len(parts)))
+def _is_excluded(test_id: str) -> bool:
+    modules, patterns = _exclusions()
+    return is_test_module_skipped(test_id, modules) or matches_test_patterns(
+        test_id, patterns
+    )
 
 
-def load_module_tests(loader: unittest.TestLoader, module) -> unittest.TestSuite:
-    """Load `module`'s tests, dropping anything matched by SKIPPED_TESTS.
+def load_module_tests(
+    loader: unittest.TestLoader, module_name: str
+) -> unittest.TestSuite:
+    """Load `module_name`'s tests, dropping anything the runner would skip.
 
     Filtering happens at discovery rather than via `skipTest` so the skipped
     tests never reach TPX at all; a test TPX has listed but cannot re-run by
     dotted name takes the whole batch down with it.
+
+    The import is here rather than at shim import time because whether a module
+    is available depends on the build: CPython raises SkipTest at import for
+    `test_argparse` and a dozen others under ASAN. The partition is classified
+    once, in opt, so it has to hold for every mode. Only SkipTest is caught -- a
+    module that has genuinely gone away on a Python upgrade should still take
+    the target down rather than quietly dropping out.
     """
     suite = unittest.TestSuite()
+    try:
+        module = importlib.import_module(module_name)
+    except unittest.SkipTest:
+        return suite
     for test in iter_tests(loader.loadTestsFromModule(module)):
         test_id = test.id()
-        if not _is_skipped(test_id) and not _is_skip_listed(test_id):
+        if not _is_excluded(test_id):
             suite.addTest(test)
     return suite

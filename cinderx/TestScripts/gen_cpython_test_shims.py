@@ -14,13 +14,11 @@ SHIM_TEMPLATE = '''\
 
 """Run the upstream {module} tests against CinderX."""
 
-import {module} as _module
-
 from cpython_tests._support import load_module_tests
 
 
 def load_tests(loader, tests, pattern):
-    return load_module_tests(loader, _module)
+    return load_module_tests(loader, "{module}")
 '''
 
 

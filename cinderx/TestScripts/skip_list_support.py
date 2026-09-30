@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import importlib
 import platform
 import sys
@@ -117,6 +118,24 @@ def is_test_module_skipped(test_id: str, skip_modules: Set[str]) -> bool:
     """Whether a CPython test id belongs to an excluded top-level module."""
     parts = test_id.split(".")
     return len(parts) >= 2 and parts[0] == "test" and parts[1] in skip_modules
+
+
+def expand_test_patterns(test_ids: Iterable[str]) -> list[str]:
+    """Expand exact test ids so class and module entries include their members."""
+    patterns = []
+    for test_id in test_ids:
+        patterns.extend((test_id, test_id + ".*"))
+    return patterns
+
+
+def matches_test_patterns(test_id: str, patterns: Iterable[str]) -> bool:
+    """Apply regrtest's whole-id and dotted-part pattern semantics."""
+    parts = test_id.split(".")
+    return any(
+        fnmatch.fnmatchcase(test_id, pattern)
+        or any(fnmatch.fnmatchcase(part, pattern) for part in parts)
+        for pattern in patterns
+    )
 
 
 def parse_skip_lists(

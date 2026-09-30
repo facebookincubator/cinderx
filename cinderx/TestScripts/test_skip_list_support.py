@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from cinderx.TestScripts import skip_list_support
+from cpython_tests import _support as cpython_test_support
 
 
 class SkipListFilesTests(unittest.TestCase):
@@ -75,6 +76,39 @@ class SkipModuleTests(unittest.TestCase):
                 {"test_compile"},
             )
         )
+
+
+class SkipPatternTests(unittest.TestCase):
+    def test_matches_whole_ids_and_dotted_parts(self) -> None:
+        test_id = "test.test_bool.BoolTest.test_true"
+        self.assertTrue(skip_list_support.matches_test_patterns(test_id, [test_id]))
+        self.assertTrue(skip_list_support.matches_test_patterns(test_id, ["test_true"]))
+        self.assertFalse(
+            skip_list_support.matches_test_patterns(test_id, ["test_false"])
+        )
+
+    def test_expands_class_and_module_prefixes(self) -> None:
+        patterns = skip_list_support.expand_test_patterns(["test.test_bool.BoolTest"])
+        self.assertTrue(
+            skip_list_support.matches_test_patterns(
+                "test.test_bool.BoolTest.test_true", patterns
+            )
+        )
+
+
+class LoadModuleTests(unittest.TestCase):
+    @mock.patch.object(
+        cpython_test_support.importlib,
+        "import_module",
+        side_effect=unittest.SkipTest("unavailable in this build mode"),
+    )
+    def test_skip_at_import_returns_an_empty_suite(self, import_module) -> None:
+        suite = cpython_test_support.load_module_tests(
+            unittest.TestLoader(), "test.test_mode_gated"
+        )
+
+        self.assertEqual(suite.countTestCases(), 0)
+        import_module.assert_called_once_with("test.test_mode_gated")
 
 
 class ParseSkipListsTests(unittest.TestCase):
