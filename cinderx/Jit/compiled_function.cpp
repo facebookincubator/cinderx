@@ -131,6 +131,7 @@ int compiledfuncdata_traverse(PyObject* self, visitproc visit, void* arg) {
   Py_VISIT(Py_TYPE(self));
   auto cfd = reinterpret_cast<CompiledFunctionData*>(self);
   if (cfd->runtime != nullptr) {
+#ifdef ENABLE_PREFORK_MODEL
     // During shutdown the Context (and its CodeRuntime slab) may be destroyed
     // while CFs still exist in function dicts.  Skip traversal if the JIT
     // context is gone.
@@ -138,6 +139,9 @@ int compiledfuncdata_traverse(PyObject* self, visitproc visit, void* arg) {
     if (mod_state != nullptr && mod_state->jit_context != nullptr) {
       return cfd->runtime->traverse(visit, arg);
     }
+#else
+    return cfd->runtime->traverse(visit, arg);
+#endif
   }
 
   return 0;
@@ -243,9 +247,9 @@ const hir::OpcodeCounts& CompiledFunction::hirOpcodeCounts() const {
 #ifndef ENABLE_PREFORK_MODEL
 const std::vector<InlineCacheSite>& CompiledFunction::inlineCacheSites() const {
   JIT_DCHECK(
-      data_ != nullptr && data_->inline_cache_storage != nullptr,
-      "inline cache storage is not available");
-  return data_->inline_cache_storage->inlineCacheSites();
+      data_ != nullptr && data_->stable_storage != nullptr,
+      "stable storage is not available");
+  return data_->stable_storage->inlineCacheSites();
 }
 #endif
 
@@ -498,6 +502,7 @@ int CompiledFunction::traverse(visitproc visit, void* arg) {
   if (!contiguous_data_) {
     Py_VISIT(data_);
   } else if (data_->runtime != nullptr) {
+#ifdef ENABLE_PREFORK_MODEL
     // During shutdown the Context (and its CodeRuntime slab) may be destroyed
     // while CFs still exist in function dicts.  Skip traversal if the JIT
     // context is gone.
@@ -505,22 +510,27 @@ int CompiledFunction::traverse(visitproc visit, void* arg) {
     if (mod_state != nullptr && mod_state->jit_context != nullptr) {
       return data_->runtime->traverse(visit, arg);
     }
+#else
+    return data_->runtime->traverse(visit, arg);
+#endif
   }
 
   return 0;
 }
 
 void CompiledFunction::clear(bool context_finalizing) {
-  // During shutdown the Context (and its CodeRuntime slab) may be destroyed
-  // while CFs still exist in function dicts.  Null out owner_ and runtime
-  // to avoid dereferencing dangling pointers.
+  // During shutdown the Context and its prefork stable storage may be destroyed
+  // while CFs still exist in function dicts. Null out borrowed pointers to
+  // avoid dereferencing them later.
   if (owner_ != nullptr) {
     cinderx::ModuleState* mod_state = cinderx::getModuleState();
     if (mod_state == nullptr || mod_state->jit_context == nullptr) {
       owner_ = nullptr;
+#ifdef ENABLE_PREFORK_MODEL
       if (data_ != nullptr) {
         data_->runtime = nullptr;
       }
+#endif
     }
   }
 

@@ -44,19 +44,18 @@ TEST_F(InlineCacheTest, CompiledDataOwnsAndReclaimsDiscoverableInlineCaches) {
   int live_count = 0;
   {
     CompiledFunctionData original;
-    original.inline_cache_storage =
-        std::make_unique<PerCompilationInlineCacheStorage>();
-    original.inline_cache_storage->allocateForTesting<InlineCacheLifetime>(
+    original.stable_storage = std::make_unique<PerCompilationStableStorage>();
+    original.stable_storage->allocateForTesting<InlineCacheLifetime>(
         live_count);
 
     const BCOffset bytecode_offset{24};
-    BinaryOpCache* cache = original.inline_cache_storage->allocateBinaryOpCache(
+    BinaryOpCache* cache = original.stable_storage->allocateBinaryOpCache(
         bytecode_offset, BinaryOpKind::kAdd);
 
     CompiledFunctionData moved{std::move(original)};
 
     const std::vector<InlineCacheSite>& sites =
-        moved.inline_cache_storage->inlineCacheSites();
+        moved.stable_storage->inlineCacheSites();
     ASSERT_EQ(sites.size(), 1);
     EXPECT_EQ(sites.front().kind, InlineCacheSite::Kind::kBinaryOp);
     EXPECT_EQ(sites.front().bytecode_offset, bytecode_offset);
@@ -66,17 +65,35 @@ TEST_F(InlineCacheTest, CompiledDataOwnsAndReclaimsDiscoverableInlineCaches) {
   EXPECT_EQ(live_count, 0);
 }
 
+TEST_F(InlineCacheTest, CompiledDataOwnsCodeRuntimeStorage) {
+  Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
+  const Py_ssize_t initial_refcount = Py_REFCNT(func.get());
+
+  {
+    CompiledFunctionData original;
+    original.stable_storage = std::make_unique<PerCompilationStableStorage>();
+    original.runtime = original.stable_storage->allocateCodeRuntime(func);
+    original.runtime->addReference(func.getObj());
+
+    CompiledFunctionData moved{std::move(original)};
+
+    EXPECT_EQ(moved.runtime->code(), func->func_code);
+    EXPECT_EQ(Py_REFCNT(func.get()), initial_refcount + 1);
+  }
+
+  EXPECT_EQ(Py_REFCNT(func.get()), initial_refcount);
+}
+
 TEST_F(InlineCacheTest, DeferredCompiledDataContributesInlineCacheStats) {
   Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
   Context* context = getContext();
   ASSERT_NE(context, nullptr);
 
   CompiledFunctionData data;
-  data.runtime = context->allocateCodeRuntime(func);
-  data.inline_cache_storage =
-      std::make_unique<PerCompilationInlineCacheStorage>();
+  data.stable_storage = std::make_unique<PerCompilationStableStorage>();
+  data.runtime = data.stable_storage->allocateCodeRuntime(func);
   LoadMethodCache* cache =
-      data.inline_cache_storage->allocateLoadMethodCache(BCOffset{24});
+      data.stable_storage->allocateLoadMethodCache(BCOffset{24});
   cache->initCacheStats("deferred.py", "func");
 
   {

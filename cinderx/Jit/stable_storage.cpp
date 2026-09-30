@@ -1,6 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Jit/inline_cache_storage.h"
+#include "cinderx/Jit/stable_storage.h"
 
 #include <utility>
 
@@ -63,55 +63,51 @@ InlineCacheSite::InlineCacheSite(
 }
 
 const std::vector<InlineCacheSite>&
-PerCompilationInlineCacheStorage::inlineCacheSites() const {
+PerCompilationStableStorage::inlineCacheSites() const {
   return inline_cache_sites_;
 }
 
-LoadAttrCache* PerCompilationInlineCacheStorage::allocateLoadAttrCache(
+LoadAttrCache* PerCompilationStableStorage::allocateLoadAttrCache(
     BCOffset bytecode_offset) {
-  auto cache =
-      inline_cache_arena_.allocate<LoadAttrCache, AttributeCacheSizeTrait>();
+  auto cache = arena_.allocate<LoadAttrCache, AttributeCacheSizeTrait>();
   addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
   return cache;
 }
 
-LoadMethodCache* PerCompilationInlineCacheStorage::allocateLoadMethodCache(
+LoadMethodCache* PerCompilationStableStorage::allocateLoadMethodCache(
     BCOffset bytecode_offset) {
-  auto cache = inline_cache_arena_.allocate<LoadMethodCache>();
+  auto cache = arena_.allocate<LoadMethodCache>();
   addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
   return cache;
 }
 
-LoadModuleAttrCache*
-PerCompilationInlineCacheStorage::allocateLoadModuleAttrCache(
+LoadModuleAttrCache* PerCompilationStableStorage::allocateLoadModuleAttrCache(
     BCOffset bytecode_offset) {
-  auto cache = inline_cache_arena_.allocate<LoadModuleAttrCache>();
+  auto cache = arena_.allocate<LoadModuleAttrCache>();
   addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
   return cache;
 }
 
 LoadModuleMethodCache*
-PerCompilationInlineCacheStorage::allocateLoadModuleMethodCache(
+PerCompilationStableStorage::allocateLoadModuleMethodCache(
     BCOffset bytecode_offset) {
-  auto cache = inline_cache_arena_.allocate<LoadModuleMethodCache>();
+  auto cache = arena_.allocate<LoadModuleMethodCache>();
   addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
   return cache;
 }
 
-LoadTypeAttrCache* PerCompilationInlineCacheStorage::allocateLoadTypeAttrCache(
+LoadTypeAttrCache* PerCompilationStableStorage::allocateLoadTypeAttrCache(
     BCOffset bytecode_offset) {
   auto cache = allocateLoadTypeAttrCache();
   addLoadTypeAttrCacheSite(bytecode_offset, cache);
   return cache;
 }
 
-LoadTypeAttrCache*
-PerCompilationInlineCacheStorage::allocateLoadTypeAttrCache() {
-  return inline_cache_arena_.allocate<LoadTypeAttrCache>();
+LoadTypeAttrCache* PerCompilationStableStorage::allocateLoadTypeAttrCache() {
+  return arena_.allocate<LoadTypeAttrCache>();
 }
 
-LoadTypeMethodCache*
-PerCompilationInlineCacheStorage::allocateLoadTypeMethodCache(
+LoadTypeMethodCache* PerCompilationStableStorage::allocateLoadTypeMethodCache(
     BCOffset bytecode_offset) {
   auto cache = allocateLoadTypeMethodCache();
   addLoadTypeMethodCacheSite(bytecode_offset, cache);
@@ -119,101 +115,99 @@ PerCompilationInlineCacheStorage::allocateLoadTypeMethodCache(
 }
 
 LoadTypeMethodCache*
-PerCompilationInlineCacheStorage::allocateLoadTypeMethodCache() {
-  return inline_cache_arena_.allocate<LoadTypeMethodCache>();
+PerCompilationStableStorage::allocateLoadTypeMethodCache() {
+  return arena_.allocate<LoadTypeMethodCache>();
 }
 
-BinaryOpCache* PerCompilationInlineCacheStorage::allocateBinaryOpCache(
+BinaryOpCache* PerCompilationStableStorage::allocateBinaryOpCache(
     BCOffset bytecode_offset,
     hir::BinaryOpKind op) {
-  auto cache = inline_cache_arena_.allocate<BinaryOpCache>(op);
+  auto cache = arena_.allocate<BinaryOpCache>(op);
   addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
   return cache;
 }
 
-StoreAttrCache* PerCompilationInlineCacheStorage::allocateStoreAttrCache(
+StoreAttrCache* PerCompilationStableStorage::allocateStoreAttrCache(
     BCOffset bytecode_offset) {
-  auto cache =
-      inline_cache_arena_.allocate<StoreAttrCache, AttributeCacheSizeTrait>();
+  auto cache = arena_.allocate<StoreAttrCache, AttributeCacheSizeTrait>();
   addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
   return cache;
 }
 
-void PerCompilationInlineCacheStorage::addLoadTypeAttrCacheSite(
+void PerCompilationStableStorage::addLoadTypeAttrCacheSite(
     BCOffset bytecode_offset,
     LoadTypeAttrCache* cache) {
   addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
 }
 
-void PerCompilationInlineCacheStorage::addLoadTypeMethodCacheSite(
+void PerCompilationStableStorage::addLoadTypeMethodCacheSite(
     BCOffset bytecode_offset,
     LoadTypeMethodCache* cache) {
   addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
 }
 
-void PerCompilationInlineCacheStorage::addInlineCacheSite(
-    InlineCacheSite site) {
+void PerCompilationStableStorage::addInlineCacheSite(InlineCacheSite site) {
   inline_cache_sites_.emplace_back(std::move(site));
 }
 
-LoadAttrCache* ContextInlineCacheStorage::allocateLoadAttrCache(
+LoadAttrCache* ContextStableStorage::allocateLoadAttrCache(
     [[maybe_unused]] BCOffset bytecode_offset) {
   return load_attr_caches_.allocate();
 }
 
-LoadTypeAttrCache* ContextInlineCacheStorage::allocateLoadTypeAttrCache() {
+LoadTypeAttrCache* ContextStableStorage::allocateLoadTypeAttrCache() {
   return load_type_attr_caches_.allocate();
 }
 
-LoadTypeAttrCache* ContextInlineCacheStorage::allocateLoadTypeAttrCache(
+LoadTypeAttrCache* ContextStableStorage::allocateLoadTypeAttrCache(
     [[maybe_unused]] BCOffset bytecode_offset) {
   return allocateLoadTypeAttrCache();
 }
 
-LoadMethodCache* ContextInlineCacheStorage::allocateLoadMethodCache(
+LoadMethodCache* ContextStableStorage::allocateLoadMethodCache(
     [[maybe_unused]] BCOffset bytecode_offset) {
   return load_method_caches_.allocate();
 }
 
-LoadModuleAttrCache* ContextInlineCacheStorage::allocateLoadModuleAttrCache(
+LoadModuleAttrCache* ContextStableStorage::allocateLoadModuleAttrCache(
     [[maybe_unused]] BCOffset bytecode_offset) {
   return load_module_attr_caches_.allocate();
 }
 
-LoadModuleMethodCache* ContextInlineCacheStorage::allocateLoadModuleMethodCache(
+LoadModuleMethodCache* ContextStableStorage::allocateLoadModuleMethodCache(
     [[maybe_unused]] BCOffset bytecode_offset) {
   return load_module_method_caches_.allocate();
 }
 
-LoadTypeMethodCache* ContextInlineCacheStorage::allocateLoadTypeMethodCache() {
+LoadTypeMethodCache* ContextStableStorage::allocateLoadTypeMethodCache() {
   return load_type_method_caches_.allocate();
 }
 
-LoadTypeMethodCache* ContextInlineCacheStorage::allocateLoadTypeMethodCache(
+LoadTypeMethodCache* ContextStableStorage::allocateLoadTypeMethodCache(
     [[maybe_unused]] BCOffset bytecode_offset) {
   return allocateLoadTypeMethodCache();
 }
 
-BinaryOpCache* ContextInlineCacheStorage::allocateBinaryOpCache(
+BinaryOpCache* ContextStableStorage::allocateBinaryOpCache(
     [[maybe_unused]] BCOffset bytecode_offset,
     hir::BinaryOpKind op) {
   return binary_op_caches_.allocate(op);
 }
 
-StoreAttrCache* ContextInlineCacheStorage::allocateStoreAttrCache(
+StoreAttrCache* ContextStableStorage::allocateStoreAttrCache(
     [[maybe_unused]] BCOffset bytecode_offset) {
   return store_attr_caches_.allocate();
 }
 
-void ContextInlineCacheStorage::addLoadTypeAttrCacheSite(
+void ContextStableStorage::addLoadTypeAttrCacheSite(
     [[maybe_unused]] BCOffset bytecode_offset,
     [[maybe_unused]] LoadTypeAttrCache* cache) {}
 
-void ContextInlineCacheStorage::addLoadTypeMethodCacheSite(
+void ContextStableStorage::addLoadTypeMethodCacheSite(
     [[maybe_unused]] BCOffset bytecode_offset,
     [[maybe_unused]] LoadTypeMethodCache* cache) {}
 
-InlineCacheStats ContextInlineCacheStorage::getAndClearLoadMethodCacheStats() {
+InlineCacheStats ContextStableStorage::getAndClearLoadMethodCacheStats() {
   InlineCacheStats stats;
   for (auto& cache : load_method_caches_) {
     if (cache.cacheStats() == nullptr) {
@@ -225,8 +219,7 @@ InlineCacheStats ContextInlineCacheStorage::getAndClearLoadMethodCacheStats() {
   return stats;
 }
 
-InlineCacheStats
-ContextInlineCacheStorage::getAndClearLoadTypeMethodCacheStats() {
+InlineCacheStats ContextStableStorage::getAndClearLoadTypeMethodCacheStats() {
   InlineCacheStats stats;
   for (auto& cache : load_type_method_caches_) {
     if (cache.cacheStats() == nullptr) {

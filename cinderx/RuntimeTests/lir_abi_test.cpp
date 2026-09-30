@@ -38,7 +38,7 @@ class LIRABITest : public RuntimeTest {
 
     Environ env;
     env.ctx = getContext();
-    env.code_rt = env.ctx->allocateCodeRuntime(
+    env.code_rt = env.allocateCodeRuntime(
         hirFunction.code.get(),
         hirFunction.builtins.get(),
         hirFunction.globals.get());
@@ -205,7 +205,7 @@ TEST_F(LIRABITest, TestkStorePair_SPBase) {
 
   Environ env;
   env.ctx = getContext();
-  env.code_rt = env.ctx->allocateCodeRuntime(
+  env.code_rt = env.allocateCodeRuntime(
       hir_function.code.get(),
       hir_function.builtins.get(),
       hir_function.globals.get());
@@ -247,7 +247,7 @@ TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
 
   Environ env;
   env.ctx = getContext();
-  env.code_rt = env.ctx->allocateCodeRuntime(
+  env.code_rt = env.allocateCodeRuntime(
       hir_function.code.get(),
       hir_function.builtins.get(),
       hir_function.globals.get());

@@ -169,20 +169,22 @@ Context::~Context() {
     unpublishNestedCompileData(data.get());
   }
 
-  // Clear all of the CompiledFunction's before we clear out the memory used for
-  // the CodeRuntime allocated in the slab.
+  // Clear all of the CompiledFunctions before destroying context-owned stable
+  // storage.
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   for (auto& code : compiled_codes_) {
     code.second->clear(true /* context_finalizing */);
   }
 
+#ifdef ENABLE_PREFORK_MODEL
   // Also clear orphaned CFs (from clearForMultithreadedCompileTest) whose
-  // data_ still references CodeRuntimes in our slab.
+  // data_ still references CodeRuntimes in context-owned storage.
   for (auto& cf : orphaned_compiled_codes_) {
     if (cf->data() != nullptr && cf->data()->runtime != nullptr) {
       cf->data()->runtime = nullptr;
     }
   }
+#endif
 
   // The deferred map holds owning references to module dicts (the code's
   // globals/builtins captured in OwnedCompilationKey) as well as the
@@ -205,8 +207,8 @@ Context::~Context() {
 }
 
 void Context::mlockProfilerDependencies() {
-#ifndef WIN32
-  for (auto& codert : code_runtimes_) {
+#if !defined(WIN32) && defined(ENABLE_PREFORK_MODEL)
+  for (auto& codert : stable_storage_.codeRuntimes()) {
     if (codert.isCleared()) {
       continue;
     }
@@ -217,7 +219,7 @@ void Context::mlockProfilerDependencies() {
     ::mlock(code, sizeof(PyCodeObject));
     ::mlock(code->co_qualname, Py_SIZE(code->co_qualname));
   }
-  code_runtimes_.mlock();
+  stable_storage_.codeRuntimes().mlock();
 #endif
 }
 
@@ -229,7 +231,8 @@ Ref<> Context::pageInProfilerDependencies() {
   // but perf isn't a major concern.
   {
     JITCompilationLock lock;
-    for (auto& code_rt : code_runtimes_) {
+#ifdef ENABLE_PREFORK_MODEL
+    for (auto& code_rt : stable_storage_.codeRuntimes()) {
       if (code_rt.isCleared()) {
         continue;
       }
@@ -239,6 +242,18 @@ Ref<> Context::pageInProfilerDependencies() {
       }
       qualname_refs.push_back(Ref<>::create(qualname));
     }
+#else
+    for (auto& [_, compiled] : compiled_codes_) {
+      CodeRuntime* code_rt = compiled->runtime();
+      if (code_rt == nullptr || code_rt->isCleared()) {
+        continue;
+      }
+      BorrowedRef<> qualname = code_rt->code()->co_qualname;
+      if (qualname != nullptr) {
+        qualname_refs.push_back(Ref<>::create(qualname));
+      }
+    }
+#endif
   }
 
   Ref<> qualnames = Ref<>::steal(PyList_New(qualname_refs.size()));
@@ -395,20 +410,22 @@ InlineCacheStats Context::getAndClearInlineCacheStats(
     InlineCacheSite::Kind kind) {
   JITCompilationLock lock;
   InlineCacheStats stats;
-  for (auto& code_rt : code_runtimes_) {
-    if (code_rt.isCleared()) {
+  for (auto& [_, compiled] : compiled_codes_) {
+    if (compiled->runtime() == nullptr || compiled->runtime()->isCleared()) {
       continue;
     }
-    BorrowedRef<CompiledFunction> compiled = code_rt.compiledFunction();
-    if (compiled != nullptr) {
-      collectAndClearInlineCacheStats(
-          stats, compiled->inlineCacheSites(), kind);
+    collectAndClearInlineCacheStats(stats, compiled->inlineCacheSites(), kind);
+  }
+  for (auto& compiled : orphaned_compiled_codes_) {
+    if (compiled->runtime() == nullptr || compiled->runtime()->isCleared()) {
+      continue;
     }
+    collectAndClearInlineCacheStats(stats, compiled->inlineCacheSites(), kind);
   }
   withLock(deferred_compile_data_mutex_, [&]() {
     for (auto& entry : deferred_compiled_data_) {
       collectAndClearInlineCacheStats(
-          stats, entry.second->inline_cache_storage->inlineCacheSites(), kind);
+          stats, entry.second->stable_storage->inlineCacheSites(), kind);
     }
   });
   return stats;
@@ -417,7 +434,7 @@ InlineCacheStats Context::getAndClearInlineCacheStats(
 
 InlineCacheStats Context::getAndClearLoadMethodCacheStats() {
 #ifdef ENABLE_PREFORK_MODEL
-  return inline_cache_storage_.getAndClearLoadMethodCacheStats();
+  return stable_storage_.getAndClearLoadMethodCacheStats();
 #else
   return getAndClearInlineCacheStats(InlineCacheSite::Kind::kLoadMethod);
 #endif
@@ -425,7 +442,7 @@ InlineCacheStats Context::getAndClearLoadMethodCacheStats() {
 
 InlineCacheStats Context::getAndClearLoadTypeMethodCacheStats() {
 #ifdef ENABLE_PREFORK_MODEL
-  return inline_cache_storage_.getAndClearLoadTypeMethodCacheStats();
+  return stable_storage_.getAndClearLoadTypeMethodCacheStats();
 #else
   return getAndClearInlineCacheStats(InlineCacheSite::Kind::kLoadTypeMethod);
 #endif
@@ -446,19 +463,77 @@ void Context::clearGuardFailureCallback() {
 }
 
 void Context::releaseReferences() {
-  for (auto& code_rt : code_runtimes_) {
+#ifdef ENABLE_PREFORK_MODEL
+  for (auto& code_rt : stable_storage_.codeRuntimes()) {
     if (code_rt.isCleared()) {
       continue;
     }
     code_rt.releaseReferences();
   }
+#else
+  // CodeRuntime owns the compilation identity objects through its reference
+  // set, but CompiledFunction::~CompiledFunction() reads the corresponding
+  // borrowed fields when it defers CompiledFunctionData destruction. Keep the
+  // identities alive until after the temporary CompiledFunction references
+  // below have been released. The declaration order is intentional: locals
+  // are destroyed in reverse order.
+  std::vector<OwnedCompilationKey> compilation_keys;
+  std::vector<Ref<CompiledFunction>> compiled_functions;
+  compilation_keys.reserve(
+      compiled_codes_.size() + orphaned_compiled_codes_.size());
+  compiled_functions.reserve(
+      compiled_codes_.size() + orphaned_compiled_codes_.size());
+  for (auto& [_, compiled] : compiled_codes_) {
+    CodeRuntime* runtime = compiled->runtime();
+    if (runtime != nullptr && !runtime->isCleared()) {
+      compilation_keys.emplace_back(
+          Ref<>::create(runtime->code()),
+          Ref<>::create(runtime->builtins()),
+          Ref<>::create(runtime->globals()));
+    }
+    compiled_functions.emplace_back(Ref<CompiledFunction>::create(compiled));
+  }
+  for (auto& compiled : orphaned_compiled_codes_) {
+    CodeRuntime* runtime = compiled->runtime();
+    if (runtime != nullptr && !runtime->isCleared()) {
+      compilation_keys.emplace_back(
+          Ref<>::create(runtime->code()),
+          Ref<>::create(runtime->builtins()),
+          Ref<>::create(runtime->globals()));
+    }
+    compiled_functions.emplace_back(
+        Ref<CompiledFunction>::create(compiled.get()));
+  }
+  for (auto& compiled : compiled_functions) {
+    if (compiled->runtime() != nullptr && !compiled->runtime()->isCleared()) {
+      compiled->runtime()->releaseReferences();
+    }
+  }
+  for (auto& [_, completed] : completed_compiles_) {
+    CodeRuntime* runtime = completed.first.runtime;
+    if (runtime != nullptr && !runtime->isCleared()) {
+      runtime->releaseReferences();
+    }
+  }
+  std::vector<Ref<CompiledFunctionData>> deferred;
+  withLock(deferred_compile_data_mutex_, [&]() {
+    deferred.reserve(deferred_compiled_data_.size());
+    for (auto& [_, data] : deferred_compiled_data_) {
+      deferred.emplace_back(Ref<CompiledFunctionData>::create(data.get()));
+    }
+  });
+  for (auto& data : deferred) {
+    if (data->runtime != nullptr && !data->runtime->isCleared()) {
+      data->runtime->releaseReferences();
+    }
+  }
+#endif
   type_deopt_patchers_.clear();
 }
 
 #ifdef ENABLE_PREFORK_MODEL
-InlineCacheStorage& Context::inlineCacheStorage(
-    [[maybe_unused]] CodeRuntime& code_runtime) {
-  return inline_cache_storage_;
+StableStorage& Context::stableStorage() {
+  return stable_storage_;
 }
 #endif
 

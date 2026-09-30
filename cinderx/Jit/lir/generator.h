@@ -6,10 +6,10 @@
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/inline_cache_storage.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/block_builder.h"
 #include "cinderx/Jit/lir/function.h"
+#include "cinderx/Jit/stable_storage.h"
 
 #include <memory>
 #include <optional>
@@ -82,7 +82,7 @@ class LIRGenerator {
   const jit::hir::Function* func_{nullptr};
 
   jit::codegen::Environ* env_{nullptr};
-  InlineCacheStorage& inline_cache_storage_;
+  StableStorage& stable_storage_;
 
   bool is_gen_{false};
 
@@ -121,7 +121,7 @@ class LIRGenerator {
   std::vector<BasicBlock*> basic_blocks_;
 
   // Borrowed pointers so type caches can be looked up by cache id. Ownership
-  // is provided by the selected inline cache storage implementation.
+  // is provided by the selected stable storage implementation.
   std::vector<LoadTypeAttrCache*> load_type_attr_caches_;
   std::vector<LoadTypeMethodCache*> load_type_method_caches_;
 #if PY_VERSION_HEX >= 0x030E0000

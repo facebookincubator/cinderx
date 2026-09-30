@@ -98,7 +98,7 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/hir/function.h"
-#include "cinderx/Jit/inline_cache_storage.h"
+#include "cinderx/Jit/stable_storage.h"
 
 #include <chrono>
 #include <cstddef>
@@ -139,15 +139,16 @@ struct CompiledFunctionData {
   // All the code patchers pointing to patch points in this function.
   std::vector<std::unique_ptr<CodePatcher>> code_patchers;
 #ifndef ENABLE_PREFORK_MODEL
-  // Inline caches referenced by this generated code. Keeping them with the
-  // compiled data preserves them during deferred code destruction.
-  std::unique_ptr<PerCompilationInlineCacheStorage> inline_cache_storage;
+  // Stable-address objects referenced by this generated code. Keeping them
+  // with the compiled data preserves them during deferred code destruction.
+  std::unique_ptr<PerCompilationStableStorage> stable_storage;
 #endif
   // The HIR representation of this code object.  Optional, only used when debug
   // logging.
   std::unique_ptr<hir::Function> irfunc;
-  // Runtime state (code object, globals, builtins) shared with the code.  Owned
-  // by the JIT Context's CodeRuntime slab, not by this struct.
+  // Runtime state referenced by the generated code. In prefork builds it is
+  // owned by the JIT Context's stable storage; otherwise it is owned by
+  // stable_storage above.
   CodeRuntime* runtime{nullptr};
 
   CompiledFunctionData() = default;

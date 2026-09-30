@@ -895,7 +895,7 @@ void* NativeGenerator::getVectorcallEntry() {
 
   env_.ctx = getContext();
   env_.reifier = func->env.reifier;
-  env_.code_rt = env_.ctx->allocateCodeRuntime(
+  env_.code_rt = env_.allocateCodeRuntime(
       func->code.get(), func->builtins.get(), func->globals.get());
 
   env_.addReference(func->code.getObj());

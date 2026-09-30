@@ -21,9 +21,9 @@
 #include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
-#include "cinderx/Jit/inline_cache_storage.h"
 #include "cinderx/Jit/nested_compile.h"
 #include "cinderx/Jit/pyjit_result.h"
+#include "cinderx/Jit/stable_storage.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
 
 #include <atomic>
@@ -347,12 +347,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
 
   // Methods moved from Runtime class
 
-  template <typename... Args>
-  CodeRuntime* allocateCodeRuntime(Args&&... args) {
-    JITCompilationLock lock;
-    return code_runtimes_.allocate(std::forward<Args>(args)...);
-  }
-
   void mlockProfilerDependencies();
 
   // Find a cache for the indirect static entry point for a function.
@@ -415,7 +409,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   void releaseReferences();
 
 #ifdef ENABLE_PREFORK_MODEL
-  InlineCacheStorage& inlineCacheStorage(CodeRuntime& code_runtime);
+  StableStorage& stableStorage();
 #endif
 
   const Builtins& builtins();
@@ -548,12 +542,8 @@ class Context : public IJitContext, public CompiledFunctionOwner {
     return code_outer_funcs_;
   }
 
-  // Allocate all CodeRuntimes together so they can be mlocked() without
-  // including any other data that happened to be on the same page.
-  SlabArena<CodeRuntime> code_runtimes_;
-
 #ifdef ENABLE_PREFORK_MODEL
-  ContextInlineCacheStorage inline_cache_storage_;
+  ContextStableStorage stable_storage_;
 #endif
   SlabArena<void*> pointer_caches_;
 

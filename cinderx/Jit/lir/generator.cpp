@@ -314,17 +314,17 @@ LIRGenerator::LIRGenerator(
     jit::codegen::Environ* env)
     : func_(func),
       env_(env),
-      inline_cache_storage_(env->inlineCacheStorage()),
+      stable_storage_(env->stableStorage()),
       is_gen_(
           func->code != nullptr &&
           (func->code->co_flags & kCoFlagsAnyGenerator)) {
   for (int i = 0, n = func->env.numLoadTypeAttrCaches(); i < n; i++) {
     load_type_attr_caches_.emplace_back(
-        inline_cache_storage_.allocateLoadTypeAttrCache());
+        stable_storage_.allocateLoadTypeAttrCache());
   }
   for (int i = 0, n = func->env.numLoadTypeMethodCaches(); i < n; i++) {
     load_type_method_caches_.emplace_back(
-        inline_cache_storage_.allocateLoadTypeMethodCache());
+        stable_storage_.allocateLoadTypeMethodCache());
   }
 }
 
@@ -3391,8 +3391,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* base = instr->getOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
         if (getConfig().attr_caches) {
-          auto cache = inline_cache_storage_.allocateLoadAttrCache(
-              instr->bytecodeOffset());
+          auto cache =
+              stable_storage_.allocateLoadAttrCache(instr->bytecodeOffset());
           if constexpr (kInlineCachesTargetPromote) {
             // The cache picks its own entry point based on how many entries it
             // holds, so load the callee from the cache rather than baking it
@@ -3445,7 +3445,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto instr = &i.as<FillTypeAttrCache>();
         Instruction* name = getNameFromIdx(bbb, instr);
         auto cache = load_type_attr_caches_.at(instr->cacheId());
-        inline_cache_storage_.addLoadTypeAttrCacheSite(
+        stable_storage_.addLoadTypeAttrCacheSite(
             instr->bytecodeOffset(), cache);
         bbb.appendCallInstruction(
             instr->output(),
@@ -3462,7 +3462,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto instr = &i.as<FillTypeMethodCache>();
         Instruction* name = getNameFromIdx(bbb, instr);
         auto cache_entry = load_type_method_caches_.at(instr->cacheId());
-        inline_cache_storage_.addLoadTypeMethodCacheSite(
+        stable_storage_.addLoadTypeMethodCacheSite(
             instr->bytecodeOffset(), cache_entry);
         if (getConfig().collect_attr_cache_stats) {
           BorrowedRef<PyCodeObject> code = instr->frameState()->code;
@@ -3513,8 +3513,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* base = instr->receiver();
         Instruction* name = getNameFromIdx(bbb, instr);
         if (getConfig().attr_caches) {
-          auto cache = inline_cache_storage_.allocateLoadMethodCache(
-              instr->bytecodeOffset());
+          auto cache =
+              stable_storage_.allocateLoadMethodCache(instr->bytecodeOffset());
           if (getConfig().collect_attr_cache_stats) {
             BorrowedRef<PyCodeObject> code = instr->frameState()->code;
             cache->initCacheStats(
@@ -3534,7 +3534,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Inline caches must be enabled to use LoadModuleAttrCached");
         auto instr = &i.as<LoadModuleAttrCached>();
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache = inline_cache_storage_.allocateLoadModuleAttrCache(
+        auto cache = stable_storage_.allocateLoadModuleAttrCache(
             instr->bytecodeOffset());
         bbb.appendCallInstruction(
             instr->output(),
@@ -3550,7 +3550,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             "Inline caches must be enabled to use LoadModuleMethodCached");
         auto instr = &i.as<LoadModuleMethodCached>();
         Instruction* name = getNameFromIdx(bbb, instr);
-        auto cache_entry = inline_cache_storage_.allocateLoadModuleMethodCache(
+        auto cache_entry = stable_storage_.allocateLoadModuleMethodCache(
             instr->bytecodeOffset());
         appendCall2RetValues(
             bbb,
@@ -3620,7 +3620,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         }
 
         if (cache_entry != nullptr) {
-          BinaryOpCache* cache = inline_cache_storage_.allocateBinaryOpCache(
+          BinaryOpCache* cache = stable_storage_.allocateBinaryOpCache(
               bin_op->bytecodeOffset(), bin_op->op());
           // Emit a direct call to the op-specific dispatch entry point. Each
           // entry point switches on the cache's per-op specialization enum.
@@ -4091,8 +4091,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         hir::Register* value = instr->getOperand(1);
         if (getConfig().attr_caches) {
-          auto cache = inline_cache_storage_.allocateStoreAttrCache(
-              instr->bytecodeOffset());
+          auto cache =
+              stable_storage_.allocateStoreAttrCache(instr->bytecodeOffset());
           // See kLoadAttr: the callee lives in the cache.
           Instruction* result;
           if constexpr (kInlineCachesTargetPromote) {

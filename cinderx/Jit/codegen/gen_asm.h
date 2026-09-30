@@ -79,8 +79,8 @@ class NativeGenerator {
   }
 
 #ifndef ENABLE_PREFORK_MODEL
-  std::unique_ptr<PerCompilationInlineCacheStorage> takeInlineCacheStorage() {
-    return env_.takeInlineCacheStorage();
+  std::unique_ptr<PerCompilationStableStorage> takeStableStorage() {
+    return env_.takeStableStorage();
   }
 #endif
 

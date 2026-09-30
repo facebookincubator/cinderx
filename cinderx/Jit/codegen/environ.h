@@ -8,7 +8,7 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/debug_info.h"
-#include "cinderx/Jit/inline_cache_storage.h"
+#include "cinderx/Jit/stable_storage.h"
 
 #include <asmjit/asmjit.h>
 
@@ -123,23 +123,28 @@ struct Environ {
   // Runtime data for this function.
   jit::CodeRuntime* code_rt{nullptr};
 
-  InlineCacheStorage& inlineCacheStorage() {
+  template <typename... Args>
+  CodeRuntime* allocateCodeRuntime(Args&&... args) {
+    return stableStorage().allocateCodeRuntime(std::forward<Args>(args)...);
+  }
+
+  StableStorage& stableStorage() {
 #ifdef ENABLE_PREFORK_MODEL
-    return ctx->inlineCacheStorage(*code_rt);
+    return ctx->stableStorage();
 #else
     JIT_DCHECK(
-        inline_cache_storage_ != nullptr,
-        "inline cache storage has already been transferred");
-    return *inline_cache_storage_;
+        stable_storage_ != nullptr,
+        "stable storage has already been transferred");
+    return *stable_storage_;
 #endif
   }
 
 #ifndef ENABLE_PREFORK_MODEL
-  std::unique_ptr<PerCompilationInlineCacheStorage> takeInlineCacheStorage() {
+  std::unique_ptr<PerCompilationStableStorage> takeStableStorage() {
     JIT_DCHECK(
-        inline_cache_storage_ != nullptr,
-        "inline cache storage has already been transferred");
-    return std::move(inline_cache_storage_);
+        stable_storage_ != nullptr,
+        "stable storage has already been transferred");
+    return std::move(stable_storage_);
   }
 #endif
 
@@ -282,8 +287,8 @@ struct Environ {
   BorrowedRef<> reifier;
 
 #ifndef ENABLE_PREFORK_MODEL
-  std::unique_ptr<PerCompilationInlineCacheStorage> inline_cache_storage_{
-      std::make_unique<PerCompilationInlineCacheStorage>()};
+  std::unique_ptr<PerCompilationStableStorage> stable_storage_{
+      std::make_unique<PerCompilationStableStorage>()};
 #endif
 };
 

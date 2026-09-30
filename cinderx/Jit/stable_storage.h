@@ -5,8 +5,11 @@
 #include "cinderx/Common/bump_arena.h"
 #include "cinderx/Common/slab_arena.h"
 #include "cinderx/Jit/bytecode_offsets.h"
+#include "cinderx/Jit/code_runtime.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/inline_cache.h"
 
+#include <utility>
 #include <vector>
 
 namespace cinderx::jit {
@@ -48,8 +51,15 @@ struct InlineCacheSite {
   } cache{};
 };
 
-class PerCompilationInlineCacheStorage final {
+// Storage for objects whose addresses are embedded in one generated-code
+// compilation. All allocations remain stable until the storage is destroyed.
+class PerCompilationStableStorage final {
  public:
+  template <typename... Args>
+  CodeRuntime* allocateCodeRuntime(Args&&... args) {
+    return arena_.allocate<CodeRuntime>(std::forward<Args>(args)...);
+  }
+
   const std::vector<InlineCacheSite>& inlineCacheSites() const;
 
   LoadAttrCache* allocateLoadAttrCache(BCOffset bytecode_offset);
@@ -69,7 +79,7 @@ class PerCompilationInlineCacheStorage final {
 #ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
   template <typename T, typename... Args>
   T* allocateForTesting(Args&&... args) {
-    return inline_cache_arena_.allocate<T>(std::forward<Args>(args)...);
+    return arena_.allocate<T>(std::forward<Args>(args)...);
   }
 #endif
 
@@ -83,12 +93,24 @@ class PerCompilationInlineCacheStorage final {
  private:
   void addInlineCacheSite(InlineCacheSite site);
 
-  BumpArena inline_cache_arena_;
+  BumpArena arena_;
   std::vector<InlineCacheSite> inline_cache_sites_;
 };
 
-class ContextInlineCacheStorage final {
+// Storage for stable-address objects that live for the lifetime of a JIT
+// context. Used by the prefork model, where allocations are grouped into slabs.
+class ContextStableStorage final {
  public:
+  template <typename... Args>
+  CodeRuntime* allocateCodeRuntime(Args&&... args) {
+    JITCompilationLock lock;
+    return code_runtimes_.allocate(std::forward<Args>(args)...);
+  }
+
+  SlabArena<CodeRuntime>& codeRuntimes() {
+    return code_runtimes_;
+  }
+
   LoadAttrCache* allocateLoadAttrCache(BCOffset bytecode_offset);
   LoadTypeAttrCache* allocateLoadTypeAttrCache();
   LoadTypeAttrCache* allocateLoadTypeAttrCache(BCOffset bytecode_offset);
@@ -113,6 +135,7 @@ class ContextInlineCacheStorage final {
   InlineCacheStats getAndClearLoadTypeMethodCacheStats();
 
  private:
+  SlabArena<CodeRuntime> code_runtimes_;
   SlabArena<LoadAttrCache, AttributeCacheSizeTrait> load_attr_caches_;
   SlabArena<LoadTypeAttrCache> load_type_attr_caches_;
   SlabArena<LoadMethodCache> load_method_caches_;
@@ -124,9 +147,9 @@ class ContextInlineCacheStorage final {
 };
 
 #ifdef ENABLE_PREFORK_MODEL
-using InlineCacheStorage = ContextInlineCacheStorage;
+using StableStorage = ContextStableStorage;
 #else
-using InlineCacheStorage = PerCompilationInlineCacheStorage;
+using StableStorage = PerCompilationStableStorage;
 #endif
 
 } // namespace cinderx::jit
