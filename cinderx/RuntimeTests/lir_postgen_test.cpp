@@ -301,20 +301,39 @@ TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
   // assignments so this can run on free-threaded AArch64 builds.
   SKIP("Object pointer stripping is only enabled in free-threadd builds");
 #else
-  const char* lir_input_str = R"(Function:
-BB %0
-  %10:Object = Call 1
-  %20:Object = Move 4369
-  %30:Object = Move 8738
-  %40:Object = Move 13107
-  %50:Object = Call 3, %20
-  %60:Object = Move 4661
-  %70:Object = Move 17477
-  %80:Object = VectorCallTstate 2, 0, %30, %10, %20, %40, %50, %60, %70
-  Return %80
-)";
+  Function func;
+  BasicBlock* block = func.allocateBasicBlock();
+  Instruction* first_call =
+      block->allocateInstr(Opcode::kCall, nullptr, OutVReg{}, Imm{1});
+  Instruction* first_arg =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{4369});
+  Instruction* second_arg =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{8738});
+  Instruction* third_arg =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{13107});
+  Instruction* second_call = block->allocateInstr(
+      Opcode::kCall, nullptr, OutVReg{}, Imm{3}, VReg{first_arg});
+  Instruction* immediate_arg =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{4661});
+  Instruction* final_arg =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{17477});
+  Instruction* vector_call = block->allocateInstr(
+      Opcode::kVectorCallTstate,
+      nullptr,
+      OutVReg{},
+      Imm{2},
+      Imm{0},
+      VReg{second_arg},
+      VReg{first_call},
+      VReg{first_arg},
+      VReg{third_arg},
+      VReg{second_call},
+      VReg{immediate_arg},
+      VReg{final_arg});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{vector_call});
 
-  auto func = runPostGenRewrite(lir_input_str);
+  codegen::Environ env;
+  PostGenerationRewrite(&func, &env).run();
 
   // This constructs the postgen/regalloc hazard directly.  VectorCallTstate
   // receives PyObject* operands that must have deferred-RC tag bits stripped
@@ -352,48 +371,48 @@ BB %0
   // copy-then-strip shape, and post-allocation LIR strips from the register
   // assigned to that adjacent copy.
 
-  // A local copy of the long-lived object %10 is made before stripping:
-  //   %copy:Object = Move %10:Object
-  EXPECT_LIR(Query(*func)
+  // A local copy of the long-lived call result is made before stripping.
+  EXPECT_LIR(Query(func)
                  .opcode(Opcode::kMove)
                  .outType(DataType::kObject)
-                 .inVreg(0, 10));
+                 .inVreg(0, first_call->id()));
   // ...and the strip produces the untagged value.
   EXPECT_LIR(
-      Query(*func).opcode(Opcode::kAnd).outType(DataType::kObjectUntagged));
+      Query(func).opcode(Opcode::kAnd).outType(DataType::kObjectUntagged));
 
   // Immediate PyObject* constants also flow through call-operand stripping.
   // They do not need a register-producing strip: the tag can be removed while
   // materializing the immediate as an ObjectUntagged value.
-  EXPECT_LIR(Query(*func)
+  EXPECT_LIR(Query(func)
                  .opcode(Opcode::kMove)
                  .outType(DataType::kObjectUntagged)
                  .inImm(0, 4660));
 
   // The fragile shape is an `And` that directly consumes an older, non-local
   // tagged object definition. The `And` must not strip directly from a
-  // long-lived definition: neither the call result %10 nor the immediate %60
-  // (each is copied locally first).
-  EXPECT_NO_LIR(Query(*func).opcode(Opcode::kAnd).inVreg(0, 10));
-  EXPECT_NO_LIR(Query(*func).opcode(Opcode::kAnd).inVreg(0, 60));
+  // long-lived definition: neither the call result nor the immediate argument
+  // is stripped directly (each is copied locally first).
+  EXPECT_NO_LIR(Query(func).opcode(Opcode::kAnd).inVreg(0, first_call->id()));
+  EXPECT_NO_LIR(
+      Query(func).opcode(Opcode::kAnd).inVreg(0, immediate_arg->id()));
 
-  LinearScanAllocator allocator{func.get()};
+  LinearScanAllocator allocator{&func};
   allocator.run();
 
   // Post-allocation the strip reads the register holding the adjacent copy.
-  EXPECT_LIR(Query(*func)
+  EXPECT_LIR(Query(func)
                  .opcode(Opcode::kMove)
                  .outPhyReg(codegen::RCX)
                  .outType(DataType::kObject)
                  .inPhyReg(0, codegen::RBX)
                  .inType(0, DataType::kObject));
-  EXPECT_LIR(Query(*func)
+  EXPECT_LIR(Query(func)
                  .opcode(Opcode::kAnd)
                  .outPhyReg(codegen::RBX)
                  .outType(DataType::kObjectUntagged)
                  .inPhyReg(0, codegen::RCX)
                  .inType(0, DataType::kObject));
-  EXPECT_LIR(Query(*func)
+  EXPECT_LIR(Query(func)
                  .opcode(Opcode::kMove)
                  .outPhyReg(codegen::RAX)
                  .outType(DataType::kObjectUntagged)
