@@ -163,28 +163,34 @@ BB %4
 TEST_F(
     LIRPostGenerationRewriteTest,
     MovesLoadSecondCallResultThroughDuplicateEdges) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %1
-  %10 = Call 0
-  CondBranch %10, BB%1, BB%1
-BB %1
-  %11 = Phi (BB%0, %10), (BB%0, %10)
-  %12:32bit = LoadSecondCallResult %11
-  Return %12
-)";
+  Function function;
+  BasicBlock* source = function.allocateBasicBlock();
+  BasicBlock* phi_block = function.allocateBasicBlock();
 
-  auto function = runPostGenRewrite(lir_input_str);
-  Instruction* rewritten = nullptr;
-  for (BasicBlock* block : function->basicBlocks()) {
-    for (auto& instruction : block->instructions()) {
-      if (instruction->id() == 12) {
-        rewritten = instruction.get();
-      }
-    }
-  }
+  IncomingEdge first_edge = source->addSuccessor(phi_block);
+  IncomingEdge second_edge = source->addSuccessor(phi_block);
 
-  ASSERT_NE(rewritten, nullptr);
+  Instruction* call =
+      source->allocateInstr(Opcode::kCall, nullptr, OutVReg{}, Imm{0});
+  source->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{call}, Lbl{phi_block}, Lbl{phi_block});
+
+  Instruction* phi = phi_block->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->addPhiInput(first_edge, call);
+  phi->addPhiInput(second_edge, call);
+
+  Instruction* rewritten = phi_block->allocateInstr(
+      Opcode::kLoadSecondCallResult,
+      nullptr,
+      OutVReg{DataType::k32bit},
+      VReg{phi});
+  phi_block->allocateInstr(Opcode::kReturn, nullptr, VReg{rewritten});
+
+  codegen::Environ env;
+  PostGenerationRewrite(&function, &env).run();
+
   EXPECT_TRUE(rewritten->isPhi());
+  EXPECT_EQ(rewritten->output()->dataType(), DataType::k32bit);
   EXPECT_EQ(rewritten->numPhiInputs(), 2);
   EXPECT_EQ(rewritten->phiPredecessor(0), rewritten->phiPredecessor(1));
 }
