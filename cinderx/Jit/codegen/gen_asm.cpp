@@ -267,7 +267,7 @@ uintptr_t prepareForDeopt(
   const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   PyThreadState* tstate = _PyThreadState_UncheckedGet();
   bool is_instrumentation_deopt = false;
-  _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
+  _PyInterpreterFrame* frame = currentFrame(tstate);
   uintptr_t fp = regs[arch::reg_frame_pointer_loc.loc];
 
   size_t linked =

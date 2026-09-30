@@ -62,15 +62,6 @@ static inline int PyTime_MonotonicRaw(PyTime_t* result) {
 
 #endif
 
-// Fetch a _PyInterpreterFrame from a PyThreadState.
-inline _PyInterpreterFrame* interpFrameFromThreadState(PyThreadState* tstate) {
-#if PY_VERSION_HEX >= 0x030D0000
-  return tstate->current_frame;
-#else
-  return tstate->cframe->current_frame;
-#endif
-}
-
 // Get the interpreter frame stored in a generator object.
 inline _PyInterpreterFrame* generatorFrame(PyGenObject* gen) {
   return

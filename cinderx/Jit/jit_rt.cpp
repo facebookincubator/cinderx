@@ -801,7 +801,7 @@ std::pair<_PyInterpreterFrame*, GenDataFooter*> allocateGenAndInterpreterFrame(
     if (origin_depth == 0) {
       gen->gi_origin_or_finalizer = nullptr;
     } else {
-      _PyInterpreterFrame* current_frame = interpFrameFromThreadState(tstate);
+      _PyInterpreterFrame* current_frame = currentFrame(tstate);
       PyObject* cr_origin = Cix_compute_cr_origin(origin_depth, current_frame);
       gen->gi_origin_or_finalizer = cr_origin;
       if (!cr_origin) {
@@ -1490,7 +1490,7 @@ PyObject* importFrom(
 void setCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
 #ifdef ENABLE_GENERATOR_AWAITER
 
-  _PyInterpreterFrame* frame = interpFrameFromThreadState(ts);
+  _PyInterpreterFrame* frame = currentFrame(ts);
   // Matches SEND/SEND_GEN's check in bytecodes.c
   if (frame->owner != FRAME_OWNED_BY_GENERATOR ||
       (!(frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)))) {
