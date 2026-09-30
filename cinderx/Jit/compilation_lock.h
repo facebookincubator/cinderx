@@ -38,19 +38,24 @@ void lockWithThreadStateDetachment(Mutex& mutex) {
   if (mutex.try_lock()) {
     return;
   }
-  // Detach while waiting so we don't block stop-the-world pauses.
 #if PY_VERSION_HEX >= 0x030E0000
   auto* tstate = PyThreadState_GetUnchecked();
 #else
   auto* tstate = _PyThreadState_UncheckedGet();
 #endif
-  if (tstate != nullptr) {
+  if (tstate == nullptr) {
+    mutex.lock();
+    return;
+  }
+  do {
+    // Detach while waiting so stop-the-world pauses aren't blocked.
     tstate = PyEval_SaveThread();
-  }
-  mutex.lock();
-  if (tstate != nullptr) {
+    // Reattaching can block while another thread has stopped the world.
+    // Release the mutex: that thread's fork handler may be waiting for it.
+    mutex.lock();
+    mutex.unlock();
     PyEval_RestoreThread(tstate);
-  }
+  } while (!mutex.try_lock());
 }
 
 class FreeThreadedJITEntrypointGuard {

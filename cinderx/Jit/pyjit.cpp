@@ -3383,6 +3383,47 @@ PyObject* after_fork_child(PyObject*, PyObject*) {
   Py_RETURN_NONE;
 }
 
+thread_local size_t python_fork_lock_depth = 0;
+
+[[maybe_unused]] PyObject* before_fork(PyObject* imp, PyObject*) {
+  Ref<> result =
+      Ref<>::steal(PyObject_CallMethod(imp, "acquire_lock", nullptr));
+  if (result == nullptr) {
+    return nullptr;
+  }
+  // Block new JIT work before fork stops the world.
+  lockWithThreadStateDetachment(freeThreadedJITEntrypointMutex());
+  ++freeThreadedJITEntrypointLockDepth;
+  ++python_fork_lock_depth;
+  Py_RETURN_NONE;
+}
+
+PyObject* release_fork_locks(PyObject* imp) {
+  if (python_fork_lock_depth == 0) {
+    Py_RETURN_NONE;
+  }
+
+  --python_fork_lock_depth;
+  --freeThreadedJITEntrypointLockDepth;
+  freeThreadedJITEntrypointMutex().unlock();
+
+  return PyObject_CallMethod(imp, "release_lock", nullptr);
+}
+
+[[maybe_unused]] PyObject* after_fork_parent(PyObject* imp, PyObject*) {
+  return release_fork_locks(imp);
+}
+
+[[maybe_unused]] PyObject* after_fork_child_with_locks(
+    PyObject* imp,
+    PyObject*) {
+  auto result = Ref<>::steal(release_fork_locks(imp));
+  if (result == nullptr) {
+    return nullptr;
+  }
+  return after_fork_child(nullptr, nullptr);
+}
+
 // Patch sys.monitoring.register_callback to intercept debugger/profiler
 // attachment.
 void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
@@ -3958,9 +3999,7 @@ void trackEligibleCodeObjects(
   }
 }
 
-// Call posix.register_at_fork(None, None, cinderjit.after_fork_child), if it
-// exists. Returns 0 on success or if the module/function doesn't exist, and -1
-// on any other errors.
+// Register Python-level fork callbacks, if available.
 int register_fork_callback(BorrowedRef<> cinderjit_module) {
   auto os_module = Ref<>::steal(
       PyImport_ImportModuleLevel("posix", nullptr, nullptr, nullptr, 0));
@@ -3974,22 +4013,42 @@ int register_fork_callback(BorrowedRef<> cinderjit_module) {
     PyErr_Clear();
     return 0;
   }
-  auto callback = Ref<>::steal(
-      PyObject_GetAttrString(cinderjit_module, "after_fork_child"));
-  if (callback == nullptr) {
-    return -1;
-  }
   auto args = Ref<>::steal(PyTuple_New(0));
   if (args == nullptr) {
     return -1;
   }
   auto kwargs = Ref<>::steal(PyDict_New());
-  if (kwargs == nullptr ||
-      PyDict_SetItemString(kwargs, "after_in_child", callback) < 0 ||
-      PyObject_Call(register_at_fork, args, kwargs) == nullptr) {
+  if (kwargs == nullptr) {
     return -1;
   }
-  return 0;
+  if constexpr (kFreeThreadedBuild) {
+    auto imp = Ref<>::steal(PyImport_ImportModule("_imp"));
+    if (imp == nullptr) {
+      return -1;
+    }
+    static PyMethodDef callbacks[] = {
+        {"before", before_fork, METH_NOARGS, nullptr},
+        {"after_in_parent", after_fork_parent, METH_NOARGS, nullptr},
+        {"after_in_child", after_fork_child_with_locks, METH_NOARGS, nullptr},
+    };
+    for (auto& def : callbacks) {
+      auto fn = Ref<>::steal(PyCFunction_New(&def, imp));
+      if (fn == nullptr || PyDict_SetItemString(kwargs, def.ml_name, fn) < 0) {
+        return -1;
+      }
+    }
+  } else {
+    auto callback = Ref<>::steal(
+        PyObject_GetAttrString(cinderjit_module, "after_fork_child"));
+    if (callback == nullptr) {
+      return -1;
+    }
+    if (PyDict_SetItemString(kwargs, "after_in_child", callback) < 0) {
+      return -1;
+    }
+  }
+  auto result = Ref<>::steal(PyObject_Call(register_at_fork, args, kwargs));
+  return result == nullptr ? -1 : 0;
 }
 
 // Informs the JIT that an instance has had an assignment to its __class__
@@ -4179,6 +4238,7 @@ void finishBackgroundCompile(const CompilationKey& key) {
 // the forking thread -- resets them.
 
 void jitAtForkPrepare() {
+  // before_fork() covers os.fork(); keep this for direct calls to fork().
   freeThreadedJITEntrypointAtForkPrepare();
   // Quiesce the background compile registry so the child snapshots it at a
   // consistent point.  The registry lives inside the JIT Context, so if JIT is
