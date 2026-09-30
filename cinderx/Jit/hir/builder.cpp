@@ -2313,13 +2313,14 @@ bool HIRBuilder::tryEmitDirectMethodCall(
     Instr* staticCall;
     Register* out = nullptr;
     if (target.builtin_returns_void) {
-      staticCall = tc.emit<CallStaticRetVoid>(nargs, target.builtin_c_func);
+      staticCall = tc.emit<CallStaticRetVoid>(
+          nargs, target.builtin_c_func, target.builtin_name);
     } else {
       out = allocateTemp();
       Type ret_type =
           target.builtin_returns_error_code ? TCInt32 : target.return_type;
-      staticCall =
-          tc.emit<CallStatic>(nargs, out, target.builtin_c_func, ret_type);
+      staticCall = tc.emit<CallStatic>(
+          nargs, out, target.builtin_c_func, ret_type, target.builtin_name);
     }
 
     auto& stack = tc.frame.stack;
@@ -2415,7 +2416,7 @@ bool HIRBuilder::tryEmitStaticRandCall(TranslationContext& tc, long nargs) {
   Register* out = allocateTemp();
   Type ret_type = TCInt32;
   // Ci_static_rand() boxes the return value; call rand() directly instead.
-  tc.emit<CallStatic>(nargs, out, (void*)rand, ret_type);
+  tc.emit<CallStatic>(nargs, out, (void*)rand, ret_type, "rand");
   tc.frame.stack.push(out);
   return true;
 }
@@ -2512,7 +2513,8 @@ void HIRBuilder::emitInvokeNative(
 
   Register* out = allocateTemp();
   Type typ = target.return_type;
-  auto call = tc.emit<CallStatic>(nargs, out, target.callable, typ);
+  auto call =
+      tc.emit<CallStatic>(nargs, out, target.callable, typ, target.name);
   for (auto i = nargs - 1; i >= 0; i--) {
     Register* operand = tc.frame.stack.pop();
     call->setOperand(i, operand);

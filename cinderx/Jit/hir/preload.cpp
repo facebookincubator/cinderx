@@ -112,6 +112,10 @@ std::unique_ptr<NativeTarget> resolve_native_target(
       repr(native_descr));
 
   target->callable = raw_ptr;
+  const char* symbol =
+      PyUnicode_AsUTF8(PyTuple_GET_ITEM(native_descr.get(), 1));
+  PyErr_Clear();
+  target->name = symbol != nullptr ? symbol : "";
 
   Py_ssize_t siglen = PyTuple_GET_SIZE(signature.get());
   auto return_type_code = _PyClassLoader_ResolvePrimitiveType(
@@ -739,6 +743,7 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
     is_thunk = true;
   } else if ((def = _PyClassLoader_GetMethodDef(callable)) != nullptr) {
     target->builtin_c_func = reinterpret_cast<void*>(def->ml_meth);
+    target->builtin_name = def->ml_name != nullptr ? def->ml_name : "";
     if (def->ml_flags == METH_NOARGS) {
       target->builtin_expected_nargs = 1;
     } else if (def->ml_flags == METH_O) {
@@ -747,6 +752,7 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
       target->builtin_returns_error_code = (tmd->tmd_ret == Ci_Py_SIG_ERROR);
       target->builtin_returns_void = (tmd->tmd_ret == Ci_Py_SIG_VOID);
       target->builtin_c_func = tmd->tmd_meth;
+      target->builtin_name = def->ml_name != nullptr ? def->ml_name : "";
     }
   }
   target->callable = std::move(callable);

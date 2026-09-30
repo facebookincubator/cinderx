@@ -60,6 +60,9 @@ struct InvokeTarget {
   Py_ssize_t slot{-1};
   // underlying C function implementation for builtins
   void* builtin_c_func{nullptr};
+  // the builtin's name, for printing calls to builtin_c_func without having to
+  // symbolize its address
+  std::string builtin_name;
   // expected nargs for builtin; if matched, can x64 invoke even if untyped
   int builtin_expected_nargs{-1};
   // container is immutable (target is not patchable)
@@ -76,6 +79,8 @@ struct InvokeTarget {
 struct NativeTarget {
   // the address of target
   void* callable;
+  // the symbol name of the target
+  std::string name;
   // return type (must be a primitive int for native calls)
   Type return_type{TObject};
   // map argnum to primitive type code for primitive args only

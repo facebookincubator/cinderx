@@ -1933,7 +1933,8 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
       3,
       env.func.env.allocateRegister(),
       reinterpret_cast<void*>(descr_get),
-      TOptObject);
+      TOptObject,
+      "descr_get");
   call->setOperand(0, descr_reg);
   call->setOperand(1, info.receiver);
   call->setOperand(2, type_reg);
@@ -2356,6 +2357,7 @@ static Register* trySpecializeCCall(Env& env, const VectorCall* instr) {
           1,
           reinterpret_cast<void*>(def->ml_meth),
           instr->output()->type() | TNullptr,
+          def->ml_name != nullptr ? def->ml_name : "",
           /* self */ instr->arg(0));
       return env.emit<CheckExc>(result, *instr->frameState());
     }
@@ -2364,6 +2366,7 @@ static Register* trySpecializeCCall(Env& env, const VectorCall* instr) {
           2,
           reinterpret_cast<void*>(def->ml_meth),
           instr->output()->type() | TNullptr,
+          def->ml_name != nullptr ? def->ml_name : "",
           /* self */ instr->arg(0),
           /* arg */ instr->arg(1));
       return env.emit<CheckExc>(result, *instr->frameState());
@@ -2591,6 +2594,7 @@ Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
         output,
         reinterpret_cast<void*>(PyDict_Type.tp_as_mapping->mp_ass_subscript),
         TCInt32,
+        "dict_ass_sub",
         instr->getOperand(0),
         instr->getOperand(1),
         instr->getOperand(2));

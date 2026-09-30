@@ -404,11 +404,10 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kCallStatic: {
       const auto& call = static_cast<const CallStatic&>(instr);
-      std::optional<std::string> func_name = symbolize(call.addr());
-      if (func_name.has_value()) {
+      if (!call.name().empty()) {
         return fmt::format(
             "{}@{}, {}",
-            *func_name,
+            call.name(),
             getStablePointer(call.addr()),
             call.numOperands());
       }
@@ -417,11 +416,10 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kCallStaticRetVoid: {
       const auto& call = static_cast<const CallStaticRetVoid&>(instr);
-      std::optional<std::string> func_name = symbolize(call.addr());
-      if (func_name.has_value()) {
+      if (!call.name().empty()) {
         return fmt::format(
             "{}@{}, {}",
-            *func_name,
+            call.name(),
             getStablePointer(call.addr()),
             call.numOperands());
       }

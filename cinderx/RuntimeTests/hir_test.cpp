@@ -1778,7 +1778,7 @@ TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
 
   // Create a CallStatic with no arguments
   std::unique_ptr<Instr> call_static_no_args(
-      CallStatic::create(0, out, nullptr, Type::fromObject(Py_None)));
+      CallStatic::create(0, out, nullptr, Type::fromObject(Py_None), "f"));
   std::unique_ptr<Instr> new_call_static_no_args(call_static_no_args->clone());
   ASSERT_NE(call_static_no_args.get(), new_call_static_no_args.get());
   ASSERT_TRUE(new_call_static_no_args->isCallStatic());
@@ -1791,7 +1791,7 @@ TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
 
   // Create a CallStatic with one argument
   std::unique_ptr<Instr> call_static_one_arg(
-      CallStatic::create(1, out, nullptr, Type::fromObject(Py_None), v0));
+      CallStatic::create(1, out, nullptr, Type::fromObject(Py_None), "f", v0));
   std::unique_ptr<Instr> new_call_static_one_arg(call_static_one_arg->clone());
   ASSERT_NE(call_static_one_arg.get(), new_call_static_one_arg.get());
   ASSERT_TRUE(new_call_static_one_arg->isCallStatic());
@@ -1804,7 +1804,8 @@ TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
 
   // Create a CallStatic with two arguments
   std::unique_ptr<Instr> call_static_two_args(
-      CallStatic::create(2, out, nullptr, Type::fromObject(Py_None), v0, v0));
+      CallStatic::create(
+          2, out, nullptr, Type::fromObject(Py_None), "f", v0, v0));
   std::unique_ptr<Instr> new_call_static_two_args(
       call_static_two_args->clone());
   ASSERT_NE(call_static_two_args.get(), new_call_static_two_args.get());

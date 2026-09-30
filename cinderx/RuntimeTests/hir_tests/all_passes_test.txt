@@ -1887,7 +1887,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 0, 7) {
     v22:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v41:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v22
+    v41:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v22
     v42:UnicodeExact = CheckExc v41 {
       LiveValues<2> unc:v22 o:v41
       FrameState {
@@ -1997,7 +1997,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 0, 7) {
     v22:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v41:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v22
+    v41:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v22
     v42:UnicodeExact = CheckExc v41 {
       LiveValues<2> unc:v22 o:v41
       FrameState {
@@ -2109,7 +2109,7 @@ fun jittestmodule:test {
   bb 6 (preds 0, 7) {
     v24:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     UpdatePrevInstr<idx:17 line_no:3: no parent>
-    v45:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v24
+    v45:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v24
     v46:UnicodeExact = CheckExc v45 {
       LiveValues<2> unc:v24 o:v45
       FrameState {
@@ -2226,7 +2226,7 @@ fun jittestmodule:test {
   bb 6 (preds 0, 7) {
     v24:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     UpdatePrevInstr<idx:17 line_no:3: no parent>
-    v45:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v24
+    v45:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v24
     v46:UnicodeExact = CheckExc v45 {
       LiveValues<2> unc:v24 o:v45
       FrameState {
@@ -2342,7 +2342,7 @@ fun jittestmodule:test {
 
   bb 6 (preds 0, 7) {
     v22:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v41:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v22
+    v41:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v22
     v42:UnicodeExact = CheckExc v41 {
       LiveValues<2> unc:v22 o:v41
       FrameState {
@@ -2641,7 +2641,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     v11:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v17:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v11
+    v17:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v11
     v18:UnicodeExact = CheckExc v17 {
       LiveValues<2> unc:v11 o:v17
       FrameState {
@@ -2675,7 +2675,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     v11:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v17:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v11
+    v17:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v11
     v18:UnicodeExact = CheckExc v17 {
       LiveValues<2> unc:v11 o:v17
       FrameState {
@@ -2710,7 +2710,7 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v11:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     UpdatePrevInstr<idx:15 line_no:3: no parent>
-    v17:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v11
+    v17:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v11
     v18:UnicodeExact = CheckExc v17 {
       LiveValues<2> unc:v11 o:v17
       FrameState {
@@ -2745,7 +2745,7 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v11:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     UpdatePrevInstr<idx:15 line_no:3: no parent>
-    v17:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v11
+    v17:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v11
     v18:UnicodeExact = CheckExc v17 {
       LiveValues<2> unc:v11 o:v17
       FrameState {
@@ -2780,7 +2780,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     v11:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    v17:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v11
+    v17:OptUnicodeExact = CallStatic<lower@0xdeadbeef, 1> v11
     v18:UnicodeExact = CheckExc v17 {
       LiveValues<2> unc:v11 o:v17
       FrameState {
@@ -3002,7 +3002,7 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v12:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v16:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
-    v19:OptObject = CallStatic<unicode_removeprefix@0xdeadbeef, 2> v12 v16
+    v19:OptObject = CallStatic<removeprefix@0xdeadbeef, 2> v12 v16
     v20:Object = CheckExc v19 {
       LiveValues<2> unc:v12 o:v19
       FrameState {
@@ -3037,7 +3037,7 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v12:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v16:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
-    v19:OptObject = CallStatic<unicode_removeprefix@0xdeadbeef, 2> v12 v16
+    v19:OptObject = CallStatic<removeprefix@0xdeadbeef, 2> v12 v16
     v20:Object = CheckExc v19 {
       LiveValues<2> unc:v12 o:v19
       FrameState {
@@ -3073,7 +3073,7 @@ fun jittestmodule:test {
     v12:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v16:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
     UpdatePrevInstr<idx:16 line_no:3: no parent>
-    v19:OptObject = CallStatic<unicode_removeprefix@0xdeadbeef, 2> v12 v16
+    v19:OptObject = CallStatic<removeprefix@0xdeadbeef, 2> v12 v16
     v20:Object = CheckExc v19 {
       LiveValues<2> unc:v12 o:v19
       FrameState {
@@ -3109,7 +3109,7 @@ fun jittestmodule:test {
     v12:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v16:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
     UpdatePrevInstr<idx:16 line_no:3: no parent>
-    v19:OptObject = CallStatic<unicode_removeprefix@0xdeadbeef, 2> v12 v16
+    v19:OptObject = CallStatic<removeprefix@0xdeadbeef, 2> v12 v16
     v20:Object = CheckExc v19 {
       LiveValues<2> unc:v12 o:v19
       FrameState {
@@ -3145,7 +3145,7 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v12:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v16:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
-    v19:OptObject = CallStatic<unicode_removeprefix@0xdeadbeef, 2> v12 v16
+    v19:OptObject = CallStatic<removeprefix@0xdeadbeef, 2> v12 v16
     v20:Object = CheckExc v19 {
       LiveValues<2> unc:v12 o:v19
       FrameState {

@@ -1243,12 +1243,17 @@ class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
 // A call to a function at a known address
 class INSTR_CLASS(CallStatic, (TTop), HasOutput, Operands<>) {
  public:
-  CallStatic(Register* out, void* addr, Type ret_type)
-      : InstrT(out), addr_(addr), ret_type_(ret_type) {}
+  CallStatic(Register* out, void* addr, Type ret_type, std::string name)
+      : InstrT(out), addr_(addr), ret_type_(ret_type), name_(std::move(name)) {}
 
   template <typename... Args>
-  CallStatic(Register* out, void* addr, Type ret_type, Args&&... args)
-      : InstrT(out), addr_(addr), ret_type_(ret_type) {
+  CallStatic(
+      Register* out,
+      void* addr,
+      Type ret_type,
+      std::string name,
+      Args&&... args)
+      : InstrT(out), addr_(addr), ret_type_(ret_type), name_(std::move(name)) {
     std::array<Register*, sizeof...(Args)> operands{args...};
     JIT_CHECK(
         operands.size() == numOperands(),
@@ -1277,15 +1282,25 @@ class INSTR_CLASS(CallStatic, (TTop), HasOutput, Operands<>) {
     return ret_type_;
   }
 
+  // Name of the callee, as the compiler knew it when this was built.  Empty if
+  // it wasn't known.  Recorded here rather than recovered by symbolizing addr()
+  // when printing: the symbolizer reads an ELF symbol table, so it yields
+  // nothing on Windows, and nothing at all for callees that are static.
+  const std::string& name() const {
+    return name_;
+  }
+
  private:
   void* addr_;
   Type ret_type_;
+  std::string name_;
 };
 
 // A call to a function at a known address
 class INSTR_CLASS(CallStaticRetVoid, (TTop), Operands<>) {
  public:
-  explicit CallStaticRetVoid(void* addr) : InstrT(), addr_(addr) {}
+  CallStaticRetVoid(void* addr, std::string name)
+      : InstrT(), addr_(addr), name_(std::move(name)) {}
 
   std::size_t numArgs() const {
     return numOperands();
@@ -1299,8 +1314,14 @@ class INSTR_CLASS(CallStaticRetVoid, (TTop), Operands<>) {
     return addr_;
   }
 
+  // See CallStatic::name().
+  const std::string& name() const {
+    return name_;
+  }
+
  private:
   void* addr_;
+  std::string name_;
 };
 
 // Invokes a function with a static entry point, where we can
