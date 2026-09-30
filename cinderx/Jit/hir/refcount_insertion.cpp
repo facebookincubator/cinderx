@@ -618,10 +618,21 @@ void killRegisters(
   auto rstate_lt = [](RegCopyState& a, RegCopyState& b) {
     bool a_borrowed = a.rstate->isBorrowed();
     bool b_borrowed = b.rstate->isBorrowed();
-    // Put borrowed registers before all others, and sort by register number
-    // within each group.
-    return (a_borrowed && !b_borrowed) ||
-        (a_borrowed == b_borrowed && RegStateLess{}(a.rstate, b.rstate));
+    if (a_borrowed != b_borrowed) {
+      // Put borrowed registers before all others.
+      return a_borrowed;
+    }
+    if (a.rstate != b.rstate) {
+      // Sort by register number within each group.
+      return RegStateLess{}(a.rstate, b.rstate);
+    }
+    // Two copies of one value compare equal on the model, and `regs` is built
+    // by iterating an unordered set, so without this the order of the two is
+    // down to what std::sort() does with equivalent elements.  That order
+    // decides which copy is killed last, and killRegisterImpl() names the
+    // Decref after it -- so the pass would emit a different, equally correct,
+    // register depending on the standard library.
+    return RegisterLess{}(a.copy, b.copy);
   };
   std::sort(rstates.begin(), rstates.end(), rstate_lt);
   for (RegCopyState& rcs : rstates) {
