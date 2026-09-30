@@ -3,11 +3,13 @@ SimplifyStaticTest
 --- Passes ---
 Simplify
 --- Test Name ---
-UnboxOfRandMaxIsEliminated
+UnboxOfIntConstantIsEliminated
 --- Input ---
-from __static__ import rand, RAND_MAX, box, int64
+from __static__ import rand, box, int64
+from typing import Final
+MAX_VALUE: Final[int] = 2147483647
 def test():
-    x: int64 = rand() // int64(RAND_MAX)
+    x: int64 = rand() // int64(MAX_VALUE)
     return box(x)
 --- Expected 3.12 ---
 fun jittestmodule:test {

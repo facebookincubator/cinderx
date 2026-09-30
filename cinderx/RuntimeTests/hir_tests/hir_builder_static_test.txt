@@ -4080,7 +4080,7 @@ fun jittestmodule:test {
 --- Test Name ---
 CIntTypeEmitsConvertPrimitive
 --- Input ---
-from __static__ import rand, RAND_MAX, box, int64
+from __static__ import rand, box, int64
 
 def test():
     x: int64 = rand()
