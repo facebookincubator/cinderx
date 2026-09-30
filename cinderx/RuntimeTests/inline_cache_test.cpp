@@ -377,7 +377,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheSpecializationLookup) {
       sameTypes(SpecializedType::kCompactLong));
 
   // Large ints span multiple digits -> general long SpecializedType.
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
   BinaryOpCache long_cache{BinaryOpKind::kAdd};
   EXPECT_EQ(
       specializeWith(BinaryOpCache::add, long_cache, big, big),
@@ -416,7 +416,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheSpecializationFallbackLookup) {
   // back to the general long SpecializedType rather than all the way to
   // generic.
   auto small = Ref<>::steal(PyLong_FromLong(1));
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
   BinaryOpCache compact_to_long{BinaryOpKind::kAdd};
   EXPECT_EQ(
       specializeWith(BinaryOpCache::add, compact_to_long, small, small),
@@ -455,7 +455,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheMultiplySpecializationLookup) {
       specializeWith(BinaryOpCache::multiply, compact, two, count),
       sameTypes(SpecializedType::kCompactLong));
   // Non-compact ints fall back to the general long-multiply specialization.
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
   EXPECT_EQ(
       specializeWith(BinaryOpCache::multiply, compact, big, big),
       sameTypes(SpecializedType::kLong));
@@ -576,7 +576,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheCompactMultiplyDeoptsOnNonCompactResult) {
   auto compact = Ref<>::steal(PyLong_FromLong(1L << 20));
   auto result = Ref<>::steal(BinaryOpCache::multiply(compact, compact, &cache));
   ASSERT_NE(result.get(), nullptr);
-  EXPECT_EQ(PyLong_AsLong(result), 1L << 40);
+  EXPECT_EQ(PyLong_AsLongLong(result), 1LL << 40);
   EXPECT_EQ(
       cache.specializedTypes(),
       types(
@@ -615,7 +615,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheCompactAddStepsDownChain) {
           SpecializedType::kLong));
 
   // Non-compact args -> steps down to long/long/long.
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
   EXPECT_EQ(
       specializeWith(BinaryOpCache::add, cache, big, big),
       sameTypes(SpecializedType::kLong));
@@ -633,7 +633,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheSubtractSpecializationLookup) {
       sameTypes(SpecializedType::kCompactLong));
 
   // Large ints span multiple digits -> general long SpecializedType.
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
   BinaryOpCache long_long{BinaryOpKind::kSubtract};
   EXPECT_EQ(
       specializeWith(BinaryOpCache::subtract, long_long, big, big),
@@ -683,7 +683,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheSubtractComputesCorrectly) {
 
   // long - long.
   BinaryOpCache long_long{BinaryOpKind::kSubtract};
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
   auto one = Ref<>::steal(PyLong_FromLong(1));
   auto big_diff = Ref<>::steal(BinaryOpCache::subtract(big, one, &long_long));
   ASSERT_NE(big_diff.get(), nullptr);
@@ -763,7 +763,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheSubtractStepsDownChain) {
           SpecializedType::kLong));
 
   // Non-compact args -> long/long/long.
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
   EXPECT_EQ(
       specializeWith(BinaryOpCache::subtract, cache, big, big),
       sameTypes(SpecializedType::kLong));
@@ -828,8 +828,8 @@ TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideSpecializationLookup) {
           SpecializedType::kCompactLong,
           SpecializedType::kFloat));
 
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
-  auto half_big = Ref<>::steal(PyLong_FromLong(1L << 59));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
+  auto half_big = Ref<>::steal(PyLong_FromLongLong(1LL << 59));
   BinaryOpCache long_long{BinaryOpKind::kTrueDivide};
   EXPECT_EQ(
       specializeWith(BinaryOpCache::trueDivide, long_long, big, half_big),
@@ -873,8 +873,8 @@ TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideComputesCorrectly) {
 
   // long / long.
   BinaryOpCache long_long{BinaryOpKind::kTrueDivide};
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
-  auto half_big = Ref<>::steal(PyLong_FromLong(1L << 59));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
+  auto half_big = Ref<>::steal(PyLong_FromLongLong(1LL << 59));
   auto big_quotient =
       Ref<>::steal(BinaryOpCache::trueDivide(big, half_big, &long_long));
   ASSERT_NE(big_quotient.get(), nullptr);
@@ -927,8 +927,8 @@ TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideMatchesPyNumber) {
   // Non-compact operands go through long_true_divide on both sides, but check
   // a few anyway: these are the values where a double-based shortcut would
   // lose the correctly-rounded result.
-  auto big = Ref<>::steal(PyLong_FromLong((1L << 60) + 1));
-  auto big_minus_one = Ref<>::steal(PyLong_FromLong((1L << 60) - 1));
+  auto big = Ref<>::steal(PyLong_FromLongLong((1LL << 60) + 1));
+  auto big_minus_one = Ref<>::steal(PyLong_FromLongLong((1LL << 60) - 1));
   expectTrueDivideMatchesPyNumber(big, three);
   expectTrueDivideMatchesPyNumber(big, big_minus_one);
 
@@ -984,7 +984,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideByZeroRaises) {
   // Non-compact int / zero.
   {
     BinaryOpCache cache{BinaryOpKind::kTrueDivide};
-    auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+    auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
     auto zero = Ref<>::steal(PyLong_FromLong(0));
     Ref<>::steal(BinaryOpCache::trueDivide(big, big, &cache));
     EXPECT_EQ(
@@ -1044,7 +1044,7 @@ TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideStepsDownChain) {
           SpecializedType::kFloat));
 
   // Non-compact args -> long/long/float.
-  auto big = Ref<>::steal(PyLong_FromLong(1L << 60));
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
   EXPECT_EQ(
       specializeWith(BinaryOpCache::trueDivide, cache, big, big),
       types(
