@@ -85,6 +85,11 @@ TEST(UtilTest, SymbolizerResolvesStaticSymbol) {
 }
 #endif
 
+// demangle() decodes Itanium ABI names via __cxa_demangle().  Windows has
+// neither -- clang-cl mangles the MSVC way -- so the implementation is a stub
+// returning nullopt there and these have nothing to check.
+#ifndef _WIN32
+
 TEST(UtilTest, DemangleWithCNameReturnsName) {
   jit::Symbolizer symbolizer;
   std::optional<std::string> result = jit::demangle("PyObject_Size");
@@ -105,6 +110,8 @@ TEST(UtilTest, DemangleWithInvalidCXXNameReturnsInput) {
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(*result, "_ZWTFBBQ");
 }
+
+#endif // !_WIN32
 
 TEST(UtilTest, FitsSignedInt) {
   int16_t i8min = std::numeric_limits<int8_t>::min();
