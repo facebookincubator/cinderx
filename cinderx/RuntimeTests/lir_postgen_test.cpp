@@ -412,9 +412,10 @@ TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
                  .outType(DataType::kObjectUntagged)
                  .inPhyReg(0, codegen::RCX)
                  .inType(0, DataType::kObject));
+  // Which register the immediate lands in is the allocator's business and
+  // varies with the calling convention, so match everything but that.
   EXPECT_LIR(Query(func)
                  .opcode(Opcode::kMove)
-                 .outPhyReg(codegen::RAX)
                  .outType(DataType::kObjectUntagged)
                  .inImm(0, 4660)
                  .inType(0, DataType::k64bit));
