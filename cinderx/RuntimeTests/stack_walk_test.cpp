@@ -261,6 +261,17 @@ constexpr size_t framesBeyond(size_t callers) {
   return kFollowsChainsToCallers ? callers : 0;
 }
 
+// A self-walk starts from the caller's frame-pointer register rather than from
+// a sampled context, so where no chain is kept there the first step has nothing
+// to follow and the walk stops immediately. Whether that reads as Completed or
+// Truncated depends on what the register happened to hold, which is not
+// something the platform promises. Failed is the one result it may never be:
+// that would mean the walk never started.
+constexpr bool isExpectedSelfWalkResult(WalkResult result) {
+  return kFollowsChainsToCallers ? result == WalkResult::Completed
+                                 : result != WalkResult::Failed;
+}
+
 template <typename F>
 __attribute__((noinline)) WalkResult
 walkBelowKnownFrames(size_t remaining, F&& walk) {
@@ -784,9 +795,9 @@ TEST(StackWalkThreadTest, WalkOfOwnThreadStateWalksSelfRatherThanFailing) {
     });
   });
 
-  EXPECT_EQ(walked, WalkResult::Completed);
-  // A self-walk starts from the caller's frame-pointer register, so where that
-  // register holds no chain the walk completes without reporting anything.
+  EXPECT_TRUE(isExpectedSelfWalkResult(walked))
+      << "self-walk reported " << static_cast<int>(walked);
+  // Where no chain is followed the walk reports no caller at all.
   if constexpr (kFollowsChainsToCallers) {
     EXPECT_GT(frames, 0u);
   }
@@ -844,16 +855,14 @@ TEST(StackWalkThreadTest, ACrossThreadWalkCostsAFewSafeReadsNotOnePerFrame) {
 TEST(StackWalkThreadTest, WalkingOurOwnStackCostsAFewSafeReadsNotOnePerFrame) {
   const uint64_t before = StackWalk::safeReadCount();
   size_t frames = 0;
-  ASSERT_EQ(
-      walkBelowKnownFrames(
-          kSelfWalkFixtureDepth,
-          [&] {
-            return StackWalk::walkSelf([&](const void*, const void*) {
-              frames++;
-              return true;
-            });
-          }),
-      WalkResult::Completed);
+  const WalkResult walked = walkBelowKnownFrames(kSelfWalkFixtureDepth, [&] {
+    return StackWalk::walkSelf([&](const void*, const void*) {
+      frames++;
+      return true;
+    });
+  });
+  ASSERT_TRUE(isExpectedSelfWalkResult(walked))
+      << "self-walk reported " << static_cast<int>(walked);
   const uint64_t reads = StackWalk::safeReadCount() - before;
 
   EXPECT_LE(reads, 2u) << "walked " << frames << " frames but spent " << reads
