@@ -16,6 +16,7 @@
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/type.h"
+#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
@@ -1733,7 +1734,8 @@ Register* simplifyLoadAttrSplitDict(
         return attr;
       },
       [&] { // Not valid - slow-path, call getattr.
-        return env.emit<LoadAttr>(
+        return env.emitVariadic<LoadAttr>(
+            1,
             receiver,
             load_attr->name(),
             *load_attr->frameState(),
@@ -2130,7 +2132,7 @@ Register* pinModuleAttr(
 }
 
 Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
-  if (load_attr->alreadyOptimized()) {
+  if (load_attr->alreadyOptimized() || load_attr->hasDefault()) {
     return nullptr;
   }
 
@@ -2475,6 +2477,46 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
   return std::nullopt;
 }
 
+Register* simplifyGetAttrStr(Env& env, const VectorCall* instr) {
+  Register* target = instr->getOperand(0);
+  Register* name = instr->arg(1);
+  env.emit<UseType>(target, target->type());
+  const bool has_default = instr->numArgs() == 3;
+  Register* result;
+  if (name->type().hasObjectSpec()) {
+    env.emit<UseType>(name, name->type());
+    BorrowedRef<PyUnicodeObject> attr_name{
+        env.func.env.addReference(name->type().objectSpec())};
+    if (!has_default) {
+      return env.emitVariadic<LoadAttr>(
+          1, instr->arg(0), attr_name, *instr->frameState());
+    }
+    result = env.emitVariadic<LoadAttr>(
+        2, instr->arg(0), instr->arg(2), attr_name, *instr->frameState());
+  } else {
+    result = env.emitVariadic<CallStatic>(
+        2,
+        reinterpret_cast<void*>(
+            has_default ? rt::getOptionalAttr : PyObject_GetAttr),
+        instr->output()->type() | TNullptr,
+        "PyObject_GetAttr",
+        instr->arg(0),
+        name);
+  }
+  if (!has_default) {
+    return env.emit<CheckExc>(result, *instr->frameState());
+  }
+  return env.emitCond(
+      [&](BasicBlock* found, BasicBlock* missing) {
+        env.emit<CondBranch>(result, found, missing);
+      },
+      [&] { return env.emit<RefineType>(TObject, result); },
+      [&] {
+        env.emit<CheckErrOccurred>(*instr->frameState());
+        return instr->arg(2);
+      });
+}
+
 Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   if (Register* result = simplifyVectorCallStatic(env, instr)) {
     return result;
@@ -2564,25 +2606,11 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
           return env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
         });
     return env.emit<PrimitiveBoxBool>(cbool_res);
-  } else if (isBuiltin(target, "getattr") && instr->numArgs() == 2) {
-    Register* name = instr->arg(1);
-    if (name->type() <= TUnicodeExact) {
-      env.emit<UseType>(target, target->type());
-      if (name->type().hasObjectSpec()) {
-        env.emit<UseType>(name, name->type());
-        BorrowedRef<PyUnicodeObject> attr_name{
-            env.func.env.addReference(name->type().objectSpec())};
-        return env.emit<LoadAttr>(
-            instr->arg(0), attr_name, *instr->frameState());
-      }
-      Register* result = env.emitVariadic<CallStatic>(
-          2,
-          reinterpret_cast<void*>(PyObject_GetAttr),
-          instr->output()->type() | TNullptr,
-          "PyObject_GetAttr",
-          instr->arg(0),
-          name);
-      return env.emit<CheckExc>(result, *instr->frameState());
+  } else if (
+      isBuiltin(target, "getattr") &&
+      (instr->numArgs() == 2 || instr->numArgs() == 3)) {
+    if (instr->arg(1)->type() <= TUnicodeExact) {
+      return simplifyGetAttrStr(env, instr);
     }
   }
   if (target_type.hasValueSpec(TFunc)) {

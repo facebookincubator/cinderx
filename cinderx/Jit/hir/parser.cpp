@@ -435,9 +435,20 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       BorrowedRef<> parsed_name = getNextUnicode();
       BorrowedRef<PyUnicodeObject> name{
           reinterpret_cast<PyUnicodeObject*>(parsed_name.get())};
+      bool has_default = false;
+      if (peekNextToken() == ",") {
+        expect(",");
+        expect("default");
+        has_default = true;
+      }
       expect(">");
       auto receiver = parseRegister();
-      instruction = newInstr<LoadAttr>(dst, receiver, name);
+      if (has_default) {
+        auto default_value = parseRegister();
+        instruction = newInstr<LoadAttr>(2, dst, receiver, default_value, name);
+      } else {
+        instruction = newInstr<LoadAttr>(1, dst, receiver, name);
+      }
       break;
     }
     case Opcode::kLoadConst: {

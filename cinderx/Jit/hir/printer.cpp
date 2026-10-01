@@ -672,7 +672,8 @@ static std::string format_immediates(
     }
     case Opcode::kLoadAttr: {
       const auto& load = static_cast<const LoadAttr&>(instr);
-      return format_direct_name(func, load, load.name());
+      std::string name = format_direct_name(func, load, load.name());
+      return load.hasDefault() ? fmt::format("{}, default", name) : name;
     }
     case Opcode::kLoadModuleAttrCached: {
       const auto& load = static_cast<const LoadModuleAttrCached&>(instr);

@@ -512,6 +512,8 @@ void decRefTotal();
 PyObject*
 lookupAttrSpecial(PyObject* obj, PyObject* attr, const char* failure_fmt_str);
 
+PyObject* getOptionalAttr(PyObject* obj, PyObject* attr);
+
 LoadMethodResult loadSpecial(PyObject* self, int special_idx);
 
 /*

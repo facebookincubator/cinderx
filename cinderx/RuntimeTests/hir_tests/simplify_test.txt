@@ -23483,7 +23483,7 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
-VectorCallGetAttrWithDefaultStaysVectorCall
+VectorCallGetAttrConstNameWithDefaultBecomesLoadAttr
 --- Input ---
 def test(obj):
     return getattr(obj, "foo", None)
@@ -23519,14 +23519,36 @@ fun jittestmodule:test {
     Snapshot
     v15:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    v19:Object = VectorCall<3> v14 v9 v15 v16 {
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v14
+    UseType<MortalUnicodeExact["foo"]> v15
+    v20:OptObject = LoadAttr<-1; "foo", default> v9 v16 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v9
       }
     }
+    CondBranch<3, 4> v20
+  }
+
+  bb 3 (preds 1) {
+    v21:Object = RefineType<Object> v20
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v9
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v22:Object = Phi<3, 4> v21 v16
     Snapshot
-    Return v19
+    Return v22
   }
 }
 --- Expected 3.14 ---
@@ -23561,14 +23583,36 @@ fun jittestmodule:test {
     Snapshot
     v15:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    v19:Object = VectorCall<3> v13 v9 v15 v16 {
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v13
+    UseType<MortalUnicodeExact["foo"]> v15
+    v20:OptObject = LoadAttr<-1; "foo", default> v9 v16 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v9
       }
     }
+    CondBranch<3, 4> v20
+  }
+
+  bb 3 (preds 1) {
+    v21:Object = RefineType<Object> v20
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v9
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v22:Object = Phi<3, 4> v21 v16
     Snapshot
-    Return v19
+    Return v22
   }
 }
 --- Expected 3.15 ---
@@ -23604,14 +23648,36 @@ fun jittestmodule:test {
     v15:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
-    v19:Object = VectorCall<3> v13 v9 v15 v16 {
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v13
+    UseType<MortalUnicodeExact["foo"]> v15
+    v20:OptObject = LoadAttr<-1; "foo", default> v9 v16 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v9
       }
     }
+    CondBranch<3, 4> v20
+  }
+
+  bb 3 (preds 1) {
+    v21:Object = RefineType<Object> v20
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 20
+        Locals<1> v9
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v22:Object = Phi<3, 4> v21 v16
     Snapshot
-    Return v19
+    Return v22
   }
 }
 --- Expected 3.16 ---
@@ -23647,14 +23713,36 @@ fun jittestmodule:test {
     v15:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
     v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
-    v19:Object = VectorCall<3> v13 v9 v15 v16 {
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v13
+    UseType<MortalUnicodeExact["foo"]> v15
+    v20:OptObject = LoadAttr<-1; "foo", default> v9 v16 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v9
       }
     }
+    CondBranch<3, 4> v20
+  }
+
+  bb 3 (preds 1) {
+    v21:Object = RefineType<Object> v20
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 20
+        Locals<1> v9
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v22:Object = Phi<3, 4> v21 v16
     Snapshot
-    Return v19
+    Return v22
   }
 }
 --- Expected 3.14t ---
@@ -23691,14 +23779,477 @@ fun jittestmodule:test {
     Snapshot
     v17:ImmortalUnicodeExact["foo"] = LoadConst<ImmortalUnicodeExact["foo"]>
     v18:ImmortalNoneType = LoadConst<ImmortalNoneType>
-    v21:Object = VectorCall<3> v15 v12 v17 v18 {
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v15
+    UseType<ImmortalUnicodeExact["foo"]> v17
+    v22:OptObject = LoadAttr<-1; "foo", default> v12 v18 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v12
       }
     }
+    CondBranch<3, 4> v22
+  }
+
+  bb 3 (preds 1) {
+    v23:Object = RefineType<Object> v22
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 18
+        Locals<1> v12
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v24:Object = Phi<3, 4> v23 v18
     Snapshot
-    Return v21
+    Return v24
+  }
+}
+--- Test Name ---
+VectorCallGetAttrUnicodeNameWithDefaultBecomesCallStatic
+--- Input ---
+def test(obj, flag, default):
+    name = "foo" if flag else "bar"
+    return getattr(obj, name, default)
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v14:Object = LoadArg<0; "obj">
+    v15:Object = LoadArg<1; "flag">
+    v16:Object = LoadArg<2; "default">
+    v17:Func = LoadCurrentFunc
+    LoadFrame
+    v18:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v19:CInt32 = LoadEvalBreaker
+    CondBranch<5, 4> v19
+  }
+
+  bb 5 (preds 0) {
+    Snapshot
+    v31:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<4> v14 v15 v16 v18
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 0, 5) {
+    Snapshot
+    v20:CBool = IsTruthy v15 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<4> v14 v15 v16 v18
+      }
+    }
+    CondBranch<1, 2> v20
+  }
+
+  bb 1 (preds 4) {
+    Snapshot
+    v21:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
+    Branch<3>
+  }
+
+  bb 2 (preds 4) {
+    Snapshot
+    v23:MortalUnicodeExact["bar"] = LoadConst<MortalUnicodeExact["bar"]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v25:MortalUnicodeExact = Phi<1, 2> v21 v23
+    Snapshot
+    v27:Nullptr = LoadConst<Nullptr>
+    v28:OptObject = LoadGlobalCached<0; "getattr">
+    v29:MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef] = GuardIs<0xdeadbeef> v28 {
+      Descr 'LOAD_GLOBAL: getattr'
+    }
+    Snapshot
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v29
+    v33:OptObject = CallStatic<0xdeadbeef, 2> v14 v25
+    CondBranch<6, 7> v33
+  }
+
+  bb 6 (preds 3) {
+    v34:Object = RefineType<Object> v33
+    Branch<8>
+  }
+
+  bb 7 (preds 3) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 30
+        Locals<4> v14 v15 v16 v25
+      }
+    }
+    Branch<8>
+  }
+
+  bb 8 (preds 6, 7) {
+    v35:Object = Phi<6, 7> v34 v16
+    Snapshot
+    Return v35
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v17:Object = LoadArg<0; "obj">
+    v18:Object = LoadArg<1; "flag">
+    v19:Object = LoadArg<2; "default">
+    v20:Func = LoadCurrentFunc
+    LoadFrame
+    v21:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v22
+  }
+
+  bb 5 (preds 0) {
+    Snapshot
+    v37:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<4> v17 v18 v19 v21
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 0, 5) {
+    Snapshot
+    v23:CBool = IsTruthy v18 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<4> v17 v18 v19 v21
+      }
+    }
+    v24:ImmortalBool = PrimitiveBoxBool v23
+    Snapshot
+    v25:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v25
+    CondBranch<1, 2> v23
+  }
+
+  bb 1 (preds 4) {
+    Snapshot
+    v27:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
+    Branch<3>
+  }
+
+  bb 2 (preds 4) {
+    Snapshot
+    v29:MortalUnicodeExact["bar"] = LoadConst<MortalUnicodeExact["bar"]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v31:MortalUnicodeExact = Phi<1, 2> v27 v29
+    Snapshot
+    v33:OptObject = LoadGlobalCached<0; "getattr">
+    v34:MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef] = GuardIs<0xdeadbeef> v33 {
+      Descr 'LOAD_GLOBAL: getattr'
+    }
+    v35:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v34
+    v39:OptObject = CallStatic<0xdeadbeef, 2> v17 v31
+    CondBranch<6, 7> v39
+  }
+
+  bb 6 (preds 3) {
+    v40:Object = RefineType<Object> v39
+    Branch<8>
+  }
+
+  bb 7 (preds 3) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 40
+        Locals<4> v17 v18 v19 v31
+      }
+    }
+    Branch<8>
+  }
+
+  bb 8 (preds 6, 7) {
+    v41:Object = Phi<6, 7> v40 v19
+    Snapshot
+    Return v41
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v17:Object = LoadArg<0; "obj">
+    v18:Object = LoadArg<1; "flag">
+    v19:Object = LoadArg<2; "default">
+    v20:Func = LoadCurrentFunc
+    LoadFrame
+    v21:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v22
+  }
+
+  bb 5 (preds 0) {
+    Snapshot
+    v37:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<4> v17 v18 v19 v21
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 0, 5) {
+    Snapshot
+    v23:CBool = IsTruthy v18 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<4> v17 v18 v19 v21
+      }
+    }
+    v24:ImmortalBool = PrimitiveBoxBool v23
+    Snapshot
+    v25:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v25
+    CondBranch<1, 2> v23
+  }
+
+  bb 1 (preds 4) {
+    Snapshot
+    v27:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
+    Branch<3>
+  }
+
+  bb 2 (preds 4) {
+    Snapshot
+    v29:MortalUnicodeExact["bar"] = LoadConst<MortalUnicodeExact["bar"]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v31:MortalUnicodeExact = Phi<1, 2> v27 v29
+    Snapshot
+    v33:OptObject = LoadGlobalCached<0; "getattr">
+    v34:MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef] = GuardIs<0xdeadbeef> v33 {
+      Descr 'LOAD_GLOBAL: getattr'
+    }
+    v35:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v34
+    v39:OptObject = CallStatic<0xdeadbeef, 2> v17 v31
+    CondBranch<6, 7> v39
+  }
+
+  bb 6 (preds 3) {
+    v40:Object = RefineType<Object> v39
+    Branch<8>
+  }
+
+  bb 7 (preds 3) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 42
+        Locals<4> v17 v18 v19 v31
+      }
+    }
+    Branch<8>
+  }
+
+  bb 8 (preds 6, 7) {
+    v41:Object = Phi<6, 7> v40 v19
+    Snapshot
+    Return v41
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v17:Object = LoadArg<0; "obj">
+    v18:Object = LoadArg<1; "flag">
+    v19:Object = LoadArg<2; "default">
+    v20:Func = LoadCurrentFunc
+    LoadFrame
+    v21:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v22
+  }
+
+  bb 5 (preds 0) {
+    Snapshot
+    v37:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<4> v17 v18 v19 v21
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 0, 5) {
+    Snapshot
+    v23:CBool = IsTruthy v18 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<4> v17 v18 v19 v21
+      }
+    }
+    v24:ImmortalBool = PrimitiveBoxBool v23
+    Snapshot
+    v25:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v25
+    CondBranch<1, 2> v23
+  }
+
+  bb 1 (preds 4) {
+    Snapshot
+    v27:MortalUnicodeExact["foo"] = LoadConst<MortalUnicodeExact["foo"]>
+    Branch<3>
+  }
+
+  bb 2 (preds 4) {
+    Snapshot
+    v29:MortalUnicodeExact["bar"] = LoadConst<MortalUnicodeExact["bar"]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v31:MortalUnicodeExact = Phi<1, 2> v27 v29
+    Snapshot
+    v33:OptObject = LoadGlobalCached<0; "getattr">
+    v34:MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef] = GuardIs<0xdeadbeef> v33 {
+      Descr 'LOAD_GLOBAL: getattr'
+    }
+    v35:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v34
+    v39:OptObject = CallStatic<0xdeadbeef, 2> v17 v31
+    CondBranch<6, 7> v39
+  }
+
+  bb 6 (preds 3) {
+    v40:Object = RefineType<Object> v39
+    Branch<8>
+  }
+
+  bb 7 (preds 3) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 42
+        Locals<4> v17 v18 v19 v31
+      }
+    }
+    Branch<8>
+  }
+
+  bb 8 (preds 6, 7) {
+    v41:Object = Phi<6, 7> v40 v19
+    Snapshot
+    Return v41
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v20:Object = LoadArg<0; "obj">
+    v21:Object = LoadArg<1; "flag">
+    v22:Object = LoadArg<2; "default">
+    v23:Func = LoadCurrentFunc
+    LoadFrame
+    v27:Nullptr = LoadConst<Nullptr>
+    v24:Object = TagIfDeferred v20
+    v25:Object = TagIfDeferred v21
+    v26:Object = TagIfDeferred v22
+    Snapshot
+    AtQuiescentState
+    v28:CInt64 = LoadEvalBreaker
+    CondBranch<5, 4> v28
+  }
+
+  bb 5 (preds 0) {
+    Snapshot
+    v43:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<4> v24 v25 v26 v27
+      }
+    }
+    Branch<4>
+  }
+
+  bb 4 (preds 0, 5) {
+    Snapshot
+    v29:CBool = IsTruthy v25 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<4> v24 v25 v26 v27
+      }
+    }
+    v30:ImmortalBool = PrimitiveBoxBool v29
+    Snapshot
+    v31:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<ImmortalBool[True]> v31
+    CondBranch<1, 2> v29
+  }
+
+  bb 1 (preds 4) {
+    Snapshot
+    v33:ImmortalUnicodeExact["foo"] = LoadConst<ImmortalUnicodeExact["foo"]>
+    Branch<3>
+  }
+
+  bb 2 (preds 4) {
+    Snapshot
+    v35:ImmortalUnicodeExact["bar"] = LoadConst<ImmortalUnicodeExact["bar"]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v37:ImmortalUnicodeExact = Phi<1, 2> v33 v35
+    Snapshot
+    v39:OptObject = LoadGlobalCached<0; "getattr">
+    v40:MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef] = GuardIs<0xdeadbeef> v39 {
+      Descr 'LOAD_GLOBAL: getattr'
+    }
+    v41:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    UseType<MortalObjectUser[builtin_function_or_method:getattr:0xdeadbeef]> v40
+    v45:OptObject = CallStatic<0xdeadbeef, 2> v24 v37
+    CondBranch<6, 7> v45
+  }
+
+  bb 6 (preds 3) {
+    v46:Object = RefineType<Object> v45
+    Branch<8>
+  }
+
+  bb 7 (preds 3) {
+    CheckErrOccurred {
+      FrameState {
+        CurInstrOffset 40
+        Locals<4> v24 v25 v26 v37
+      }
+    }
+    Branch<8>
+  }
+
+  bb 8 (preds 6, 7) {
+    v47:Object = Phi<6, 7> v46 v26
+    Snapshot
+    Return v47
   }
 }
 --- End ---

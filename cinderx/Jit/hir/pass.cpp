@@ -235,7 +235,6 @@ Type outputType(
     case Opcode::kImportName:
     case Opcode::kInvokeIterNext:
     case Opcode::kListSubscr:
-    case Opcode::kLoadAttr:
     case Opcode::kLoadAttrSpecial:
     case Opcode::kLoadAttrSuper:
     case Opcode::kLoadGlobal:
@@ -249,6 +248,9 @@ Type outputType(
     case Opcode::kSend:
     case Opcode::kYieldValue:
       return TObject;
+    case Opcode::kLoadAttr:
+      return static_cast<const LoadAttr&>(instr).hasDefault() ? TOptObject
+                                                              : TObject;
     case Opcode::kBuildString:
       return TMortalUnicode;
     case Opcode::kGetLength:

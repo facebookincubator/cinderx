@@ -2125,6 +2125,12 @@ lookupAttrSpecial(PyObject* obj, PyObject* attr, const char* failure_fmt_str) {
   return res;
 }
 
+PyObject* getOptionalAttr(PyObject* obj, PyObject* attr) {
+  PyObject* result;
+  PyObject_GetOptionalAttr(obj, attr, &result);
+  return result;
+}
+
 #ifdef Py_GIL_DISABLED
 void incRefShared(PyObject* obj) {
   _Py_atomic_add_ssize(&obj->ob_ref_shared, (1 << _Py_REF_SHARED_SHIFT));

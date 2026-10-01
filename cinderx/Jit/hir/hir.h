@@ -2431,7 +2431,7 @@ class DeoptBaseWithNameIdx : public DeoptBase {
 // Load an attribute from an object. The already_optimized option is for use
 // when this instruction is used as part of the slow-path in optimization for an
 // initial LoadAttr.
-class INSTR_CLASS(LoadAttr, (TObject), HasOutput, Operands<1>, DeoptBase) {
+class INSTR_CLASS(LoadAttr, (TObject), HasOutput, Operands<>, DeoptBase) {
  public:
   LoadAttr(
       Register* dst,
@@ -2439,9 +2439,22 @@ class INSTR_CLASS(LoadAttr, (TObject), HasOutput, Operands<1>, DeoptBase) {
       BorrowedRef<PyUnicodeObject> name,
       const FrameState& frame,
       bool already_optimized = false)
-      : InstrT(dst, receiver, frame),
-        name_(name),
-        already_optimized_(already_optimized) {}
+      : InstrT(dst, frame), name_(name), already_optimized_(already_optimized) {
+    JIT_CHECK(numOperands() == 1, "LoadAttr expects one operand");
+    setOperand(0, receiver);
+  }
+
+  LoadAttr(
+      Register* dst,
+      Register* receiver,
+      Register* default_value,
+      BorrowedRef<PyUnicodeObject> name,
+      const FrameState& frame)
+      : InstrT(dst, frame), name_(name), already_optimized_(false) {
+    JIT_CHECK(numOperands() == 2, "LoadAttr with default expects two operands");
+    setOperand(0, receiver);
+    setOperand(1, default_value);
+  }
 
   BorrowedRef<PyUnicodeObject> name() const {
     return name_;
@@ -2449,6 +2462,15 @@ class INSTR_CLASS(LoadAttr, (TObject), HasOutput, Operands<1>, DeoptBase) {
 
   bool alreadyOptimized() const {
     return already_optimized_;
+  }
+
+  bool hasDefault() const {
+    return numOperands() == 2;
+  }
+
+  Register* defaultValue() const {
+    JIT_DCHECK(hasDefault(), "LoadAttr does not have a default value");
+    return getOperand(1);
   }
 
  private:

@@ -2894,7 +2894,7 @@ void HIRBuilder::emitLoadAttr(
       "LOAD_ATTR name index out of bounds");
   BorrowedRef<PyUnicodeObject> name{reinterpret_cast<PyUnicodeObject*>(
       PyTuple_GET_ITEM(tc.frame.code->co_names, name_idx))};
-  tc.emit<LoadAttr>(result, receiver, name, tc.frame);
+  tc.emit<LoadAttr>(1, result, receiver, name, tc.frame);
   tc.frame.stack.push(result);
 }
 

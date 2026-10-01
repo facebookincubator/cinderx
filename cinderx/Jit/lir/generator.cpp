@@ -3390,7 +3390,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dst = instr->output();
         hir::Register* base = instr->getOperand(0);
         Instruction* name = getDirectName(bbb, instr->name());
-        if (getConfig().attr_caches) {
+        if (instr->hasDefault()) {
+          bbb.appendCallInstruction(dst, rt::getOptionalAttr, base, name);
+        } else if (getConfig().attr_caches) {
           auto cache =
               stable_storage_.allocateLoadAttrCache(instr->bytecodeOffset());
           if constexpr (kInlineCachesTargetPromote) {
@@ -5687,6 +5689,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         case hir::Opcode::kRaiseStatic:
         case hir::Opcode::kStoreAttr:
         case hir::Opcode::kStoreSubscr: {
+          break;
+        }
+        case hir::Opcode::kLoadAttr: {
+          if (!i.as<LoadAttr>().hasDefault()) {
+            emitExceptionCheck(*db, bbb);
+          }
           break;
         }
         case hir::Opcode::kPrimitiveBox: {
