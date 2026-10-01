@@ -428,10 +428,16 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     }
     case Opcode::kLoadAttr: {
       expect("<");
-      int idx = getNextNameIdx();
+      // Index is informational only; the annotated unicode name is
+      // authoritative.
+      getNextInteger();
+      expect(";");
+      BorrowedRef<> parsed_name = getNextUnicode();
+      BorrowedRef<PyUnicodeObject> name{
+          reinterpret_cast<PyUnicodeObject*>(parsed_name.get())};
       expect(">");
       auto receiver = parseRegister();
-      instruction = newInstr<LoadAttr>(dst, receiver, idx);
+      instruction = newInstr<LoadAttr>(dst, receiver, name);
       break;
     }
     case Opcode::kLoadConst: {
@@ -743,11 +749,16 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kFillTypeAttrCache: {
       expect("<");
       int cache_id = getNextInteger();
-      int name_idx = getNextInteger();
+      expect(",");
+      // not needed to recreate the instruction
+      getNextInteger();
+      expect(";");
+      BorrowedRef<> parsed_name = getNextUnicode();
+      BorrowedRef<PyUnicodeObject> name{
+          reinterpret_cast<PyUnicodeObject*>(parsed_name.get())};
       expect(">");
       auto receiver = parseRegister();
-      instruction =
-          newInstr<FillTypeAttrCache>(dst, receiver, name_idx, cache_id);
+      instruction = newInstr<FillTypeAttrCache>(dst, receiver, name, cache_id);
       break;
     }
     case Opcode::kLoadArrayItem: {

@@ -359,6 +359,10 @@ class LIRGenerator {
       BasicBlockBuilder& bbb,
       const hir::DeoptBaseWithNameIdx* instr);
 
+  Instruction* getDirectName(
+      BasicBlockBuilder& bbb,
+      BorrowedRef<PyUnicodeObject> name);
+
   Instruction* getInlinedFrame(
       BasicBlockBuilder& bbb,
       const hir::BeginInlinedFunction* instr);

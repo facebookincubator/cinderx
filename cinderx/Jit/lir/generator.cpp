@@ -3389,7 +3389,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto instr = &i.as<LoadAttr>();
         hir::Register* dst = instr->output();
         hir::Register* base = instr->getOperand(0);
-        Instruction* name = getNameFromIdx(bbb, instr);
+        Instruction* name = getDirectName(bbb, instr->name());
         if (getConfig().attr_caches) {
           auto cache =
               stable_storage_.allocateLoadAttrCache(instr->bytecodeOffset());
@@ -3443,7 +3443,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             getConfig().attr_caches,
             "Inline caches must be enabled to use FillTypeAttrCacheItem");
         auto instr = &i.as<FillTypeAttrCache>();
-        Instruction* name = getNameFromIdx(bbb, instr);
+        Instruction* name = getDirectName(bbb, instr->name());
         auto cache = load_type_attr_caches_.at(instr->cacheId());
         stable_storage_.addLoadTypeAttrCacheSite(
             instr->bytecodeOffset(), cache);
@@ -3533,7 +3533,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             getConfig().attr_caches,
             "Inline caches must be enabled to use LoadModuleAttrCached");
         auto instr = &i.as<LoadModuleAttrCached>();
-        Instruction* name = getNameFromIdx(bbb, instr);
+        Instruction* name = getDirectName(bbb, instr->name());
         auto cache = stable_storage_.allocateLoadModuleAttrCache(
             instr->bytecodeOffset());
         bbb.appendCallInstruction(
@@ -5833,6 +5833,16 @@ Instruction* LIRGenerator::getNameFromIdx(
     BasicBlockBuilder& bbb,
     const hir::DeoptBaseWithNameIdx* instr) {
   BorrowedRef<PyUnicodeObject> name = instr->name();
+  return bbb.appendInstr(
+      OutVReg{},
+      Opcode::kMove,
+      // TASK(T140174965): This should be MemImm.
+      Imm{reinterpret_cast<uint64_t>(name.get()), Operand::kObject});
+}
+
+Instruction* LIRGenerator::getDirectName(
+    BasicBlockBuilder& bbb,
+    BorrowedRef<PyUnicodeObject> name) {
   return bbb.appendInstr(
       OutVReg{},
       Opcode::kMove,

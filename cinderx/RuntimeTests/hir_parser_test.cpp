@@ -27,7 +27,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
               v0 = InitialYield
               CheckVar<-1> v0 {
               }
-              v1 = LoadAttr<0> v0
+              v1 = LoadAttr<0; "attr"> v0
               CheckExc v1 {
               }
               Incref v1
@@ -413,6 +413,30 @@ def my_func(a, b, c):
   // the parser.
   auto parsed_func = HIRParser{}.parseHIR(printed_hir.c_str());
   ASSERT_NE(parsed_func, nullptr);
+}
+
+TEST_F(HIRParserTest, ParsesLoadAttrName) {
+  const char* hir_source = R"(fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadAttr<-1; "foo"> v0
+    Return v1
+  }
+}
+)";
+
+  auto func = HIRParser{}.parseHIR(hir_source);
+  auto it = func->cfg.entry_block->begin();
+  ++it;
+  auto& load_attr = it->as<LoadAttr>();
+  EXPECT_STREQ(PyUnicode_AsUTF8(load_attr.name()), "foo");
+
+  std::string printed = HIRPrinter{}.toString(*func);
+  auto reparsed = HIRParser{}.parseHIR(printed.c_str());
+  auto reparsed_it = reparsed->cfg.entry_block->begin();
+  ++reparsed_it;
+  auto& reparsed_load_attr = reparsed_it->as<LoadAttr>();
+  EXPECT_STREQ(PyUnicode_AsUTF8(reparsed_load_attr.name()), "foo");
 }
 
 TEST_F(HIRParserTest, ParseSimple) {

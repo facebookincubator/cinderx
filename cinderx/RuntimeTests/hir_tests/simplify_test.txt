@@ -4947,7 +4947,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = FillTypeAttrCache<0, 1> v8 {
+    v14:Object = FillTypeAttrCache<0, 1; "bar"> v8 {
       FrameState {
         CurInstrOffset 12
       }
@@ -5000,7 +5000,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = FillTypeAttrCache<0, 1> v8 {
+    v14:Object = FillTypeAttrCache<0, 1; "bar"> v8 {
       FrameState {
         CurInstrOffset 12
       }
@@ -5053,7 +5053,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = FillTypeAttrCache<0, 1> v8 {
+    v14:Object = FillTypeAttrCache<0, 1; "bar"> v8 {
       FrameState {
         CurInstrOffset 14
       }
@@ -5106,7 +5106,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = FillTypeAttrCache<0, 1> v8 {
+    v14:Object = FillTypeAttrCache<0, 1; "bar"> v8 {
       FrameState {
         CurInstrOffset 14
       }
@@ -5201,7 +5201,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = FillTypeAttrCache<0, 1> v8 {
+    v14:Object = FillTypeAttrCache<0, 1; "__add__"> v8 {
       FrameState {
         CurInstrOffset 12
       }
@@ -5254,7 +5254,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = FillTypeAttrCache<0, 1> v8 {
+    v14:Object = FillTypeAttrCache<0, 1; "__add__"> v8 {
       FrameState {
         CurInstrOffset 12
       }
@@ -5307,7 +5307,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = FillTypeAttrCache<0, 1> v8 {
+    v14:Object = FillTypeAttrCache<0, 1; "__add__"> v8 {
       FrameState {
         CurInstrOffset 14
       }
@@ -5360,7 +5360,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v14:Object = FillTypeAttrCache<0, 1> v8 {
+    v14:Object = FillTypeAttrCache<0, 1; "__add__"> v8 {
       FrameState {
         CurInstrOffset 14
       }
@@ -6084,7 +6084,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v18:Object = FillTypeAttrCache<0, 2> v14 {
+    v18:Object = FillTypeAttrCache<0, 2; "fromkeys"> v14 {
       FrameState {
         CurInstrOffset 32
       }
@@ -6146,7 +6146,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v18:Object = FillTypeAttrCache<0, 2> v14 {
+    v18:Object = FillTypeAttrCache<0, 2; "fromkeys"> v14 {
       FrameState {
         CurInstrOffset 32
       }
@@ -6208,7 +6208,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v18:Object = FillTypeAttrCache<0, 2> v14 {
+    v18:Object = FillTypeAttrCache<0, 2; "fromkeys"> v14 {
       FrameState {
         CurInstrOffset 34
       }
@@ -6270,7 +6270,7 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
-    v18:Object = FillTypeAttrCache<0, 2> v14 {
+    v18:Object = FillTypeAttrCache<0, 2; "fromkeys"> v14 {
       FrameState {
         CurInstrOffset 34
       }

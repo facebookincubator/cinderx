@@ -2431,27 +2431,28 @@ class DeoptBaseWithNameIdx : public DeoptBase {
 // Load an attribute from an object. The already_optimized option is for use
 // when this instruction is used as part of the slow-path in optimization for an
 // initial LoadAttr.
-class INSTR_CLASS(
-    LoadAttr,
-    (TObject),
-    HasOutput,
-    Operands<1>,
-    DeoptBaseWithNameIdx) {
+class INSTR_CLASS(LoadAttr, (TObject), HasOutput, Operands<1>, DeoptBase) {
  public:
   LoadAttr(
       Register* dst,
       Register* receiver,
-      int name_idx,
+      BorrowedRef<PyUnicodeObject> name,
       const FrameState& frame,
       bool already_optimized = false)
-      : InstrT(dst, receiver, name_idx, frame),
+      : InstrT(dst, receiver, frame),
+        name_(name),
         already_optimized_(already_optimized) {}
+
+  BorrowedRef<PyUnicodeObject> name() const {
+    return name_;
+  }
 
   bool alreadyOptimized() const {
     return already_optimized_;
   }
 
  private:
+  BorrowedRef<PyUnicodeObject> name_;
   bool already_optimized_;
 };
 
@@ -2551,22 +2552,22 @@ class INSTR_CLASS(
     (TType),
     HasOutput,
     Operands<1>,
-    DeoptBaseWithNameIdx) {
+    DeoptBase) {
  public:
   FillTypeAttrCache(
       Register* dst,
       Register* receiver,
-      int name_idx,
+      BorrowedRef<PyUnicodeObject> name,
       int cache_id,
       const FrameState& frame)
-      : InstrT(dst, receiver, name_idx, frame), cache_id_(cache_id) {}
+      : InstrT(dst, receiver, frame), name_(name), cache_id_(cache_id) {}
   FillTypeAttrCache(
       Register* dst,
       Register* receiver,
-      int name_idx,
+      BorrowedRef<PyUnicodeObject> name,
       int cache_id,
       std::unique_ptr<FrameState> frame)
-      : InstrT(dst, receiver, name_idx), cache_id_(cache_id) {
+      : InstrT(dst, receiver), name_(name), cache_id_(cache_id) {
     setFrameState(std::move(frame));
   }
 
@@ -2579,7 +2580,12 @@ class INSTR_CLASS(
     return cache_id_;
   }
 
+  BorrowedRef<PyUnicodeObject> name() const {
+    return name_;
+  }
+
  private:
+  BorrowedRef<PyUnicodeObject> name_;
   int cache_id_;
 };
 
@@ -2604,13 +2610,37 @@ DEFINE_SIMPLE_INSTR(
     Operands<1>,
     LoadMethodBase);
 
-// Like LoadMethod, but specialized for loading an attribute from a module
-DEFINE_SIMPLE_INSTR(
+// Like LoadMethod, but specialized for loading an attribute from a module.
+class INSTR_CLASS(
     LoadModuleAttrCached,
     (TObject),
     HasOutput,
     Operands<1>,
-    DeoptBaseWithNameIdx);
+    DeoptBase) {
+ public:
+  LoadModuleAttrCached(
+      Register* dst,
+      Register* receiver,
+      BorrowedRef<PyUnicodeObject> name,
+      const FrameState& frame)
+      : InstrT(dst, receiver, frame), name_(name) {}
+
+  LoadModuleAttrCached(
+      Register* dst,
+      Register* receiver,
+      BorrowedRef<PyUnicodeObject> name,
+      std::unique_ptr<FrameState> frame)
+      : InstrT(dst, receiver), name_(name) {
+    setFrameState(std::move(frame));
+  }
+
+  BorrowedRef<PyUnicodeObject> name() const {
+    return name_;
+  }
+
+ private:
+  BorrowedRef<PyUnicodeObject> name_;
+};
 
 // Like LoadMethod, but specialized for loading a method from a module
 DEFINE_SIMPLE_INSTR(

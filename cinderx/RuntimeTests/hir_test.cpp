@@ -17,6 +17,7 @@
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/refcount_insertion.h"
+#include "cinderx/Jit/hir/simplify.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/threaded_compile.h"
@@ -1195,6 +1196,45 @@ class CppInlinerAnnotationTest : public CppInlinerTest {
  private:
   Config saved_config_;
 };
+
+class LoadAttrSimplifyTest : public RuntimeTest {};
+
+TEST_F(LoadAttrSimplifyTest, SlowPathLoadAttrPreservesName) {
+#if PY_VERSION_HEX >= 0x030E0000 && !defined(Py_GIL_DISABLED)
+  const char* pycode = R"(
+class C:
+  def __init__(self):
+    self.foo = 42
+
+INSTANCE = C()
+
+def test():
+  return INSTANCE.foo
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr) << "Failed compiling func";
+  std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+  ASSERT_NE(irfunc, nullptr);
+
+  SSAify{}.run(*irfunc);
+  Simplify{}.run(*irfunc);
+
+  const LoadAttr* slow_load = nullptr;
+  for (BasicBlock* block : irfunc->cfg.getRPOTraversal()) {
+    for (Instr& instr : *block) {
+      if (instr.isLoadAttr() && instr.as<LoadAttr>().alreadyOptimized()) {
+        ASSERT_EQ(slow_load, nullptr);
+        slow_load = &instr.as<LoadAttr>();
+      }
+    }
+  }
+
+  ASSERT_NE(slow_load, nullptr);
+  EXPECT_STREQ(PyUnicode_AsUTF8(slow_load->name()), "foo");
+#else
+  GTEST_SKIP() << "Split-dict slow-path LoadAttr is only emitted on GIL 3.14+";
+#endif
+}
 
 void expectInlinedMethodRewrite(
     const Function& irfunc,

@@ -1735,7 +1735,7 @@ Register* simplifyLoadAttrSplitDict(
       [&] { // Not valid - slow-path, call getattr.
         return env.emit<LoadAttr>(
             receiver,
-            load_attr->nameIdx(),
+            load_attr->name(),
             *load_attr->frameState(),
             /* already_optimized= */ true);
       });
@@ -2003,9 +2003,8 @@ Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
         return env.emit<LoadTypeAttrCacheEntryValue>(cache_id);
       },
       [&] { // Slow path
-        int name_idx = load_attr->nameIdx();
         return env.emit<FillTypeAttrCache>(
-            receiver, name_idx, cache_id, *load_attr->frameState());
+            receiver, load_attr->name(), cache_id, *load_attr->frameState());
       });
 }
 
@@ -2146,7 +2145,7 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
     if (type == &PyModule_Type || type == &Ci_StrictModule_Type) {
       Register* cached = env.emit<LoadModuleAttrCached>(
           load_attr->getOperand(0),
-          load_attr->nameIdx(),
+          load_attr->name(),
           *load_attr->frameState());
       Register* reg;
       BorrowedRef<> mod = staticModuleForReceiver(receiver);

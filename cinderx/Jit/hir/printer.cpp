@@ -200,7 +200,7 @@ static std::string escape_unicode(PyObject* str) {
   return escape_unicode(data, size);
 }
 
-static std::string format_name_impl(int idx, PyObject* names) {
+static std::string format_name_impl(Py_ssize_t idx, PyObject* names) {
   return fmt::format(
       "{}; {}", idx, escape_unicode(PyTuple_GET_ITEM(names, idx)));
 }
@@ -213,6 +213,33 @@ format_name(const Function* func, const Instr& instr, int idx) {
   }
 
   return format_name_impl(idx, code->co_names);
+}
+
+static Py_ssize_t find_direct_name_idx(
+    const Function* func,
+    const Instr& instr,
+    BorrowedRef<PyUnicodeObject> name) {
+  auto code = func != nullptr ? func->codeFor(instr) : nullptr;
+  if (code != nullptr) {
+    for (Py_ssize_t idx = 0; idx < PyTuple_GET_SIZE(code->co_names); ++idx) {
+      if (PyTuple_GET_ITEM(code->co_names, idx) ==
+          reinterpret_cast<PyObject*>(name.get())) {
+        return idx;
+      }
+    }
+  }
+  return -1;
+}
+
+static std::string format_direct_name(
+    const Function* func,
+    const Instr& instr,
+    BorrowedRef<PyUnicodeObject> name) {
+  Py_ssize_t idx = find_direct_name_idx(func, instr, name);
+  if (idx >= 0) {
+    return format_name_impl(idx, func->codeFor(instr)->co_names);
+  }
+  return fmt::format("-1; {}", escape_unicode(name));
 }
 
 static std::string format_load_super(
@@ -640,9 +667,15 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
 
       return ss.str();
     }
+    case Opcode::kLoadAttr: {
+      const auto& load = static_cast<const LoadAttr&>(instr);
+      return format_direct_name(func, load, load.name());
+    }
+    case Opcode::kLoadModuleAttrCached: {
+      const auto& load = static_cast<const LoadModuleAttrCached&>(instr);
+      return format_direct_name(func, load, load.name());
+    }
     case Opcode::kDeleteAttr:
-    case Opcode::kLoadAttr:
-    case Opcode::kLoadModuleAttrCached:
     case Opcode::kStoreAttr: {
       const auto& named = static_cast<const DeoptBaseWithNameIdx&>(instr);
       return format_name(func, named, named.nameIdx());
@@ -665,7 +698,10 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kFillTypeAttrCache: {
       const auto& ftac = static_cast<const FillTypeAttrCache&>(instr);
-      return fmt::format("{}, {}", ftac.cacheId(), ftac.nameIdx());
+      return fmt::format(
+          "{}, {}",
+          ftac.cacheId(),
+          format_direct_name(func, ftac, ftac.name()));
     }
     case Opcode::kLoadTypeMethodCacheEntryValue: {
       const auto& i = static_cast<const LoadTypeMethodCacheEntryValue&>(instr);

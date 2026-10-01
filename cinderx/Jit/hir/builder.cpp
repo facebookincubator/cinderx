@@ -2889,7 +2889,12 @@ void HIRBuilder::emitLoadAttr(
   }
 
   Register* result = allocateTemp();
-  tc.emit<LoadAttr>(result, receiver, name_idx, tc.frame);
+  JIT_CHECK(
+      name_idx < PyTuple_GET_SIZE(tc.frame.code->co_names),
+      "LOAD_ATTR name index out of bounds");
+  BorrowedRef<PyUnicodeObject> name{reinterpret_cast<PyUnicodeObject*>(
+      PyTuple_GET_ITEM(tc.frame.code->co_names, name_idx))};
+  tc.emit<LoadAttr>(result, receiver, name, tc.frame);
   tc.frame.stack.push(result);
 }
 
