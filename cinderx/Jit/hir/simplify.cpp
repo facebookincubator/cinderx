@@ -2564,6 +2564,26 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
           return env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
         });
     return env.emit<PrimitiveBoxBool>(cbool_res);
+  } else if (isBuiltin(target, "getattr") && instr->numArgs() == 2) {
+    Register* name = instr->arg(1);
+    if (name->type() <= TUnicodeExact) {
+      env.emit<UseType>(target, target->type());
+      if (name->type().hasObjectSpec()) {
+        env.emit<UseType>(name, name->type());
+        BorrowedRef<PyUnicodeObject> attr_name{
+            env.func.env.addReference(name->type().objectSpec())};
+        return env.emit<LoadAttr>(
+            instr->arg(0), attr_name, *instr->frameState());
+      }
+      Register* result = env.emitVariadic<CallStatic>(
+          2,
+          reinterpret_cast<void*>(PyObject_GetAttr),
+          instr->output()->type() | TNullptr,
+          "PyObject_GetAttr",
+          instr->arg(0),
+          name);
+      return env.emit<CheckExc>(result, *instr->frameState());
+    }
   }
   if (target_type.hasValueSpec(TFunc)) {
     BorrowedRef<PyFunctionObject> func{target_type.objectSpec()};
