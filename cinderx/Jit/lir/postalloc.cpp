@@ -1280,8 +1280,11 @@ void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   }
 }
 
-// Negate BranchCC instructions based on the next (fallthrough) basic block.
-void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
+template <typename NegateFn>
+void doRewriteTwoWayBranch(
+    instr_iter_t instr_iter,
+    BasicBlock* next_block,
+    NegateFn negate_fn) {
   auto instr = instr_iter->get();
   auto block = instr->basicBlock();
 
@@ -1290,7 +1293,7 @@ void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
   BasicBlock* fallthrough_bb = nullptr;
 
   if (true_bb == next_block) {
-    instr->setCondition(negate(instr->condition()));
+    negate_fn(instr);
     instr->allocateLabelInput(false_bb);
     fallthrough_bb = true_bb;
   } else {
@@ -1304,6 +1307,13 @@ void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
         block->allocateInstr(Opcode::kBranch, instr->origin());
     fallthrough_branch->allocateLabelInput(fallthrough_bb);
   }
+}
+
+// Negate BranchCC instructions based on the next (fallthrough) basic block.
+void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
+  doRewriteTwoWayBranch(instr_iter, next_block, [](Instruction* instr) {
+    instr->setCondition(negate(instr->condition()));
+  });
 }
 
 Opcode negateBranchBit(Opcode opcode) {
@@ -1319,31 +1329,30 @@ Opcode negateBranchBit(Opcode opcode) {
 
 // Negate BranchBit instructions based on the next (fallthrough) basic block.
 void doRewriteBranchBit(instr_iter_t instr_iter, BasicBlock* next_block) {
-  auto instr = instr_iter->get();
-  auto block = instr->basicBlock();
-
-  auto true_bb = block->getTrueSuccessor();
-  auto false_bb = block->getFalseSuccessor();
-  BasicBlock* fallthrough_bb = nullptr;
-
-  if (true_bb == next_block) {
+  doRewriteTwoWayBranch(instr_iter, next_block, [](Instruction* instr) {
     instr->setOpcode(negateBranchBit(instr->opcode()));
-    instr->allocateLabelInput(false_bb);
-    fallthrough_bb = true_bb;
-  } else {
-    instr->allocateLabelInput(true_bb);
-    fallthrough_bb = false_bb;
-  }
+  });
+}
 
-  if (fallthrough_bb != next_block ||
-      block->section() != next_block->section()) {
-    auto fallthrough_branch =
-        block->allocateInstr(Opcode::kBranch, instr->origin());
-    fallthrough_branch->allocateLabelInput(fallthrough_bb);
+Opcode negateCmpBranch(Opcode opcode) {
+  switch (opcode) {
+    case Opcode::kCmpBranchZero:
+      return Opcode::kCmpBranchNonZero;
+    case Opcode::kCmpBranchNonZero:
+      return Opcode::kCmpBranchZero;
+    default:
+      JIT_ABORT("Not a cmp branch opcode: {}", static_cast<int>(opcode));
   }
 }
 
-// Convert CondBranch, BranchCC, and BranchBit instructions.
+// Negate CmpBranch instructions based on the next (fallthrough) basic block.
+void doRewriteCmpBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
+  doRewriteTwoWayBranch(instr_iter, next_block, [](Instruction* instr) {
+    instr->setOpcode(negateCmpBranch(instr->opcode()));
+  });
+}
+
+// Resolve conditional branches using the final block layout.
 RewriteResult rewriteCondBranch(Function* function) {
   auto& blocks = function->basicBlocks();
 
@@ -1371,6 +1380,9 @@ RewriteResult rewriteCondBranch(Function* function) {
         (instr->isBranchBitSet() || instr->isBranchBitNotSet()) &&
         instr->getNumInputs() == 2) {
       doRewriteBranchBit(instr_iter, next_block);
+      changed = true;
+    } else if (isCmpBranch(instr->opcode()) && instr->getNumInputs() == 1) {
+      doRewriteCmpBranch(instr_iter, next_block);
       changed = true;
     }
   }
@@ -1478,6 +1490,8 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kBranchBitNotSet:
     case Opcode::kBranchBitSet:
     case Opcode::kCmp:
+    case Opcode::kCmpBranchNonZero:
+    case Opcode::kCmpBranchZero:
     case Opcode::kDec:
     case Opcode::kDiv:
     case Opcode::kDivUn:
@@ -1509,8 +1523,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kCall:
     case Opcode::kCVarArgCall:
     case Opcode::kCallSiteLiveValues:
-    case Opcode::kCmpBranchNonZero:
-    case Opcode::kCmpBranchZero:
     case Opcode::kCondBranch:
     case Opcode::kDeoptPatchpoint:
     case Opcode::kEpilogueEnd:

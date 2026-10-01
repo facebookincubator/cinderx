@@ -246,6 +246,52 @@ static std::vector<Instruction*> collectInstrs(BasicBlock& bb) {
 }
 
 #if defined(CINDER_AARCH64)
+TEST_F(LIRPostAllocRewriteTest, RewriteCmpBranchLayout) {
+  struct {
+    const char* true_succ;
+    const char* false_succ;
+    const char* next_section;
+    Opcode expected_opcode;
+    bool has_fallthrough_branch;
+  } cases[] = {
+      // True successor is next block: invert opcode, target false successor.
+      {"%1", "%2", ".text", Opcode::kCmpBranchZero, false},
+      // False successor is next block: keep opcode, target true successor.
+      {"%2", "%1", ".text", Opcode::kCmpBranchNonZero, false},
+      // True successor in different section: invert opcode and insert
+      // fallthrough branch.
+      {"%1", "%2", ".coldtext", Opcode::kCmpBranchZero, true},
+  };
+
+  for (const auto& test_case : cases) {
+    auto func = Parser().parse(
+        fmt::format(
+            R"(Function:
+BB %0 - succs: {} {} - section: .text
+       CmpBranchNonZero W0:32bit
+BB %1 - preds: %0 - section: {}
+BB %2 - preds: %0
+)",
+            test_case.true_succ,
+            test_case.false_succ,
+            test_case.next_section));
+    func->sortBasicBlocks();
+    Environ env;
+    PostRegAllocRewrite(func.get(), &env).run();
+
+    auto instrs = collectInstrs(*func->basicBlocks()[0]);
+    ASSERT_EQ(instrs.size(), test_case.has_fallthrough_branch ? 2 : 1);
+    EXPECT_EQ(instrs[0]->opcode(), test_case.expected_opcode);
+    ASSERT_EQ(instrs[0]->getNumInputs(), 2);
+    EXPECT_EQ(instrs[0]->getInput(1)->getBasicBlock(), func->basicBlocks()[2]);
+    if (test_case.has_fallthrough_branch) {
+      EXPECT_TRUE(instrs[1]->isBranch());
+      EXPECT_EQ(
+          instrs[1]->getInput(0)->getBasicBlock(), func->basicBlocks()[1]);
+    }
+  }
+}
+
 TEST_F(LIRPostAllocRewriteTest, ZeroImmediateMoveUsesSizedZeroRegister) {
   Function func;
   auto* bb = func.allocateBasicBlock();

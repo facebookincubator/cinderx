@@ -10,6 +10,7 @@
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/operand.h"
 
+#include <algorithm>
 #include <iterator>
 #include <memory>
 #include <unordered_map>
@@ -519,6 +520,11 @@ void selectA64Select(
   select->getInput(0)->setConstant(static_cast<uint64_t>(cond));
 }
 
+bool readsFlags(Opcode opcode) {
+  return opcode == Opcode::kBranchCC || opcode == Opcode::kA64GuardCC ||
+      opcode == Opcode::kA64SelectCC;
+}
+
 /* Convert from:
  *
  *     tst w0, w0
@@ -587,6 +593,67 @@ void selectA64BranchSigned(BasicBlock* block, instr_iter_t instr_iter) {
   block->removeInstr(cursor);
 }
 
+/* Convert:
+ *     tst x0, x0
+ *     b.eq/b.ne label
+ * to:
+ *     cbz/cbnz x0, label
+ */
+bool selectA64BranchZero(BasicBlock* block, instr_iter_t instr_iter) {
+  Instruction* branch = instr_iter->get();
+  JIT_DCHECK(
+      branch->isBranchCC(), "Expected BranchCC, got {}", branch->opname());
+
+  Condition cond = branch->condition();
+  bool branches_on_zero = cond == Condition::kZero || cond == Condition::kEqual;
+  bool branches_on_nonzero =
+      cond == Condition::kNotZero || cond == Condition::kNotEqual;
+  if (!branches_on_zero && !branches_on_nonzero) {
+    return false;
+  }
+
+  // We need an adjacent test instruction before the branch.
+  if (instr_iter == block->instructions().begin()) {
+    return false;
+  }
+  auto test_iter = std::prev(instr_iter);
+  Instruction* test_instr = test_iter->get();
+  if (!test_instr->isTest() && !test_instr->isTest32()) {
+    return false;
+  }
+
+  // Continue only when both sides use the same register.
+  auto* left = test_instr->getInput(0);
+  auto* right = test_instr->getInput(1);
+  if (!left->isLinked() || !right->isLinked() ||
+      left->getLinkedInstr() != right->getLinkedInstr()) {
+    return false;
+  }
+
+  DataType type = left->dataType();
+  if (test_instr->isTest32() && type != DataType::k32bit) {
+    return false;
+  }
+  if (type != DataType::k32bit && type != DataType::k64bit &&
+      type != DataType::kObject && type != DataType::kObjectUntagged) {
+    return false;
+  }
+
+  // Don't remove the test if its flags are used later.
+  if (std::any_of(
+          std::next(instr_iter),
+          block->instructions().end(),
+          [](auto const& instr) { return readsFlags(instr->opcode()); })) {
+    return false;
+  }
+
+  branch->setOpcode(
+      branches_on_zero ? Opcode::kCmpBranchZero : Opcode::kCmpBranchNonZero);
+  branch->prependInput(test_instr->removeInput(0));
+  block->removeInstr(test_iter);
+  return true;
+}
+
 void selectA64Opcodes(Function* func) {
   UseCounts use_counts = countUses(func);
 
@@ -634,7 +701,9 @@ void selectA64Opcodes(Function* func) {
           legalizeA64StackInputForIncDec(block, cur_iter);
           break;
         case Opcode::kBranchCC:
-          selectA64BranchSigned(block, cur_iter);
+          if (!selectA64BranchZero(block, cur_iter)) {
+            selectA64BranchSigned(block, cur_iter);
+          }
           break;
         default:
           break;

@@ -462,6 +462,170 @@ BB %2 - preds: %0
                     .condition(Condition::kNotSign));
 }
 
+TEST_F(LIRTargetSelectTest, SelectsCmpBranchForTestSupportedTypes) {
+  for (const char* type : {"32bit", "64bit", "Object", "ObjectUntagged"}) {
+    auto func = runTargetSelectFunc(
+        fmt::format(
+            R"(Function:
+BB %0 - succs: %1 %2
+  %1:{} = Move 1
+  Test %1, %1
+  BranchNZ BB%1
+BB %1 - preds: %0
+  Return %1
+BB %2 - preds: %0
+  Return %1
+)",
+            type)
+            .c_str());
+    EXPECT_LIR(Query(*func).opcode(Opcode::kCmpBranchNonZero).inVreg(0, 1));
+    EXPECT_NO_LIR(Query(*func).opcode(Opcode::kTest));
+  }
+}
+
+TEST_F(LIRTargetSelectTest, SelectsCmpBranchForTest32OnlyWhen32Bit) {
+  constexpr const char* pattern = R"(Function:
+BB %0 - succs: %1 %2
+  %1:{} = Move 1
+  Test32 %1, %1
+  BranchNZ BB%1
+BB %1 - preds: %0
+  Return %1
+BB %2 - preds: %0
+  Return %1
+)";
+
+  auto f32 = runTargetSelectFunc(fmt::format(pattern, "32bit").c_str());
+  EXPECT_LIR(Query(*f32).opcode(Opcode::kCmpBranchNonZero).inVreg(0, 1));
+  EXPECT_NO_LIR(Query(*f32).opcode(Opcode::kTest32));
+
+  auto f64 = runTargetSelectFunc(fmt::format(pattern, "64bit").c_str());
+  EXPECT_LIR(Query(*f64).opcode(Opcode::kTest32));
+  EXPECT_NO_LIR(Query(*f64).opcode(Opcode::kCmpBranchNonZero));
+}
+
+TEST_F(LIRTargetSelectTest, DoesNotSelectCmpBranchForNarrowTest) {
+  for (const char* type : {"8bit", "16bit"}) {
+    auto func = runTargetSelectFunc(
+        fmt::format(
+            R"(Function:
+BB %0 - succs: %1 %2
+  %1:{} = Move 1
+  Test %1, %1
+  BranchNZ BB%1
+BB %1 - preds: %0
+  Return %1
+BB %2 - preds: %0
+  Return %1
+)",
+            type)
+            .c_str());
+    EXPECT_LIR(Query(*func).opcode(Opcode::kTest));
+    EXPECT_NO_LIR(Query(*func).opcode(Opcode::kCmpBranchNonZero));
+  }
+}
+
+TEST_F(LIRTargetSelectTest, SelectsCmpBranchForZeroAndNonZeroPolarities) {
+  struct {
+    const char* test;
+    const char* branch;
+    Opcode expected;
+  } cases[] = {
+      {"Test", "BranchZ", Opcode::kCmpBranchZero},
+      {"Test", "BranchE", Opcode::kCmpBranchZero},
+      {"Test", "BranchNZ", Opcode::kCmpBranchNonZero},
+      {"Test", "BranchNE", Opcode::kCmpBranchNonZero},
+      {"Test32", "BranchZ", Opcode::kCmpBranchZero},
+      {"Test32", "BranchE", Opcode::kCmpBranchZero},
+      {"Test32", "BranchNZ", Opcode::kCmpBranchNonZero},
+      {"Test32", "BranchNE", Opcode::kCmpBranchNonZero},
+  };
+
+  for (const auto& [test, branch, expected] : cases) {
+    auto func = runTargetSelectFunc(
+        fmt::format(
+            R"(Function:
+BB %0 - succs: %1 %2
+  %1:32bit = Move 1
+  {} %1, %1
+  {} BB%1
+BB %1 - preds: %0
+  Return %1
+BB %2 - preds: %0
+  Return %1
+)",
+            test,
+            branch)
+            .c_str());
+    EXPECT_LIR(Query(*func).opcode(expected).inVreg(0, 1));
+    EXPECT_NO_LIR(Query(*func).opcode(
+        test == std::string_view("Test") ? Opcode::kTest : Opcode::kTest32));
+  }
+}
+
+TEST_F(LIRTargetSelectTest, DoesNotSelectCmpBranchWhenNotAdjacent) {
+  const char* lir_input_str = R"(Function:
+BB %0 - succs: %1 %2
+  %1:64bit = Move 0
+  %2:64bit = Move 1
+  Test %1, %1
+  %3:64bit = Move 2
+  BranchNZ BB%1
+BB %1 - preds: %0
+  Return %1
+BB %2 - preds: %0
+  Return %1
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCmpBranchNonZero));
+}
+
+TEST_F(LIRTargetSelectTest, DoesNotSelectBranchWhenFlagsReadLater) {
+  const char* lir_input_str = R"(Function:
+BB %0 - succs: %1 %2
+  %1:64bit = Move 0
+  %2:64bit = Move 1
+  %3:64bit = Move 0
+  Test %1, %1
+  BranchNZ BB%1
+  %4:64bit = A64SelectCC 0, %2, %3
+BB %1 - preds: %0
+  Return %2
+BB %2 - preds: %0
+  Return %3
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCmpBranchNonZero));
+}
+
+TEST_F(LIRTargetSelectTest, DoesNotSelectBranchWhenFlagsReadAfterArithmetic) {
+  const char* lir_input_str = R"(Function:
+BB %0 - succs: %1 %2
+  %1:64bit = Move 0
+  %2:64bit = Move 1
+  %3:64bit = Move 0
+  Test %1, %1
+  BranchNZ BB%1
+  %5:64bit = Mul %2, %3
+  %4:64bit = A64SelectCC 0, %2, %3
+BB %1 - preds: %0
+  Return %2
+BB %2 - preds: %0
+  Return %3
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCmpBranchNonZero));
+}
+
 TEST_F(
     LIRTargetSelectTest,
     SelectsBranchBitSetWhenInterveningInstructionsPreserveFlags) {
