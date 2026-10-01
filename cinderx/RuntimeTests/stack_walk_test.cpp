@@ -247,6 +247,20 @@ PyThreadState fakeThreadState(StackWalk::ThreadId thread) {
 // above TestBody may not have frame pointers of its own.
 constexpr size_t kSelfWalkFixtureDepth = 8;
 
+// Win64 keeps a frame pointer only where it needs one, so a chain ends at the
+// first caller that does not - the caveat on StackWalk. The fixtures below run
+// under system and runtime code that keeps no chain, so a walk there reports
+// the frame it interrupted and stops. Only the platforms that follow a chain
+// can be told how deep a walk should reach.
+constexpr bool kFollowsChainsToCallers = kOS != OS::kWindows;
+
+// The frame count a walk should exceed. A suspended thread always yields the
+// frame it was interrupted in, so where chains are not followed that one frame
+// is the only bound on offer.
+constexpr size_t framesBeyond(size_t callers) {
+  return kFollowsChainsToCallers ? callers : 0;
+}
+
 template <typename F>
 __attribute__((noinline)) WalkResult
 walkBelowKnownFrames(size_t remaining, F&& walk) {
@@ -771,7 +785,11 @@ TEST(StackWalkThreadTest, WalkOfOwnThreadStateWalksSelfRatherThanFailing) {
   });
 
   EXPECT_EQ(walked, WalkResult::Completed);
-  EXPECT_GT(frames, 0u);
+  // A self-walk starts from the caller's frame-pointer register, so where that
+  // register holds no chain the walk completes without reporting anything.
+  if constexpr (kFollowsChainsToCallers) {
+    EXPECT_GT(frames, 0u);
+  }
   // The same thread by native id is not walkable, which is what makes the
   // dispatch above worth having.
   EXPECT_EQ(
@@ -792,7 +810,7 @@ TEST(StackWalkThreadTest, WalksAnotherThreadThroughItsThreadState) {
       });
 
   EXPECT_EQ(walked, WalkResult::Completed);
-  EXPECT_GT(frames.size(), 1u);
+  EXPECT_GT(frames.size(), framesBeyond(1));
 }
 
 // End to end over a real signalled walk of a real thread: the sampler measures
@@ -818,8 +836,8 @@ TEST(StackWalkThreadTest, ACrossThreadWalkCostsAFewSafeReadsNotOnePerFrame) {
   EXPECT_LE(reads, 2u) << "walked " << frames << " frames but spent " << reads
                        << " safe reads; the target's stack bounds are not "
                           "reaching the walk";
-  EXPECT_GT(frames, 8u) << "the walk did not reach every recursive fixture "
-                           "frame";
+  EXPECT_GT(frames, framesBeyond(8))
+      << "the walk did not reach every recursive fixture frame";
 }
 
 // Walking our own stack takes the same fast path, via currentStackBounds().
@@ -840,8 +858,10 @@ TEST(StackWalkThreadTest, WalkingOurOwnStackCostsAFewSafeReadsNotOnePerFrame) {
 
   EXPECT_LE(reads, 2u) << "walked " << frames << " frames but spent " << reads
                        << " safe reads";
-  EXPECT_GT(frames, kSelfWalkFixtureDepth)
-      << "the walk did not reach every recursive fixture frame";
+  if constexpr (kFollowsChainsToCallers) {
+    EXPECT_GT(frames, kSelfWalkFixtureDepth)
+        << "the walk did not reach every recursive fixture frame";
+  }
 }
 
 TEST(StackWalkThreadTest, CallbackReturningFalseStopsACrossThreadWalk) {
@@ -870,7 +890,7 @@ TEST(StackWalkThreadTest, CallbackReturningFalseStopsACrossThreadWalk) {
             return true;
           }),
       WalkResult::Completed);
-  EXPECT_GT(again, 1u);
+  EXPECT_GT(again, framesBeyond(1));
 }
 
 // The protocol announces the end of a walk with a batch that is not full, so a
@@ -909,13 +929,16 @@ TEST(StackWalkBatchBoundaryTest, WalksAtEveryDepthResidueFinish) {
             }),
         WalkResult::Completed)
         << "at depth " << extra;
-    EXPECT_GT(frames, extra) << "at depth " << extra;
+    EXPECT_GT(frames, framesBeyond(extra)) << "at depth " << extra;
     deepest = std::max(deepest, frames);
   }
 
   // Without this the sweep could sit entirely inside a single batch and quietly
-  // stop exercising the boundary it exists to cover.
-  EXPECT_GT(deepest, kBatchSize);
+  // stop exercising the boundary it exists to cover. Only worth asking where a
+  // walk is deep enough to reach a boundary at all.
+  if constexpr (kFollowsChainsToCallers) {
+    EXPECT_GT(deepest, kBatchSize);
+  }
 }
 
 #if defined(CINDERX_STACK_WALK_SUSPENDS)
@@ -959,7 +982,7 @@ TEST(StackWalkSuspendTest, ATargetIsResumedAfterACallbackThrows) {
             return true;
           }),
       WalkResult::Completed);
-  EXPECT_GT(frames, 1u);
+  EXPECT_GT(frames, framesBeyond(1));
 }
 
 // The other early exit: a callback that stops the walk part way leaves the rest
@@ -1010,7 +1033,7 @@ TEST(StackWalkSuspendTest, TwoWalkersCanCoexist) {
             return true;
           }),
       WalkResult::Completed);
-  EXPECT_GT(frames, 1u);
+  EXPECT_GT(frames, framesBeyond(1));
 }
 
 #else
