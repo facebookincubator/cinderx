@@ -97,9 +97,13 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_site.HelperFunctionsTests.test_s_option",
         "test.test_subprocess.ProcessTestCase.test_empty_env",
         "test.test_subprocess.ProcessTestCaseNoPoll.test_empty_env",
+        "test.test_sysconfig.TestSysConfig.test_config_vars_depend_on_site_initialization",
+        "test.test_sysconfig.TestSysConfig.test_config_vars_recalculation_after_site_initialization",
         "test.test_sysconfig.TestSysConfig.test_makefile_overwrites_config_vars",
+        "test.test_sysconfig.TestSysConfig.test_paths_depend_on_site_initialization",
         "test.test_tempfile.TestMkstempInner.test_noinherit",
         "test.test_tracemalloc.TestCAPI.test_late_untrack",
+        "test.test_unicode.UnicodeTest.test_check_encoding_errors",
         "test.test_venv.BasicTest.test_multiprocessing_recursion",
         "test.test_venv.BasicTest.test_special_chars_bash",
         "test.test_venv.BasicTest.test_special_chars_csh",
@@ -123,8 +127,13 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_os.FwalkTests.test_walk_named_pipe2",
         "test.test_os.WalkTests.test_walk_named_pipe",
         "test.test_os.WalkTests.test_walk_named_pipe2",
+        "test.test_pathlib.PathSubclassTest.test_hardlink_to",
+        "test.test_pathlib.PathTest.test_hardlink_to",
+        "test.test_pathlib.PosixPathTest.test_hardlink_to",
         "test.test_posix.PosixTester.test_link_follow_symlinks",
         "test.test_shutil.TestRmTree.test_rmtree_on_named_pipe",
+        "test.test_tarfile.TestExtractionFilters.test_modes",
+        "test.test_tarfile.TestExtractionFilters.test_pipe",
         # -- locale --
         #   Assume a locale or filesystem encoding the test host does not provide.
         "test.test__locale._LocaleTests.test_alt_digits_nl_langinfo",
@@ -150,8 +159,20 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_cppext",
         "test.test_fstring.TestCase.test_filename_in_syntaxerror",
         "test.test_mailbox.TestMaildir.test_clean",
+        # st_mtime_ns went backwards between two touches on this filesystem.
+        "test.test_pathlib.PathSubclassTest.test_touch_common",
+        "test.test_pathlib.PathTest.test_touch_common",
+        "test.test_pathlib.PosixPathTest.test_touch_common",
         "test.test_shutil.TestArchives",
         "test.test_subprocess.ProcessTestCase.test_cwd_with_relative_arg",
+        # -- program name (2) --
+        #   argparse takes `prog` from sys.argv[0], which under a PAR is the
+        #   target name. These assert on exact usage-line wrapping, so they pass
+        #   or fail depending on how long that name happens to be -- they fail
+        #   for cpython-tests-312-prefork-model-x64 and pass for
+        #   cpython-tests-312-x64.
+        "test.test_argparse.TestParentParsers.test_groups_parents",
+        "test.test_argparse.TestParentParsers.test_parent_help",
         # -- batch --
         #   Died alongside another test in the same TPX batch; each passes in isolation.
         "test.test_imaplib.ThreadedNetworkedTestsSSL.test_ssl_verified",
