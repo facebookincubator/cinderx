@@ -9,9 +9,12 @@ attributes, and it bypasses a module's ``load_tests`` hook.  Modules that fall
 foul of either have to keep using the regrtest-based runner
 (``cinder_test_runner.py``) instead.
 
-Run this under the CinderX interpreter for the version being classified, e.g.
+Run this under the CinderX interpreter for the version being classified, and in
+a mode without a sanitizer -- CPython gates a fair number of modules off under
+ASAN (``test_argparse`` and friends are "too slow on ASAN/MSAN build"), and
+classifying there would drop them from the opt and dev-nosan targets too:
 
-    buck run fbcode//cinderx:python3.14 -- \\
+    buck run @fbcode//mode/opt fbcode//cinderx:python3.14 -- \\
         cinderx/TestScripts/classify_cpython_tests.py --version 3.14
 
 See ``Internal/docs/buckified-cpython-tests.md`` for the full rationale.
@@ -25,12 +28,13 @@ import importlib
 import json
 import os
 import sys
+import sysconfig
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.loader import _FailedTest
 
-from skip_list_support import iter_tests
+from skip_list_support import is_prefork_build, iter_tests
 
 # Tests whose subject matter is incompatible with running inside a
 # python_unittest, independent of how they are discovered.
@@ -45,6 +49,9 @@ CINDERX_INCOMPATIBLE = {
     "test.test_dis": "dis output differs under CinderX opcode registration",
     "test.test_peepholer": "dis output differs under CinderX opcode registration",
     "test.test_dtrace": "dis output differs under CinderX opcode registration",
+    # 3.12 only, but listed for every version: routing one small module to
+    # Tier 2 costs less granularity than making this table version-aware.
+    "test.test_type_cache": "dis output differs under CinderX opcode registration",
 }
 
 # Tests of the test framework itself, which assume they own the runner.
@@ -87,7 +94,10 @@ def classify(modname: str) -> dict[str, object]:
     try:
         module = importlib.import_module(modname)
     except unittest.SkipTest as e:
-        # Platform-gated modules; the regrtest runner skips these too.
+        # Platform-gated modules -- Windows-only, BSD-only, missing X11. The
+        # regrtest runner skips these too, and there is nothing to address, so
+        # they get no target at all. Build-mode-gated modules must not land
+        # here: see the note about sanitizers at the top of this file.
         return {"module": modname, "tier": 0, "reason": f"SkipTest at import: {e}"}
     except Exception as e:
         return {
@@ -117,8 +127,15 @@ def classify(modname: str) -> dict[str, object]:
     return {"module": modname, "tier": 1, "total": len(tests)}
 
 
-def read_test_modules(tests_bzl: Path, version: str) -> list[str]:
-    """Pull the `test.*` entries for `version` out of tests.bzl."""
+def read_test_modules(tests_bzl: Path) -> list[str]:
+    """Pull the `test.*` entries for the running interpreter out of tests.bzl.
+
+    tests.bzl keys TESTS by interpreter version, which several CinderX version
+    ids share -- 3.14 and 3.14t, 3.12 and 3.12-prefork-model. Reading it off the
+    running interpreter is exact, where deriving it from the id means guessing
+    which parts of the id are flavour.
+    """
+    version = f"{sys.version_info.major}.{sys.version_info.minor}"
     tree = ast.parse(tests_bzl.read_text())
     for node in tree.body:
         if not isinstance(node, ast.Assign):
@@ -130,6 +147,28 @@ def read_test_modules(tests_bzl: Path, version: str) -> list[str]:
                     raise SystemExit(f"no TESTS entry for version {version}")
                 return [t for t in tests[version] if t.startswith("test.")]
     raise SystemExit(f"no TESTS assignment found in {tests_bzl}")
+
+
+def validate_version_label(version: str) -> None:
+    """Reject a CinderX version label that does not describe this interpreter."""
+    version_root = version.split("-", 1)[0]
+    labeled_free_threaded = version_root.endswith("t")
+    labeled_interpreter = version_root.removesuffix("t")
+    running_interpreter = f"{sys.version_info.major}.{sys.version_info.minor}"
+    running_free_threaded = bool(sysconfig.get_config_var("Py_GIL_DISABLED"))
+    labeled_prefork = version.endswith("-prefork-model")
+    running_prefork = is_prefork_build()
+
+    if (
+        labeled_interpreter != running_interpreter
+        or labeled_free_threaded != running_free_threaded
+        or labeled_prefork != running_prefork
+    ):
+        raise SystemExit(
+            f"--version {version!r} does not describe the running interpreter: "
+            f"Python {running_interpreter}, free_threaded={running_free_threaded}, "
+            f"prefork={running_prefork}"
+        )
 
 
 def main() -> None:
@@ -151,8 +190,8 @@ def main() -> None:
     # Resolve before chdir, so relative paths mean what the caller expects.
     output = args.output.resolve() if args.output else None
 
-    # tests.bzl keys TESTS by interpreter version, which the "t" builds share.
-    modules = read_test_modules(args.tests_bzl.resolve(), args.version.rstrip("t"))
+    validate_version_label(args.version)
+    modules = read_test_modules(args.tests_bzl.resolve())
 
     results = []
     # Importing test modules drops scratch files (@test_<pid>_tmp...) into the
