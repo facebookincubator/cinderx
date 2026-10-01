@@ -266,7 +266,10 @@ format_varname(const Function* func, const Instr& instr, int idx) {
   return format_name_impl(idx, names);
 }
 
-static std::string format_immediates(const Function* func, const Instr& instr) {
+static std::string format_immediates(
+    const Function* func,
+    const Instr& instr,
+    bool symbolize_funcs) {
   switch (instr.opcode()) {
     case Opcode::kAssign:
     case Opcode::kBatchDecref:
@@ -431,7 +434,7 @@ static std::string format_immediates(const Function* func, const Instr& instr) {
     }
     case Opcode::kCallStatic: {
       const auto& call = static_cast<const CallStatic&>(instr);
-      if (!call.name().empty()) {
+      if (!call.name().empty() && symbolize_funcs) {
         return fmt::format(
             "{}@{}, {}",
             call.name(),
@@ -862,7 +865,7 @@ void HIRPrinter::print(std::ostream& os, const Instr& instr) {
   }
   os << instr.opname();
 
-  auto immed = format_immediates(func_, instr);
+  auto immed = format_immediates(func_, instr, symbolize_);
   if (!immed.empty()) {
     os << "<" << immed << ">";
   }

@@ -387,7 +387,7 @@ void CompiledFunction::printHIR() const {
   JIT_CHECK(
       data_->irfunc != nullptr,
       "Can only call CompiledFunction::printHIR() from a debug build");
-  hir::HIRPrinter printer;
+  hir::HIRPrinter printer{/*symbolize*/ true};
   printer.print(std::cout, *data_->irfunc);
 }
 

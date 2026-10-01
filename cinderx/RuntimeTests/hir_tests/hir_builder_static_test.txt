@@ -4109,7 +4109,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v4 = CallStatic<rand@0xdeadbeef, 0>
+    v4 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v5 = PrimitiveConvert<CInt64> v4
     v0 = Assign v5
@@ -4146,7 +4146,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v4 = CallStatic<rand@0xdeadbeef, 0>
+    v4 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v5 = PrimitiveConvert<CInt64> v4
     v0 = Assign v5
@@ -4183,7 +4183,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v4 = CallStatic<rand@0xdeadbeef, 0>
+    v4 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v5 = PrimitiveConvert<CInt64> v4
     v0 = Assign v5
@@ -4220,7 +4220,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v4 = CallStatic<rand@0xdeadbeef, 0>
+    v4 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v5 = PrimitiveConvert<CInt64> v4
     v0 = Assign v5
@@ -4258,7 +4258,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v4 = CallStatic<rand@0xdeadbeef, 0>
+    v4 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v5 = PrimitiveConvert<CInt64> v4
     v0 = Assign v5

@@ -25,6 +25,7 @@ class HIRPrinter {
   // with no FrameState. When printing individual instructions, each caller can
   // specify whether or not the full instruction should be printed.
   HIRPrinter() = default;
+  explicit HIRPrinter(bool symbolize) : symbolize_(symbolize) {}
 
   void print(std::ostream& os, const Function& func);
   void print(std::ostream& os, const BasicBlock& block);
@@ -51,6 +52,7 @@ class HIRPrinter {
   std::string line_prefix_;
   int indent_level_{0};
   bool full_snapshots_{false};
+  bool symbolize_{false};
 };
 
 std::ostream& operator<<(std::ostream& os, const Function& func);

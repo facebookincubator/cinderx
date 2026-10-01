@@ -35,7 +35,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v15:CInt64 = PrimitiveConvert<CInt64> v14
     v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
@@ -73,7 +73,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v15:CInt64 = PrimitiveConvert<CInt64> v14
     v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
@@ -111,7 +111,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v15:CInt64 = PrimitiveConvert<CInt64> v14
     v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
@@ -149,7 +149,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v15:CInt64 = PrimitiveConvert<CInt64> v14
     v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
@@ -188,7 +188,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:CInt32 = CallStatic<rand@0xdeadbeef, 0>
+    v14:CInt32 = CallStatic<0xdeadbeef, 0>
     Snapshot
     v15:CInt64 = PrimitiveConvert<CInt64> v14
     v24:CInt64[2147483647] = LoadConst<CInt64[2147483647]>

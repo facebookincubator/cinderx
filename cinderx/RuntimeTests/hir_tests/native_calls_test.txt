@@ -48,7 +48,7 @@ fun jittestmodule:test {
       }
     }
     v1 = Assign v5
-    v7 = CallStatic<abs@0xdeadbeef, 1> v1
+    v7 = CallStatic<0xdeadbeef, 1> v1
     Snapshot
     v8 = PrimitiveBox<CInt32> v7 {
       FrameState {
@@ -94,7 +94,7 @@ fun jittestmodule:test {
       }
     }
     v1 = Assign v5
-    v7 = CallStatic<abs@0xdeadbeef, 1> v1
+    v7 = CallStatic<0xdeadbeef, 1> v1
     Snapshot
     v8 = PrimitiveBox<CInt32> v7 {
       FrameState {
@@ -140,7 +140,7 @@ fun jittestmodule:test {
       }
     }
     v1 = Assign v5
-    v7 = CallStatic<abs@0xdeadbeef, 1> v1
+    v7 = CallStatic<0xdeadbeef, 1> v1
     Snapshot
     v8 = PrimitiveBox<CInt32> v7 {
       FrameState {
@@ -186,7 +186,7 @@ fun jittestmodule:test {
       }
     }
     v1 = Assign v5
-    v7 = CallStatic<abs@0xdeadbeef, 1> v1
+    v7 = CallStatic<0xdeadbeef, 1> v1
     Snapshot
     v8 = PrimitiveBox<CInt32> v7 {
       FrameState {
@@ -234,7 +234,7 @@ fun jittestmodule:test {
       }
     }
     v1 = Assign v6
-    v8 = CallStatic<abs@0xdeadbeef, 1> v1
+    v8 = CallStatic<0xdeadbeef, 1> v1
     Snapshot
     v9 = PrimitiveBox<CInt32> v8 {
       FrameState {
