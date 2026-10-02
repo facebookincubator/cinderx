@@ -6,7 +6,7 @@ import unittest
 
 import cinderx
 import cinderx.jit
-from cinderx.test_support import passUnless, run_in_fresh_process
+from cinderx.test_support import run_in_fresh_process
 
 
 class FrameEvaluatorTest(unittest.TestCase):
