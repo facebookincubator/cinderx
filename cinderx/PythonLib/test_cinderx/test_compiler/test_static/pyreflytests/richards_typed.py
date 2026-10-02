@@ -12,7 +12,7 @@ based on a Java version:
 
 from __future__ import annotations
 
-import sys
+# Keep line numbers stable: richards_typed.json keys types by source location.
 from typing import cast, Final, List
 
 # Task IDs
