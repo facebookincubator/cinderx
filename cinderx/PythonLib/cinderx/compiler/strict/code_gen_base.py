@@ -235,7 +235,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
     def make_function(
         self, name: str, body: list[stmt], location_node: ast.AST | None = None
     ) -> None:
-        # pyrefly: ignore [no-matching-overload]
+        # pyrefly: ignore [no-matching-overload, missing-argument]
         func = lineinfo(ast.FunctionDef(), location_node)
         func.name = name
         func.decorator_list = []

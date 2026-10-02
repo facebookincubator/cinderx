@@ -123,9 +123,7 @@ TAst = TypeVar("TAst", bound=AST)
 
 
 def make_assign(*a: object, **kw: object) -> Assign:
-    # pyrefly: ignore [bad-argument-type]
-    # pyrefly: ignore [bad-argument-type]
-    # pyrefly: ignore [bad-argument-type]
+    # pyrefly: ignore [bad-argument-type, no-matching-overload]
     node = Assign(*a, **kw)
     node.type_comment = None
     return node
@@ -151,7 +149,7 @@ _IMPLICIT_GLOBALS = [
 
 
 def make_function(name: str, pos_args: list[arg]) -> FunctionDef:
-    # pyrefly: ignore [no-matching-overload]
+    # pyrefly: ignore [no-matching-overload, missing-argument]
     func = lineinfo(ast.FunctionDef())
     func.name = name
     # pyrefly: ignore [no-matching-overload]

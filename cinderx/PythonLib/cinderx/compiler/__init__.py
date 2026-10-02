@@ -47,6 +47,7 @@ def get_disassembly_as_string(co: object, recurse: bool = False) -> str:
         dis.dis(co, file=s)
         return s.getvalue()
 
+    # pyrefly: ignore [missing-module-attribute]
     from dis import _get_code_object, Bytecode, Formatter
 
     formatter = Formatter(file=s, offset_width=3)

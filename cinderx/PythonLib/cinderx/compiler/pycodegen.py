@@ -20,7 +20,7 @@ try:
     from builtins import compile as builtin_compile
     from contextlib import contextmanager
     from enum import IntEnum
-    from types import CodeType
+    from types import CodeType, EllipsisType
     from typing import Callable, cast, Generator, Protocol, Sequence, Union
 
     from .consts import (
@@ -1708,7 +1708,7 @@ class CodeGenerator(ASTVisitor):
 
     # object constructors
 
-    def visitEllipsis(self, node: ast.Ellipsis) -> None:
+    def visitEllipsis(self, node: ast.Constant) -> None:
         self.emit("LOAD_CONST", Ellipsis)
 
     def _visitUnpack(self, node: ast.Tuple | ast.List | ast.Set) -> None:
@@ -1816,9 +1816,8 @@ class CodeGenerator(ASTVisitor):
 
     def _const_value(
         self, node: ast.expr | None
-    ) -> None | str | bytes | bool | int | float | complex | ast.Ellipsis:
+    ) -> None | str | bytes | bool | int | float | complex | EllipsisType:
         assert isinstance(node, ast.Constant)
-        # pyrefly: ignore [bad-return]
         return node.value
 
     def get_bool_const(self, node: ast.expr) -> bool | None:

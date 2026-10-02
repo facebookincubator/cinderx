@@ -88,16 +88,24 @@ def _disassemble_bytes(
         offset_width = 4
     if sys.version_info >= (3, 14):
         if co is not None:
+            # pyrefly: ignore [missing-attribute]
             exception_entries = _dis._parse_exception_table(co)
+            # pyrefly: ignore [missing-attribute]
             labels_map = _dis._make_labels_map(
                 code, exception_entries=exception_entries
             )
         else:
             labels_map = None
+        # pyrefly: ignore [missing-attribute]
         instr_bytes = _dis._get_instructions_bytes(
             code,
+            # pyrefly: ignore [missing-attribute]
             arg_resolver=_dis.ArgResolver(
-                constants, names, lambda oparg: localsplusnames[oparg], labels_map
+                constants,
+                names,
+                # pyrefly: ignore [unsupported-operation]
+                lambda oparg: localsplusnames[oparg],
+                labels_map,
             ),
             linestarts=linestarts,
             line_offset=line_offset,
@@ -126,6 +134,7 @@ def _disassemble_bytes(
         is_current_instr = instr.offset == lasti
 
         if sys.version_info >= (3, 14):
+            # pyrefly: ignore [missing-attribute]
             _dis.Formatter(
                 file=file, lineno_width=lineno_width, offset_width=offset_width
             ).print_instruction(instr, is_current_instr)
