@@ -73,7 +73,8 @@ TEST(UtilTest, SymbolizerResolvesDynamicSymbol) {
   std::optional<std::string_view> result =
       symbolizer.symbolize(reinterpret_cast<void*>(std::labs));
   ASSERT_TRUE(result.has_value());
-  EXPECT_EQ(*result, "labs");
+  EXPECT_TRUE(*result == "labs" || *result == "imaxabs")
+      << "got: " << *result;
 }
 
 TEST(UtilTest, SymbolizerResolvesStaticSymbol) {

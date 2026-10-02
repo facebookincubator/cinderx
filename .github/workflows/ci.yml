@@ -81,7 +81,7 @@ jobs:
       # Particularly the segfaults.
       run: |
         set -euo pipefail
-        common='AllPassesTest.*:AllPassesStaticTest.*:CmdLineTest.ExplicitJITDisable:UtilTest.SymbolizerResolvesDynamicSymbol'
+        common='AllPassesTest.*:AllPassesStaticTest.*:CmdLineTest.ExplicitJITDisable'
         arm64='LIRGeneratorTest.ParserTest:BackendTest.MoveSequenceOpt2Test:CodePatcherTest.DeoptPatch:BranchRelaxationTest.*'
         macos='BackendTest.CastTest:BackendTest.InlineJITRTCastTest:SimplifyTest.BinaryOpWithObjSpecLeftAndRightFloatExactTurnsIntoLoadConst:NativeCallsTest.NativeInvokeBasic:SimplifyStaticTest.UnboxOfRandMaxIsEliminated:DeadCodeEliminationAndSimplifyTest.UnboxOfStaticGlobalIsOptimized:HIRBuilderStaticTest.CIntTypeEmitsConvertPrimitive:CodePatcherTest.DeoptPatch'
         filter="-${common}"
