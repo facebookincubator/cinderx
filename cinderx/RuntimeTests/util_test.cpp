@@ -5,6 +5,9 @@
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#include <thread>
+#include <vector>
+
 namespace cinderx {
 
 using UtilTest = RuntimeTest;
@@ -83,6 +86,21 @@ TEST(UtilTest, SymbolizerResolvesStaticSymbol) {
       symbolizer.symbolize(reinterpret_cast<void*>(PyObject_Size));
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(*result, "PyObject_Size");
+}
+
+TEST(UtilTest, ConcurrentSymbolize) {
+  jit::Symbolizer symbolizer;
+  std::vector<std::jthread> threads;
+  constexpr int kNumThreads = 8;
+  for (int i = 0; i < kNumThreads; ++i) {
+    threads.emplace_back([&] {
+      for (int j = 0; j < 50; ++j) {
+        auto res = symbolizer.symbolize(reinterpret_cast<void*>(PyObject_Size));
+        ASSERT_TRUE(res.has_value());
+        EXPECT_EQ(*res, "PyObject_Size");
+      }
+    });
+  }
 }
 #endif
 

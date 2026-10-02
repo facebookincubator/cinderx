@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/symbolizer.h"
 
+#include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/module_state.h"
@@ -177,20 +178,47 @@ Symbolizer::Symbolizer([[maybe_unused]] const char* exe_path) {
 #endif
 }
 
+bool Symbolizer::isInitialized() const {
+#ifdef WIN32
+  return false;
+#else
+  return file_.isOpen();
+#endif
+}
+
+Symbolizer::~Symbolizer() {
+  deinit();
+}
+
+void Symbolizer::atForkPrepare() {
+  mutex_.lock();
+}
+
+void Symbolizer::atForkParent() {
+  mutex_.unlock();
+}
+
+void Symbolizer::atForkChild() {
+  resetMutexAfterFork(mutex_);
+}
+
 std::optional<std::string_view> Symbolizer::cache(
     const void* func,
     std::optional<std::string> name) {
-  auto pair = cache_.emplace(func, std::move(name));
-  JIT_CHECK(pair.second, "{} already exists in cache", func);
-  return pair.first->second;
+  std::lock_guard<std::mutex> guard{mutex_};
+  auto [it, _] = cache_.emplace(func, std::move(name));
+  return it->second;
 }
 
 std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
 #ifdef ENABLE_SYMBOLIZER
   // Try the cache first. We might have looked it up before.
-  auto cached = cache_.find(func);
-  if (cached != cache_.end()) {
-    return cached->second;
+  {
+    std::lock_guard<std::mutex> guard{mutex_};
+    auto cached = cache_.find(func);
+    if (cached != cache_.end()) {
+      return cached->second;
+    }
   }
 
   // Then try dladdr. It might be able to find the symbol.  It reports the

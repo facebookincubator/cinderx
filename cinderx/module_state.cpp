@@ -78,9 +78,15 @@ void ModuleState::atForkPrepare() {
   if (std::shared_ptr<HugePageArena> arena = huge_page_arena_.lock()) {
     arena->atForkPrepare();
   }
+  if (symbolizer != nullptr) {
+    symbolizer->atForkPrepare();
+  }
 }
 
 void ModuleState::atForkParent() {
+  if (symbolizer != nullptr) {
+    symbolizer->atForkParent();
+  }
   if (std::shared_ptr<HugePageArena> arena = huge_page_arena_.lock()) {
     arena->atForkParent();
   }
@@ -90,6 +96,9 @@ void ModuleState::atForkParent() {
 void ModuleState::atForkChild() {
   if (std::shared_ptr<HugePageArena> arena = huge_page_arena_.lock()) {
     arena->atForkChild();
+  }
+  if (symbolizer != nullptr) {
+    symbolizer->atForkChild();
   }
   resetMutexAfterFork(mutex_);
 }

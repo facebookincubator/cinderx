@@ -13,6 +13,7 @@
 #include <unistd.h>
 #endif
 
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -24,19 +25,15 @@ class Symbolizer : public ISymbolizer {
  public:
   Symbolizer(const char* exe_path = "/proc/self/exe");
 
-  bool isInitialized() const {
-#ifdef WIN32
-    return false;
-#else
-    return file_.isOpen();
-#endif
-  }
+  bool isInitialized() const;
 
-  ~Symbolizer() override {
-    deinit();
-  }
+  ~Symbolizer() override;
 
   std::optional<std::string_view> symbolize(const void* func) override;
+
+  void atForkPrepare() override;
+  void atForkParent() override;
+  void atForkChild() override;
 
  private:
   void deinit();
@@ -54,6 +51,7 @@ class Symbolizer : public ISymbolizer {
   const void* symtab_{nullptr};
   const void* strtab_{nullptr};
 
+  std::mutex mutex_;
   // This cache is useful for performance and also critical for correctness.
   // Some of the symbols (for example, to shared objects) do not return owned
   // pointers. We must keep an object in this map for the string_view to point

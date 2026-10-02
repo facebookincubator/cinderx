@@ -15,6 +15,10 @@ class ISymbolizer {
   // Return a string view whose lifetime is tied to the Symbolizer lifetime on
   // success. On failure, return std::nullopt.
   virtual std::optional<std::string_view> symbolize(const void* func) = 0;
+
+  virtual void atForkPrepare() {}
+  virtual void atForkParent() {}
+  virtual void atForkChild() {}
 };
 
 } // namespace cinderx::jit
