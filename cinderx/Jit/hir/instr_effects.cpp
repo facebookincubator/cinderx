@@ -45,6 +45,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kHintType:
     case Opcode::kIndexUnbox:
     case Opcode::kIntBinaryOp:
+    case Opcode::kPrimitiveBoxBool:
     case Opcode::kPrimitiveConvert:
     case Opcode::kIsCompactLong:
     case Opcode::kIsNegativeAndErrOccurred:
@@ -63,6 +64,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kSnapshot:
     case Opcode::kTagIfDeferred:
     case Opcode::kTpAlloc:
+    case Opcode::kUnaryNot:
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
     case Opcode::kUnicodeEqual:
@@ -72,12 +74,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kUseObj:
     case Opcode::kUseType:
       return commonEffects(inst, AEmpty);
-
-    // If boxing a bool, we return a borrowed reference to Py_True or Py_False.
-    case Opcode::kPrimitiveBoxBool:
-    // UnaryNot likewise returns a borrowed reference to Py_True or Py_False.
-    case Opcode::kUnaryNot:
-      return borrowFrom(inst, AEmpty);
 
     case Opcode::kPrimitiveBox:
       return commonEffects(inst, AEmpty);
