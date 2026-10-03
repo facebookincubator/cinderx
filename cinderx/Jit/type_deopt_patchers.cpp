@@ -116,10 +116,10 @@ bool SplitDictDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
 
 bool SplitDictDeoptPatcher::hasOurSharedKeys(
     BorrowedRef<PyTypeObject> type) const {
-  if (!PyType_HasFeature(type_, Py_TPFLAGS_HEAPTYPE)) {
+  if (!PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE)) {
     return false;
   }
-  return BorrowedRef<PyHeapTypeObject>(type_)->ht_cached_keys == keys_;
+  return BorrowedRef<PyHeapTypeObject>(type)->ht_cached_keys == keys_;
 }
 
 bool SplitDictDeoptPatcher::assumptionsStillValid() const {
