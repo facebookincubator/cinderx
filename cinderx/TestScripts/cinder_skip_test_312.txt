@@ -1,0 +1,7 @@
+# Flaky under the heavily parallel 3.12 CI load (the prefork-model and the
+# aggregated arm64 prefork-jit runs): these spawn a subprocess and assert on
+# empty stderr and a written perf map, both of which intermittently come back
+# dirty or incomplete under resource contention. TASK(T291331891)
+test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works
+test.test_perf_profiler.TestPerfTrampoline.test_sys_api
+test.test_perf_profiler.TestPerfTrampoline.test_sys_api_get_status

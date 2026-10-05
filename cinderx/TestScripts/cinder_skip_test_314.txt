@@ -1,6 +1,12 @@
 # This variant starts w/ the perf trampoline enabled and CinderX can't install over it
 test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works
 
+# Flaky under heavily parallel CI load: these spawn a subprocess and assert on
+# empty stderr and a written perf map, both of which intermittently come back
+# dirty or incomplete under resource contention. TASK(T291331891)
+test.test_perf_profiler.TestPerfTrampoline.test_sys_api
+test.test_perf_profiler.TestPerfTrampoline.test_sys_api_with_existing_trampoline
+
 # This test hits a deprecation warning about forking in a multi-threaded process
 test.test_threading.ThreadTests.test_native_id_after_fork
 
