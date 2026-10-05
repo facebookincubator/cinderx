@@ -1102,18 +1102,8 @@ BB %8 - preds: %0
 
 #if CINDER_JIT_TSAN_ENABLED
 
-TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
-  // Pseudo-code:
-  //   lhs = 1
-  //   rhs = 1
-  //   cmp(1, 1)
-  //   loaded = *src    // TSAN read instrumentation
-  //   dst_addr = &dst
-  //   *dst_addr = loaded    // TSAN write instrumentation
-  //   return zero_flag_is_set ? loaded : 0
-  //
-  // kMove has FlagEffects::kNone, so TSAN instrumentation must preserve the
-  // flags from cmp until BranchZ.
+TEST_F(BackendTest, TsanLoadStorePreservesBehaviorAndFlags) {
+  // TSAN instrumentation must preserve the loaded value and comparison flags.
   constexpr uint64_t expected = 0x1122334455667788ULL;
   uint64_t src = expected;
   uint64_t dst = 0;
@@ -1129,7 +1119,7 @@ TEST_F(BackendTest, TsanMovePreservesBehaviorAndFlags) {
   bb0->allocateInstr(Opcode::kCmp, nullptr, VReg(lhs), VReg(rhs));
 
   auto loaded = bb0->allocateInstr(
-      Opcode::kMove,
+      Opcode::kLoad,
       nullptr,
       OutVReg(Operand::k64bit),
       MemImm{&src, Operand::k64bit});
@@ -1223,6 +1213,77 @@ TEST_F(BackendTest, TsanRelaxedLoadStoreUsesAtomicAccesses) {
   EXPECT_EQ(func(), expected);
   EXPECT_EQ(value, expected);
   EXPECT_EQ(byte_dst, 0xAA00 | 0x0007);
+}
+
+TEST_F(BackendTest, TsanIsStackMemoryDetection) {
+  auto lirfunc = std::make_unique<Function>();
+  auto bb = lirfunc->allocateBasicBlock();
+  uint64_t val = 42;
+
+  auto rsp_store =
+      bb->allocateInstr(Opcode::kStore, nullptr, OutInd{RSP, 8}, Imm{1});
+  EXPECT_TRUE(isStackMemory(rsp_store->output()));
+
+  auto rbp_store =
+      bb->allocateInstr(Opcode::kStore, nullptr, OutInd{RBP, -16}, Imm{1});
+  EXPECT_FALSE(isStackMemory(rbp_store->output()));
+
+  auto r10_store =
+      bb->allocateInstr(Opcode::kStore, nullptr, OutInd{R10, 0}, Imm{1});
+  EXPECT_FALSE(isStackMemory(r10_store->output()));
+
+  auto mem_store = bb->allocateInstr(
+      Opcode::kStore, nullptr, OutMemImm{&val, Operand::k64bit}, Imm{1});
+  EXPECT_FALSE(isStackMemory(mem_store->output()));
+
+  Instruction dummy(bb, Opcode::kNop, nullptr);
+  Operand stack_op(&dummy);
+  stack_op.setStackSlot(PhyLocation{-8, 64});
+  EXPECT_TRUE(isStackMemory(&stack_op));
+
+  EXPECT_FALSE(isStackMemory(nullptr));
+}
+
+TEST_F(BackendTest, TsanRspIndirectOperandsUseCorrectStackAddress) {
+  constexpr uint64_t expected = 0x99AABBCCDDEEFF00ULL;
+
+  auto lirfunc = std::make_unique<Function>();
+  auto bb0 = lirfunc->allocateBasicBlock();
+  auto epilogue = lirfunc->allocateBasicBlock();
+
+  // Initialize slot to zero.
+  bb0->allocateInstr(
+      Opcode::kStore, nullptr, OutInd{RSP, 0, Operand::k64bit}, Imm{0});
+
+  // TSAN normally replaces a relaxed store with a runtime call. Saving caller
+  // state for that call moves RSP, so computing [RSP] afterward would target
+  // the save area instead of this stack slot. This store must run directly.
+  auto val = bb0->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg(Operand::k64bit), Imm{expected});
+  bb0->allocateInstr(
+      Opcode::kStore,
+      nullptr,
+      OutInd{RSP, 0, Operand::k64bit},
+      MemoryOrder::kRelaxed,
+      VReg{val});
+
+  // Read back with an ordinary load.
+  auto loaded = bb0->allocateInstr(
+      Opcode::kLoad,
+      nullptr,
+      OutVReg(Operand::k64bit),
+      Ind{RSP, 0, Operand::k64bit});
+
+  bb0->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{arch::reg_general_return_loc},
+      VReg{loaded});
+  bb0->allocateInstr(Opcode::kReturn, nullptr);
+  bb0->addSuccessor(epilogue);
+
+  auto func = reinterpret_cast<uint64_t (*)()>(SimpleCompile(lirfunc.get()));
+  EXPECT_EQ(func(), expected);
 }
 
 #endif // CINDER_JIT_TSAN_ENABLED

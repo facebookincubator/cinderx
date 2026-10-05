@@ -30,6 +30,22 @@ void __tsan_write16(void* addr);
 }
 
 namespace cinderx::jit::codegen {
+
+bool isStackMemory(const jit::lir::Operand* mem_operand) {
+  if (mem_operand == nullptr) {
+    return false;
+  }
+  if (mem_operand->isStack()) {
+    return true;
+  }
+  if (mem_operand->isInd()) {
+    auto* base = mem_operand->getMemoryIndirect()->getBaseRegOperand();
+    return base != nullptr && base->isReg() &&
+        base->getPhyRegister().loc == PhyLocation::RSP;
+  }
+  return false;
+}
+
 namespace {
 
 constexpr int kTsanXmmRegCount = 16;
@@ -157,6 +173,10 @@ void emitTsanAddress(Environ& env, const jit::lir::Operand* mem_operand) {
         "Unexpected indirect operand without base register in TSAN emitter, "
         "operand type {}",
         mem_operand->type());
+
+    JIT_DCHECK(
+        !isStackMemory(mem_operand),
+        "Stack memory cannot be instrumented by TSAN");
 
     if (index == nullptr) {
       env.as->lea(
@@ -370,7 +390,7 @@ void emitTsanRead(
     Environ& env,
     const jit::lir::Operand* mem_operand,
     size_t access_size_in_bytes) {
-  if (mem_operand->isStack()) {
+  if (isStackMemory(mem_operand)) {
     return;
   }
   emitTsanCall(env, mem_operand, getTsanReadFunc(access_size_in_bytes));
@@ -380,7 +400,7 @@ void emitTsanWrite(
     Environ& env,
     const jit::lir::Operand* mem_operand,
     size_t access_size_in_bytes) {
-  if (mem_operand->isStack()) {
+  if (isStackMemory(mem_operand)) {
     return;
   }
   emitTsanCall(env, mem_operand, getTsanWriteFunc(access_size_in_bytes));
@@ -394,7 +414,7 @@ bool tryEmitTsanRelaxedAtomicRead(
   JIT_CHECK(
       output_operand->isReg(), "Expected register output for TSAN atomic load");
 
-  if (mem_operand->isStack() ||
+  if (isStackMemory(mem_operand) ||
       !isSupportedTsanAtomicSize(access_size_in_bytes)) {
     return false;
   }
@@ -415,7 +435,7 @@ bool tryEmitTsanRelaxedAtomicWrite(
     const jit::lir::Operand* mem_operand,
     const jit::lir::Operand* value_operand,
     size_t access_size_in_bytes) {
-  if (mem_operand->isStack() ||
+  if (isStackMemory(mem_operand) ||
       !isSupportedTsanAtomicSize(access_size_in_bytes)) {
     return false;
   }

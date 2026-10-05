@@ -31,6 +31,9 @@ inline constexpr bool kCinderJitTsanEnabled = CINDER_JIT_TSAN_ENABLED;
 
 #if CINDER_JIT_TSAN_ENABLED
 
+// Returns whether the operand is a stack slot or RSP-relative memory.
+bool isStackMemory(const jit::lir::Operand* mem_operand);
+
 // Emit TSAN read instrumentation before a memory load.
 // access_size_in_bytes must match the width of the emitted memory access.
 void emitTsanRead(
@@ -64,6 +67,10 @@ bool tryEmitTsanRelaxedAtomicWrite(
     size_t access_size_in_bytes);
 
 #else
+
+inline bool isStackMemory(const jit::lir::Operand*) {
+  return false;
+}
 
 inline void emitTsanRead(Environ&, const jit::lir::Operand*, size_t) {}
 
