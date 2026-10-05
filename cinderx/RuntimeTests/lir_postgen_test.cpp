@@ -444,6 +444,37 @@ BB %0
   EXPECT_EQ(runPostGenRewriteStr(lir_input_str), expected_lir_str);
 #endif
 }
+
+TEST_F(LIRPostGenerationRewriteTest, StoreImmediateZeroToIndirectNotLowered) {
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* base = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{0});
+  Instruction* store_zero = block->allocateInstr(
+      Opcode::kStore,
+      nullptr,
+      OutInd{base, 72, DataType::k16bit},
+      Imm{0, DataType::k16bit});
+  store_zero->output()->setDataType(DataType::k16bit);
+  Instruction* store_nonzero = block->allocateInstr(
+      Opcode::kStore,
+      nullptr,
+      OutInd{base, 74, DataType::k16bit},
+      Imm{42, DataType::k16bit});
+  store_nonzero->output()->setDataType(DataType::k16bit);
+
+  codegen::Environ env;
+  PostGenerationRewrite(&function, &env).run();
+
+  // store_zero should keep its immediate 0 operand unchanged
+  EXPECT_TRUE(store_zero->getInput(0)->isImm());
+  EXPECT_EQ(store_zero->getInput(0)->getConstant(), 0);
+
+  // store_nonzero should have been lowered to a Move to vreg
+  EXPECT_TRUE(store_nonzero->getInput(0)->isLinked());
+  EXPECT_EQ(
+      store_nonzero->getInput(0)->getLinkedInstr()->opcode(), Opcode::kMove);
+}
 #endif
 
 } // namespace cinderx::jit::lir

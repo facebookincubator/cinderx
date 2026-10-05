@@ -627,6 +627,14 @@ RewriteResult rewriteStoreImmediateToVreg(instr_iter_t instr_iter) {
   if (!output->isInd() && !output->isStack()) {
     return kUnchanged;
   }
+  // AArch64 can store the zero register (WZR/XZR) directly to indirect memory
+  // without needing a temporary register.
+  if (output->isInd()) {
+    auto input = instr->getInput(0);
+    if (input->isImm() && input->getConstant() == 0) {
+      return kUnchanged;
+    }
+  }
   return lowerImmediateInputToVreg(instr_iter, 0) ? kChanged : kUnchanged;
 }
 
