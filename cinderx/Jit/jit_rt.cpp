@@ -923,15 +923,14 @@ void unlinkFrame(PyThreadState* tstate) {
 PyObject* loadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
 // _PyDict_LoadGlobal was removed in 3.15.0rc3.
 #if PY_VERSION_HEX >= 0x030F00C3
+  // Same path as LOAD_GLOBAL: raises NameError, and a lazy import is resolved
+  // and replaced in the namespace that held it.
   _PyStackRef ref = PyStackRef_NULL;
-  _PyDict_LoadGlobalStackRef(
-      (PyDictObject*)globals, (PyDictObject*)builtins, name, &ref);
-  PyObject* result =
-      PyStackRef_IsNull(ref) ? nullptr : PyStackRef_AsPyObjectSteal(ref);
+  _PyEval_LoadGlobalStackRef(globals, builtins, name, &ref);
+  return PyStackRef_IsNull(ref) ? nullptr : PyStackRef_AsPyObjectSteal(ref);
 #else
   PyObject* result =
       _PyDict_LoadGlobal((PyDictObject*)globals, (PyDictObject*)builtins, name);
-#endif
   if ((result == nullptr) && !PyErr_Occurred()) {
     // name is converted to a `char*` by format_exc_check_arg
     _PyEval_FormatExcCheckArg(
@@ -952,6 +951,7 @@ PyObject* loadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
   }
 #endif
   return result;
+#endif
 }
 
 int deleteGlobal(PyObject* globals, PyObject* name) {

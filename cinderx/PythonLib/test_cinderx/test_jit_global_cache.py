@@ -6,6 +6,7 @@
 
 import builtins
 import sys
+import types
 import unittest
 from textwrap import dedent
 
@@ -535,6 +536,37 @@ class LoadGlobalCacheTests(unittest.TestCase):
             self.assertEqual(tmp_lazy_binding_a.get_b(), 3)
             if cinderx.jit.is_enabled():
                 self.assertTrue(cinderx.jit.is_jit_compiled(tmp_lazy_binding_a.get_b))
+
+    @unittest.skipUnless(
+        sys.hexversion >= 0x030F00C3, "requires PEP 810 lazy imports (3.15.0rc3+)"
+    )
+    @run_in_fork
+    @failUnlessHasOpcodes("LOAD_GLOBAL")
+    def test_lazy_import_global_reified_on_load(self):
+        with cinder_support.temp_sys_path() as tmp:
+            (tmp / "tmp_reify_a.py").write_text(
+                dedent(
+                    """
+                    lazy import tmp_reify_b
+
+                    def get_b():
+                        return tmp_reify_b
+                    """
+                ),
+                encoding="utf8",
+            )
+            (tmp / "tmp_reify_b.py").write_text("B = 3\n", encoding="utf8")
+
+            import tmp_reify_a
+
+            ns = tmp_reify_a.__dict__
+            self.assertIsInstance(ns["tmp_reify_b"], types.LazyImportType)
+            if cinderx.jit.is_enabled():
+                self.assertTrue(cinderx.jit.force_compile(tmp_reify_a.get_b))
+            b = tmp_reify_a.get_b()
+            self.assertIs(b, sys.modules["tmp_reify_b"])
+            # Like the interpreter, the load replaces the placeholder.
+            self.assertIs(ns["tmp_reify_b"], b)
 
     @unittest.skipUnless(sys.version_info >= (3, 16), "requires Python 3.16")
     def test_del_global_twice_missing_raises_name_error(self):
