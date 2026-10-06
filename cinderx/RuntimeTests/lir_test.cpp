@@ -883,11 +883,8 @@ class LIRGeneratorTest : public RuntimeTest {
     std::string line;
     std::string output_s;
     while (std::getline(iss, line)) {
-      if (line.length() == 0) {
-        // skip blank lines
-        continue;
-      } else if (line.length() > 0 && line.at(0) == '#') {
-        // skip comments
+      if (line.empty() || line.starts_with('#')) {
+        // skip blank lines and comments
         continue;
       } else {
         output_s += line + '\n';

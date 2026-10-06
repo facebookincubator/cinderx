@@ -21,7 +21,7 @@ struct SCCBasicBlocks {
   std::vector<SCCBasicBlocks*> successors;
 
   bool hasBasicBlock(BasicBlock* block) const {
-    return basic_blocks.count(block);
+    return basic_blocks.contains(block);
   }
 };
 

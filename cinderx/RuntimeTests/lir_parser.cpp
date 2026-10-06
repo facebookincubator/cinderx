@@ -401,10 +401,10 @@ void Parser::setSuccessorBlocks(const std::string& bbdef, BasicBlock* bb) {
   std::regex succ_re = std::regex("- succs: %(\\d+)(?: %(\\d+))?");
   std::cmatch succ_m;
   if (std::regex_search(bbdef.c_str(), succ_m, succ_re) && succ_m.size() > 1) {
-    int64_t succ1 = atoll(succ_m.str(1).c_str());
+    int64_t succ1 = std::stoll(succ_m.str(1));
     basic_block_succs_.emplace_back(bb, succ1);
     if (succ_m.size() > 2 && succ_m.str(2).size() > 0) {
-      int64_t succ2 = atoll(succ_m.str(2).c_str());
+      int64_t succ2 = std::stoll(succ_m.str(2));
       basic_block_succs_.emplace_back(bb, succ2);
     }
   }

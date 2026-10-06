@@ -48,7 +48,7 @@ void JITList::parseFile(const char* filename) {
 }
 
 bool JITList::parseLine(std::string_view line) {
-  if (line.empty() || line.at(0) == '#') {
+  if (line.empty() || line.starts_with('#')) {
     return true;
   }
   auto atpos = line.find('@');

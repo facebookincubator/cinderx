@@ -116,7 +116,7 @@ int BasicBlockSorter::dfsSearch(BasicBlock* block) {
   scc_in_stack_.insert(block);
 
   for (auto& succ : block->successors()) {
-    if (!basic_blocks_.count(succ) || succ == entry_) {
+    if (!basic_blocks_.contains(succ) || succ == entry_) {
       continue;
     }
     int min_index = dfsSearch(succ);

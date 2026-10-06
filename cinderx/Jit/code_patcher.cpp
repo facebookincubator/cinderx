@@ -131,7 +131,7 @@ void CodePatcher::swap() {
   // atomically writable size on x86.
   if constexpr (kFreeThreadedBuild && kBuildArch == Arch::kX86_64) {
     static_assert(sizeof(uint64_t) >= sizeof(data_));
-    static_assert(std::atomic_ref<uint64_t>::is_always_lock_free == true);
+    static_assert(std::atomic_ref<uint64_t>::is_always_lock_free);
     JIT_CHECK(
         reinterpret_cast<uintptr_t>(patchpoint_) % 8 == 0,
         "Not 8-byte aligned");
