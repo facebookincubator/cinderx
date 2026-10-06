@@ -14,7 +14,13 @@ import cinderx
 
 cinderx.init()
 
-from cinderx.test_support import ENCODING, passUnless, skip_unless_jit, subprocess_env
+from cinderx.test_support import (
+    ENCODING,
+    passIf,
+    passUnless,
+    skip_unless_jit,
+    subprocess_env,
+)
 
 # Magic word at the start of every jitdump FileHeader (see perf_jitdump.cpp),
 # stored little-endian.
@@ -246,6 +252,7 @@ class PerfMapTests(unittest.TestCase):
                 }
                 self.assertEqual(funcs, {"main", which, "compute"})
 
+    @passIf(sys.platform == "win32", "Perf JIT dumps are not supported on Windows")
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_jitdump_written_while_running(self) -> None:
         # perf reads the dump of a live process, so entries must reach the
