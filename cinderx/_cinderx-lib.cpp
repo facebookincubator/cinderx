@@ -325,7 +325,7 @@ PyObject* cinder_is_sanitizer_build(PyObject* /* mod */, PyObject*) {
 
 PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
 #if !defined(WIN32) && (ENABLE_PERF_TRAMPOLINE || PY_VERSION_HEX >= 0x030D0000)
-  if (!jit::perf::isPreforkCompilationEnabled()) {
+  if (!jit::isPreforkCompilationEnabled()) {
     Py_RETURN_NONE;
   }
 
@@ -350,7 +350,7 @@ PyObject* compile_perf_trampoline_pre_fork(PyObject* mod, PyObject*) {
 
 PyObject* is_compile_perf_trampoline_pre_fork_enabled(PyObject*, PyObject*) {
 #ifndef WIN32
-  if (jit::perf::isPreforkCompilationEnabled()) {
+  if (jit::isPreforkCompilationEnabled()) {
     Py_RETURN_TRUE;
   }
 #endif
@@ -444,7 +444,7 @@ int ensurePyFunctionVectorcall() {
 void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
   bool scheduled = jit::scheduleJitCompile(func);
 #ifndef WIN32
-  if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
+  if (!scheduled && jit::isPreforkCompilationEnabled()) {
     auto& perf_trampoline_worklist =
         cinderx::getModuleState()->perf_trampoline_worklist;
     perf_trampoline_worklist.emplace(func);
@@ -678,7 +678,7 @@ int cinderx_func_watcher(
 #endif
     case PyFunction_EVENT_DESTROY:
 #ifndef WIN32
-      if (jit::perf::isPreforkCompilationEnabled()) {
+      if (jit::isPreforkCompilationEnabled()) {
         auto state = cinderx::getModuleState();
         if (state != nullptr) {
           auto& perf_trampoline_worklist = state->perf_trampoline_worklist;

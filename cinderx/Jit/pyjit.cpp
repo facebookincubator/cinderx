@@ -3376,9 +3376,6 @@ int finalize_visitor(PyObject* obj, void* arg) {
 }
 
 PyObject* after_fork_child(PyObject*, PyObject*) {
-#ifndef WIN32
-  perf::afterForkChild();
-#endif
   getModuleState()->afterForkChild();
   Py_RETURN_NONE;
 }
@@ -4682,7 +4679,7 @@ int initialize() {
 
   // Initialize the main compiler object and its context.  This will throw if
   // asmjit cannot initialize.
-  cinderx::getModuleState()->jit_context.reset(new CompilerContext<Compiler>());
+  mod_state->jit_context.reset(new CompilerContext<Compiler>());
 
   PyObject* mod = _Ci_CreateBuiltinModule(&jit_module, "cinderjit");
   if (mod == nullptr) {
@@ -4699,6 +4696,16 @@ int initialize() {
   if (getConfig().support_instrumentation) {
     patchSysMonitoringFunctions(mod);
     patchSysSetProfileAndSetTrace(mod);
+  }
+
+  // Set up perf event writers.
+  if (getConfig().perf_map.enabled) {
+    mod_state->perf_writers.emplace_back(
+        perf::makePerfMapWriter(isPreforkCompilationEnabled()));
+  }
+  if (!getConfig().perf_map.jit_dump_dir.empty()) {
+    mod_state->perf_writers.emplace_back(
+        perf::makeJitDumpWriter(getConfig().perf_map.jit_dump_dir));
   }
 
   getMutableConfig().state = State::kRunning;
@@ -5275,6 +5282,10 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
   return {
       Result::OK,
       jit_ctx->codeCompiled(key, std::move(*compiled_func), std::move(func))};
+}
+
+bool isPreforkCompilationEnabled() {
+  return kOS != OS::kWindows && getConfig().compile_perf_trampoline_prefork;
 }
 
 } // namespace cinderx::jit

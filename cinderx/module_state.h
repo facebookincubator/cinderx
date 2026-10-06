@@ -12,13 +12,13 @@
 #include "cinderx/Jit/generators_mm_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/jit_list_iface.h"
+#include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/symbolizer_iface.h"
 #include "cinderx/async_lazy_value_iface.h"
 
 #include <atomic>
 #include <memory>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 namespace cinderx {
@@ -158,6 +158,9 @@ struct ModuleState {
   // Tracked here so the runtime can wait for them to finish before finalizing
   // JIT state they depend on.
   std::vector<std::thread> compile_worker_threads;
+
+  // Collection of writers of Linux perf events.
+  std::vector<std::unique_ptr<jit::perf::Writer>> perf_writers;
 
   // Index for the extra data that CinderX saves on code objects with
   // PyUnstable_Code_SetExtra, and loads with PyUnstable_Code_GetExtra.

@@ -110,4 +110,6 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func);
 
+bool isPreforkCompilationEnabled();
+
 } // namespace cinderx::jit

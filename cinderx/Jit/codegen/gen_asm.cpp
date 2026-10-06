@@ -589,6 +589,32 @@ void emitLIRBlocks(
   }
 }
 
+void emitPerfEvents(
+    asmjit::CodeHolder& code_holder,
+    void* entry_base,
+    const char* symbol_name) {
+  // Perf events are only supported on Linux and macOS.
+  if constexpr (kOS == OS::kWindows) {
+    return;
+  }
+
+  std::vector<std::pair<void*, std::size_t>> code_sections;
+  populateCodeSections(code_sections, code_holder, entry_base);
+  auto mod_state = cinderx::getModuleState();
+  JITCompilationLock lock;
+  for (auto& [code, size] : code_sections) {
+    perf::Entry entry{symbol_name, code, size};
+    for (auto& writer : mod_state->perf_writers) {
+      writer->writeEntry(entry);
+    }
+  }
+  // Flush under the lock so nothing is still buffered at fork time, where a
+  // child would write it into the parent's file.
+  for (auto& writer : mod_state->perf_writers) {
+    writer->flush();
+  }
+}
+
 // Emit LIR blocks to machine code, finalize, register debug/perf symbols, and
 // return the entry address.  Shared by all standalone trampoline generators.
 static void* emitAndRegisterTrampoline(
@@ -619,12 +645,9 @@ static void* emitAndRegisterTrampoline(
   auto code_size = code.codeSize();
   register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
 
-  std::vector<std::pair<void*, std::size_t>> code_sections;
-  populateCodeSections(code_sections, code, result);
-  code_sections.emplace_back(result, code_size);
-#ifndef WIN32
-  perf::registerFunction(code_sections, name, perf::kInternalSymbolPrefix);
-#endif
+  auto symbol_name = fmt::format("{}:{}", perf::kInternalSymbolPrefix, name);
+  emitPerfEvents(code, result, symbol_name.c_str());
+
   return result;
 }
 
@@ -1674,14 +1697,10 @@ void NativeGenerator::generateCode(
   }
 
   const hir::Function* func = getFunction();
-  // For perf, we want only the size of the code, so we get that directly from
-  // the text sections.
-  std::vector<std::pair<void*, std::size_t>> code_sections;
-  populateCodeSections(code_sections, codeholder, code_start_);
-#ifndef WIN32
-  perf::registerFunction(
-      code_sections, func->fullname, perf::kFuncSymbolPrefix);
-#endif
+
+  auto symbol_name =
+      fmt::format("{}:{}", perf::kFuncSymbolPrefix, func->fullname);
+  emitPerfEvents(codeholder, code_start_, symbol_name.c_str());
 }
 
 #ifdef __ASM_DEBUG

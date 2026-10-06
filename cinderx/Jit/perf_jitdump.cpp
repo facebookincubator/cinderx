@@ -4,12 +4,10 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
-#include "cinderx/Jit/compilation_lock.h"
-#include "cinderx/Jit/config.h"
 
-#ifndef WIN32
+#ifndef _WIN32
 
 #include <fmt/format.h>
 #include <sys/file.h>
@@ -24,7 +22,7 @@
 
 namespace fs = std::filesystem;
 
-#ifdef __x86_64__
+#ifdef CINDER_X86_64
 
 // Needed for __rdtsc on GCC.
 #include <x86intrin.h>
@@ -38,32 +36,20 @@ namespace fs = std::filesystem;
 
 // From elf.h, intentionally not included here to avoid having it as a
 // dependency.
-#define EM_X86_64 62
-#define EM_AARCH64 183
+constexpr int EM_X86_64 = 62;
+constexpr int EM_AARCH64 = 183;
 
 #endif
 
 namespace cinderx::jit::perf {
 
-#ifndef WIN32
-
 namespace {
+
+#ifndef _WIN32
 
 // Size used for the JIT dump mmap() call.  Just needs to be consistent across
 // mmap()/munmap(), perf uses the mmap event rather than the mapping itself.
 constexpr size_t kJitdumpMmapSize = 1;
-
-struct JitDumpFile {
-  std::string path;
-  std::FILE* handle{nullptr};
-  void* mmap_addr{nullptr};
-};
-
-// The perf map file handle is stored inside of CPython, the only state CinderX
-// stores is the file path.
-std::string s_perf_map_path;
-
-JitDumpFile s_jit_dump_file;
 
 // C++-friendly wrapper around strerror_r().
 std::string string_error(int errnum) {
@@ -78,48 +64,9 @@ std::string string_error(int errnum) {
 #endif
 }
 
-class FileLock {
- public:
-  FileLock(std::FILE* file, bool exclusive) : fd_{fileno(file)} {
-    auto operation = exclusive ? LOCK_EX : LOCK_SH;
-    while (true) {
-      auto ret = ::flock(fd_, operation);
-      if (ret == 0) {
-        return;
-      }
-      if (ret == -1 && errno == EINTR) {
-        continue;
-      }
-      JIT_ABORT(
-          "flock({}, {}) failed: {}", fd_, operation, string_error(errno));
-    }
-  }
+// Following definitions are for the JIT dump file format.
 
-  ~FileLock() {
-    auto ret = ::flock(fd_, LOCK_UN);
-    JIT_CHECK(
-        ret == 0, "flock({}, LOCK_UN) failed: {}", fd_, string_error(errno));
-  }
-
-  FileLock(const FileLock&) = delete;
-  FileLock& operator=(const FileLock&) = delete;
-
- private:
-  int fd_;
-};
-
-class ExclusiveFileLock : public FileLock {
- public:
-  explicit ExclusiveFileLock(std::FILE* file) : FileLock{file, true} {}
-};
-
-// This file writes out perf jitdump files, to be used by 'perf inject' and
-// 'perf report'. The format is documented here:
-// https://raw.githubusercontent.com/torvalds/linux/master/tools/perf/Documentation/jitdump-specification.txt.
-
-enum Flags {
-  JITDUMP_FLAGS_ARCH_TIMESTAMP = 1,
-};
+constexpr int JITDUMP_FLAGS_ARCH_TIMESTAMP = 1;
 
 struct FileHeader {
   uint32_t magic;
@@ -179,74 +126,108 @@ void* mmapJitDump(int fd) {
   return mmap(nullptr, kJitdumpMmapSize, PROT_EXEC, MAP_PRIVATE, fd, 0);
 }
 
+int munmapJitDump(void* addr) {
+  return munmap(addr, kJitdumpMmapSize);
+}
+
 std::string perfMapPath() {
   return fmt::format("/tmp/perf-{}.map", getpid());
 }
 
-std::string jitDumpPath() {
-  return fmt::format(
-      "{}/jit-{}.dump", getConfig().perf_map.jit_dump_dir, getpid());
+std::string jitDumpPath(std::string_view dir) {
+  return fmt::format("{}/jit-{}.dump", dir, getpid());
 }
 
-// If enabled, open the jitdump file, and write out its header.
-JitDumpFile openJitdumpFile() {
-  JitDumpFile jit_dump_file;
-
-  jit_dump_file.path = jitDumpPath();
-  jit_dump_file.handle = std::fopen(jit_dump_file.path.c_str(), "w+");
-  if (jit_dump_file.handle == nullptr) {
-    JIT_DLOG(
-        "Failed to open JIT dump file {}, {}",
-        jit_dump_file.path,
-        string_error(errno));
-    return {};
-  }
-  auto fd = fileno(jit_dump_file.handle);
-
-  // mmap() the jitdump file so perf inject can find it.
-  jit_dump_file.mmap_addr = mmapJitDump(fd);
-  if (jit_dump_file.mmap_addr == MAP_FAILED) {
-    JIT_DLOG(
-        "Failed to mmap jit dump file {}, {}",
-        jit_dump_file.path,
-        string_error(errno));
-    std::fclose(jit_dump_file.handle);
-    return {};
-  }
-
-  // Write out the file header.
-  FileHeader header;
-  header.magic = 0x4a695444;
-  header.version = 1;
-  header.total_size = sizeof(header);
-#ifdef __x86_64__
-  header.elf_mach = EM_X86_64;
-#elif defined(__aarch64__)
-  header.elf_mach = EM_AARCH64;
-#else
-#error Please provide the ELF e_machine value for your architecture.
-#endif
-  header.pad1 = 0;
-  header.pid = getpid();
-  header.timestamp = getTimestamp();
-#ifdef PERF_USE_RDTSC
-  header.flags = JITDUMP_FLAGS_ARCH_TIMESTAMP;
-#else
-  header.flags = 0;
-#endif
-
-  std::fwrite(&header, sizeof(header), 1, jit_dump_file.handle);
-  std::fflush(jit_dump_file.handle);
-  return jit_dump_file;
+std::error_code copyFile(const fs::path& from, const fs::path& to) {
+  std::error_code ec;
+  fs::copy_file(from, to, fs::copy_options::overwrite_existing, ec);
+  return ec;
 }
 
-void initFiles() {
-  static bool inited = false;
-  if (inited) {
-    return;
+struct PerfMapWriter : Writer {
+  explicit PerfMapWriter(bool prefork_enabled)
+      : prefork_enabled_{prefork_enabled} {}
+
+  ~PerfMapWriter() override {
+    // CPython will take care of closing the perf map state.
   }
 
-  if (getConfig().perf_map.enabled) {
+  PerfMapWriter(const PerfMapWriter& o) = delete;
+  PerfMapWriter& operator=(const PerfMapWriter& rhs) = delete;
+
+  PerfMapWriter(PerfMapWriter&& o) = delete;
+  PerfMapWriter& operator=(PerfMapWriter&& rhs) = delete;
+
+  void writeEntry(const Entry& entry) override {
+    if (!init_) {
+      init_ = true;
+      init();
+    }
+
+    if (path_.empty()) {
+      return;
+    }
+
+    // Avoiding integer conversion warnings.
+    auto entry_size = static_cast<unsigned>(entry.size);
+
+    int result =
+        PyUnstable_WritePerfMapEntry(entry.addr, entry_size, entry.name);
+    if (result != 0) {
+      JIT_DLOG(
+          "Failed to write perf map entry for {} to file {} (cpython: {}) "
+          "(errno: {})",
+          entry.name,
+          path_,
+          result,
+          string_error(errno));
+    }
+  }
+
+  void flush() override {
+    // Nothing to do.
+  }
+
+  void afterForkChild() override {
+    if (path_.empty()) {
+      return;
+    }
+
+    std::string old_path = std::move(path_);
+    std::string new_path = perfMapPath();
+
+    PyUnstable_PerfMapState_Fini();
+
+    // Check if CPython has already copied over the perf map file over for us.
+    if (prefork_enabled_) {
+      path_ = std::move(new_path);
+      return;
+    }
+
+    std::error_code ec = copyFile(old_path, new_path);
+    if (ec) {
+      JIT_DLOG(
+          "Failed to copy perf map file from {} to {}, {}",
+          old_path,
+          new_path,
+          ec.message());
+      return;
+    }
+
+    int result = PyUnstable_PerfMapState_Init();
+    if (result != 0) {
+      JIT_DLOG(
+          "Failed to initialize perf map file (cpython: {}) (errno: {})",
+          result,
+          string_error(errno));
+      return;
+    }
+
+    path_ = std::move(new_path);
+  }
+
+ private:
+  void init() {
     auto perf_map_path = perfMapPath();
     // CPython will open the file in append mode.  We want to empty it out first
     // so that we don't make use of stale entries from previous processes.
@@ -263,174 +244,226 @@ void initFiles() {
           "Failed to initialize perf map file (cpython: {}) (errno: {})",
           result,
           string_error(errno));
-    } else {
-      s_perf_map_path = std::move(perf_map_path);
-      JIT_DLOG("Opened JIT perf-map file: {}", s_perf_map_path);
+      return;
+    }
+
+    path_ = std::move(perf_map_path);
+    JIT_DLOG("Opened JIT perf-map file: {}", path_);
+  }
+
+  // The perf map file handle is stored inside of CPython, the only state
+  // CinderX stores is the file path.
+  std::string path_;
+  bool init_{false};
+  bool prefork_enabled_{false};
+};
+
+struct JitDumpWriter : Writer {
+  explicit JitDumpWriter(std::string_view jit_dump_dir) : dir_{jit_dump_dir} {}
+
+  ~JitDumpWriter() override {
+    if (handle_ == nullptr) {
+      return;
+    }
+    std::fclose(handle_);
+    if (mmap_addr_ != nullptr && munmapJitDump(mmap_addr_) != 0) {
+      JIT_DLOG("Marker unmap of jitdump file failed: {}", string_error(errno));
     }
   }
 
-  if (!getConfig().perf_map.jit_dump_dir.empty()) {
-    s_jit_dump_file = openJitdumpFile();
+  JitDumpWriter(const JitDumpWriter& o) = delete;
+  JitDumpWriter& operator=(const JitDumpWriter& rhs) = delete;
+
+  JitDumpWriter(JitDumpWriter&& o) = delete;
+  JitDumpWriter& operator=(JitDumpWriter&& rhs) = delete;
+
+  void writeEntry(const Entry& entry) override {
+    if (!init_) {
+      init_ = true;
+      init();
+    }
+
+    if (handle_ == nullptr) {
+      return;
+    }
+
+    size_t name_len = std::strlen(entry.name);
+    CodeLoadRecord record{};
+    record.type = JIT_CODE_LOAD;
+    // Total size is 32-bit even though it's defined by the code size which is
+    // 64-bit.
+    auto total_size =
+        static_cast<uint32_t>(sizeof(record) + name_len + 1 + entry.size);
+    record.total_size = total_size;
+    record.timestamp = getTimestamp();
+    record.pid = getpid();
+    record.tid = gettid();
+    record.vma = record.code_addr = reinterpret_cast<uint64_t>(entry.addr);
+    record.code_size = entry.size;
+    record.code_index = code_index_++;
+
+    std::fwrite(&record, sizeof(record), 1, handle_);
+    std::fwrite(entry.name, 1, name_len + 1, handle_);
+    std::fwrite(entry.addr, 1, entry.size, handle_);
   }
 
-  inited = true;
-}
-
-std::error_code copyFile(const fs::path& from, const fs::path& to) {
-  std::error_code ec;
-  fs::copy_file(from, to, fs::copy_options::overwrite_existing, ec);
-  return ec;
-}
-
-void copyPerfMap() {
-  if (s_perf_map_path.empty()) {
-    return;
+  void flush() override {
+    if (handle_ == nullptr) {
+      return;
+    }
+    if (std::fflush(handle_) != 0) {
+      JIT_DLOG(
+          "Failed to flush jit dump file {}, {}", path_, string_error(errno));
+    }
   }
 
-  std::string old_path = std::move(s_perf_map_path);
-  std::string new_path = perfMapPath();
+  void afterForkChild() override {
+    if (handle_ == nullptr) {
+      return;
+    }
 
-  // Check if CPython has copied over the perf map file over for us.
-  if (isPreforkCompilationEnabled()) {
-    s_perf_map_path = std::move(new_path);
-    return;
+    std::string old_path = std::move(path_);
+    std::string new_path = jitDumpPath(dir_);
+
+    // Destroy previous state, ignore failures.
+    std::fclose(handle_);
+    if (mmap_addr_ != nullptr) {
+      munmapJitDump(mmap_addr_);
+    }
+    handle_ = nullptr;
+    mmap_addr_ = nullptr;
+
+    std::error_code ec = copyFile(old_path, new_path);
+    if (ec) {
+      JIT_DLOG(
+          "Failed to copy JIT dump file from {} to {}, {}",
+          old_path,
+          new_path,
+          ec.message());
+      return;
+    }
+
+    std::FILE* handle = std::fopen(new_path.c_str(), "a+");
+    if (handle == nullptr) {
+      JIT_DLOG(
+          "Failed to open JIT dump file in {} after copying it, {}",
+          new_path,
+          string_error(errno));
+      return;
+    }
+
+    // The mmap() is needed for `perf inject`, which is Linux-only.  It will
+    // fail on macOS.
+    if (kOS == OS::kLinux) {
+      auto mmap_addr = mmapJitDump(fileno(handle));
+      if (mmap_addr == MAP_FAILED) {
+        JIT_DLOG(
+            "Failed to mmap jit dump file {} after fork, {}",
+            new_path,
+            string_error(errno));
+        std::fclose(handle);
+        return;
+      }
+      mmap_addr_ = mmap_addr;
+    }
+
+    path_ = std::move(new_path);
+    handle_ = handle;
   }
 
-  std::error_code ec = copyFile(old_path, new_path);
-  if (ec) {
-    JIT_DLOG(
-        "Failed to copy perf map file from {} to {}, {}",
-        old_path,
-        new_path,
-        ec.message());
-    return;
+ private:
+  void init() {
+    // First create the file header.  Done first to handle the architecture
+    // check before opening the file.
+    FileHeader header{};
+    header.magic = 0x4a695444;
+    header.version = 1;
+    header.total_size = sizeof(header);
+    if constexpr (kBuildArch == Arch::kX86_64) {
+      header.elf_mach = EM_X86_64;
+    } else if constexpr (kBuildArch == Arch::kAarch64) {
+      header.elf_mach = EM_AARCH64;
+    } else {
+      JIT_THROW("Please provide the ELF e_machine value for your architecture");
+    }
+    header.pad1 = 0;
+    header.pid = getpid();
+    header.timestamp = getTimestamp();
+#ifdef PERF_USE_RDTSC
+    header.flags = JITDUMP_FLAGS_ARCH_TIMESTAMP;
+#else
+    header.flags = 0;
+#endif
+
+    // Open the JIT dump file.
+    auto path = jitDumpPath(dir_);
+    auto handle = std::fopen(path.c_str(), "w+");
+    if (handle == nullptr) {
+      JIT_DLOG(
+          "Failed to open JIT dump file {}, {}", path, string_error(errno));
+      return;
+    }
+    [[maybe_unused]] int fd = fileno(handle);
+
+    // mmap() the jitdump file so perf inject can find it.  This is Linux-only
+    // and fails on macOS, where the dump is still usable without the marker
+    // mapping.
+    if (kOS == OS::kLinux) {
+      auto mmap_addr = mmapJitDump(fd);
+      if (mmap_addr == MAP_FAILED) {
+        JIT_DLOG(
+            "Failed to mmap jit dump file {}, {}", path, string_error(errno));
+        std::fclose(handle);
+        return;
+      }
+      mmap_addr_ = mmap_addr;
+    }
+
+    path_ = std::move(path);
+    handle_ = handle;
+
+    std::fwrite(&header, sizeof(header), 1, handle_);
   }
 
-  int result = PyUnstable_PerfMapState_Init();
-  if (result != 0) {
-    JIT_DLOG(
-        "Failed to initialize perf map file (cpython: {}) (errno: {})",
-        result,
-        string_error(errno));
-    return;
-  }
+  std::string dir_;
+  std::string path_;
+  // Uses std::FILE* as the mmap() call needs the raw file descriptor, which
+  // std::ostream doesn't expose.
+  std::FILE* handle_{};
+  void* mmap_addr_{};
+  uint64_t code_index_{0};
+  bool init_{false};
+};
 
-  s_perf_map_path = std::move(new_path);
-}
+#else // !define(_WIN32)
 
-void copyJitDumpFile() {
-  if (s_jit_dump_file.path.empty()) {
-    return;
-  }
+struct NopWriter : Writer {
+  ~NopWriter() override = default;
 
-  std::string old_path = std::move(s_jit_dump_file.path);
-  std::string new_path = jitDumpPath();
+  void writeEntry(const Entry&) override {}
+  void flush() override {}
+  void afterForkChild() override {}
+};
 
-  std::fclose(s_jit_dump_file.handle);
-  s_jit_dump_file.handle = nullptr;
-
-  auto ret = munmap(s_jit_dump_file.mmap_addr, kJitdumpMmapSize);
-  if (ret != 0) {
-    JIT_DLOG("Marker unmap of jitdump file failed: {}", string_error(errno));
-  }
-  s_jit_dump_file.mmap_addr = nullptr;
-
-  std::error_code ec = copyFile(old_path, new_path);
-  if (ec) {
-    JIT_DLOG(
-        "Failed to copy JIT dump file from {} to {}, {}",
-        old_path,
-        new_path,
-        ec.message());
-    return;
-  }
-
-  std::FILE* handle = std::fopen(new_path.c_str(), "a+");
-  if (handle == nullptr) {
-    JIT_DLOG(
-        "Failed to open JIT dump file in {} after copying it, {}",
-        new_path,
-        string_error(errno));
-    return;
-  }
-
-  auto mmap_addr = mmapJitDump(fileno(handle));
-  if (mmap_addr == MAP_FAILED) {
-    JIT_DLOG(
-        "Failed to mmap jit dump file {} after fork, {}",
-        new_path,
-        string_error(errno));
-    std::fclose(handle);
-    return;
-  }
-
-  s_jit_dump_file.path = new_path;
-  s_jit_dump_file.handle = handle;
-  s_jit_dump_file.mmap_addr = mmap_addr;
-}
+#endif
 
 } // namespace
 
-#endif
-
-bool isPreforkCompilationEnabled() {
-  return kOS != OS::kWindows && getConfig().compile_perf_trampoline_prefork;
-}
-
-void registerFunction(
-    const std::vector<std::pair<void*, std::size_t>>& code_sections,
-    std::string_view name,
-    std::string_view prefix) {
-#ifndef WIN32
-  JITCompilationLock lock;
-
-  initFiles();
-
-  for (auto& section_and_size : code_sections) {
-    void* code = section_and_size.first;
-    std::size_t size = section_and_size.second;
-    auto jit_entry = fmt::format("{}:{}", prefix, name);
-    PyUnstable_WritePerfMapEntry(
-        static_cast<const void*>(code), size, jit_entry.c_str());
-  }
-
-  if (std::FILE* file = s_jit_dump_file.handle) {
-    // Make sure no parent or child process writes concurrently.
-    ExclusiveFileLock write_lock(file);
-
-    static uint64_t code_index = 0;
-    for (auto& section_and_size : code_sections) {
-      auto const prefixed_name = fmt::format("{}:{}", prefix, name);
-
-      void* code = section_and_size.first;
-      std::size_t size = section_and_size.second;
-      CodeLoadRecord record;
-      record.type = JIT_CODE_LOAD;
-
-      record.total_size = sizeof(record) + prefixed_name.size() + 1 + size;
-      record.timestamp = getTimestamp();
-      record.pid = getpid();
-      record.tid = gettid();
-      record.vma = record.code_addr = reinterpret_cast<uint64_t>(code);
-      record.code_size = size;
-      record.code_index = code_index++;
-
-      std::fwrite(&record, sizeof(record), 1, file);
-      std::fwrite(prefixed_name.data(), 1, prefixed_name.size() + 1, file);
-      std::fwrite(code, 1, size, file);
-    }
-    std::fflush(file);
-  }
+std::unique_ptr<Writer> makePerfMapWriter(
+    [[maybe_unused]] bool prefork_enabled) {
+#ifndef _WIN32
+  return std::make_unique<PerfMapWriter>(prefork_enabled);
+#else
+  return std::make_unique<NopWriter>();
 #endif
 }
 
-void afterForkChild() {
-#ifndef WIN32
-  // Make sure the perf map file handle we inherited from the parent is closed.
-  PyUnstable_PerfMapState_Fini();
-
-  copyPerfMap();
-  copyJitDumpFile();
+std::unique_ptr<Writer> makeJitDumpWriter(
+    [[maybe_unused]] std::string_view jit_dump_dir) {
+#ifndef _WIN32
+  return std::make_unique<JitDumpWriter>(jit_dump_dir);
+#else
+  return std::make_unique<NopWriter>();
 #endif
 }
 

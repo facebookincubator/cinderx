@@ -71,6 +71,10 @@ void ModuleState::afterForkChild() {
   if (arena != nullptr) {
     arena->afterForkChild();
   }
+
+  for (auto& writer : perf_writers) {
+    writer->afterForkChild();
+  }
 }
 
 void ModuleState::atForkPrepare() {
