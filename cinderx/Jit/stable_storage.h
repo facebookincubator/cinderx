@@ -26,6 +26,7 @@ struct InlineCacheSite {
     kLoadTypeMethod,
     kBinaryOp,
     kStoreAttr,
+    kCompare,
   };
 
   InlineCacheSite(BCOffset bytecode_offset, LoadAttrCache* cache);
@@ -36,6 +37,7 @@ struct InlineCacheSite {
   InlineCacheSite(BCOffset bytecode_offset, LoadTypeMethodCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, BinaryOpCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, StoreAttrCache* cache);
+  InlineCacheSite(BCOffset bytecode_offset, CompareCache* cache);
 
   Kind kind;
   BCOffset bytecode_offset;
@@ -48,6 +50,7 @@ struct InlineCacheSite {
     LoadTypeMethodCache* load_type_method;
     BinaryOpCache* binary_op;
     StoreAttrCache* store_attr;
+    CompareCache* compare;
   } cache{};
 };
 
@@ -75,6 +78,9 @@ class PerCompilationStableStorage final {
       BCOffset bytecode_offset,
       hir::BinaryOpKind op);
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
+  CompareCache* allocateCompareCache(
+      BCOffset bytecode_offset,
+      hir::CompareOp op);
 
 #ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
   template <typename T, typename... Args>
@@ -124,6 +130,9 @@ class ContextStableStorage final {
       BCOffset bytecode_offset,
       hir::BinaryOpKind op);
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
+  CompareCache* allocateCompareCache(
+      BCOffset bytecode_offset,
+      hir::CompareOp op);
   void addLoadTypeAttrCacheSite(
       BCOffset bytecode_offset,
       LoadTypeAttrCache* cache);
@@ -144,6 +153,7 @@ class ContextStableStorage final {
   SlabArena<LoadTypeMethodCache> load_type_method_caches_;
   SlabArena<BinaryOpCache> binary_op_caches_;
   SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
+  SlabArena<CompareCache> compare_caches_;
 };
 
 #ifdef ENABLE_PREFORK_MODEL

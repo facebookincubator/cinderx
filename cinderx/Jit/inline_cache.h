@@ -22,6 +22,7 @@ namespace cinderx::jit::hir {
 // Defined in cinderx/Jit/hir/hir.h; only the complete type is needed in
 // inline_cache.cpp, so a forward declaration suffices here.
 enum class BinaryOpKind;
+enum class CompareOp;
 } // namespace cinderx::jit::hir
 
 namespace cinderx::jit {
@@ -931,24 +932,35 @@ class LoadModuleMethodCache {
 #endif
 };
 
+// The operand types BinaryOpCache and CompareCache can specialize on. Each
+// X(Name) maps SpecializedType::k<Name> to its type-check predicate
+// check<Name> (see checkFor). Kept in sync with the SpecializedType enum.
+#define FOREACH_SPECIALIZATION_TYPE(X) \
+  X(CompactLong)                       \
+  X(Long)                              \
+  X(Unicode)                           \
+  X(Float)                             \
+  X(List)                              \
+  X(Tuple)                             \
+  X(Complex)                           \
+  X(Set)                               \
+  X(Bool)
+
 // Identifies a single operand type a SpecializedType expects.  Kept in sync
-// with FOREACH_OPERAND_TYPE (inline_cache.cpp): every type there maps to a
-// k<Name> value here, enforced at compile time by the
+// with FOREACH_SPECIALIZATION_TYPE (inline_cache.cpp): every type there maps to
+// a k<Name> value here, enforced at compile time by the
 // SpecializedType::k##NAME uses in checkFor.
+#define OP_TYPE(NAME) k##NAME,
+
 enum class SpecializedType : uint8_t {
   // The cache has not specialized yet (still in a populate state).
   kUninitialized,
   // The cache has fallen back to the generic PyNumber_* path.
   kGeneric,
-  kCompactLong,
-  kLong,
-  kUnicode,
-  kFloat,
-  kList,
-  kTuple,
-  kComplex,
-  kSet,
+  FOREACH_SPECIALIZATION_TYPE(OP_TYPE)
 };
+
+#undef OP_TYPE
 
 // A cache for an individual BinaryOp instruction.
 //
@@ -992,7 +1004,7 @@ class BinaryOpCache {
   // Constructs a cache for op, seeding the matching per-op populate state
   // (which specializes lazily on the first call).  Throws std::runtime_error if
   // op has no inline-cache support.
-  explicit BinaryOpCache(cinderx::jit::hir::BinaryOpKind op);
+  explicit BinaryOpCache(hir::BinaryOpKind op);
 
   // Dispatch entry points called directly by codegen: add() for kAdd,
   // multiply() for kMultiply, subtract() for kSubtract, trueDivide() for
@@ -1014,8 +1026,7 @@ class BinaryOpCache {
  private:
   // Selects the initial populate state for op, or throws std::runtime_error if
   // op is not supported.
-  static Specialization selectInitialSpecialization(
-      cinderx::jit::hir::BinaryOpKind op);
+  static Specialization selectInitialSpecialization(hir::BinaryOpKind op);
 
   // Initial entry point for the add op: inspects the operand types, transitions
   // the add specialization, and performs the operation.
@@ -1073,6 +1084,104 @@ class BinaryOpCache {
       auto ReDispatch>
   static PyObject*
   invokeSpecialized(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
+
+  Specialization specialization_;
+};
+
+// A cache for an individual Compare instruction.
+//
+// Mirrors BinaryOpCache: a small state machine with a single Specialization
+// enum covering every supported comparison op's states, and a per-op dispatch
+// entry point (equal() / notEqual() / lessThan() / ...) that switches over
+// just that op's subset. A cache is constructed for a single CompareOp; it
+// starts in that op's populate state, which checks the inputs for known cache
+// types on first invocation, then transitions to the matching specialized
+// state, or to generic when no SpecializedType applies.
+//
+// Codegen emits a direct call to the entry point matching the op's CompareOp;
+// each switches on specialization_ and calls the matching specialized
+// comparison directly.
+class CompareCache {
+ public:
+  enum class Specialization : uint8_t;
+
+  // The (lhs, rhs, return) operand/result types a cache has specialized to.
+  struct CompareSpecialization {
+    SpecializedType lhs;
+    SpecializedType rhs;
+    SpecializedType ret;
+
+    bool operator==(const CompareSpecialization&) const = default;
+  };
+
+  // Constructs a cache for op, seeding the matching per-op populate state
+  // (which specializes lazily on the first call). Throws std::runtime_error if
+  // op has no inline-cache support (In, NotIn, ExcMatch).
+  explicit CompareCache(hir::CompareOp op);
+
+  // Dispatch entry points called directly by codegen. Each switches on the
+  // cache's per-op specialization enum and runs the corresponding comparison.
+  static PyObject* equal(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject* notEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject* lessThan(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  lessThanEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  greaterThan(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  greaterThanEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+
+  // Returns the (lhs, rhs, return) operand types the cache has settled on
+  // ({kUninitialized, ...} before the first call).
+  CompareSpecialization specializedTypes() const;
+
+  CompareCache(const CompareCache&) = delete;
+  CompareCache& operator=(const CompareCache&) = delete;
+
+ private:
+  static Specialization selectInitialSpecialization(hir::CompareOp op);
+
+  static PyObject*
+  populateAndInvokeEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  populateAndInvokeNotEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  populateAndInvokeLessThan(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject* populateAndInvokeLessThanEqual(
+      PyObject* lhs,
+      PyObject* rhs,
+      CompareCache* cache);
+  static PyObject* populateAndInvokeGreaterThan(
+      PyObject* lhs,
+      PyObject* rhs,
+      CompareCache* cache);
+  static PyObject* populateAndInvokeGreaterThanEqual(
+      PyObject* lhs,
+      PyObject* rhs,
+      CompareCache* cache);
+
+  static PyObject*
+  equalGeneric(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  notEqualGeneric(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  lessThanGeneric(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  lessThanEqualGeneric(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  greaterThanGeneric(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+  static PyObject*
+  greaterThanEqualGeneric(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+
+  template <
+      auto LhsKind,
+      auto RhsKind,
+      auto ReturnKind,
+      auto Op,
+      auto Fallback,
+      auto ReDispatch>
+  static PyObject*
+  invokeSpecialized(PyObject* lhs, PyObject* rhs, CompareCache* cache);
 
   Specialization specialization_;
 };

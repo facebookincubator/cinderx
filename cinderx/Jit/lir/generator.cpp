@@ -3757,15 +3757,55 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               instr->left());
           break;
         }
-        int op = static_cast<int>(instr->op());
-        JIT_CHECK(op >= Py_LT, "invalid compare op {}", op);
-        JIT_CHECK(op <= Py_GE, "invalid compare op {}", op);
-        bbb.appendCallInstruction(
-            instr->output(),
-            PyObject_RichCompare,
-            instr->left(),
-            instr->right(),
-            op);
+
+        // The op's inline cache entry point, or null when caching is disabled
+        // or the op has no cache support.
+        PyObject* (*cache_entry)(PyObject*, PyObject*, CompareCache*) = nullptr;
+        if (getConfig().binary_op_caches) {
+          switch (instr->op()) {
+            case CompareOp::kEqual:
+              cache_entry = CompareCache::equal;
+              break;
+            case CompareOp::kNotEqual:
+              cache_entry = CompareCache::notEqual;
+              break;
+            case CompareOp::kLessThan:
+              cache_entry = CompareCache::lessThan;
+              break;
+            case CompareOp::kLessThanEqual:
+              cache_entry = CompareCache::lessThanEqual;
+              break;
+            case CompareOp::kGreaterThan:
+              cache_entry = CompareCache::greaterThan;
+              break;
+            case CompareOp::kGreaterThanEqual:
+              cache_entry = CompareCache::greaterThanEqual;
+              break;
+            default:
+              break;
+          }
+        }
+
+        if (cache_entry != nullptr) {
+          CompareCache* cache = stable_storage_.allocateCompareCache(
+              instr->bytecodeOffset(), instr->op());
+          bbb.appendCallInstruction(
+              instr->output(),
+              cache_entry,
+              instr->left(),
+              instr->right(),
+              cache);
+        } else {
+          int op = static_cast<int>(instr->op());
+          JIT_CHECK(op >= Py_LT, "invalid compare op {}", op);
+          JIT_CHECK(op <= Py_GE, "invalid compare op {}", op);
+          bbb.appendCallInstruction(
+              instr->output(),
+              PyObject_RichCompare,
+              instr->left(),
+              instr->right(),
+              op);
+        }
         break;
       }
       case hir::Opcode::kLongCompare: {

@@ -62,6 +62,13 @@ InlineCacheSite::InlineCacheSite(
   cache.store_attr = cache_ptr;
 }
 
+InlineCacheSite::InlineCacheSite(
+    BCOffset bytecode_offset,
+    CompareCache* cache_ptr)
+    : kind{Kind::kCompare}, bytecode_offset{bytecode_offset} {
+  cache.compare = cache_ptr;
+}
+
 const std::vector<InlineCacheSite>&
 PerCompilationStableStorage::inlineCacheSites() const {
   return inline_cache_sites_;
@@ -134,6 +141,14 @@ StoreAttrCache* PerCompilationStableStorage::allocateStoreAttrCache(
   return cache;
 }
 
+CompareCache* PerCompilationStableStorage::allocateCompareCache(
+    BCOffset bytecode_offset,
+    hir::CompareOp op) {
+  auto cache = arena_.allocate<CompareCache>(op);
+  addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
+  return cache;
+}
+
 void PerCompilationStableStorage::addLoadTypeAttrCacheSite(
     BCOffset bytecode_offset,
     LoadTypeAttrCache* cache) {
@@ -197,6 +212,12 @@ BinaryOpCache* ContextStableStorage::allocateBinaryOpCache(
 StoreAttrCache* ContextStableStorage::allocateStoreAttrCache(
     [[maybe_unused]] BCOffset bytecode_offset) {
   return store_attr_caches_.allocate();
+}
+
+CompareCache* ContextStableStorage::allocateCompareCache(
+    [[maybe_unused]] BCOffset bytecode_offset,
+    hir::CompareOp op) {
+  return compare_caches_.allocate(op);
 }
 
 void ContextStableStorage::addLoadTypeAttrCacheSite(

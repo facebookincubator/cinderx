@@ -1058,6 +1058,208 @@ TEST_F(InlineCacheTest, BinaryOpCacheTrueDivideStepsDownChain) {
       sameTypes(SpecializedType::kGeneric));
 }
 
+namespace {
+using CompareDispatch = PyObject* (*)(PyObject * lhs,
+                                      PyObject* rhs,
+                                      CompareCache* cache);
+
+CompareCache::CompareSpecialization specializeCompareWith(
+    CompareDispatch dispatch,
+    CompareCache& cache,
+    PyObject* lhs,
+    PyObject* rhs) {
+  Ref<>::steal(dispatch(lhs, rhs, &cache));
+  return cache.specializedTypes();
+}
+
+CompareCache::CompareSpecialization
+compareTypes(SpecializedType lhs, SpecializedType rhs, SpecializedType ret) {
+  return {lhs, rhs, ret};
+}
+} // namespace
+
+TEST_F(InlineCacheTest, CompareCacheEqualSpecializesOnInts) {
+  CompareCache cache{CompareOp::kEqual};
+
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  auto four = Ref<>::steal(PyLong_FromLong(4));
+  ASSERT_NE(three.get(), nullptr);
+  ASSERT_NE(four.get(), nullptr);
+
+  auto is_equal = Ref<>::steal(CompareCache::equal(three, three, &cache));
+  ASSERT_NE(is_equal.get(), nullptr);
+  EXPECT_EQ(is_equal.get(), Py_True);
+
+  EXPECT_EQ(
+      cache.specializedTypes(),
+      compareTypes(
+          SpecializedType::kCompactLong,
+          SpecializedType::kCompactLong,
+          SpecializedType::kBool));
+
+  auto is_not_equal = Ref<>::steal(CompareCache::equal(three, four, &cache));
+  ASSERT_NE(is_not_equal.get(), nullptr);
+  EXPECT_EQ(is_not_equal.get(), Py_False);
+}
+
+TEST_F(InlineCacheTest, CompareCacheSpecializationLookup) {
+  // Small ints specialize to compact-long comparisons returning bool.
+  auto small = Ref<>::steal(PyLong_FromLong(3));
+  CompareCache compact{CompareOp::kEqual};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::equal, compact, small, small),
+      compareTypes(
+          SpecializedType::kCompactLong,
+          SpecializedType::kCompactLong,
+          SpecializedType::kBool));
+
+  // Large ints specialize to the general long comparison.
+  auto big = Ref<>::steal(PyLong_FromLongLong(1LL << 60));
+  CompareCache long_cache{CompareOp::kLessThan};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::lessThan, long_cache, big, big),
+      compareTypes(
+          SpecializedType::kLong,
+          SpecializedType::kLong,
+          SpecializedType::kBool));
+
+  auto str = Ref<>::steal(PyUnicode_FromString("x"));
+  CompareCache unicode_cache{CompareOp::kEqual};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::equal, unicode_cache, str, str),
+      compareTypes(
+          SpecializedType::kUnicode,
+          SpecializedType::kUnicode,
+          SpecializedType::kBool));
+
+  auto flt = Ref<>::steal(PyFloat_FromDouble(1.5));
+  CompareCache float_cache{CompareOp::kGreaterThan};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::greaterThan, float_cache, flt, flt),
+      compareTypes(
+          SpecializedType::kFloat,
+          SpecializedType::kFloat,
+          SpecializedType::kBool));
+
+  auto list = Ref<>::steal(PyList_New(0));
+  CompareCache list_cache{CompareOp::kEqual};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::equal, list_cache, list, list),
+      compareTypes(
+          SpecializedType::kList,
+          SpecializedType::kList,
+          SpecializedType::kBool));
+
+  auto tuple = Ref<>::steal(PyTuple_New(0));
+  CompareCache tuple_cache{CompareOp::kLessThan};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::lessThan, tuple_cache, tuple, tuple),
+      compareTypes(
+          SpecializedType::kTuple,
+          SpecializedType::kTuple,
+          SpecializedType::kBool));
+
+  auto cplx = Ref<>::steal(PyComplex_FromDoubles(1.0, 2.0));
+  CompareCache complex_cache{CompareOp::kEqual};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::equal, complex_cache, cplx, cplx),
+      compareTypes(
+          SpecializedType::kComplex,
+          SpecializedType::kComplex,
+          SpecializedType::kBool));
+
+  auto set = makeSet({1, 2});
+  ASSERT_NE(set.get(), nullptr);
+  CompareCache set_cache{CompareOp::kLessThan};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::lessThan, set_cache, set, set),
+      compareTypes(
+          SpecializedType::kSet,
+          SpecializedType::kSet,
+          SpecializedType::kBool));
+
+  // bytes has no specialization, so it goes straight to generic.
+  auto bytes = Ref<>::steal(PyBytes_FromString("x"));
+  CompareCache generic_cache{CompareOp::kEqual};
+  EXPECT_EQ(
+      specializeCompareWith(CompareCache::equal, generic_cache, bytes, bytes),
+      compareTypes(
+          SpecializedType::kGeneric,
+          SpecializedType::kGeneric,
+          SpecializedType::kGeneric));
+}
+
+TEST_F(InlineCacheTest, CompareCacheOrderingExcludesComplex) {
+  // Complex supports == and != but not ordering; an ordering comparison on
+  // complex operands must fall back to generic (which raises TypeError)
+  // rather than specializing.
+  auto cplx = Ref<>::steal(PyComplex_FromDoubles(1.0, 2.0));
+  ASSERT_NE(cplx.get(), nullptr);
+
+  CompareCache cache{CompareOp::kLessThan};
+  auto result = Ref<>::steal(CompareCache::lessThan(cplx, cplx, &cache));
+  EXPECT_EQ(result.get(), nullptr);
+  EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_TypeError));
+  PyErr_Clear();
+  EXPECT_EQ(
+      cache.specializedTypes(),
+      compareTypes(
+          SpecializedType::kGeneric,
+          SpecializedType::kGeneric,
+          SpecializedType::kGeneric));
+}
+
+TEST_F(InlineCacheTest, CompareCacheComputesCorrectly) {
+  // Exercise every rich comparison op through the int fast path.
+  CompareCache eq{CompareOp::kEqual};
+  CompareCache ne{CompareOp::kNotEqual};
+  CompareCache lt{CompareOp::kLessThan};
+  CompareCache le{CompareOp::kLessThanEqual};
+  CompareCache gt{CompareOp::kGreaterThan};
+  CompareCache ge{CompareOp::kGreaterThanEqual};
+
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_NE(one.get(), nullptr);
+  ASSERT_NE(two.get(), nullptr);
+
+  EXPECT_EQ(Ref<>::steal(CompareCache::equal(one, one, &eq)).get(), Py_True);
+  EXPECT_EQ(Ref<>::steal(CompareCache::equal(one, two, &eq)).get(), Py_False);
+  EXPECT_EQ(Ref<>::steal(CompareCache::notEqual(one, two, &ne)).get(), Py_True);
+  EXPECT_EQ(Ref<>::steal(CompareCache::lessThan(one, two, &lt)).get(), Py_True);
+  EXPECT_EQ(
+      Ref<>::steal(CompareCache::lessThan(two, one, &lt)).get(), Py_False);
+  EXPECT_EQ(
+      Ref<>::steal(CompareCache::lessThanEqual(one, one, &le)).get(), Py_True);
+  EXPECT_EQ(
+      Ref<>::steal(CompareCache::greaterThan(two, one, &gt)).get(), Py_True);
+  EXPECT_EQ(
+      Ref<>::steal(CompareCache::greaterThanEqual(one, one, &ge)).get(),
+      Py_True);
+
+  // Float NaN follows Python semantics: unequal to itself, unordered.
+  CompareCache float_eq{CompareOp::kEqual};
+  CompareCache float_ne{CompareOp::kNotEqual};
+  CompareCache float_lt{CompareOp::kLessThan};
+  auto nan = Ref<>::steal(PyFloat_FromDouble(std::nan("")));
+  auto one_f = Ref<>::steal(PyFloat_FromDouble(1.0));
+  ASSERT_NE(nan.get(), nullptr);
+  ASSERT_NE(one_f.get(), nullptr);
+  EXPECT_EQ(
+      Ref<>::steal(CompareCache::equal(nan, nan, &float_eq)).get(), Py_False);
+  EXPECT_EQ(
+      Ref<>::steal(CompareCache::notEqual(nan, nan, &float_ne)).get(), Py_True);
+  EXPECT_EQ(
+      Ref<>::steal(CompareCache::lessThan(nan, one_f, &float_lt)).get(),
+      Py_False);
+}
+
+TEST_F(InlineCacheTest, CompareCacheRejectsUnsupportedOp) {
+  EXPECT_THROW(CompareCache{CompareOp::kIn}, std::runtime_error);
+  EXPECT_THROW(CompareCache{CompareOp::kNotIn}, std::runtime_error);
+  EXPECT_THROW(CompareCache{CompareOp::kExcMatch}, std::runtime_error);
+}
+
 // Load/StoreAttrCache dispatch through a function pointer held in the cache
 // (CINDERX_IC_USE_TARGET_PROMOTION). The tests below drive that pointer the
 // same way generated code does: load target_ via targetAddr() and call it with

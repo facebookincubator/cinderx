@@ -249,4 +249,110 @@ def test(a, b):
   }
 }
 
+TEST_F(BinaryOpCacheCodegenTest, IntThenStrEqualExecuteCorrectly) {
+  const char* src = R"(
+def test(a, b):
+  return a == b
+)";
+  Ref<PyFunctionObject> funcobj(compileAndGet(src, "test"));
+  ASSERT_NE(funcobj, nullptr);
+
+  std::unique_ptr<Function> irfunc(buildHIR(funcobj));
+  ASSERT_NE(irfunc, nullptr);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+
+  // The cache option is handled during LIR generation, so HIR stays generic.
+  ASSERT_THAT(
+      HIRPrinter{}.toString(*irfunc), ::testing::HasSubstr("Compare<Equal>"));
+
+  NativeGeneratorFactory factory;
+  NativeGenerator gen(irfunc.get(), factory);
+  auto jitfunc = reinterpret_cast<vectorcallfunc>(gen.getVectorcallEntry());
+  ASSERT_NE(jitfunc, nullptr);
+
+  PyObject* self = reinterpret_cast<PyObject*>(funcobj.get());
+
+  // int == int: cold cache specializes to the compact-int fast path.
+  {
+    auto a = Ref<>::steal(PyLong_FromLong(1));
+    auto b = Ref<>::steal(PyLong_FromLong(1));
+    PyObject* args[] = {a, b};
+    auto res = Ref<>::steal(jitfunc(self, args, 2, nullptr));
+    ASSERT_NE(res, nullptr);
+    EXPECT_EQ(res.get(), Py_True);
+  }
+  {
+    auto a = Ref<>::steal(PyLong_FromLong(1));
+    auto b = Ref<>::steal(PyLong_FromLong(2));
+    PyObject* args[] = {a, b};
+    auto res = Ref<>::steal(jitfunc(self, args, 2, nullptr));
+    ASSERT_NE(res, nullptr);
+    EXPECT_EQ(res.get(), Py_False);
+  }
+
+  // str == str on the same compiled function: the int guard fails and the
+  // cache falls back to the generic PyObject_RichCompare path.
+  {
+    auto a = Ref<>::steal(PyUnicode_FromString("x"));
+    auto b = Ref<>::steal(PyUnicode_FromString("x"));
+    PyObject* args[] = {a, b};
+    auto res = Ref<>::steal(jitfunc(self, args, 2, nullptr));
+    ASSERT_NE(res, nullptr);
+    EXPECT_EQ(res.get(), Py_True);
+  }
+
+  // int == int again: still correct after the fallback transition.
+  {
+    auto a = Ref<>::steal(PyLong_FromLong(42));
+    auto b = Ref<>::steal(PyLong_FromLong(42));
+    PyObject* args[] = {a, b};
+    auto res = Ref<>::steal(jitfunc(self, args, 2, nullptr));
+    ASSERT_NE(res, nullptr);
+    EXPECT_EQ(res.get(), Py_True);
+  }
+}
+
+TEST_F(BinaryOpCacheCodegenTest, IntLessThanExecutesCorrectly) {
+  const char* src = R"(
+def test(a, b):
+  return a < b
+)";
+  Ref<PyFunctionObject> funcobj(compileAndGet(src, "test"));
+  ASSERT_NE(funcobj, nullptr);
+
+  std::unique_ptr<Function> irfunc(buildHIR(funcobj));
+  ASSERT_NE(irfunc, nullptr);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+
+  ASSERT_THAT(
+      HIRPrinter{}.toString(*irfunc),
+      ::testing::HasSubstr("Compare<LessThan>"));
+
+  NativeGeneratorFactory factory;
+  NativeGenerator gen(irfunc.get(), factory);
+  auto jitfunc = reinterpret_cast<vectorcallfunc>(gen.getVectorcallEntry());
+  ASSERT_NE(jitfunc, nullptr);
+
+  PyObject* self = reinterpret_cast<PyObject*>(funcobj.get());
+
+  {
+    auto a = Ref<>::steal(PyLong_FromLong(1));
+    auto b = Ref<>::steal(PyLong_FromLong(2));
+    PyObject* args[] = {a, b};
+    auto res = Ref<>::steal(jitfunc(self, args, 2, nullptr));
+    ASSERT_NE(res, nullptr);
+    EXPECT_EQ(res.get(), Py_True);
+  }
+  {
+    auto a = Ref<>::steal(PyLong_FromLong(2));
+    auto b = Ref<>::steal(PyLong_FromLong(1));
+    PyObject* args[] = {a, b};
+    auto res = Ref<>::steal(jitfunc(self, args, 2, nullptr));
+    ASSERT_NE(res, nullptr);
+    EXPECT_EQ(res.get(), Py_False);
+  }
+}
+
 } // namespace cinderx
