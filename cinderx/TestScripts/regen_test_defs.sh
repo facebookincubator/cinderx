@@ -7,4 +7,4 @@ set -e
 
 cd "$(dirname "$(readlink -f "$0")")"
 
-./gen_test_defs.sh "$(pwd)/../tests.bzl"
+./gen_test_defs.sh "$(pwd)/../tests.bzl" "$@"
