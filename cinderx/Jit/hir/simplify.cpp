@@ -797,6 +797,8 @@ Register* simplifyIsCompactLong(Env& env, const IsCompactLong* instr) {
     bool compact =
         _PyLong_IsCompact(reinterpret_cast<PyLongObject*>(ty.objectSpec()));
     return env.emit<LoadConst>(Type::fromCBool(compact));
+  } else if (ty <= TLongCompact) {
+    return env.emit<LoadConst>(Type::fromCBool(true));
   }
 
   // IsCompactLong(box(n)) --> IsCompactLong(n).
