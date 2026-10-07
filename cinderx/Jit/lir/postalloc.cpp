@@ -1056,7 +1056,8 @@ bool willWriteFlags(const Instruction* instr) {
 // rewrite move instructions
 // optimize move instruction in the following cases:
 //   1. remove the move instruction when source and destination are the same
-//   2. rewrite a zero immediate to xor on x86-64 or the zero register on
+//   2. remove redundant back-to-back register moves
+//   3. rewrite a zero immediate to xor on x86-64 or the zero register on
 //      AArch64.
 RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
@@ -1076,6 +1077,36 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
       in->getPhyRegOrStackSlot() == out->getPhyRegOrStackSlot()) {
     instr->basicBlock()->removeInstr(instr_iter);
     return kRemoved;
+  }
+
+  auto block = instr->basicBlock();
+  if (out->isReg() && in->isReg() && !out->isFp() && !in->isFp() &&
+      instr_iter != block->instructions().begin()) {
+    auto prev = std::prev(instr_iter)->get();
+    if (prev->isMove() && prev->output()->isReg() &&
+        prev->getInput(0)->isReg() && !prev->output()->isFp() &&
+        !prev->getInput(0)->isFp()) {
+      auto dst = out->getPhyRegister();
+      auto src = in->getPhyRegister();
+      auto prev_dst = prev->output()->getPhyRegister();
+      auto prev_src = prev->getInput(0)->getPhyRegister();
+
+      // Duplicate move: same source, destination, and width.
+      bool is_duplicate =
+          (dst == prev_dst && src == prev_src &&
+           out->sizeInBits() == prev->output()->sizeInBits());
+
+      // Keep 32-bit reverse moves: they also clear the destination's upper
+      // bits.
+      bool is_reverse =
+          (dst == prev_src && src == prev_dst && out->sizeInBits() == 64 &&
+           prev->output()->sizeInBits() == 64);
+
+      if (is_duplicate || is_reverse) {
+        block->removeInstr(instr_iter);
+        return kRemoved;
+      }
+    }
   }
 
 #if defined(CINDER_X86_64)

@@ -522,6 +522,95 @@ TEST_F(LIRPostAllocRewriteTest, MoveSequenceLooksPastWideningMoves) {
   EXPECT_EQ(instrs[2]->getInput(0)->getPhyRegister(), kSpilled);
 }
 
+// A reverse move between the same registers is a no-op when both are 64-bit
+// because the source register already holds the destination value.
+TEST_F(LIRPostAllocRewriteTest, ReverseBackToBackMoveRemoved) {
+  constexpr PhyLocation kRegA = ARGUMENT_REGS[0];
+  constexpr PhyLocation kRegB = ARGUMENT_REGS[1];
+
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{kRegA, DataType::k64bit},
+      PhyReg{kRegB, DataType::k64bit});
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{kRegB, DataType::k64bit},
+      PhyReg{kRegA, DataType::k64bit});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  ASSERT_EQ(instrs.size(), 1);
+  EXPECT_TRUE(instrs[0]->isMove());
+  EXPECT_EQ(instrs[0]->output()->getPhyRegister(), kRegA);
+  EXPECT_EQ(instrs[0]->getInput(0)->getPhyRegister(), kRegB);
+}
+
+TEST_F(LIRPostAllocRewriteTest, DuplicateBackToBackMoveRemoved) {
+  constexpr PhyLocation kRegA = ARGUMENT_REGS[0];
+  constexpr PhyLocation kRegB = ARGUMENT_REGS[1];
+
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{kRegA, DataType::k64bit},
+      PhyReg{kRegB, DataType::k64bit});
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{kRegA, DataType::k64bit},
+      PhyReg{kRegB, DataType::k64bit});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  ASSERT_EQ(instrs.size(), 1);
+  EXPECT_TRUE(instrs[0]->isMove());
+  EXPECT_EQ(instrs[0]->output()->getPhyRegister(), kRegA);
+  EXPECT_EQ(instrs[0]->getInput(0)->getPhyRegister(), kRegB);
+}
+
+// The second 32-bit move must remain because it clears the destination's upper
+// bits.
+TEST_F(LIRPostAllocRewriteTest, Reverse32BitMoveNotRemoved) {
+  constexpr PhyLocation kRegA = ARGUMENT_REGS[0];
+  constexpr PhyLocation kRegB = ARGUMENT_REGS[1];
+
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{kRegA, DataType::k32bit},
+      PhyReg{kRegB, DataType::k32bit});
+  bb->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{kRegB, DataType::k32bit},
+      PhyReg{kRegA, DataType::k32bit});
+
+  Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+
+  auto instrs = collectInstrs(*bb);
+  ASSERT_EQ(instrs.size(), 2);
+  EXPECT_TRUE(instrs[0]->isMove());
+  EXPECT_EQ(instrs[0]->output()->getPhyRegister(), kRegA);
+  EXPECT_TRUE(instrs[1]->isMove());
+  EXPECT_EQ(instrs[1]->output()->getPhyRegister(), kRegB);
+}
+
 // kVectorCall invokes a vectorcallfunc pointer directly, so unlike
 // kVectorCallTstate there is no thread state to pass: the callable is the first
 // C argument and everything else shifts down one register.
