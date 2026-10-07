@@ -82,6 +82,19 @@ def func():
     return a + b + c
 
 
+def _compact_guard_calculate_ratio(matches, length):
+    if length:
+        return 2.0 * matches / length
+    return 1.0
+
+
+def _compact_guard_quick_ratio_like(a, b):
+    matches = 0
+    for _elt in a:
+        matches = matches + 1
+    return _compact_guard_calculate_ratio(matches, len(a) + len(b))
+
+
 def compiled_code_func():
     pass
 
@@ -889,6 +902,15 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
 
         force_compile(foo)
         self.assertEqual(foo([5]), [5])
+
+    def test_compact_long_guard_codegen(self) -> None:
+        # Inlining _compact_guard_calculate_ratio produces a float/int
+        # BinaryOp with exact types, which simplifies to
+        # GuardType<LongCompact>. Lowering that guard used to emit a Compare
+        # without an output operand, crashing codegen when it tried to
+        # materialize the result into a register.
+        force_compile(_compact_guard_quick_ratio_like)
+        self.assertEqual(_compact_guard_quick_ratio_like([1, 2, 3], [4, 5]), 1.2)
 
 
 class DelObserver:

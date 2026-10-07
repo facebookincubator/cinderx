@@ -4075,10 +4075,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         // Keep the guard target type alive for the lifetime of the compiled
         // code.  The machine code embeds a raw PyTypeObject* for the type
         // comparison, with no other owner.
-        if (BorrowedRef<PyTypeObject> type_obj =
-                instr.target().uniquePyType()) {
-          env_->addReference(type_obj.getObj());
-        }
         Instruction* value = bbb.getDefInstr(instr.getOperand(0));
         if constexpr (kFreeThreadedBuild) {
           // Strip dynamic deferred RC tag before comparison.
@@ -4089,7 +4085,33 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
                   DataType::k64bit});
         }
-        appendGuard(bbb, InstrGuardKind::kHasType, instr, value);
+
+        // Don't guard the type if it's already known to be a long exact and
+        // we're guarding compactness.
+        if (!(instr.target() <= TLongCompact) ||
+            !(instr.getOperand(0)->type() <= TLongExact)) {
+          if (BorrowedRef<PyTypeObject> type_obj =
+                  instr.target().uniquePyType()) {
+            env_->addReference(type_obj.getObj());
+          }
+          appendGuard(bbb, InstrGuardKind::kHasType, instr, value);
+        }
+        if (instr.target() <= TLongCompact) {
+          // Load lv_tag from PyLongObject and check < (2 << 3) i.e. < 16.
+          int32_t lv_tag_offset =
+              static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));
+          Instruction* lv_tag = bbb.appendInstr(
+              OutVReg{DataType::k64bit},
+              Opcode::kLoad,
+              Ind{value, lv_tag_offset});
+          auto guard = bbb.appendInstr(
+              Opcode::kCompare,
+              Condition::kUnsignedLT,
+              OutVReg{DataType::k8bit},
+              lv_tag,
+              Imm{2 << _PyLong_NON_SIZE_BITS});
+          appendGuard(bbb, InstrGuardKind::kNotZero, instr, guard);
+        }
         break;
       }
       case hir::Opcode::kRefineType: {
