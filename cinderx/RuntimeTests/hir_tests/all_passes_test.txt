@@ -2153,7 +2153,6 @@ fun jittestmodule:test {
   }
 
   bb 9 (preds 8, 10) {
-    v33:Nullptr = LoadConst<Nullptr>
     v34:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
@@ -2162,11 +2161,11 @@ fun jittestmodule:test {
     v38:Object = Phi<2, 9> v42 v34
     UpdatePrevInstr<idx:24 line_no:3: no parent>
     v39:Object = Send v30 v38 {
-      LiveValues<4> unc:v24 o:v30 unc:v33 b:v38
+      LiveValues<4> unc:v21 unc:v24 o:v30 b:v38
       FrameState {
         CurInstrOffset 48
         Locals<1> v24
-        Stack<2> v30 v33
+        Stack<2> v30 v21
       }
     }
     v40:CInt64 = GetSecondOutput<CInt64> v39
@@ -2184,11 +2183,11 @@ fun jittestmodule:test {
   bb 2 (preds 1) {
     UpdatePrevInstr<idx:26 line_no:3: no parent>
     v42:Object = YieldValue v39 {
-      LiveValues<4> unc:v24 o:v30 unc:v33 b:v39
+      LiveValues<4> unc:v21 unc:v24 o:v30 b:v39
       FrameState {
         CurInstrOffset 52
         Locals<1> v24
-        Stack<2> v30 v33
+        Stack<2> v30 v21
       }
     }
     Branch<1>
@@ -2270,7 +2269,6 @@ fun jittestmodule:test {
   }
 
   bb 9 (preds 8, 10) {
-    v33:Nullptr = LoadConst<Nullptr>
     v34:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
@@ -2279,11 +2277,11 @@ fun jittestmodule:test {
     v38:Object = Phi<2, 9> v42 v34
     UpdatePrevInstr<idx:24 line_no:3: no parent>
     v39:Object = Send v30 v38 {
-      LiveValues<4> unc:v24 o:v30 unc:v33 b:v38
+      LiveValues<4> unc:v21 unc:v24 o:v30 b:v38
       FrameState {
         CurInstrOffset 48
         Locals<1> v24
-        Stack<2> v30 v33
+        Stack<2> v30 v21
       }
     }
     v40:CInt64 = GetSecondOutput<CInt64> v39
@@ -2301,11 +2299,11 @@ fun jittestmodule:test {
   bb 2 (preds 1) {
     UpdatePrevInstr<idx:26 line_no:3: no parent>
     v42:Object = YieldValue v39 {
-      LiveValues<4> unc:v24 o:v30 unc:v33 b:v39
+      LiveValues<4> unc:v21 unc:v24 o:v30 b:v39
       FrameState {
         CurInstrOffset 52
         Locals<1> v24
-        Stack<2> v30 v33
+        Stack<2> v30 v21
       }
     }
     Branch<1>

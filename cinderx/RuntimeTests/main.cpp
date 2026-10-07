@@ -9,6 +9,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
+#include "cinderx/Jit/hir/common_subexpression_elimination.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
 #include "cinderx/Jit/hir/dynamic_comparison_elimination.h"
@@ -74,6 +75,7 @@ class TestPassRegistry {
     addPass(CleanCFG::factory);
     addPass(DynamicComparisonElimination::factory);
     addPass(PhiElimination::factory);
+    addPass(CommonSubexpressionElimination::factory);
     addPass(InlineFunctionCalls::factory);
     addPass(Simplify::factory);
     addPass(SinkPrimitiveBox::factory);
@@ -303,6 +305,7 @@ int main(int argc, char* argv[]) {
   register_test(
       "inliner_elimination_static_test.txt", RuntimeTest::kStaticCompiler);
   register_test("phi_elimination_test.txt");
+  register_test("common_subexpression_elimination_test.txt");
   register_test("refcount_insertion_test.txt");
   register_test(
       "refcount_insertion_static_test.txt", RuntimeTest::kStaticCompiler);

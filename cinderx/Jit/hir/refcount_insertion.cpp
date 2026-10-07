@@ -1357,6 +1357,7 @@ void RefcountInsertion::run(Function& func) {
 
   // Optimize long decref runs
   optimizeLongDecrefRuns(func);
+  func.invalidateDomTree();
 }
 
 } // namespace cinderx::jit::hir

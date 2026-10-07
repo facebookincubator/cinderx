@@ -36,6 +36,7 @@ struct HIROptimizations {
   bool begin_inlined_function_elim{true};
   bool builtin_load_method_elim{true};
   bool clean_cfg{true};
+  bool common_subexpression_elim{true};
   bool dead_code_elim{true};
   bool dynamic_comparison_elim{true};
   bool guard_type_removal{true};

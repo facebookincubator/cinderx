@@ -673,6 +673,11 @@ FlagProcessor initFlagProcessor() {
       "cinderx-jit-phi-elim",
       "CINDERX_JIT_PHI_ELIM");
   HIR_OPTIMIZATION_OPTION(
+      "common subexpression elimination",
+      common_subexpression_elim,
+      "cinderx-jit-common-subexpression-elim",
+      "CINDERX_JIT_COMMON_SUBEXPRESSION_ELIM");
+  HIR_OPTIMIZATION_OPTION(
       "simplify", simplify, "cinderx-jit-simplify", "CINDERX_JIT_SIMPLIFY");
   HIR_OPTIMIZATION_OPTION(
       "sink primitive box",

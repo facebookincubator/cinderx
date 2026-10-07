@@ -1,0 +1,656 @@
+--- Test Suite Name ---
+CommonSubexpressionEliminationTest
+--- Passes ---
+CommonSubexpressionElimination
+--- Test Name ---
+ReusesUnboxCompareAndBox
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = RefineType<LongCompact> v0
+    v3 = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7 = PrimitiveBoxBool v6
+    v8:CInt64 = PrimitiveUnbox<CInt64> v2
+    v9:CInt64 = PrimitiveUnbox<CInt64> v3
+    v10:CBool = PrimitiveCompare<LessThan> v8 v9
+    v11 = PrimitiveBoxBool v10
+    Return v11
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Test Name ---
+KeepsUnboxOfDifferentType
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt32 = PrimitiveUnbox<CInt32> v1
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5 = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt32 = PrimitiveUnbox<CInt32> v1
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt32 = PrimitiveUnbox<CInt32> v1
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt32 = PrimitiveUnbox<CInt32> v1
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt32 = PrimitiveUnbox<CInt32> v1
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt32 = PrimitiveUnbox<CInt32> v1
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Test Name ---
+ReusesUnboxAcrossBlocks
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    Branch<1>
+  }
+  bb 1 (preds 0) {
+    v3:CInt64 = PrimitiveUnbox<CInt64> v1
+    v4:CBool = PrimitiveCompare<LessThan> v2 v3
+    v5 = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    Branch<1>
+  }
+
+  bb 1 (preds 0) {
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    Branch<1>
+  }
+
+  bb 1 (preds 0) {
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    Branch<1>
+  }
+
+  bb 1 (preds 0) {
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    Branch<1>
+  }
+
+  bb 1 (preds 0) {
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    Branch<1>
+  }
+
+  bb 1 (preds 0) {
+    v4:CBool = PrimitiveCompare<LessThan> v2 v2
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Test Name ---
+KeepsUnboxInSiblingBranches
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongCompact> v0
+    v2:CBool = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v2
+  }
+  bb 1 (preds 0) {
+    v3:CInt64 = PrimitiveUnbox<CInt64> v1
+    v4:CBool = PrimitiveCompare<LessThan> v3 v3
+    v5 = PrimitiveBoxBool v4
+    Return v5
+  }
+  bb 2 (preds 0) {
+    v6:CInt64 = PrimitiveUnbox<CInt64> v1
+    v7:CBool = PrimitiveCompare<LessThan> v6 v6
+    v8 = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CBool = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v2
+  }
+
+  bb 1 (preds 0) {
+    v3:CInt64 = PrimitiveUnbox<CInt64> v1
+    v4:CBool = PrimitiveCompare<LessThan> v3 v3
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+
+  bb 2 (preds 0) {
+    v6:CInt64 = PrimitiveUnbox<CInt64> v1
+    v7:CBool = PrimitiveCompare<LessThan> v6 v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CBool = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v2
+  }
+
+  bb 1 (preds 0) {
+    v3:CInt64 = PrimitiveUnbox<CInt64> v1
+    v4:CBool = PrimitiveCompare<LessThan> v3 v3
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+
+  bb 2 (preds 0) {
+    v6:CInt64 = PrimitiveUnbox<CInt64> v1
+    v7:CBool = PrimitiveCompare<LessThan> v6 v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CBool = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v2
+  }
+
+  bb 1 (preds 0) {
+    v3:CInt64 = PrimitiveUnbox<CInt64> v1
+    v4:CBool = PrimitiveCompare<LessThan> v3 v3
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+
+  bb 2 (preds 0) {
+    v6:CInt64 = PrimitiveUnbox<CInt64> v1
+    v7:CBool = PrimitiveCompare<LessThan> v6 v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CBool = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v2
+  }
+
+  bb 1 (preds 0) {
+    v3:CInt64 = PrimitiveUnbox<CInt64> v1
+    v4:CBool = PrimitiveCompare<LessThan> v3 v3
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+
+  bb 2 (preds 0) {
+    v6:CInt64 = PrimitiveUnbox<CInt64> v1
+    v7:CBool = PrimitiveCompare<LessThan> v6 v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CBool = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v2
+  }
+
+  bb 1 (preds 0) {
+    v3:CInt64 = PrimitiveUnbox<CInt64> v1
+    v4:CBool = PrimitiveCompare<LessThan> v3 v3
+    v5:ImmortalBool = PrimitiveBoxBool v4
+    Return v5
+  }
+
+  bb 2 (preds 0) {
+    v6:CInt64 = PrimitiveUnbox<CInt64> v1
+    v7:CBool = PrimitiveCompare<LessThan> v6 v6
+    v8:ImmortalBool = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Test Name ---
+ReusesIntegerArithmetic
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v5:CInt64 = IntBinaryOp<Add> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:CBool = PrimitiveCompare<LessThan> v4 v5
+    v8 = PrimitiveBoxBool v6
+    v9 = PrimitiveBoxBool v7
+    Return v8
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    Return v8
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    Return v8
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    Return v8
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    Return v8
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    Return v8
+  }
+}
+--- Test Name ---
+KeepsDifferentBinaryOpKind
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7 = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Add> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:ImmortalBool = PrimitiveBoxBool v6
+    Return v7
+  }
+}
+--- Test Name ---
+ReusesLoadConst
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0:CInt64[1] = LoadConst<CInt64[1]>
+    v1:CInt64[1] = LoadConst<CInt64[1]>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v3 = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CInt64[1] = LoadConst<CInt64[1]>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v0
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt64[1] = LoadConst<CInt64[1]>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v0
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CInt64[1] = LoadConst<CInt64[1]>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v0
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CInt64[1] = LoadConst<CInt64[1]>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v0
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CInt64[1] = LoadConst<CInt64[1]>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v0
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- End ---

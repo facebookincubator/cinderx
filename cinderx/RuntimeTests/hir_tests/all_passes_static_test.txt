@@ -32,12 +32,11 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 0, 5) {
-    v26:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v29:CInt64 = Phi<4, 10> v26 v38
+    v29:CInt64 = Phi<4, 10> v23 v38
     v30:OptObject = Phi<4, 10> v24 v55
     v31:CInt32 = LoadEvalBreaker
     CondBranch<7, 1> v31
@@ -63,8 +62,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v50:CInt64[0] = LoadConst<CInt64[0]>
-    v51:CBool = PrimitiveCompare<LessThan> v29 v50
+    v51:CBool = PrimitiveCompare<LessThan> v29 v23
     CondBranch<8, 9> v51
   }
 
@@ -145,12 +143,11 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 0, 5) {
-    v26:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v29:CInt64 = Phi<4, 10> v26 v38
+    v29:CInt64 = Phi<4, 10> v23 v38
     v30:OptObject = Phi<4, 10> v24 v54
     v31:CInt64 = LoadEvalBreaker
     CondBranch<7, 1> v31
@@ -176,8 +173,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     v48:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v49:CInt64[0] = LoadConst<CInt64[0]>
-    v50:CBool = PrimitiveCompare<LessThan> v29 v49
+    v50:CBool = PrimitiveCompare<LessThan> v29 v23
     CondBranch<8, 9> v50
   }
 
@@ -258,12 +254,11 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 0, 5) {
-    v26:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v29:CInt64 = Phi<4, 10> v26 v38
+    v29:CInt64 = Phi<4, 10> v23 v38
     v30:OptObject = Phi<4, 10> v24 v54
     v31:CInt64 = LoadEvalBreaker
     CondBranch<7, 1> v31
@@ -290,8 +285,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     v48:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v49:CInt64[0] = LoadConst<CInt64[0]>
-    v50:CBool = PrimitiveCompare<LessThan> v29 v49
+    v50:CBool = PrimitiveCompare<LessThan> v29 v23
     CondBranch<8, 9> v50
   }
 
@@ -374,12 +368,11 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 0, 5) {
-    v26:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v29:CInt64 = Phi<4, 10> v26 v38
+    v29:CInt64 = Phi<4, 10> v23 v38
     v30:OptObject = Phi<4, 10> v24 v54
     v31:CInt64 = LoadEvalBreaker
     CondBranch<7, 1> v31
@@ -406,8 +399,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     v48:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v49:CInt64[0] = LoadConst<CInt64[0]>
-    v50:CBool = PrimitiveCompare<LessThan> v29 v49
+    v50:CBool = PrimitiveCompare<LessThan> v29 v23
     CondBranch<8, 9> v50
   }
 
@@ -492,12 +484,11 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 0, 5) {
-    v28:CInt64[0] = LoadConst<CInt64[0]>
     Branch<6>
   }
 
   bb 6 (preds 4, 10) {
-    v31:CInt64 = Phi<4, 10> v28 v40
+    v31:CInt64 = Phi<4, 10> v24 v40
     v32:OptObject = Phi<4, 10> v26 v56
     AtQuiescentState
     v33:CInt64 = LoadEvalBreaker
@@ -524,8 +515,7 @@ fun jittestmodule:test {
 
   bb 2 (preds 1) {
     v50:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v25
-    v51:CInt64[0] = LoadConst<CInt64[0]>
-    v52:CBool = PrimitiveCompare<LessThan> v31 v51
+    v52:CBool = PrimitiveCompare<LessThan> v31 v24
     CondBranch<8, 9> v52
   }
 

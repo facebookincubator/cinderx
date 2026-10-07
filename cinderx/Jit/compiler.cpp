@@ -9,6 +9,7 @@
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/call_site_live_values.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
+#include "cinderx/Jit/hir/common_subexpression_elimination.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
 #include "cinderx/Jit/hir/dynamic_comparison_elimination.h"
 #include "cinderx/Jit/hir/guard_removal.h"
@@ -156,6 +157,12 @@ void Compiler::runPasses(
   runPassIf(hir::CleanCFG{}, PassConfig::kCleanCFG);
 
   runPass(jit::hir::RefcountInsertion{}, irfunc, callback);
+  // Runs after ref count insertion as elimination can throw off line number
+  // information of decref's. We never allow CSE on instrucitons that borrow so
+  // this is safe.
+  runPassIf(
+      hir::CommonSubexpressionElimination{},
+      PassConfig::kCommonSubexpressionElim);
   if constexpr (kFreeThreadedBuild) {
     runPass(jit::hir::CallSiteLiveValues{}, irfunc, callback);
     runPass(jit::hir::MaterializeSteals{}, irfunc, callback);
@@ -202,6 +209,7 @@ PassConfig createConfig() {
       PassConfig::kBeginInlinedFunctionElim);
   set(hir_opts.builtin_load_method_elim, PassConfig::kLoadMethodElim);
   set(hir_opts.clean_cfg, PassConfig::kCleanCFG);
+  set(hir_opts.common_subexpression_elim, PassConfig::kCommonSubexpressionElim);
   set(hir_opts.dead_code_elim, PassConfig::kDeadCodeElim);
   set(hir_opts.dynamic_comparison_elim, PassConfig::kDynamicComparisonElim);
   set(hir_opts.guard_type_removal, PassConfig::kGuardTypeRemoval);
