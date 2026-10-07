@@ -3034,9 +3034,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Register* src = i.getOperand(0);
         auto true_addr = reinterpret_cast<uint64_t>(Py_True);
         auto false_addr = reinterpret_cast<uint64_t>(Py_False);
-        Instruction* temp_true = bbb.appendInstr(
-            Opcode::kMove, OutVReg{Operand::k64bit}, Imm{true_addr});
-        bbb.appendInstr(dest, Opcode::kSelect, src, temp_true, Imm{false_addr});
+        bbb.appendInstr(
+            dest, Opcode::kSelect, src, Imm{true_addr}, Imm{false_addr});
         break;
       }
       case hir::Opcode::kUnaryNot: {
