@@ -569,6 +569,7 @@ if (BUILD_RUNTIME_TESTS)
   endif()
 
   add_executable(RuntimeTests ${RUNTIME_TESTS_SOURCES})
+  set_target_properties(RuntimeTests PROPERTIES ENABLE_EXPORTS ON)
 
   target_link_libraries(
     RuntimeTests
