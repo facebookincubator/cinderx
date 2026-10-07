@@ -592,6 +592,29 @@ def test(a, b):
   EXPECT_EQ(PyLong_AsLong(res.get()), 300);
 }
 
+TEST_F(ASMGeneratorTest, InvokePyCFunctionFastCall) {
+  const char* pycode = R"(
+def test(a, b):
+  return divmod(a, b)
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto compiled = GenerateCode(pyfunc);
+  ASSERT_NE(compiled, nullptr);
+
+  Ref<PyObject> dividend = Ref<>::steal(PyLong_FromLong(7));
+  Ref<PyObject> divisor = Ref<>::steal(PyLong_FromLong(3));
+  PyObject* args[] = {dividend, divisor};
+  Ref<PyObject> result = Ref<>::steal(compiled->invoke(pyfunc, args, 2));
+  Ref<PyObject> expected = Ref<>::steal(Py_BuildValue("(ii)", 2, 1));
+
+  ASSERT_NE(result.get(), nullptr);
+  ASSERT_NE(expected.get(), nullptr);
+  EXPECT_EQ(PyObject_RichCompareBool(result, expected, Py_EQ), 1);
+}
+
 TEST_F(ASMGeneratorTest, InvokeBinaryAnd) {
   const char* pycode = R"(
 def test(a, b):

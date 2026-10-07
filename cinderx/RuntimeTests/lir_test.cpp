@@ -1015,6 +1015,33 @@ def func():
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
 }
 
+TEST_F(LIRGeneratorTest, ExactPyCFunctionFastCallUsesDirectTarget) {
+  const char* src = R"(
+def func(a, b):
+  return divmod(a, b)
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  PyObject* divmod_func = PyDict_GetItemString(PyEval_GetBuiltins(), "divmod");
+  ASSERT_NE(divmod_func, nullptr);
+  ASSERT_TRUE(PyCFunction_Check(divmod_func));
+  ASSERT_EQ(
+      PyCFunction_GET_FLAGS(divmod_func) &
+          (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS),
+      METH_FASTCALL);
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kFastCall)
+                 .inImm(
+                     0,
+                     reinterpret_cast<uint64_t>(
+                         PyCFunction_GET_FUNCTION(divmod_func))));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
+}
+
 TEST_F(LIRGeneratorTest, GeneratedPhiCoversDuplicateIncomingEdges) {
   const char* hir = R"(
 fun test {
