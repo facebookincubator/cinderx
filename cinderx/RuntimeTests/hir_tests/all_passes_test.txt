@@ -3523,34 +3523,55 @@ fun jittestmodule:test {
         Stack<1> v21
       }
     }
-    v45:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v19
+    v47:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v19
+    v48:LongExact = PrimitiveBox<CInt64> v47 {
+      LiveValues<4> b:v15 o:v19 o:v21 s:v47
+      FrameState {
+        CurInstrOffset 26
+        Locals<3> v15 v19 v21
+      }
+    }
     v27:OptObject = LoadGlobalCached<0; "len">
     v28:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v27 {
       Descr 'LOAD_GLOBAL: len'
-      LiveValues<5> b:v15 o:v19 o:v21 b:v27 s:v45
+      LiveValues<6> b:v15 o:v19 o:v21 b:v27 s:v47 o:v48
       FrameState {
         CurInstrOffset 34
         Locals<3> v15 v19 v21
-        Stack<1> v45
+        Stack<1> v48
       }
     }
-    v47:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v49:CBool = IsCompactLong v45
-    v50:CBool = IsCompactLong v47
-    v40:CBool = IntBinaryOp<And> v49 v50
+    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v50:LongExact = PrimitiveBox<CInt64> v49 {
+      LiveValues<6> b:v15 o:v19 o:v21 s:v47 o:v48 s:v49
+      FrameState {
+        CurInstrOffset 46
+        Locals<3> v15 v19 v21
+        Stack<1> v48
+      }
+    }
+    v51:CBool = IsCompactLong v47
+    v52:CBool = IsCompactLong v49
+    v40:CBool = IntBinaryOp<And> v51 v52
     Guard v40 {
-      LiveValues<6> b:v15 o:v19 o:v21 bool:v40 s:v45 s:v47
+      LiveValues<6> b:v15 o:v19 o:v21 bool:v40 o:v48 o:v50
       FrameState {
         CurInstrOffset 54
         Locals<3> v15 v19 v21
-        Stack<2> v45 v47
+        Stack<2> v48 v50
       }
     }
     Decref v19
     Decref v21
-    v43:CBool = PrimitiveCompare<LessThan> v45 v47
-    v44:ImmortalBool = PrimitiveBoxBool v43
-    Return v44
+    v41:LongCompact = RefineType<LongCompact> v48
+    v42:CInt64 = PrimitiveUnbox<CInt64> v41
+    Decref v41
+    v43:LongCompact = RefineType<LongCompact> v50
+    v44:CInt64 = PrimitiveUnbox<CInt64> v43
+    Decref v43
+    v45:CBool = PrimitiveCompare<LessThan> v42 v44
+    v46:ImmortalBool = PrimitiveBoxBool v45
+    Return v46
   }
 }
 --- Expected 3.15 ---
@@ -3607,35 +3628,56 @@ fun jittestmodule:test {
         Stack<1> v21
       }
     }
-    v45:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v19
+    v47:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v19
+    v48:LongExact = PrimitiveBox<CInt64> v47 {
+      LiveValues<4> b:v15 o:v19 o:v21 s:v47
+      FrameState {
+        CurInstrOffset 28
+        Locals<3> v15 v19 v21
+      }
+    }
     v27:OptObject = LoadGlobalCached<0; "len">
     v28:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v27 {
       Descr 'LOAD_GLOBAL: len'
-      LiveValues<5> b:v15 o:v19 o:v21 b:v27 s:v45
+      LiveValues<6> b:v15 o:v19 o:v21 b:v27 s:v47 o:v48
       FrameState {
         CurInstrOffset 36
         Locals<3> v15 v19 v21
-        Stack<1> v45
+        Stack<1> v48
       }
     }
-    v47:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v49:CBool = IsCompactLong v45
-    v50:CBool = IsCompactLong v47
-    v40:CBool = IntBinaryOp<And> v49 v50
+    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v50:LongExact = PrimitiveBox<CInt64> v49 {
+      LiveValues<6> b:v15 o:v19 o:v21 s:v47 o:v48 s:v49
+      FrameState {
+        CurInstrOffset 48
+        Locals<3> v15 v19 v21
+        Stack<1> v48
+      }
+    }
+    v51:CBool = IsCompactLong v47
+    v52:CBool = IsCompactLong v49
+    v40:CBool = IntBinaryOp<And> v51 v52
     Guard v40 {
-      LiveValues<6> b:v15 o:v19 o:v21 bool:v40 s:v45 s:v47
+      LiveValues<6> b:v15 o:v19 o:v21 bool:v40 o:v48 o:v50
       FrameState {
         CurInstrOffset 56
         Locals<3> v15 v19 v21
-        Stack<2> v45 v47
+        Stack<2> v48 v50
       }
     }
     UpdatePrevInstr<idx:28 line_no:4: no parent>
     Decref v19
     Decref v21
-    v43:CBool = PrimitiveCompare<LessThan> v45 v47
-    v44:ImmortalBool = PrimitiveBoxBool v43
-    Return v44
+    v41:LongCompact = RefineType<LongCompact> v48
+    v42:CInt64 = PrimitiveUnbox<CInt64> v41
+    Decref v41
+    v43:LongCompact = RefineType<LongCompact> v50
+    v44:CInt64 = PrimitiveUnbox<CInt64> v43
+    Decref v43
+    v45:CBool = PrimitiveCompare<LessThan> v42 v44
+    v46:ImmortalBool = PrimitiveBoxBool v45
+    Return v46
   }
 }
 --- Expected 3.16 ---
@@ -3692,35 +3734,56 @@ fun jittestmodule:test {
         Stack<1> v21
       }
     }
-    v45:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v19
+    v47:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v19
+    v48:LongExact = PrimitiveBox<CInt64> v47 {
+      LiveValues<4> b:v15 o:v19 o:v21 s:v47
+      FrameState {
+        CurInstrOffset 28
+        Locals<3> v15 v19 v21
+      }
+    }
     v27:OptObject = LoadGlobalCached<0; "len">
     v28:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v27 {
       Descr 'LOAD_GLOBAL: len'
-      LiveValues<5> b:v15 o:v19 o:v21 b:v27 s:v45
+      LiveValues<6> b:v15 o:v19 o:v21 b:v27 s:v47 o:v48
       FrameState {
         CurInstrOffset 36
         Locals<3> v15 v19 v21
-        Stack<1> v45
+        Stack<1> v48
       }
     }
-    v47:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
-    v49:CBool = IsCompactLong v45
-    v50:CBool = IsCompactLong v47
-    v40:CBool = IntBinaryOp<And> v49 v50
+    v49:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v21
+    v50:LongExact = PrimitiveBox<CInt64> v49 {
+      LiveValues<6> b:v15 o:v19 o:v21 s:v47 o:v48 s:v49
+      FrameState {
+        CurInstrOffset 48
+        Locals<3> v15 v19 v21
+        Stack<1> v48
+      }
+    }
+    v51:CBool = IsCompactLong v47
+    v52:CBool = IsCompactLong v49
+    v40:CBool = IntBinaryOp<And> v51 v52
     Guard v40 {
-      LiveValues<6> b:v15 o:v19 o:v21 bool:v40 s:v45 s:v47
+      LiveValues<6> b:v15 o:v19 o:v21 bool:v40 o:v48 o:v50
       FrameState {
         CurInstrOffset 56
         Locals<3> v15 v19 v21
-        Stack<2> v45 v47
+        Stack<2> v48 v50
       }
     }
     UpdatePrevInstr<idx:28 line_no:4: no parent>
     Decref v19
     Decref v21
-    v43:CBool = PrimitiveCompare<LessThan> v45 v47
-    v44:ImmortalBool = PrimitiveBoxBool v43
-    Return v44
+    v41:LongCompact = RefineType<LongCompact> v48
+    v42:CInt64 = PrimitiveUnbox<CInt64> v41
+    Decref v41
+    v43:LongCompact = RefineType<LongCompact> v50
+    v44:CInt64 = PrimitiveUnbox<CInt64> v43
+    Decref v43
+    v45:CBool = PrimitiveCompare<LessThan> v42 v44
+    v46:ImmortalBool = PrimitiveBoxBool v45
+    Return v46
   }
 }
 --- Expected 3.14t ---
@@ -3757,8 +3820,8 @@ fun jittestmodule:test {
       }
     }
     Incref v18
-    v47:Object = MaterializeRef v18
-    InitListElements<1> v21 v47
+    v49:Object = MaterializeRef v18
+    InitListElements<1> v21 v49
     v23:MortalListExact = MakeList<2> {
       LiveValues<3> b:v18 unc:v19 o:v21
       FrameState {
@@ -3769,9 +3832,9 @@ fun jittestmodule:test {
     }
     Incref v18
     Incref v18
-    v48:Object = MaterializeRef v18
-    v49:Object = MaterializeRef v18
-    InitListElements<2> v23 v48 v49
+    v50:Object = MaterializeRef v18
+    v51:Object = MaterializeRef v18
+    InitListElements<2> v23 v50 v51
     v25:OptObject = LoadGlobalCached<0; "len">
     v26:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v25 {
       Descr 'LOAD_GLOBAL: len'
@@ -3820,14 +3883,16 @@ fun jittestmodule:test {
     }
     Decref v21
     Decref v23
-    v43:CInt64 = CompactLongUnbox v38
-    Decref v38
-    v44:CInt64 = CompactLongUnbox v39
-    Decref v39
-    v45:CBool = PrimitiveCompare<LessThan> v43 v44
-    v46:ImmortalBool = PrimitiveBoxBool v45
-    v50:ImmortalBool = MaterializeRef v46
-    Return v50
+    v43:LongCompact = RefineType<LongCompact> v38
+    v44:CInt64 = PrimitiveUnbox<CInt64> v43
+    Decref v43
+    v45:LongCompact = RefineType<LongCompact> v39
+    v46:CInt64 = PrimitiveUnbox<CInt64> v45
+    Decref v45
+    v47:CBool = PrimitiveCompare<LessThan> v44 v46
+    v48:ImmortalBool = PrimitiveBoxBool v47
+    v52:ImmortalBool = MaterializeRef v48
+    Return v52
   }
 }
 --- End ---

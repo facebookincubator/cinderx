@@ -37,7 +37,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kBuildTemplate:
     case Opcode::kCast:
     case Opcode::kCIntToCBool:
-    case Opcode::kCompactLongUnbox:
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:
     case Opcode::kDoubleBinaryOp:
@@ -503,7 +502,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kBuildInterpolation:
     case Opcode::kBuildTemplate:
     case Opcode::kCast:
-    case Opcode::kCompactLongUnbox:
     case Opcode::kCondBranch:
     case Opcode::kCondBranchCheckType:
     case Opcode::kCondBranchIterNotDone:

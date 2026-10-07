@@ -3178,6 +3178,39 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           constexpr int32_t offset = offsetof(PyFloatObject, ob_fval);
           bbb.appendInstr(output, Opcode::kLoad, Ind{value, offset});
           break;
+        } else if (ty <= TCInt64 && instr->value()->type() <= TLongCompact) {
+          // Inline _PyLong_CompactValue: sign * (Py_ssize_t)ob_digit[0]
+          // where sign = 1 - (lv_tag & 3).
+          int32_t lv_tag_offset =
+              static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));
+          int32_t digit_offset =
+              static_cast<int32_t>(offsetof(PyLongObject, long_value.ob_digit));
+          // Load lv_tag
+          Instruction* lv_tag = bbb.appendInstr(
+              OutVReg{DataType::k64bit},
+              Opcode::kLoad,
+              Ind{value, lv_tag_offset});
+          // sign = lv_tag & _PyLong_SIGN_MASK (i.e. & 3)
+          Instruction* sign_bits = bbb.appendInstr(
+              OutVReg{DataType::k64bit},
+              Opcode::kAnd,
+              lv_tag,
+              Imm{_PyLong_SIGN_MASK});
+          // sign = 1 - sign_bits
+          Instruction* one =
+              bbb.appendInstr(OutVReg{DataType::k64bit}, Opcode::kMove, Imm{1});
+          Instruction* sign = bbb.appendInstr(
+              OutVReg{DataType::k64bit}, Opcode::kSub, one, sign_bits);
+          // Load ob_digit[0] as 32-bit unsigned, zero-extend to 64-bit
+          Instruction* digit = bbb.appendInstr(
+              OutVReg{DataType::k32bit},
+              Opcode::kLoad,
+              Ind{value, digit_offset});
+          Instruction* digit64 =
+              bbb.appendInstr(OutVReg{DataType::k64bit}, Opcode::kZext, digit);
+          // result = sign * digit
+          bbb.appendInstr(i.output(), Opcode::kMul, sign, digit64);
+          break;
         }
 
         // Integers require runtime helpers to handle range checks.
@@ -5322,37 +5355,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             executable,
             exec_dtor,
             callee_frame);
-        break;
-      }
-      case hir::Opcode::kCompactLongUnbox: {
-        // Inline _PyLong_CompactValue: sign * (Py_ssize_t)ob_digit[0]
-        // where sign = 1 - (lv_tag & 3).
-        Instruction* obj = bbb.getDefInstr(i.getOperand(0));
-        int32_t lv_tag_offset =
-            static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));
-        int32_t digit_offset =
-            static_cast<int32_t>(offsetof(PyLongObject, long_value.ob_digit));
-        // Load lv_tag
-        Instruction* lv_tag = bbb.appendInstr(
-            OutVReg{DataType::k64bit}, Opcode::kLoad, Ind{obj, lv_tag_offset});
-        // sign = lv_tag & _PyLong_SIGN_MASK (i.e. & 3)
-        Instruction* sign_bits = bbb.appendInstr(
-            OutVReg{DataType::k64bit},
-            Opcode::kAnd,
-            lv_tag,
-            Imm{_PyLong_SIGN_MASK});
-        // sign = 1 - sign_bits
-        Instruction* one =
-            bbb.appendInstr(OutVReg{DataType::k64bit}, Opcode::kMove, Imm{1});
-        Instruction* sign = bbb.appendInstr(
-            OutVReg{DataType::k64bit}, Opcode::kSub, one, sign_bits);
-        // Load ob_digit[0] as 32-bit unsigned, zero-extend to 64-bit
-        Instruction* digit = bbb.appendInstr(
-            OutVReg{DataType::k32bit}, Opcode::kLoad, Ind{obj, digit_offset});
-        Instruction* digit64 =
-            bbb.appendInstr(OutVReg{DataType::k64bit}, Opcode::kZext, digit);
-        // result = sign * digit
-        bbb.appendInstr(i.output(), Opcode::kMul, sign, digit64);
         break;
       }
       case hir::Opcode::kIsCompactLong: {

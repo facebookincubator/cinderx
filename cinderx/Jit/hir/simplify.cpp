@@ -534,6 +534,30 @@ const PrimitiveBox* asInt64Box(Register* reg) {
   return box->type() <= TCInt64 ? box : nullptr;
 }
 
+Register* maybeIsCompactLong(Env& env, Register* reg) {
+  if (reg->type() <= TLongCompact) {
+    return nullptr;
+  }
+  return env.emit<IsCompactLong>(reg);
+}
+
+void guardBothCompact(Env& env, Register* left, Register* right) {
+  Register* is_compact;
+  Register* is_left_compact = maybeIsCompactLong(env, left);
+  Register* is_right_compact = maybeIsCompactLong(env, right);
+  if (is_left_compact == nullptr) {
+    is_compact = is_right_compact;
+  } else if (is_right_compact == nullptr) {
+    is_compact = is_left_compact;
+  } else {
+    is_compact = env.emit<IntBinaryOp>(
+        BinaryOpKind::kAnd, is_left_compact, is_right_compact);
+  }
+  if (is_compact != nullptr) {
+    env.emitInstr<Guard>(is_compact);
+  }
+}
+
 std::optional<Py_ssize_t> getLongConstant(Type t) {
   if (!t.hasObjectSpec()) {
     return std::nullopt;
@@ -617,15 +641,12 @@ Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
     }
   }
 
-  // Guard that both sides are compact longs.
-  Register* is_left_compact = env.emit<IsCompactLong>(left);
-  Register* is_right_compact = env.emit<IsCompactLong>(right);
-  Register* both_compact = env.emit<IntBinaryOp>(
-      BinaryOpKind::kAnd, is_left_compact, is_right_compact);
-  env.emitInstr<Guard>(both_compact);
+  guardBothCompact(env, left, right);
 
-  Register* compact_left = env.emit<CompactLongUnbox>(left);
-  Register* compact_right = env.emit<CompactLongUnbox>(right);
+  Register* compact_left = env.emit<PrimitiveUnbox>(
+      env.emit<RefineType>(TLongCompact, left), TCInt64);
+  Register* compact_right = env.emit<PrimitiveUnbox>(
+      env.emit<RefineType>(TLongCompact, right), TCInt64);
   Register* unboxed_result =
       env.emit<PrimitiveCompare>(*prim_op, compact_left, compact_right);
   return env.emit<PrimitiveBoxBool>(unboxed_result);
@@ -805,29 +826,6 @@ Register* simplifyIsCompactLong(Env& env, const IsCompactLong* instr) {
   Register* operand = instr->getOperand(0);
   if (const PrimitiveBox* box = asInt64Box(operand)) {
     return env.emit<IsCompactLong>(box->value());
-  }
-
-  return nullptr;
-}
-
-Register* simplifyCompactLongUnbox(Env& env, const CompactLongUnbox* instr) {
-  Type ty = instr->getOperand(0)->type();
-  JIT_CHECK(
-      ty <= TLongExact, "CompactLongUnbox generated for invalid type '{}'", ty);
-  if (ty.hasObjectSpec()) {
-    auto* long_obj = reinterpret_cast<PyLongObject*>(ty.objectSpec());
-    if (!_PyLong_IsCompact(long_obj)) {
-      // Should be unreachable.
-      return nullptr;
-    }
-    env.emit<UseType>(instr->getOperand(0), ty);
-    Py_ssize_t value = _PyLong_CompactValue(long_obj);
-    return env.emit<LoadConst>(Type::fromCInt(value, TCInt64));
-  }
-
-  // CompactLongUnbox(box(n)) --> n.
-  if (const PrimitiveBox* box = asInt64Box(instr->getOperand(0))) {
-    return box->value();
   }
 
   return nullptr;
@@ -1026,7 +1024,9 @@ Register* unboxAndCheckListOrTupleIndex(
   } else {
     Register* is_compact_long = env.emit<IsCompactLong>(rhs);
     env.emit<Guard>(is_compact_long);
-    unboxed_index = env.emit<CompactLongUnbox>(rhs);
+
+    unboxed_index = env.emit<PrimitiveUnbox>(
+        env.emit<RefineType>(TLongCompact, rhs), TCInt64);
   }
 
   // Normalize
@@ -1279,10 +1279,10 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
       env.emit<UseType>(float_reg, TFloatExact);
       env.emit<UseType>(int_reg, TLongExact);
       // Guard that the long is compact (at most one digit, fits in double).
-      Register* is_compact = env.emit<IsCompactLong>(int_reg);
-      env.emitInstr<Guard>(is_compact);
+      Register* compact_int =
+          env.emit<GuardType>(TLongCompact, int_reg, *instr->frameState());
       // Unbox the compact long to CInt64 and convert to CDouble.
-      Register* unbox_int = env.emit<CompactLongUnbox>(int_reg);
+      Register* unbox_int = env.emit<PrimitiveUnbox>(compact_int, TCInt64);
       Register* int_as_double = env.emit<PrimitiveConvert>(unbox_int, TCDouble);
       // Unbox the float to CDouble.
       Register* unbox_float = env.emit<PrimitiveUnbox>(float_reg, TCDouble);
@@ -2730,9 +2730,6 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
     case Opcode::kIsCompactLong:
       return simplifyIsCompactLong(
           env, static_cast<const IsCompactLong*>(instr));
-    case Opcode::kCompactLongUnbox:
-      return simplifyCompactLongUnbox(
-          env, static_cast<const CompactLongUnbox*>(instr));
 
     case Opcode::kLoadAttr:
       // TODO(T255262756) - Enable this again. See P2169675076 and

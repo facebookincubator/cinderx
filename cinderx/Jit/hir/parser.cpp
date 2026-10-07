@@ -826,11 +826,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       NEW_INSTR(GuardIs, dst, Py_None, operand);
       break;
     }
-    case Opcode::kCompactLongUnbox: {
-      auto src = parseRegister();
-      NEW_INSTR(CompactLongUnbox, dst, src);
-      break;
-    }
     case Opcode::kIsCompactLong: {
       auto src = parseRegister();
       NEW_INSTR(IsCompactLong, dst, src);

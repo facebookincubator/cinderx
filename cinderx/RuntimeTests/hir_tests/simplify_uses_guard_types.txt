@@ -49,16 +49,17 @@ fun test {
     v7:CBool = IsCompactLong v3
     Guard v7 {
     }
-    v8:CInt64 = CompactLongUnbox v3
+    v8:LongCompact = RefineType<LongCompact> v3
+    v9:CInt64 = PrimitiveUnbox<CInt64> v8
     UseType<ListExact> v2
-    v9:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v10:CInt64[0] = LoadConst<CInt64[0]>
-    v11:CBool = PrimitiveCompare<LessThan> v8 v10
-    CondBranch<1, 2> v11
+    v10:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    v12:CBool = PrimitiveCompare<LessThan> v9 v11
+    CondBranch<1, 2> v12
   }
 
   bb 1 (preds 0) {
-    v12:CInt64 = IntBinaryOp<Add> v8 v9
+    v13:CInt64 = IntBinaryOp<Add> v9 v10
     Branch<3>
   }
 
@@ -67,13 +68,13 @@ fun test {
   }
 
   bb 3 (preds 1, 2) {
-    v13:CInt64 = Phi<1, 2> v12 v8
+    v14:CInt64 = Phi<1, 2> v13 v9
     Snapshot
-    v14:CBool = PrimitiveCompare<LessThanUnsigned> v13 v9
-    Guard v14 {
+    v15:CBool = PrimitiveCompare<LessThanUnsigned> v14 v10
+    Guard v15 {
     }
-    v15:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
-    v16:Object = LoadArrayItem v15 v13 v2
+    v16:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
+    v17:Object = LoadArrayItem v16 v14 v2
     v6:NoneType = LoadConst<NoneType>
     Return v6
   }
@@ -99,16 +100,17 @@ fun test {
     v7:CBool = IsCompactLong v3
     Guard v7 {
     }
-    v8:CInt64 = CompactLongUnbox v3
+    v8:LongCompact = RefineType<LongCompact> v3
+    v9:CInt64 = PrimitiveUnbox<CInt64> v8
     UseType<ListExact> v2
-    v9:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v10:CInt64[0] = LoadConst<CInt64[0]>
-    v11:CBool = PrimitiveCompare<LessThan> v8 v10
-    CondBranch<1, 2> v11
+    v10:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    v12:CBool = PrimitiveCompare<LessThan> v9 v11
+    CondBranch<1, 2> v12
   }
 
   bb 1 (preds 0) {
-    v12:CInt64 = IntBinaryOp<Add> v8 v9
+    v13:CInt64 = IntBinaryOp<Add> v9 v10
     Branch<3>
   }
 
@@ -117,13 +119,13 @@ fun test {
   }
 
   bb 3 (preds 1, 2) {
-    v13:CInt64 = Phi<1, 2> v12 v8
+    v14:CInt64 = Phi<1, 2> v13 v9
     Snapshot
-    v14:CBool = PrimitiveCompare<LessThanUnsigned> v13 v9
-    Guard v14 {
+    v15:CBool = PrimitiveCompare<LessThanUnsigned> v14 v10
+    Guard v15 {
     }
-    v15:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
-    v16:Object = LoadArrayItem v15 v13 v2
+    v16:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
+    v17:Object = LoadArrayItem v16 v14 v2
     v6:NoneType = LoadConst<NoneType>
     Return v6
   }
@@ -149,16 +151,17 @@ fun test {
     v7:CBool = IsCompactLong v3
     Guard v7 {
     }
-    v8:CInt64 = CompactLongUnbox v3
+    v8:LongCompact = RefineType<LongCompact> v3
+    v9:CInt64 = PrimitiveUnbox<CInt64> v8
     UseType<ListExact> v2
-    v9:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v10:CInt64[0] = LoadConst<CInt64[0]>
-    v11:CBool = PrimitiveCompare<LessThan> v8 v10
-    CondBranch<1, 2> v11
+    v10:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    v12:CBool = PrimitiveCompare<LessThan> v9 v11
+    CondBranch<1, 2> v12
   }
 
   bb 1 (preds 0) {
-    v12:CInt64 = IntBinaryOp<Add> v8 v9
+    v13:CInt64 = IntBinaryOp<Add> v9 v10
     Branch<3>
   }
 
@@ -167,13 +170,13 @@ fun test {
   }
 
   bb 3 (preds 1, 2) {
-    v13:CInt64 = Phi<1, 2> v12 v8
+    v14:CInt64 = Phi<1, 2> v13 v9
     Snapshot
-    v14:CBool = PrimitiveCompare<LessThanUnsigned> v13 v9
-    Guard v14 {
+    v15:CBool = PrimitiveCompare<LessThanUnsigned> v14 v10
+    Guard v15 {
     }
-    v15:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
-    v16:Object = LoadArrayItem v15 v13 v2
+    v16:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
+    v17:Object = LoadArrayItem v16 v14 v2
     v6:NoneType = LoadConst<NoneType>
     Return v6
   }
@@ -199,16 +202,17 @@ fun test {
     v7:CBool = IsCompactLong v3
     Guard v7 {
     }
-    v8:CInt64 = CompactLongUnbox v3
+    v8:LongCompact = RefineType<LongCompact> v3
+    v9:CInt64 = PrimitiveUnbox<CInt64> v8
     UseType<ListExact> v2
-    v9:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
-    v10:CInt64[0] = LoadConst<CInt64[0]>
-    v11:CBool = PrimitiveCompare<LessThan> v8 v10
-    CondBranch<1, 2> v11
+    v10:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    v12:CBool = PrimitiveCompare<LessThan> v9 v11
+    CondBranch<1, 2> v12
   }
 
   bb 1 (preds 0) {
-    v12:CInt64 = IntBinaryOp<Add> v8 v9
+    v13:CInt64 = IntBinaryOp<Add> v9 v10
     Branch<3>
   }
 
@@ -217,13 +221,13 @@ fun test {
   }
 
   bb 3 (preds 1, 2) {
-    v13:CInt64 = Phi<1, 2> v12 v8
+    v14:CInt64 = Phi<1, 2> v13 v9
     Snapshot
-    v14:CBool = PrimitiveCompare<LessThanUnsigned> v13 v9
-    Guard v14 {
+    v15:CBool = PrimitiveCompare<LessThanUnsigned> v14 v10
+    Guard v15 {
     }
-    v15:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
-    v16:Object = LoadArrayItem v15 v13 v2
+    v16:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
+    v17:Object = LoadArrayItem v16 v14 v2
     v6:NoneType = LoadConst<NoneType>
     Return v6
   }

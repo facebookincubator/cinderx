@@ -35,7 +35,6 @@ namespace cinderx::jit::hir {
   V(CheckFreevar)                  \
   V(CheckField)                    \
   V(CIntToCBool)                   \
-  V(CompactLongUnbox)              \
   V(Compare)                       \
   V(CompareBool)                   \
   V(ConvertValue)                  \

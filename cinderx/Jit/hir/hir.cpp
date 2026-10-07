@@ -456,7 +456,6 @@ bool Instr::isReplayable() const {
     case Opcode::kCheckSequenceBounds:
     case Opcode::kCheckVar:
     case Opcode::kCIntToCBool:
-    case Opcode::kCompactLongUnbox:
     case Opcode::kDoubleBinaryOp:
     case Opcode::kFormatValue:
     case Opcode::kFormatWithSpec:
@@ -802,7 +801,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kCallStaticRetVoid:
     case Opcode::kCheckSequenceBounds:
     case Opcode::kCIntToCBool:
-    case Opcode::kCompactLongUnbox:
     case Opcode::kCompare:
     case Opcode::kCompareBool:
     case Opcode::kConvertValue:

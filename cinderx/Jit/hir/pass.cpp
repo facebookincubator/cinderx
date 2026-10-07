@@ -439,8 +439,7 @@ Type outputType(
       }
       return ty;
     }
-    case Opcode::kCheckSequenceBounds:
-    case Opcode::kCompactLongUnbox: {
+    case Opcode::kCheckSequenceBounds: {
       return TCInt64;
     }
 
