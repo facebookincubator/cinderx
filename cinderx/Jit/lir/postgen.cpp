@@ -592,6 +592,7 @@ RewriteResult rewriteSingleStackInputToVreg(
 //   - Binary ops: rewriteBinaryOpLargeConstant
 //   - Guard: rewriteGuardLargeConstant
 //   - Div/DivUn: rewriteBinaryOpConstantPosition
+//   - Select: handled by AArch64 target selection
 //   - BranchBitSet/BranchBitNotSet input 1: isLogicalImm(1<<n) always encodes
 //   - Move "Ri" (load immediate to register): this IS the lowering target
 //   - Inc/Dec: hardcoded constant 1, no immediate operand
@@ -614,11 +615,6 @@ bool lowerImmediateInputToVreg(instr_iter_t instr_iter, size_t idx) {
 RewriteResult rewritePushImmediateToVreg(instr_iter_t instr_iter) {
   // ARM str can't take an immediate data operand.
   return lowerImmediateInputToVreg(instr_iter, 0) ? kChanged : kUnchanged;
-}
-
-RewriteResult rewriteSelectFalseImmediateToVreg(instr_iter_t instr_iter) {
-  // ARM csel is register-only; the false_val (input 2) must be a register.
-  return lowerImmediateInputToVreg(instr_iter, 2) ? kChanged : kUnchanged;
 }
 
 RewriteResult rewriteStoreImmediateToVreg(instr_iter_t instr_iter) {
@@ -645,8 +641,6 @@ RewriteResult rewriteStoreImmediateToVreg(instr_iter_t instr_iter) {
   switch (instr->opcode()) {
     case Opcode::kPush:
       return rewritePushImmediateToVreg(instr_iter);
-    case Opcode::kSelect:
-      return rewriteSelectFalseImmediateToVreg(instr_iter);
     case Opcode::kStore:
       return rewriteStoreImmediateToVreg(instr_iter);
     default:

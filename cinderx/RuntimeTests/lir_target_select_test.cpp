@@ -7,14 +7,23 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/Jit/lir/block.h"
+#include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/generator.h"
+#include "cinderx/Jit/lir/instruction.h"
+#include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/target_select.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
+#include <cstdint>
 #include <memory>
 #include <vector>
+
+#if defined(CINDER_AARCH64)
+#include <asmjit/arm/armutils.h>
+#endif
 
 namespace cinderx::jit::lir {
 
@@ -109,6 +118,43 @@ BB %0
 #endif
 
 #if defined(CINDER_AARCH64)
+// Mirrors fitsInSingleMovA64 in target_select.cpp for test preconditions.
+bool testFitsInSingleMov(uint64_t value, unsigned bits) {
+  if (bits == 32) {
+    uint32_t v = static_cast<uint32_t>(value);
+    if ((v & 0xFFFF0000u) == 0 || (v & 0xFFFF0000u) == 0xFFFF0000u ||
+        (v & 0x0000FFFFu) == 0 || (v & 0x0000FFFFu) == 0x0000FFFFu) {
+      return true;
+    }
+    return asmjit::arm::Utils::isLogicalImm(v, 32);
+  }
+  if (value <= 0xFFFFFFFFu) {
+    uint32_t v = static_cast<uint32_t>(value);
+    if ((v & 0xFFFF0000u) == 0 || (v & 0xFFFF0000u) == 0xFFFF0000u ||
+        (v & 0x0000FFFFu) == 0 || (v & 0x0000FFFFu) == 0x0000FFFFu) {
+      return true;
+    }
+  } else {
+    int non_zero = 0;
+    int all_ones = 0;
+    for (int i = 0; i < 4; i++) {
+      uint16_t hw = (value >> (i * 16)) & 0xFFFF;
+      if (hw != 0) {
+        non_zero++;
+      }
+      if (hw == 0xFFFF) {
+        all_ones++;
+      }
+    }
+    int movn_count = (all_ones == 4) ? 1 : (4 - all_ones);
+    int best = non_zero < movn_count ? non_zero : movn_count;
+    if (best == 1) {
+      return true;
+    }
+  }
+  return asmjit::arm::Utils::isLogicalImm(value, 64);
+}
+
 TEST_F(LIRTargetSelectTest, SelectsMulAddForLeaLargeMultiplier) {
   const char* lir_input_str = R"(Function:
 BB %0
@@ -794,6 +840,228 @@ def func(x: int64, y: int64) -> bool:
       Query(*lir_func).opcode(Opcode::kA64SelectCC));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kSelect));
+}
+
+TEST_F(LIRTargetSelectTest, SelectsConditionalXorForImmortalBoolBox) {
+  // The transform below only applies when this build's immortal Py_True and
+  // Py_False addresses differ by a logical-immediate-encodable constant and
+  // both need more than a single mov.
+  auto addr = [](PyObject* o) { return reinterpret_cast<uint64_t>(o); };
+  uint64_t true_addr = addr(Py_True);
+  uint64_t false_addr = addr(Py_False);
+  uint64_t diff = true_addr ^ false_addr;
+  if (!asmjit::arm::Utils::isLogicalImm(diff, 64)) {
+    GTEST_SKIP() << "Py_True/Py_False diff not a logical immediate here";
+  }
+  if (testFitsInSingleMov(true_addr, 64) ||
+      testFitsInSingleMov(false_addr, 64)) {
+    GTEST_SKIP() << "Py_True/Py_False fit in a single mov here";
+  }
+
+  const char* src = R"(
+from __static__ import box, int64
+
+def func(x: int64, y: int64) -> bool:
+  return box(x < y)
+)";
+
+  Ref<PyObject> pyfunc(compileStaticAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getSelectedLIRFunction(pyfunc.get());
+
+  // The boxed comparison becomes a conditional xor-flip of one materialized
+  // address: keep = Move(Py_True|Py_False),
+  // flipped = Xor(keep, Py_True ^ Py_False), A64SelectCC(lt, flipped, keep).
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kA64SelectCC)
+                 .with([&](const Instruction* select) {
+                   if (select->getNumInputs() < 2) {
+                     return false;
+                   }
+                   const Operand* in = select->getInput(1);
+                   if (in == nullptr || !in->isLinked()) {
+                     return false;
+                   }
+                   const Instruction* flip = in->getLinkedInstr();
+                   return flip->getNumInputs() == 2 &&
+                       flip->opcode() == Opcode::kXor &&
+                       flip->getInput(1)->isImm() &&
+                       flip->getInput(1)->getConstant() == diff;
+                 }));
+
+  // Exactly one of the two immortal addresses is materialized now.
+  int num_materialized = 0;
+  for (const BasicBlock* bb : lir_func->basicBlocks()) {
+    for (const std::unique_ptr<Instruction>& instr : bb->instructions()) {
+      if (instr->opcode() != Opcode::kMove || instr->getNumInputs() < 1) {
+        continue;
+      }
+      const Operand* in = instr->getInput(0);
+      if (in->isImm() &&
+          (in->getConstant() == true_addr || in->getConstant() == false_addr)) {
+        ++num_materialized;
+      }
+    }
+  }
+  EXPECT_EQ(num_materialized, 1) << lirFuncString(*lir_func);
+}
+
+TEST_F(LIRTargetSelectTest, SelectsXorForLargeConstantPair) {
+  constexpr uint64_t kV1 = 1311768467463790320ULL; // 0x123456789ABCDEF0
+  constexpr uint64_t kV2 = 1311768467463790224ULL; // 0x123456789ABCDE90
+  constexpr uint64_t kDiff = 0x60;
+  ASSERT_EQ(kV1 ^ kV2, kDiff);
+  ASSERT_FALSE(testFitsInSingleMov(kV1, 64));
+  ASSERT_FALSE(testFitsInSingleMov(kV2, 64));
+  ASSERT_TRUE(asmjit::arm::Utils::isLogicalImm(kDiff, 64));
+
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:8bit = Move 1
+  %2:64bit = Select %1, 1311768467463790320, 1311768467463790224
+  Return %2
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kSelect)
+                 .with([&](const Instruction* select) {
+                   const Operand* in = select->getInput(1);
+                   if (in == nullptr || !in->isLinked()) {
+                     return false;
+                   }
+                   const Instruction* flip = in->getLinkedInstr();
+                   return flip->opcode() == Opcode::kXor &&
+                       flip->getInput(1)->isImm() &&
+                       flip->getInput(1)->getConstant() == kDiff;
+                 }));
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Opcode::kMove)
+                    .outType(DataType::k64bit)
+                    .inImm(0, kV1));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, kV2));
+}
+
+TEST_F(LIRTargetSelectTest, DoesNotSelectXorForMoveConstants) {
+  // The xor transform only applies to two direct immediates; constants
+  // already materialized by Moves are left alone.
+  constexpr uint64_t kV1 = 1311768467463790320ULL; // 0x123456789ABCDEF0
+  constexpr uint64_t kV2 = 1311768467463790224ULL; // 0x123456789ABCDE90
+  ASSERT_FALSE(testFitsInSingleMov(kV1, 64));
+  ASSERT_FALSE(testFitsInSingleMov(kV2, 64));
+  ASSERT_TRUE(asmjit::arm::Utils::isLogicalImm(kV1 ^ kV2, 64));
+
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:64bit = Move 1311768467463790320
+  %2:64bit = Move 1311768467463790224
+  %3:8bit = Move 1
+  %4:64bit = Select %3, %1, %2
+  Return %4
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kXor));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, kV1));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, kV2));
+}
+
+TEST_F(LIRTargetSelectTest, DoesNotSelectXorWhenConstantsFitSingleMov) {
+  ASSERT_TRUE(testFitsInSingleMov(1, 64));
+  ASSERT_TRUE(testFitsInSingleMov(2, 64));
+  ASSERT_TRUE(asmjit::arm::Utils::isLogicalImm(1 ^ 2, 64));
+
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:8bit = Move 1
+  %2:64bit = Select %1, 1, 2
+  Return %2
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kXor));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, 1));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, 2));
+}
+
+TEST_F(LIRTargetSelectTest, DoesNotSelectXorWhenDiffNotLogicalImm) {
+  constexpr uint64_t kV1 = 1311768467463790320ULL; // 0x123456789ABCDEF0
+  constexpr uint64_t kV2 = 1311768467463855857ULL; // 0x123456789ABDDEF1
+  constexpr uint64_t kDiff = 0x10001;
+  ASSERT_EQ(kV1 ^ kV2, kDiff);
+  ASSERT_FALSE(testFitsInSingleMov(kV1, 64));
+  ASSERT_FALSE(testFitsInSingleMov(kV2, 64));
+  ASSERT_FALSE(asmjit::arm::Utils::isLogicalImm(kDiff, 64));
+
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:8bit = Move 1
+  %2:64bit = Select %1, 1311768467463790320, 1311768467463855857
+  Return %2
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kXor));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, kV1));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::k64bit)
+                 .inImm(0, kV2));
+}
+
+TEST_F(LIRTargetSelectTest, SelectsXorFor32BitLargeConstants) {
+  constexpr uint64_t kV1 = 305419896ULL; // 0x12345678
+  constexpr uint64_t kV2 = 305419800ULL; // 0x12345618
+  constexpr uint64_t kDiff = 0x60;
+  ASSERT_EQ(kV1 ^ kV2, kDiff);
+  ASSERT_FALSE(testFitsInSingleMov(kV1, 32));
+  ASSERT_FALSE(testFitsInSingleMov(kV2, 32));
+  ASSERT_TRUE(asmjit::arm::Utils::isLogicalImm(kDiff, 32));
+
+  const char* lir_input_str = R"(Function:
+BB %0
+  %1:8bit = Move 1
+  %2:32bit = Select %1, 305419896:32bit, 305419800:32bit
+  Return %2
+)";
+
+  auto lir_func = runTargetSelectFunc(lir_input_str);
+
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kXor)
+                 .outType(DataType::k32bit)
+                 .inImm(1, kDiff));
+  EXPECT_NO_LIR(Query(*lir_func)
+                    .opcode(Opcode::kMove)
+                    .outType(DataType::k32bit)
+                    .inImm(0, kV1));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::k32bit)
+                 .inImm(0, kV2));
 }
 #endif
 

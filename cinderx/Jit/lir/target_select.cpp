@@ -587,6 +587,113 @@ void selectA64Select(
   select->getInput(0)->setConstant(static_cast<uint64_t>(cond));
 }
 
+/* Whether an AArch64 mov of `value` (at `bits` width) assembles to a single
+ * instruction. Mirrors asmjit's Mov expansion: a single movz/movn when the
+ * value has one significant 16-bit halfword, otherwise a single orr when the
+ * value is a logical immediate. Anything else needs a movz/movk sequence. */
+bool fitsInSingleMovA64(uint64_t value, unsigned bits) {
+  if (bits == 32) {
+    uint32_t v = static_cast<uint32_t>(value);
+    if ((v & 0xFFFF0000u) == 0 || (v & 0xFFFF0000u) == 0xFFFF0000u ||
+        (v & 0x0000FFFFu) == 0 || (v & 0x0000FFFFu) == 0x0000FFFFu) {
+      return true;
+    }
+    return asmjit::arm::Utils::isLogicalImm(v, 32);
+  }
+  if (value <= 0xFFFFFFFFu) {
+    uint32_t v = static_cast<uint32_t>(value);
+    if ((v & 0xFFFF0000u) == 0 || (v & 0xFFFF0000u) == 0xFFFF0000u ||
+        (v & 0x0000FFFFu) == 0 || (v & 0x0000FFFFu) == 0x0000FFFFu) {
+      return true;
+    }
+  } else {
+    int non_zero = 0;
+    int all_ones = 0;
+    for (int i = 0; i < 4; i++) {
+      uint16_t hw = (value >> (i * 16)) & 0xFFFF;
+      if (hw != 0) {
+        non_zero++;
+      }
+      if (hw == 0xFFFF) {
+        all_ones++;
+      }
+    }
+    int movn_count = (all_ones == 4) ? 1 : (4 - all_ones);
+    if (std::min(non_zero, movn_count) == 1) {
+      return true;
+    }
+  }
+  return asmjit::arm::Utils::isLogicalImm(value, 64);
+}
+
+/* Convert a select between two immediate constants from:
+ *
+ *     Select d, c, C1, C2
+ *
+ * to:
+ *
+ *     Move t, C2
+ *     Xor t2, t, #(C1 ^ C2)
+ *     Select d, c, t2, t
+ *
+ * Materializing both constants can cost two mov/movk sequences (notably for
+ * addresses like the immortal Py_True/Py_False singletons). When the xor
+ * difference is encodable as a logical immediate, flipping it with one eor
+ * saves an instruction. The transform only applies when both constants need
+ * more than a single mov, so the eor never costs more than the move it
+ * replaces. It runs before immediate legalization, so remaining immediates
+ * are still materialized when it does not apply.
+ */
+void selectA64SelectXor(BasicBlock* block, instr_iter_t instr_iter) {
+  Instruction* select = instr_iter->get();
+  JIT_DCHECK(select->isSelect(), "Expected Select, got {}", select->opname());
+
+  Operand* in1 = select->getInput(1);
+  Operand* in2 = select->getInput(2);
+  if (!in1->isImm() || !in2->isImm()) {
+    return;
+  }
+  DataType dtype = in1->dataType();
+  if (dtype != in2->dataType() || dtype == DataType::kDouble) {
+    return;
+  }
+  size_t bits = bitSize(dtype);
+  if (bits != 32 && bits != 64) {
+    return;
+  }
+
+  uint64_t v1 = in1->getConstant();
+  uint64_t v2 = in2->getConstant();
+  if (bits == 32) {
+    v1 &= 0xFFFFFFFFu;
+    v2 &= 0xFFFFFFFFu;
+  }
+  if (v1 == v2) {
+    return;
+  }
+  if (fitsInSingleMovA64(v1, bits) || fitsInSingleMovA64(v2, bits)) {
+    return;
+  }
+  uint64_t diff = v1 ^ v2;
+  if (!asmjit::arm::Utils::isLogicalImm(diff, bits)) {
+    return;
+  }
+
+  // The input-2 value becomes the shared base; xor-ing the difference
+  // reconstructs input 1.
+  DataType int_dtype = bits == 32 ? DataType::k32bit : DataType::k64bit;
+  Instruction* base_move = block->allocateInstrBefore(
+      instr_iter, Opcode::kMove, OutVReg{dtype}, Imm{v2, dtype});
+  Instruction* eor = block->allocateInstrBefore(
+      instr_iter,
+      Opcode::kXor,
+      OutVReg{dtype},
+      VReg{base_move},
+      Imm{diff, int_dtype});
+  select->setInput(1, std::make_unique<Operand>(eor, Operand::kLinked));
+  select->setInput(2, std::make_unique<Operand>(base_move, Operand::kLinked));
+}
+
 bool readsFlags(Opcode opcode) {
   return opcode == Opcode::kBranchCC || opcode == Opcode::kA64GuardCC ||
       opcode == Opcode::kA64SelectCC;
@@ -761,6 +868,7 @@ void selectA64Opcodes(Function* func) {
           break;
         case Opcode::kSelect:
           legalizeA64SelectStackInputs(block, cur_iter);
+          selectA64SelectXor(block, cur_iter);
           legalizeA64SelectImmediateInputs(block, cur_iter);
           selectA64Select(block, cur_iter, use_counts);
           break;
