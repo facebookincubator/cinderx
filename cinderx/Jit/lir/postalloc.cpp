@@ -592,14 +592,6 @@ int prepareArgsArray(
   return rsp_sub;
 }
 
-int addArgsArrayBaseAndAlign(int args_size, int base_offset) {
-  int stack_size = args_size + base_offset;
-  if (stack_size % kStackAlign != 0) {
-    stack_size += kStackAlign - (stack_size % kStackAlign);
-  }
-  return stack_size;
-}
-
 // Common implementation for kVectorCall/kVectorCallTstate rewrites.
 // reg_offset: index into ARGUMENT_REGS where callable goes (0 or 1).
 // callable_input: index of the callable operand in instr's inputs.
@@ -760,7 +752,11 @@ int rewriteVectorCallCommon(
   // base_offset + the buffer itself.  rewriteCallInstrs() only sees this return
   // value -- its own base_offset is always 0 -- so anything reserved below the
   // buffer has to be folded in here or max_arg_buffer_size under-reserves it.
-  return addArgsArrayBaseAndAlign(rsp_sub, base_offset);
+  rsp_sub += base_offset;
+  if (rsp_sub % kStackAlign != 0) {
+    rsp_sub += kStackAlign - (rsp_sub % kStackAlign);
+  }
+  return rsp_sub;
 }
 
 // Rewrite a kVectorCallTstate instruction (with tstate).
@@ -797,44 +793,6 @@ int rewriteVectorCallTstateFunctions(instr_iter_t instr_iter, int base_offset) {
 int rewriteVectorCallFunctions(instr_iter_t instr_iter, int base_offset) {
   return rewriteVectorCallCommon(
       instr_iter, base_offset, 0, 2, 3, /*args_offset=*/false);
-}
-
-// Rewrite a kFastCall instruction. Fixed inputs are the PyCFunction entry
-// point and self, followed by the positional Python arguments. The native
-// calling convention is (self, args, nargs).
-int rewriteFastCall(instr_iter_t instr_iter, int base_offset) {
-  auto instr = instr_iter->get();
-  auto block = instr->basicBlock();
-
-  auto* self = instr->getInput(1);
-  if (self->isStack()) {
-    auto loc = self->getStackSlot();
-    auto dt = self->dataType();
-    auto* load = block->allocateInstrBefore(
-        instr_iter,
-        Opcode::kLoad,
-        OutPhyReg(ARGUMENT_REGS[0], dt),
-        Stk{loc, dt});
-    syncLastUse(load->getInput(0), self);
-    instr->releaseInput(1);
-  } else {
-    auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
-    move->output()->setPhyRegister(ARGUMENT_REGS[0]);
-    move->output()->setDataType(self->dataType());
-    move->appendInput(instr->releaseInput(1));
-  }
-
-  base_offset = std::max(base_offset, kShadowSpaceSize);
-  int args_size = prepareArgsArray(
-      instr_iter,
-      instr->getNumInputs() - 2,
-      0,
-      2,
-      ARGUMENT_REGS[1],
-      ARGUMENT_REGS[2],
-      base_offset,
-      /*scratch_slots=*/0);
-  return addArgsArrayBaseAndAlign(args_size, base_offset);
 }
 
 int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
@@ -906,7 +864,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
     return kChanged;
   } else if (
       !instr->isCall() && !instr->isCVarArgCall() && !instr->isVectorCall() &&
-      !instr->isVectorCallTstate() && !instr->isFastCall()) {
+      !instr->isVectorCallTstate()) {
     return kUnchanged;
   }
 
@@ -920,8 +878,6 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
 
   if (instr->isCVarArgCall()) {
     rsp_sub = rewriteCVarArgCall(instr_iter, base_offset);
-  } else if (instr->isFastCall()) {
-    rsp_sub = rewriteFastCall(instr_iter, base_offset);
   } else if (instr->isVectorCallTstate()) {
     rsp_sub = rewriteVectorCallTstateFunctions(instr_iter, base_offset);
   } else if (instr->isVectorCall()) {
@@ -1633,7 +1589,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kStoreGenYieldPoint:
     case Opcode::kStorePair:
     case Opcode::kUnreachable:
-    case Opcode::kFastCall:
     case Opcode::kVarArgCall:
     case Opcode::kVariadicPush:
     case Opcode::kVectorCall:

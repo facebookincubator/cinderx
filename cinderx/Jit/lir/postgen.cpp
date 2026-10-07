@@ -654,8 +654,7 @@ RewriteResult rewriteStoreImmediateToVreg(instr_iter_t instr_iter) {
 [[maybe_unused]] RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isCall() && !instr->isCVarArgCall() && !instr->isVarArgCall() &&
-      !instr->isVectorCall() && !instr->isVectorCallTstate() &&
-      !instr->isFastCall()) {
+      !instr->isVectorCall() && !instr->isVectorCallTstate()) {
     return kUnchanged;
   }
 
@@ -794,8 +793,7 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
 
 bool hasHelperTarget(const Instruction& instr, uint64_t helper) {
   if (!instr.isCall() && !instr.isCVarArgCall() && !instr.isVarArgCall() &&
-      !instr.isVectorCall() && !instr.isVectorCallTstate() &&
-      !instr.isFastCall()) {
+      !instr.isVectorCall() && !instr.isVectorCallTstate()) {
     return false;
   }
   if (instr.getNumInputs() == 0) {
@@ -932,7 +930,7 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
       // object pointers.
       bool is_call = instr->isCall() || instr->isCVarArgCall() ||
           instr->isVectorCall() || instr->isVectorCallTstate() ||
-          instr->isVarArgCall() || instr->isFastCall();
+          instr->isVarArgCall();
       bool strip_call_args = is_call && !shouldPreserveTaggedCallArgs(*instr);
       bool is_compare = instr->isCompare() &&
           (instr->condition() == Condition::kEqual ||

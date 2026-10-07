@@ -1977,18 +1977,6 @@ bool LIRGenerator::translateSpecializedCall(
         return true;
       }
       break;
-    case METH_FASTCALL: {
-      Instruction* instr = bbb.appendInstr(
-          hir_instr.output(),
-          Opcode::kFastCall,
-          Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(callee))},
-          Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_SELF(callee)),
-              DataType::kObject});
-      for (size_t i = 0; i < hir_instr.numArgs(); ++i) {
-        instr->addOperands(VReg{bbb.getDefInstr(hir_instr.arg(i))});
-      }
-      return true;
-    }
   }
 
   return false;

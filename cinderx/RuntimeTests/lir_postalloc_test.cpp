@@ -781,60 +781,6 @@ TEST_F(LIRPostAllocRewriteTest, VectorCallArgsAvoidCalleeHomeSpace) {
   ASSERT_TRUE(verifyPostRegAllocInvariants(&func, std::cout));
 }
 
-TEST_F(LIRPostAllocRewriteTest, FastCallUsesNativeCallingConvention) {
-  constexpr uint64_t kFastCallPtr = 123456789;
-  constexpr PhyLocation kSelfHome = ARGUMENT_REGS[1];
-
-  Function func;
-  auto* bb = func.allocateBasicBlock();
-
-  // #0 function pointer, #1 self, #2-3 positional Python arguments.
-  bb->allocateInstr(
-      Opcode::kFastCall,
-      nullptr,
-      OutPhyReg{arch::reg_general_return_loc, DataType::kObject},
-      Imm{kFastCallPtr, DataType::k64bit},
-      PhyReg{kSelfHome, DataType::kObject},
-      Imm{0xaaaa, DataType::kObject},
-      Imm{0xbbbb, DataType::kObject});
-
-  Environ env;
-  PostRegAllocRewrite rewrite(&func, &env);
-  rewrite.run();
-
-  auto instrs = collectInstrs(*bb);
-  ASSERT_FALSE(instrs.empty());
-
-  ASSERT_TRUE(instrs[0]->isMove());
-  EXPECT_EQ(instrs[0]->output()->getPhyRegister(), ARGUMENT_REGS[0]);
-  ASSERT_TRUE(instrs[0]->getInput(0)->isReg());
-  EXPECT_EQ(instrs[0]->getInput(0)->getPhyRegister(), kSelfHome);
-
-  auto nargs = std::ranges::find_if(instrs, [&](const Instruction* instr) {
-    return instr->isMove() && instr->output()->isReg() &&
-        instr->output()->getPhyRegister() == ARGUMENT_REGS[2] &&
-        instr->getInput(0)->isImm() && instr->getInput(0)->getConstant() == 2;
-  });
-  EXPECT_NE(nargs, instrs.end()) << "no nargs setup for 2";
-
-  auto lea = std::ranges::find_if(
-      instrs, [](const Instruction* instr) { return instr->isLea(); });
-  ASSERT_NE(lea, instrs.end()) << "expected an args-array lea";
-  EXPECT_EQ((*lea)->output()->getPhyRegister(), ARGUMENT_REGS[1]);
-  const Operand* addr = (*lea)->getInput(0);
-  ASSERT_TRUE(addr->isInd());
-  EXPECT_EQ(addr->getMemoryIndirect()->getOffset(), kShadowSpaceSize);
-  EXPECT_GE(env.max_arg_buffer_size, kShadowSpaceSize + 2 * kPointerSize);
-
-  const Instruction* call = instrs.back();
-  ASSERT_TRUE(call->isCall());
-  ASSERT_EQ(call->getNumInputs(), 1);
-  ASSERT_TRUE(call->getInput(0)->isImm());
-  EXPECT_EQ(call->getInput(0)->getConstant(), kFastCallPtr);
-
-  ASSERT_TRUE(verifyPostRegAllocInvariants(&func, std::cout));
-}
-
 #if defined(CINDER_AARCH64)
 // kAdd with one register input and one stack input should insert a Load from
 // stack to GP scratch register before the Add, then rewrite the Add's stack
