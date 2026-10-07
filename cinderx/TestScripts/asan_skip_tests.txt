@@ -18,3 +18,8 @@ test.test_io.PyBufferedReaderTest.test_recursive_repr
 # test passes under ASAN but ASAN emits a warning about the allocation size,
 # causing jobs that check for ASAN warnings to fail.
 test.test_io.test_bufferedio.CBufferedReaderTest.test_read1_error_does_not_cause_reentrant_failure
+
+# Deliberately triggers a heap-buffer-overflow in a subprocess and expects the
+# ASAN report on stderr. The subprocess inherits our ASAN log_path, so the
+# report lands in the log files instead and fails jobs that check them.
+test.test_capi.test_mem.AddressSanitizerTests.test_buffer_overflow
