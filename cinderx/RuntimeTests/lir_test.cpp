@@ -1042,6 +1042,52 @@ def func(a, b):
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
 }
 
+TEST_F(LIRGeneratorTest, PyCFunctionFastCallWithKeywordsIsNotSpecialized) {
+  const char* src = R"(
+def func(iterator):
+  return next(iterator=iterator)
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kFastCall));
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
+}
+
+TEST_F(LIRGeneratorTest, ExactPyCFunctionFastCallWithKeywordsUsesDirectTarget) {
+  const char* src = R"(
+def with_keywords(values, reverse):
+  return sorted(values, reverse=reverse)
+
+def without_keywords(values):
+  return sorted(values)
+)";
+
+  PyObject* sorted = PyDict_GetItemString(PyEval_GetBuiltins(), "sorted");
+  ASSERT_NE(sorted, nullptr);
+  ASSERT_TRUE(PyCFunction_Check(sorted));
+  ASSERT_EQ(
+      PyCFunction_GET_FLAGS(sorted) &
+          (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS),
+      METH_FASTCALL | METH_KEYWORDS);
+
+  for (const char* name : {"with_keywords", "without_keywords"}) {
+    Ref<PyObject> pyfunc(compileAndGet(src, name));
+    ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling " << name;
+
+    auto lir_func = getLIRFunction(pyfunc.get());
+    EXPECT_LIR(
+        Query(*lir_func)
+            .opcode(Opcode::kVectorCall)
+            .inImm(
+                0,
+                reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(sorted))));
+    EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
+  }
+}
+
 TEST_F(LIRGeneratorTest, GeneratedPhiCoversDuplicateIncomingEdges) {
   const char* hir = R"(
 fun test {

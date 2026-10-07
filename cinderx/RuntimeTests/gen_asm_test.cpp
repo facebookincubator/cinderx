@@ -615,6 +615,27 @@ def test(a, b):
   EXPECT_EQ(PyObject_RichCompareBool(result, expected, Py_EQ), 1);
 }
 
+TEST_F(ASMGeneratorTest, InvokePyCFunctionFastCallWithKeywords) {
+  const char* pycode = R"(
+def test(reverse):
+  return sorted((1, 3, 2), reverse=reverse)
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto compiled = GenerateCode(pyfunc);
+  ASSERT_NE(compiled, nullptr);
+
+  PyObject* args[] = {Py_True};
+  Ref<PyObject> result = Ref<>::steal(compiled->invoke(pyfunc, args, 1));
+  Ref<PyObject> expected = Ref<>::steal(Py_BuildValue("[iii]", 3, 2, 1));
+
+  ASSERT_NE(result.get(), nullptr);
+  ASSERT_NE(expected.get(), nullptr);
+  EXPECT_EQ(PyObject_RichCompareBool(result, expected, Py_EQ), 1);
+}
+
 TEST_F(ASMGeneratorTest, InvokeBinaryAnd) {
   const char* pycode = R"(
 def test(a, b):

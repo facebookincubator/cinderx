@@ -1910,10 +1910,6 @@ void LIRGenerator::registerCallSiteLiveValues(
 bool LIRGenerator::translateSpecializedCall(
     BasicBlockBuilder& bbb,
     const hir::VectorCall& hir_instr) {
-  if (hir_instr.flags() & CallFlags::KwArgs) {
-    return false;
-  }
-
   hir::Register* callable = hir_instr.func();
   if (!callable->type().hasValueSpec(TObject)) {
     return false;
@@ -1932,6 +1928,13 @@ bool LIRGenerator::translateSpecializedCall(
   // always makes sense to load them at JIT-time and burn them directly into
   // code.
   if (type != &PyCFunction_Type) {
+    return false;
+  }
+
+  const int method_flags = PyCFunction_GET_FLAGS(callee) &
+      (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS);
+  const bool has_kw_args = hir_instr.flags() & CallFlags::KwArgs;
+  if (has_kw_args && method_flags != (METH_FASTCALL | METH_KEYWORDS)) {
     return false;
   }
 
@@ -1954,9 +1957,7 @@ bool LIRGenerator::translateSpecializedCall(
   // tuple(), list(), etc, hardcoding or inlining calls to tp_new and tp_init as
   // appropriate. For now, we simply support any native callable with a
   // vectorcall.
-  switch (
-      PyCFunction_GET_FLAGS(callee) &
-      (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS)) {
+  switch (method_flags) {
     case METH_NOARGS:
       if (hir_instr.numArgs() == 0) {
         bbb.appendCallInstruction(
@@ -1986,6 +1987,26 @@ bool LIRGenerator::translateSpecializedCall(
               DataType::kObject});
       for (size_t i = 0; i < hir_instr.numArgs(); ++i) {
         instr->addOperands(VReg{bbb.getDefInstr(hir_instr.arg(i))});
+      }
+      return true;
+    }
+    case METH_FASTCALL | METH_KEYWORDS: {
+      // PyCFunctionFastWithKeywords has the same ABI as vectorcallfunc when
+      // PY_VECTORCALL_ARGUMENTS_OFFSET isn't set: (self, args, nargs,
+      // kwnames). Reuse kVectorCall's argument-array lowering with the raw
+      // PyCFunction entry point and bound self.
+      Instruction* instr = bbb.appendInstr(
+          hir_instr.output(),
+          Opcode::kVectorCall,
+          Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(callee))},
+          Imm{0},
+          Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_SELF(callee)),
+              DataType::kObject});
+      for (size_t i = 0; i < hir_instr.numArgs(); ++i) {
+        instr->addOperands(VReg{bbb.getDefInstr(hir_instr.arg(i))});
+      }
+      if (!has_kw_args) {
+        instr->addOperands(Imm{0});
       }
       return true;
     }
