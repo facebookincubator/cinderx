@@ -596,6 +596,233 @@ fun test {
   }
 }
 --- Test Name ---
+ReusesCommutativeOpWithSwappedOperands
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = RefineType<LongCompact> v0
+    v3 = RefineType<FloatExact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64[1] = LoadConst<CInt64[1]>
+    v6:CInt64 = IntBinaryOp<Add> v4 v5
+    v7:CInt64 = IntBinaryOp<Add> v5 v4
+    v8:CInt64 = IntBinaryOp<Xor> v6 v7
+    v9:CInt64 = IntBinaryOp<Xor> v7 v6
+    v10:CBool = PrimitiveCompare<Equal> v8 v4
+    v11:CBool = PrimitiveCompare<Equal> v4 v9
+    v12:CDouble = PrimitiveUnbox<CDouble> v3
+    v13:CDouble = DoubleBinaryOp<Subtract> v12 v12
+    v14:CDouble = DoubleBinaryOp<Multiply> v12 v13
+    v15:CDouble = DoubleBinaryOp<Multiply> v13 v12
+    v16:CDouble = DoubleBinaryOp<Add> v14 v15
+    v17 = PrimitiveBoxBool v10
+    v18 = PrimitiveBoxBool v11
+    Return v18
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64[1] = LoadConst<CInt64[1]>
+    v6:CInt64 = IntBinaryOp<Add> v4 v5
+    v8:CInt64 = IntBinaryOp<Xor> v6 v6
+    v10:CBool = PrimitiveCompare<Equal> v8 v4
+    v12:CDouble = PrimitiveUnbox<CDouble> v3
+    v13:CDouble = DoubleBinaryOp<Subtract> v12 v12
+    v14:CDouble = DoubleBinaryOp<Multiply> v12 v13
+    v16:CDouble = DoubleBinaryOp<Add> v14 v14
+    v17:ImmortalBool = PrimitiveBoxBool v10
+    Return v17
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64[1] = LoadConst<CInt64[1]>
+    v6:CInt64 = IntBinaryOp<Add> v4 v5
+    v8:CInt64 = IntBinaryOp<Xor> v6 v6
+    v10:CBool = PrimitiveCompare<Equal> v8 v4
+    v12:CDouble = PrimitiveUnbox<CDouble> v3
+    v13:CDouble = DoubleBinaryOp<Subtract> v12 v12
+    v14:CDouble = DoubleBinaryOp<Multiply> v12 v13
+    v16:CDouble = DoubleBinaryOp<Add> v14 v14
+    v17:ImmortalBool = PrimitiveBoxBool v10
+    Return v17
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64[1] = LoadConst<CInt64[1]>
+    v6:CInt64 = IntBinaryOp<Add> v4 v5
+    v8:CInt64 = IntBinaryOp<Xor> v6 v6
+    v10:CBool = PrimitiveCompare<Equal> v8 v4
+    v12:CDouble = PrimitiveUnbox<CDouble> v3
+    v13:CDouble = DoubleBinaryOp<Subtract> v12 v12
+    v14:CDouble = DoubleBinaryOp<Multiply> v12 v13
+    v16:CDouble = DoubleBinaryOp<Add> v14 v14
+    v17:ImmortalBool = PrimitiveBoxBool v10
+    Return v17
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64[1] = LoadConst<CInt64[1]>
+    v6:CInt64 = IntBinaryOp<Add> v4 v5
+    v8:CInt64 = IntBinaryOp<Xor> v6 v6
+    v10:CBool = PrimitiveCompare<Equal> v8 v4
+    v12:CDouble = PrimitiveUnbox<CDouble> v3
+    v13:CDouble = DoubleBinaryOp<Subtract> v12 v12
+    v14:CDouble = DoubleBinaryOp<Multiply> v12 v13
+    v16:CDouble = DoubleBinaryOp<Add> v14 v14
+    v17:ImmortalBool = PrimitiveBoxBool v10
+    Return v17
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64[1] = LoadConst<CInt64[1]>
+    v6:CInt64 = IntBinaryOp<Add> v4 v5
+    v8:CInt64 = IntBinaryOp<Xor> v6 v6
+    v10:CBool = PrimitiveCompare<Equal> v8 v4
+    v12:CDouble = PrimitiveUnbox<CDouble> v3
+    v13:CDouble = DoubleBinaryOp<Subtract> v12 v12
+    v14:CDouble = DoubleBinaryOp<Multiply> v12 v13
+    v16:CDouble = DoubleBinaryOp<Add> v14 v14
+    v17:ImmortalBool = PrimitiveBoxBool v10
+    Return v17
+  }
+}
+--- Test Name ---
+KeepsNonCommutativeOpWithSwappedOperands
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v3 v2
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:CBool = PrimitiveCompare<LessThan> v5 v4
+    v8 = PrimitiveBoxBool v6
+    v9 = PrimitiveBoxBool v7
+    Return v9
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v3 v2
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:CBool = PrimitiveCompare<LessThan> v5 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    v9:ImmortalBool = PrimitiveBoxBool v7
+    Return v9
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v3 v2
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:CBool = PrimitiveCompare<LessThan> v5 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    v9:ImmortalBool = PrimitiveBoxBool v7
+    Return v9
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v3 v2
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:CBool = PrimitiveCompare<LessThan> v5 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    v9:ImmortalBool = PrimitiveBoxBool v7
+    Return v9
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v3 v2
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:CBool = PrimitiveCompare<LessThan> v5 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    v9:ImmortalBool = PrimitiveBoxBool v7
+    Return v9
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongCompact = RefineType<LongCompact> v0
+    v2:CInt64 = PrimitiveUnbox<CInt64> v1
+    v3:CInt64[1] = LoadConst<CInt64[1]>
+    v4:CInt64 = IntBinaryOp<Subtract> v2 v3
+    v5:CInt64 = IntBinaryOp<Subtract> v3 v2
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:CBool = PrimitiveCompare<LessThan> v5 v4
+    v8:ImmortalBool = PrimitiveBoxBool v6
+    v9:ImmortalBool = PrimitiveBoxBool v7
+    Return v9
+  }
+}
+--- Test Name ---
 ReusesLoadConst
 --- Input ---
 # HIR

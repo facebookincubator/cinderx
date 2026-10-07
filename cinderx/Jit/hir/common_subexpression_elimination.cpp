@@ -55,6 +55,40 @@ std::vector<Register*> keyOperands(std::initializer_list<Register*> regs) {
   return result;
 }
 
+// Order the operands of a commutative operation by register id so that `a op b`
+// and `b op a` produce the same key.
+std::vector<Register*> commutativeKeyOperands(Register* left, Register* right) {
+  std::vector<Register*> result = keyOperands({left, right});
+  if (result[1]->id() < result[0]->id()) {
+    std::swap(result[0], result[1]);
+  }
+  return result;
+}
+
+bool isCommutative(BinaryOpKind op) {
+  switch (op) {
+    case BinaryOpKind::kAdd:
+    case BinaryOpKind::kAnd:
+    case BinaryOpKind::kMultiply:
+    case BinaryOpKind::kOr:
+    case BinaryOpKind::kXor:
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool isCommutative(PrimitiveCompareOp op) {
+  return op == PrimitiveCompareOp::kEqual ||
+      op == PrimitiveCompareOp::kNotEqual;
+}
+
+std::vector<Register*>
+binaryKeyOperands(auto op, Register* left, Register* right) {
+  return isCommutative(op) ? commutativeKeyOperands(left, right)
+                           : keyOperands({left, right});
+}
+
 uint64_t keyInt(auto value) {
   return static_cast<uint64_t>(value);
 }
@@ -80,7 +114,7 @@ std::optional<ValueKey> valueKeyImpl(const Instr& instr) {
       const auto& binop = static_cast<const DoubleBinaryOp&>(instr);
       return ValueKey{
           instr.opcode(),
-          keyOperands({binop.left(), binop.right()}),
+          binaryKeyOperands(binop.op(), binop.left(), binop.right()),
           {},
           {keyInt(binop.op())}};
     }
@@ -88,7 +122,7 @@ std::optional<ValueKey> valueKeyImpl(const Instr& instr) {
       const auto& binop = static_cast<const IntBinaryOp&>(instr);
       return ValueKey{
           instr.opcode(),
-          keyOperands({binop.left(), binop.right()}),
+          binaryKeyOperands(binop.op(), binop.left(), binop.right()),
           {},
           {keyInt(binop.op())}};
     }
@@ -108,7 +142,7 @@ std::optional<ValueKey> valueKeyImpl(const Instr& instr) {
       const auto& compare = static_cast<const PrimitiveCompare&>(instr);
       return ValueKey{
           instr.opcode(),
-          keyOperands({compare.left(), compare.right()}),
+          binaryKeyOperands(compare.op(), compare.left(), compare.right()),
           {},
           {keyInt(compare.op())}};
     }
@@ -141,7 +175,10 @@ std::optional<ValueKey> valueKeyImpl(const Instr& instr) {
     case Opcode::kUnicodeEqual: {
       const auto& equal = static_cast<const UnicodeEqual&>(instr);
       return ValueKey{
-          instr.opcode(), keyOperands({equal.left(), equal.right()}), {}, {}};
+          instr.opcode(),
+          commutativeKeyOperands(equal.left(), equal.right()),
+          {},
+          {}};
     }
     default:
       return std::nullopt;
