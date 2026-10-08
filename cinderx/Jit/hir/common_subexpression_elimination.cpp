@@ -78,15 +78,49 @@ bool isCommutative(BinaryOpKind op) {
   }
 }
 
-bool isCommutative(PrimitiveCompareOp op) {
-  return op == PrimitiveCompareOp::kEqual ||
-      op == PrimitiveCompareOp::kNotEqual;
-}
-
 std::vector<Register*>
-binaryKeyOperands(auto op, Register* left, Register* right) {
+binaryKeyOperands(BinaryOpKind op, Register* left, Register* right) {
   return isCommutative(op) ? commutativeKeyOperands(left, right)
                            : keyOperands({left, right});
+}
+
+// Get the op that gives the same result when the operands are swapped, e.g.
+// `a < b` is `b > a`.
+PrimitiveCompareOp swappedCompareOp(PrimitiveCompareOp op) {
+  switch (op) {
+    case PrimitiveCompareOp::kEqual:
+    case PrimitiveCompareOp::kNotEqual:
+      return op;
+    case PrimitiveCompareOp::kLessThan:
+      return PrimitiveCompareOp::kGreaterThan;
+    case PrimitiveCompareOp::kLessThanEqual:
+      return PrimitiveCompareOp::kGreaterThanEqual;
+    case PrimitiveCompareOp::kGreaterThan:
+      return PrimitiveCompareOp::kLessThan;
+    case PrimitiveCompareOp::kGreaterThanEqual:
+      return PrimitiveCompareOp::kLessThanEqual;
+    case PrimitiveCompareOp::kLessThanUnsigned:
+      return PrimitiveCompareOp::kGreaterThanUnsigned;
+    case PrimitiveCompareOp::kLessThanEqualUnsigned:
+      return PrimitiveCompareOp::kGreaterThanEqualUnsigned;
+    case PrimitiveCompareOp::kGreaterThanUnsigned:
+      return PrimitiveCompareOp::kLessThanUnsigned;
+    case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
+      return PrimitiveCompareOp::kLessThanEqualUnsigned;
+  }
+  JIT_ABORT("Unknown PrimitiveCompareOp {}", static_cast<int>(op));
+}
+
+// Order comparison operands by register id, flipping the op when the operands
+// are swapped so that `a > b` and `b < a` produce the same key.
+std::pair<std::vector<Register*>, PrimitiveCompareOp>
+compareKeyOperands(PrimitiveCompareOp op, Register* left, Register* right) {
+  std::vector<Register*> result = keyOperands({left, right});
+  if (result[1]->id() < result[0]->id()) {
+    std::swap(result[0], result[1]);
+    op = swappedCompareOp(op);
+  }
+  return {result, op};
 }
 
 uint64_t keyInt(auto value) {
@@ -140,11 +174,10 @@ std::optional<ValueKey> valueKeyImpl(const Instr& instr) {
     }
     case Opcode::kPrimitiveCompare: {
       const auto& compare = static_cast<const PrimitiveCompare&>(instr);
+      auto [operands, canonicalOp] =
+          compareKeyOperands(compare.op(), compare.left(), compare.right());
       return ValueKey{
-          instr.opcode(),
-          binaryKeyOperands(compare.op(), compare.left(), compare.right()),
-          {},
-          {keyInt(compare.op())}};
+          instr.opcode(), std::move(operands), {}, {keyInt(canonicalOp)}};
     }
     case Opcode::kPrimitiveConvert: {
       const auto& convert = static_cast<const PrimitiveConvert&>(instr);

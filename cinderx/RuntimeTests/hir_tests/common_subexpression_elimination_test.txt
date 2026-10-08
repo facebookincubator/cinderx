@@ -880,4 +880,135 @@ fun test {
     Return v3
   }
 }
+--- Test Name ---
+ReusesMirroredCompareWithSwappedOperands
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = RefineType<LongCompact> v0
+    v3 = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v7:CBool = PrimitiveCompare<GreaterThan> v5 v4
+    v8:CBool = PrimitiveCompare<GreaterThanEqual> v4 v5
+    v9:CBool = PrimitiveCompare<LessThanEqual> v5 v4
+    v10:CBool = PrimitiveCompare<LessThanUnsigned> v4 v5
+    v11:CBool = PrimitiveCompare<GreaterThanUnsigned> v5 v4
+    v12:CBool = PrimitiveCompare<GreaterThanEqualUnsigned> v4 v5
+    v13:CBool = PrimitiveCompare<LessThanEqualUnsigned> v5 v4
+    v14 = PrimitiveBoxBool v6
+    v15 = PrimitiveBoxBool v7
+    v16 = PrimitiveBoxBool v8
+    v17 = PrimitiveBoxBool v9
+    v18 = PrimitiveBoxBool v10
+    v19 = PrimitiveBoxBool v11
+    v20 = PrimitiveBoxBool v12
+    v21 = PrimitiveBoxBool v13
+    Return v21
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v8:CBool = PrimitiveCompare<GreaterThanEqual> v4 v5
+    v10:CBool = PrimitiveCompare<LessThanUnsigned> v4 v5
+    v12:CBool = PrimitiveCompare<GreaterThanEqualUnsigned> v4 v5
+    v14:ImmortalBool = PrimitiveBoxBool v6
+    v16:ImmortalBool = PrimitiveBoxBool v8
+    v18:ImmortalBool = PrimitiveBoxBool v10
+    v20:ImmortalBool = PrimitiveBoxBool v12
+    Return v20
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v8:CBool = PrimitiveCompare<GreaterThanEqual> v4 v5
+    v10:CBool = PrimitiveCompare<LessThanUnsigned> v4 v5
+    v12:CBool = PrimitiveCompare<GreaterThanEqualUnsigned> v4 v5
+    v14:ImmortalBool = PrimitiveBoxBool v6
+    v16:ImmortalBool = PrimitiveBoxBool v8
+    v18:ImmortalBool = PrimitiveBoxBool v10
+    v20:ImmortalBool = PrimitiveBoxBool v12
+    Return v20
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v8:CBool = PrimitiveCompare<GreaterThanEqual> v4 v5
+    v10:CBool = PrimitiveCompare<LessThanUnsigned> v4 v5
+    v12:CBool = PrimitiveCompare<GreaterThanEqualUnsigned> v4 v5
+    v14:ImmortalBool = PrimitiveBoxBool v6
+    v16:ImmortalBool = PrimitiveBoxBool v8
+    v18:ImmortalBool = PrimitiveBoxBool v10
+    v20:ImmortalBool = PrimitiveBoxBool v12
+    Return v20
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v8:CBool = PrimitiveCompare<GreaterThanEqual> v4 v5
+    v10:CBool = PrimitiveCompare<LessThanUnsigned> v4 v5
+    v12:CBool = PrimitiveCompare<GreaterThanEqualUnsigned> v4 v5
+    v14:ImmortalBool = PrimitiveBoxBool v6
+    v16:ImmortalBool = PrimitiveBoxBool v8
+    v18:ImmortalBool = PrimitiveBoxBool v10
+    v20:ImmortalBool = PrimitiveBoxBool v12
+    Return v20
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:LongCompact = RefineType<LongCompact> v0
+    v3:LongCompact = RefineType<LongCompact> v1
+    v4:CInt64 = PrimitiveUnbox<CInt64> v2
+    v5:CInt64 = PrimitiveUnbox<CInt64> v3
+    v6:CBool = PrimitiveCompare<LessThan> v4 v5
+    v8:CBool = PrimitiveCompare<GreaterThanEqual> v4 v5
+    v10:CBool = PrimitiveCompare<LessThanUnsigned> v4 v5
+    v12:CBool = PrimitiveCompare<GreaterThanEqualUnsigned> v4 v5
+    v14:ImmortalBool = PrimitiveBoxBool v6
+    v16:ImmortalBool = PrimitiveBoxBool v8
+    v18:ImmortalBool = PrimitiveBoxBool v10
+    v20:ImmortalBool = PrimitiveBoxBool v12
+    Return v20
+  }
+}
 --- End ---
