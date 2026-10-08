@@ -281,6 +281,10 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitGetIter(TranslationContext& tc);
+  void emitSpecializedIterGuard(
+      TranslationContext& tc,
+      Register* iterator,
+      Type iter_type);
   void emitGetYieldFromIter(CFG& cfg, TranslationContext& tc);
   void emitListAppend(
       TranslationContext& tc,
@@ -293,6 +297,10 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitForIterRange(
+      CFG& cfg,
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
+  void emitForIterTuple(
       CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

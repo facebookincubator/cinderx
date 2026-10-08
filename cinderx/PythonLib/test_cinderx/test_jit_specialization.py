@@ -695,3 +695,51 @@ class SpecializationTests(CinderXTestCase):
         self.assertTrue(cinderx.jit.force_compile(count))
         self.assertEqual(count(3, [1, 1, 1]), 3)
         self.assertEqual(count(2, [1, ForceDeopt()]), 100)
+
+    def test_for_iter_tuple_basic(self) -> None:
+        def total(values: tuple[int, ...]) -> int:
+            s = 0
+            for v in values:
+                s += v
+            return s
+
+        # Warm up so FOR_ITER specializes to FOR_ITER_TUPLE before compiling.
+        cinderx.jit.jit_suppress(total)
+        for _ in range(100):
+            total((1, 2, 3))
+        cinderx.jit.jit_unsuppress(total)
+
+        self.assertHIROpcodes(
+            total,
+            present=["GuardType", "LoadArrayItem", "IntBinaryOp"],
+            absent=["InvokeIterNext"],
+        )
+
+        self.assertEqual(total((1, 2, 3)), 6)
+        self.assertEqual(total(()), 0)
+        self.assertEqual(total((42,)), 42)
+
+    def test_for_iter_tuple_back_to_back_loops(self) -> None:
+        # The empty-tuple check adds an edge that skips the loop entirely, so
+        # the second loop's setup Snapshots must not keep naming the first
+        # loop's guarded iterator: it has no definition on that edge. The
+        # empty cases below exercise the skip edge of each loop.
+        def sums(first: tuple[int, ...], second: tuple[int, ...]) -> int:
+            s = 0
+            for v in first:
+                s += v
+            for v in second:
+                s += v
+            return s
+
+        # Warm up so FOR_ITER specializes to FOR_ITER_TUPLE before compiling.
+        cinderx.jit.jit_suppress(sums)
+        for _ in range(100):
+            sums((1, 2), (3, 4))
+        cinderx.jit.jit_unsuppress(sums)
+
+        self.assertTrue(cinderx.jit.force_compile(sums))
+        self.assertEqual(sums((1, 2), (3, 4)), 10)
+        self.assertEqual(sums((), (3, 4)), 7)
+        self.assertEqual(sums((1, 2), ()), 3)
+        self.assertEqual(sums((), ()), 0)
