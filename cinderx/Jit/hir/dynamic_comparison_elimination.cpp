@@ -25,6 +25,7 @@ void DynamicComparisonElimination::run(Function& irfunc) {
   auto last_uses = liveness.getLastUses();
 
   // Optimize "if x is y" case
+  size_t replacements = 0;
   for (auto& block : irfunc.cfg.blocks) {
     auto& instr = block.back();
 
@@ -91,6 +92,8 @@ void DynamicComparisonElimination::run(Function& irfunc) {
     }
 
     if (replacement != nullptr) {
+      replacements += 1;
+
       replacement->copyBytecodeOffset(instr);
       truthy->replaceWith(*replacement);
 
@@ -109,7 +112,10 @@ void DynamicComparisonElimination::run(Function& irfunc) {
     }
   }
 
-  reflowTypes(irfunc);
+  bool changed = replacements > 0;
+  if (changed) {
+    reflowTypes(irfunc);
+  }
 }
 
 } // namespace cinderx::jit::hir

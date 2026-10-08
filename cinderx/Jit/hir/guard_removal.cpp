@@ -119,8 +119,11 @@ void GuardTypeRemoval::run(Function& func) {
     }
   }
 
-  CopyPropagation{}.run(func);
-  reflowTypes(func);
+  bool changed = removed_guards.size() > 0;
+  if (changed) {
+    CopyPropagation{}.run(func);
+    reflowTypes(func);
+  }
 }
 
 } // namespace cinderx::jit::hir

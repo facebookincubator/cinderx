@@ -521,7 +521,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v5:TupleExact = RefineType<BuiltinExact> v3
+    v4:Tuple = Assign v3
+    v5:TupleExact = RefineType<BuiltinExact> v4
     v6:CInt64 = PrimitiveUnbox<CInt64> v1
     v7:Object = LoadArrayItem v5 v6 v2
     Return v7
@@ -538,7 +539,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v5:TupleExact = RefineType<BuiltinExact> v3
+    v4:Tuple = Assign v3
+    v5:TupleExact = RefineType<BuiltinExact> v4
     v6:CInt64 = PrimitiveUnbox<CInt64> v1
     v7:Object = LoadArrayItem v5 v6 v2
     Return v7
@@ -555,7 +557,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v5:TupleExact = RefineType<BuiltinExact> v3
+    v4:Tuple = Assign v3
+    v5:TupleExact = RefineType<BuiltinExact> v4
     v6:CInt64 = PrimitiveUnbox<CInt64> v1
     v7:Object = LoadArrayItem v5 v6 v2
     Return v7
@@ -572,7 +575,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v5:TupleExact = RefineType<BuiltinExact> v3
+    v4:Tuple = Assign v3
+    v5:TupleExact = RefineType<BuiltinExact> v4
     v6:CInt64 = PrimitiveUnbox<CInt64> v1
     v7:Object = LoadArrayItem v5 v6 v2
     Return v7
@@ -589,7 +593,8 @@ fun test {
         CurInstrOffset -2
       }
     }
-    v5:TupleExact = RefineType<BuiltinExact> v3
+    v4:Tuple = Assign v3
+    v5:TupleExact = RefineType<BuiltinExact> v4
     v6:CInt64 = PrimitiveUnbox<CInt64> v1
     v7:Object = LoadArrayItem v5 v6 v2
     Return v7
