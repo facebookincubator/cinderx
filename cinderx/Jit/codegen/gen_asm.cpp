@@ -265,7 +265,7 @@ uintptr_t prepareForDeopt(
     std::size_t deopt_idx) {
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
   const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
-  PyThreadState* tstate = _PyThreadState_UncheckedGet();
+  PyThreadState* tstate = PyThreadState_GetUnchecked();
   bool is_instrumentation_deopt = false;
   _PyInterpreterFrame* frame = currentFrame(tstate);
   uintptr_t fp = regs[arch::reg_frame_pointer_loc.loc];
