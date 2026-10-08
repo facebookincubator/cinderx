@@ -123,6 +123,14 @@ void Ci_SetAdaptiveThreshold(uint64_t threshold);
 PyTypeObject* Ci_GetAwaitableWrapperType(void);
 void Ci_SetAwaitableWrapperType(PyTypeObject* type);
 
+// Cached property types.
+PyTypeObject* Ci_GetAsyncCachedClassPropertyType(void);
+PyTypeObject* Ci_GetAsyncCachedPropertyType(void);
+PyTypeObject* Ci_GetAsyncCachedPropertyWithDescrType(void);
+PyTypeObject* Ci_GetCachedClassPropertyType(void);
+PyTypeObject* Ci_GetCachedPropertyType(void);
+PyTypeObject* Ci_GetCachedPropertyWithDescrType(void);
+
 // Common constants array (Python 3.14+).
 #if PY_VERSION_HEX >= 0x030E0000
 #include "pycore_opcode_utils.h" // NUM_COMMON_CONSTANTS

@@ -31,6 +31,7 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 
 static int type_refcount_indicates_escape(
     PyObject* type,
@@ -1433,7 +1434,7 @@ static int init_cached_properties(
       args[0] = impl;
       args[1] = descr;
       property = PyObject_Vectorcall(
-          (PyObject*)&PyAsyncCachedProperty_Type, args, 2, NULL);
+          (PyObject*)Ci_GetAsyncCachedPropertyType(), args, 2, NULL);
     } else if (!strncmp(name, normal_prefix, strlen(normal_prefix))) {
       char attr_name[strlen(name) - strlen(normal_prefix) + 1];
       strcpy(attr_name, name + strlen(normal_prefix));
@@ -1455,8 +1456,10 @@ static int init_cached_properties(
 
       args[0] = impl;
       args[1] = descr;
+
+      PyTypeObject* cached_prop_type = Ci_GetCachedPropertyType();
       property =
-          PyObject_Vectorcall((PyObject*)&PyCachedProperty_Type, args, 2, NULL);
+          PyObject_Vectorcall((PyObject*)cached_prop_type, args, 2, NULL);
     } else {
       PyErr_Format(PyExc_TypeError, "unknown prefix: %R", impl_name);
       return -1;

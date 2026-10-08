@@ -285,4 +285,37 @@ void Ci_SetAwaitableWrapperType(PyTypeObject* type) {
       cinderx::Ref<PyTypeObject>::create(type);
 }
 
+PyTypeObject* Ci_GetAsyncCachedClassPropertyType(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->async_cached_class_property_type.get()
+                          : nullptr;
+}
+
+PyTypeObject* Ci_GetAsyncCachedPropertyType(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->async_cached_property_type.get() : nullptr;
+}
+
+PyTypeObject* Ci_GetAsyncCachedPropertyWithDescrType(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->async_cached_property_with_descr_type.get()
+                          : nullptr;
+}
+
+PyTypeObject* Ci_GetCachedClassPropertyType(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->cached_class_property_type.get() : nullptr;
+}
+
+PyTypeObject* Ci_GetCachedPropertyType(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->cached_property_type.get() : nullptr;
+}
+
+PyTypeObject* Ci_GetCachedPropertyWithDescrType(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->cached_property_with_descr_type.get()
+                          : nullptr;
+}
+
 } // extern "C"

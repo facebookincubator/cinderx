@@ -32,12 +32,14 @@ typedef struct {
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern PyTypeObject PyAsyncCachedPropertyWithDescr_Type;
-extern PyType_Spec _PyCachedClassProperty_TypeSpec; /* fb t46346203 */
-extern PyTypeObject PyCachedProperty_Type; /* fb T46346203 */
-extern PyTypeObject PyCachedPropertyWithDescr_Type; /* fb T46346203 */
-extern PyTypeObject PyAsyncCachedProperty_Type; /* fb T82701047 */
-extern PyTypeObject PyAsyncCachedClassProperty_Type; /* fb T82701047 */
+
+extern PyType_Spec PyAsyncCachedClassProperty_Spec;
+extern PyType_Spec PyAsyncCachedPropertyWithDescr_Spec;
+extern PyType_Spec PyAsyncCachedProperty_Spec;
+extern PyType_Spec PyCachedClassProperty_Spec;
+extern PyType_Spec PyCachedPropertyWithDescr_Spec;
+extern PyType_Spec PyCachedProperty_Spec;
+
 #ifdef __cplusplus
-}
+} // extern "C"
 #endif

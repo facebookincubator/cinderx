@@ -870,7 +870,7 @@ void module_free(void* raw_mod) {
 // Called when the interpreter is shutting down, allows us to do some aggressive
 // cleanup. Currently this includes clearing out all strict modules which the
 // interpreter won't do because it only supports clearing normal module objects.
-static PyObject* clear_strict_modules(PyObject*, PyObject*) {
+PyObject* clear_strict_modules(PyObject*, PyObject*) {
   // Drain any in-flight background JIT compiles here, at atexit time, while the
   // interpreter is still alive and worker threads can still acquire the GIL.
   // If we waited until jit::finalize() (during module teardown) the runtime has
@@ -903,6 +903,59 @@ static PyObject* clear_strict_modules(PyObject*, PyObject*) {
     }
   }
   Py_RETURN_NONE;
+}
+
+int initCachedPropertyTypes(PyObject* mod, cinderx::ModuleState* state) {
+#define CREATE_TYPE(NAME, FIELD, SPEC)                               \
+  {                                                                  \
+    FIELD = Ref<PyTypeObject>::steal(PyType_FromSpec(&SPEC));        \
+    if ((FIELD) == nullptr) {                                        \
+      return -1;                                                     \
+    }                                                                \
+    if (PyObject_SetAttrString(mod, (NAME), (FIELD).getObj()) < 0) { \
+      return -1;                                                     \
+    }                                                                \
+  }
+
+#define CREATE_SUBTYPE(NAME, FIELD, SPEC, SUPER)                              \
+  {                                                                           \
+    auto bases = Ref<>::steal(PyTuple_Pack(1, (SUPER)));                      \
+    FIELD = Ref<PyTypeObject>::steal(PyType_FromSpecWithBases(&SPEC, bases)); \
+    if ((FIELD) == nullptr) {                                                 \
+      return -1;                                                              \
+    }                                                                         \
+    if (PyObject_SetAttrString(mod, (NAME), (FIELD).getObj()) < 0) {          \
+      return -1;                                                              \
+    }                                                                         \
+  }
+
+  CREATE_TYPE(
+      "cached_property", state->cached_property_type, PyCachedProperty_Spec);
+  CREATE_TYPE(
+      "cached_classproperty",
+      state->cached_class_property_type,
+      PyCachedClassProperty_Spec);
+  CREATE_TYPE(
+      "async_cached_property",
+      state->async_cached_property_type,
+      PyAsyncCachedProperty_Spec);
+  CREATE_TYPE(
+      "async_cached_classproperty",
+      state->async_cached_class_property_type,
+      PyAsyncCachedClassProperty_Spec);
+
+  CREATE_SUBTYPE(
+      "cached_property_with_descr",
+      state->cached_property_with_descr_type,
+      PyCachedPropertyWithDescr_Spec,
+      state->cached_property_type.get());
+  CREATE_SUBTYPE(
+      "async_cached_property_with_descr",
+      state->async_cached_property_with_descr_type,
+      PyAsyncCachedPropertyWithDescr_Spec,
+      state->async_cached_property_type.get());
+
+  return 0;
 }
 
 PyMethodDef _cinderx_methods[] = {
@@ -1203,23 +1256,11 @@ int _cinderx_exec_impl(PyObject* m) {
       "Created StaticTypeError but it isn't a type object");
   state->static_type_error = Ref<PyTypeObject>::steal(static_type_error);
 
-  if (PyType_Ready(&PyCachedProperty_Type) < 0) {
-    return -1;
-  }
-  PyCachedPropertyWithDescr_Type.tp_base = &PyCachedProperty_Type;
-  if (PyType_Ready(&PyCachedPropertyWithDescr_Type) < 0) {
+  // Heap types for cached properties.
+  if (initCachedPropertyTypes(m, state) < 0) {
     return -1;
   }
   if (PyType_Ready(&Ci_StrictModule_Type) < 0) {
-    return -1;
-  }
-  if (PyType_Ready(&PyAsyncCachedProperty_Type) < 0) {
-    return -1;
-  }
-  if (PyType_Ready(&PyAsyncCachedPropertyWithDescr_Type) < 0) {
-    return -1;
-  }
-  if (PyType_Ready(&PyAsyncCachedClassProperty_Type) < 0) {
     return -1;
   }
   if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
@@ -1229,31 +1270,15 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
-  PyObject* cached_classproperty =
-      PyType_FromSpec(&_PyCachedClassProperty_TypeSpec);
-  if (cached_classproperty == nullptr) {
-    return -1;
-  }
-  if (PyObject_SetAttrString(m, "cached_classproperty", cached_classproperty) <
-      0) {
-    Py_DECREF(cached_classproperty);
-    return -1;
-  }
-  Py_DECREF(cached_classproperty);
-
 #define ADDITEM(NAME, OBJECT)                                   \
   if (PyObject_SetAttrString(m, NAME, (PyObject*)OBJECT) < 0) { \
     return -1;                                                  \
   }
 
-  ADDITEM("StaticTypeError", CiExc_StaticTypeError);
-  ADDITEM("StrictModule", &Ci_StrictModule_Type);
-  ADDITEM("cached_property", &PyCachedProperty_Type);
-  ADDITEM("cached_property_with_descr", &PyCachedPropertyWithDescr_Type);
-  ADDITEM("async_cached_property", &PyAsyncCachedProperty_Type);
-  ADDITEM("async_cached_classproperty", &PyAsyncCachedClassProperty_Type);
   ADDITEM("AsyncLazyValue", async_lazy_value->asyncLazyValueType());
   ADDITEM("AwaitableValue", async_lazy_value->awaitableValueType());
+  ADDITEM("StaticTypeError", CiExc_StaticTypeError);
+  ADDITEM("StrictModule", &Ci_StrictModule_Type);
 
 #undef ADDITEM
 

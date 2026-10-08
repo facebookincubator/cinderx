@@ -5,6 +5,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_modsupport.h"
@@ -23,6 +24,7 @@ static int cached_classproperty_traverse(
     PyCachedClassPropertyDescrObject* prop,
     visitproc visit,
     void* arg) {
+  Py_VISIT(Py_TYPE(prop));
   Py_VISIT(prop->func);
   Py_VISIT(prop->value);
   return 0;
@@ -93,7 +95,7 @@ static void cached_classproperty_dealloc(PyCachedClassPropertyDescrObject* cp) {
   Py_XDECREF(cp->name);
   Py_XDECREF(cp->value);
   PyTypeObject* type = Py_TYPE(cp);
-  Py_TYPE(cp)->tp_free(cp);
+  type->tp_free(cp);
   Py_DECREF(type);
 }
 
@@ -144,11 +146,12 @@ static PyType_Slot PyCachedClassProperty_slots[] = {
     {0, 0},
 };
 
-PyType_Spec _PyCachedClassProperty_TypeSpec = {
-    "builtins.cached_classproperty",
+PyType_Spec PyCachedClassProperty_Spec = {
+    "_cinderx.cached_classproperty",
     sizeof(PyCachedClassPropertyDescrObject),
     0,
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_IMMUTABLETYPE,
     PyCachedClassProperty_slots};
 
 /* end fb t46346203 */
@@ -159,13 +162,11 @@ static int cached_property_traverse(
     PyCachedPropertyDescrObject* prop,
     visitproc visit,
     void* arg) {
+  Py_VISIT(Py_TYPE(prop));
   Py_VISIT(prop->func);
   Py_VISIT(prop->name_or_descr);
   return 0;
 }
-
-PyTypeObject PyCachedProperty_Type;
-PyTypeObject PyCachedPropertyWithDescr_Type;
 
 static int
 cached_property_init(PyObject* self, PyObject* args, PyObject* kwds) {
@@ -200,19 +201,27 @@ cached_property_init(PyObject* self, PyObject* args, PyObject* kwds) {
 
     /* change our type to enable setting the cached property, we don't allow
      * subtypes because we can't change their type, and the descriptor would
-     * need to account for doing the lookup, and we'd need to dynamically
-     * create a subtype of them too, not to mention dealing with extra ref
-     * counting on the types */
-    if (Py_TYPE(self) != &PyCachedProperty_Type &&
-        Py_TYPE(self) != &PyCachedPropertyWithDescr_Type) {
+     * need to account for doing the lookup, and we'd need to dynamically create
+     * a subtype of them too, not to mention dealing with extra ref counting on
+     * the types */
+    PyTypeObject* self_type = Py_TYPE(self);
+    PyTypeObject* cached_prop_type = Ci_GetCachedPropertyType();
+    PyTypeObject* cached_prop_with_descr_type =
+        Ci_GetCachedPropertyWithDescrType();
+    if (self_type != cached_prop_type &&
+        self_type != cached_prop_with_descr_type) {
       PyErr_SetString(
           PyExc_TypeError,
           "cached_property: descr cannot be used with subtypes of "
-          "cached_property");
+          "_cinderx.cached_property");
       return -1;
     }
 
-    Py_SET_TYPE(self, &PyCachedPropertyWithDescr_Type);
+    if (self_type != cached_prop_with_descr_type) {
+      Py_INCREF(cached_prop_with_descr_type);
+      Py_SET_TYPE(self, cached_prop_with_descr_type);
+      Py_DECREF(self_type);
+    }
   } else {
     name_or_descr = Py_None;
   }
@@ -340,7 +349,9 @@ static void cached_property_dealloc(PyCachedPropertyDescrObject* cp) {
   PyObject_GC_UnTrack(cp);
   Py_XDECREF(cp->func);
   Py_XDECREF(cp->name_or_descr);
-  Py_TYPE(cp)->tp_free(cp);
+  PyTypeObject* type = Py_TYPE(cp);
+  type->tp_free((PyObject*)cp);
+  Py_DECREF(type);
 }
 
 static PyObject* cached_property_get___doc__(
@@ -523,38 +534,52 @@ static PyMethodDef cached_property_methods[] = {
      NULL},
     {NULL, NULL}};
 
-PyTypeObject PyCachedProperty_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "cached_property",
-    .tp_basicsize = sizeof(PyCachedPropertyDescrObject),
-    .tp_dealloc = (destructor)cached_property_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-    .tp_doc = cached_property_doc,
-    .tp_traverse = (traverseproc)cached_property_traverse,
-    .tp_descr_get = cached_property_get,
-    .tp_members = cached_property_members,
-    .tp_getset = cached_property_getsetlist,
-    .tp_new = PyType_GenericNew,
-    .tp_init = cached_property_init,
-    .tp_alloc = PyType_GenericAlloc,
-    .tp_free = PyObject_GC_Del,
-    .tp_methods = cached_property_methods,
+static PyType_Slot PyCachedProperty_slots[] = {
+    {Py_tp_dealloc, (void*)cached_property_dealloc},
+    {Py_tp_traverse, (void*)cached_property_traverse},
+    {Py_tp_descr_get, (void*)cached_property_get},
+    {Py_tp_members, cached_property_members},
+    {Py_tp_getset, cached_property_getsetlist},
+    {Py_tp_doc, (void*)cached_property_doc},
+    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_init, (void*)cached_property_init},
+    {Py_tp_alloc, PyType_GenericAlloc},
+    {Py_tp_free, PyObject_GC_Del},
+    {Py_tp_methods, cached_property_methods},
+    {0, NULL},
 };
 
-PyTypeObject PyCachedPropertyWithDescr_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "cached_property_with_descr",
-    .tp_basicsize = sizeof(PyCachedPropertyDescrObject),
-    .tp_dealloc = (destructor)cached_property_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-    .tp_doc = cached_property_doc,
-    .tp_traverse = (traverseproc)cached_property_traverse,
-    .tp_descr_get = cached_property_get,
-    .tp_descr_set = cached_property_set,
-    .tp_members = cached_property_members,
-    .tp_getset = cached_property_getsetlist,
-    .tp_new = PyType_GenericNew,
-    .tp_init = cached_property_init,
-    .tp_alloc = PyType_GenericAlloc,
-    .tp_free = PyObject_GC_Del,
+PyType_Spec PyCachedProperty_Spec = {
+    "_cinderx.cached_property",
+    sizeof(PyCachedPropertyDescrObject),
+    0,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_IMMUTABLETYPE,
+    PyCachedProperty_slots,
+};
+
+static PyType_Slot PyCachedPropertyWithDescr_slots[] = {
+    {Py_tp_dealloc, (void*)cached_property_dealloc},
+    {Py_tp_traverse, (void*)cached_property_traverse},
+    {Py_tp_descr_get, (void*)cached_property_get},
+    {Py_tp_descr_set, (void*)cached_property_set},
+    {Py_tp_members, cached_property_members},
+    {Py_tp_getset, cached_property_getsetlist},
+    {Py_tp_doc, (void*)cached_property_doc},
+    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_init, (void*)cached_property_init},
+    {Py_tp_alloc, PyType_GenericAlloc},
+    {Py_tp_free, PyObject_GC_Del},
+    {0, NULL},
+};
+
+PyType_Spec PyCachedPropertyWithDescr_Spec = {
+    "_cinderx.cached_property_with_descr",
+    sizeof(PyCachedPropertyDescrObject),
+    0,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_IMMUTABLETYPE,
+    PyCachedPropertyWithDescr_slots,
 };
 
 /* end fb t46346203 */
@@ -567,6 +592,7 @@ static int async_cached_property_traverse(
     PyAsyncCachedPropertyDescrObject* prop,
     visitproc visit,
     void* arg) {
+  Py_VISIT(Py_TYPE(prop));
   Py_VISIT(prop->func);
   Py_VISIT(prop->name_or_descr);
   return 0;
@@ -591,16 +617,24 @@ static int async_cached_property_init_impl(
      * need to account for doing the lookup, and we'd need to dynamically
      * create a subtype of them too, not to mention dealing with extra ref
      * counting on the types */
-    if (Py_TYPE(self) != &PyAsyncCachedProperty_Type &&
-        Py_TYPE(self) != &PyAsyncCachedPropertyWithDescr_Type) {
+    PyTypeObject* self_type = Py_TYPE(self);
+    PyTypeObject* async_cached_prop_type = Ci_GetAsyncCachedPropertyType();
+    PyTypeObject* async_cached_prop_with_descr_type =
+        Ci_GetAsyncCachedPropertyWithDescrType();
+    if (self_type != async_cached_prop_type &&
+        self_type != async_cached_prop_with_descr_type) {
       PyErr_SetString(
           PyExc_TypeError,
           "async_cached_property: descr cannot be used with subtypes of "
-          "async_cached_property");
+          "_cinderx.async_cached_property");
       return -1;
     }
 
-    Py_SET_TYPE(self, &PyAsyncCachedPropertyWithDescr_Type);
+    if (self_type != async_cached_prop_with_descr_type) {
+      Py_INCREF(async_cached_prop_with_descr_type);
+      Py_SET_TYPE(self, async_cached_prop_with_descr_type);
+      Py_DECREF(self_type);
+    }
     self->name_or_descr = name_or_descr;
   } else if (PyFunction_Check(func)) {
     self->name_or_descr = ((PyFunctionObject*)func)->func_name;
@@ -715,7 +749,9 @@ static void async_cached_property_dealloc(
   PyObject_GC_UnTrack(cp);
   Py_XDECREF(cp->func);
   Py_XDECREF(cp->name_or_descr);
-  Py_TYPE(cp)->tp_free(cp);
+  PyTypeObject* type = Py_TYPE(cp);
+  type->tp_free((PyObject*)cp);
+  Py_DECREF(type);
 }
 
 static PyObject* async_cached_property_get___doc__(
@@ -815,7 +851,7 @@ async_cached_property_init(PyObject* self, PyObject* args, PyObject* kwargs) {
   int return_value = -1;
   static const char* const _keywords[] = {"func", "name_or_descr", NULL};
   static _PyArg_Parser _parser = {
-      .keywords = _keywords, .fname = "async_cached_property"};
+      .keywords = _keywords, .fname = "_cinderx.async_cached_property"};
   PyObject* argsbuf[2];
   PyObject* const* fastargs;
   Py_ssize_t nargs = PyTuple_GET_SIZE(args);
@@ -842,7 +878,7 @@ async_cached_property_init(PyObject* self, PyObject* args, PyObject* kwargs) {
   }
   if (!PyObject_TypeCheck(fastargs[1], &PyMemberDescr_Type)) {
     _PyArg_BadArgument(
-        "async_cached_property",
+        "_cinderx.async_cached_property",
         "argument 'name_or_descr'",
         (&PyMemberDescr_Type)->tp_name,
         fastargs[1]);
@@ -878,7 +914,7 @@ static PyObject* async_cached_classproperty_new(
   PyObject* return_value = NULL;
   static const char* const _keywords[] = {"func", NULL};
   static _PyArg_Parser _parser = {
-      .keywords = _keywords, .fname = "async_cached_classproperty"};
+      .keywords = _keywords, .fname = "_cinderx.async_cached_classproperty"};
   PyObject* argsbuf[1];
   PyObject* const* fastargs;
   Py_ssize_t nargs = PyTuple_GET_SIZE(args);
@@ -899,7 +935,7 @@ static PyObject* async_cached_classproperty_new(
   }
   if (!PyObject_TypeCheck(fastargs[0], &PyFunction_Type)) {
     _PyArg_BadArgument(
-        "async_cached_classproperty",
+        "_cinderx.async_cached_classproperty",
         "argument 'func'",
         (&PyFunction_Type)->tp_name,
         fastargs[0]);
@@ -913,37 +949,51 @@ exit:
 }
 /* end clinic-generated code */
 
-PyTypeObject PyAsyncCachedProperty_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "async_cached_property",
-    .tp_basicsize = sizeof(PyAsyncCachedPropertyDescrObject),
-    .tp_dealloc = (destructor)async_cached_property_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-    .tp_doc = async_cached_property_init__doc__,
-    .tp_traverse = (traverseproc)async_cached_property_traverse,
-    .tp_descr_get = async_cached_property_get,
-    .tp_members = async_cached_property_members,
-    .tp_getset = async_cached_property_getsetlist,
-    .tp_new = PyType_GenericNew,
-    .tp_init = async_cached_property_init,
-    .tp_alloc = PyType_GenericAlloc,
-    .tp_free = PyObject_GC_Del,
+static PyType_Slot PyAsyncCachedProperty_slots[] = {
+    {Py_tp_dealloc, (void*)async_cached_property_dealloc},
+    {Py_tp_traverse, (void*)async_cached_property_traverse},
+    {Py_tp_descr_get, (void*)async_cached_property_get},
+    {Py_tp_members, async_cached_property_members},
+    {Py_tp_getset, async_cached_property_getsetlist},
+    {Py_tp_doc, (void*)async_cached_property_init__doc__},
+    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_init, (void*)async_cached_property_init},
+    {Py_tp_alloc, PyType_GenericAlloc},
+    {Py_tp_free, PyObject_GC_Del},
+    {0, NULL},
 };
 
-PyTypeObject PyAsyncCachedPropertyWithDescr_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "async_cached_property_with_descr",
-    .tp_basicsize = sizeof(PyAsyncCachedPropertyDescrObject),
-    .tp_dealloc = (destructor)async_cached_property_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-    .tp_doc = async_cached_property_init__doc__,
-    .tp_traverse = (traverseproc)async_cached_property_traverse,
-    .tp_descr_get = async_cached_property_get,
-    .tp_descr_set = async_cached_property_set,
-    .tp_members = async_cached_property_members,
-    .tp_getset = async_cached_property_getsetlist,
-    .tp_new = PyType_GenericNew,
-    .tp_init = async_cached_property_init,
-    .tp_alloc = PyType_GenericAlloc,
-    .tp_free = PyObject_GC_Del,
+PyType_Spec PyAsyncCachedProperty_Spec = {
+    "_cinderx.async_cached_property",
+    sizeof(PyAsyncCachedPropertyDescrObject),
+    0,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_IMMUTABLETYPE,
+    PyAsyncCachedProperty_slots,
+};
+
+static PyType_Slot PyAsyncCachedPropertyWithDescr_slots[] = {
+    {Py_tp_dealloc, (void*)async_cached_property_dealloc},
+    {Py_tp_traverse, (void*)async_cached_property_traverse},
+    {Py_tp_descr_get, (void*)async_cached_property_get},
+    {Py_tp_descr_set, (void*)async_cached_property_set},
+    {Py_tp_members, async_cached_property_members},
+    {Py_tp_getset, async_cached_property_getsetlist},
+    {Py_tp_doc, (void*)async_cached_property_init__doc__},
+    {Py_tp_new, PyType_GenericNew},
+    {Py_tp_init, (void*)async_cached_property_init},
+    {Py_tp_alloc, PyType_GenericAlloc},
+    {Py_tp_free, PyObject_GC_Del},
+    {0, NULL},
+};
+
+PyType_Spec PyAsyncCachedPropertyWithDescr_Spec = {
+    "_cinderx.async_cached_property_with_descr",
+    sizeof(PyAsyncCachedPropertyDescrObject),
+    0,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_IMMUTABLETYPE,
+    PyAsyncCachedPropertyWithDescr_slots,
 };
 
 /* end fb T82701047 */
@@ -953,6 +1003,7 @@ static int async_cached_classproperty_traverse(
     PyAsyncCachedClassPropertyDescrObject* prop,
     visitproc visit,
     void* arg) {
+  Py_VISIT(Py_TYPE(prop));
   Py_VISIT(prop->func);
   Py_VISIT(prop->value);
   return 0;
@@ -1011,7 +1062,9 @@ static void async_cached_classproperty_dealloc(
   Py_XDECREF(cp->func);
   Py_XDECREF(cp->name);
   Py_XDECREF(cp->value);
-  Py_TYPE(cp)->tp_free(cp);
+  PyTypeObject* type = Py_TYPE(cp);
+  type->tp_free((PyObject*)cp);
+  Py_DECREF(type);
 }
 
 static PyObject* async_cached_classproperty_get___doc__(
@@ -1047,19 +1100,26 @@ static PyMemberDef async_cached_classproperty_members[] = {
      READONLY},
     {0}};
 
-PyTypeObject PyAsyncCachedClassProperty_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0).tp_name = "async_cached_classproperty",
-    .tp_basicsize = sizeof(PyAsyncCachedClassPropertyDescrObject),
-    .tp_dealloc = (destructor)async_cached_classproperty_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-    .tp_doc = async_cached_classproperty_new__doc__,
-    .tp_traverse = (traverseproc)async_cached_classproperty_traverse,
-    .tp_descr_get = async_cached_classproperty_get,
-    .tp_members = async_cached_classproperty_members,
-    .tp_getset = async_cached_classproperty_getsetlist,
-    .tp_new = async_cached_classproperty_new,
-    .tp_alloc = PyType_GenericAlloc,
-    .tp_free = PyObject_GC_Del,
+static PyType_Slot PyAsyncCachedClassProperty_slots[] = {
+    {Py_tp_dealloc, (void*)async_cached_classproperty_dealloc},
+    {Py_tp_traverse, (void*)async_cached_classproperty_traverse},
+    {Py_tp_descr_get, (void*)async_cached_classproperty_get},
+    {Py_tp_members, async_cached_classproperty_members},
+    {Py_tp_getset, async_cached_classproperty_getsetlist},
+    {Py_tp_doc, (void*)async_cached_classproperty_new__doc__},
+    {Py_tp_new, (void*)async_cached_classproperty_new},
+    {Py_tp_alloc, PyType_GenericAlloc},
+    {Py_tp_free, PyObject_GC_Del},
+    {0, NULL},
+};
+
+PyType_Spec PyAsyncCachedClassProperty_Spec = {
+    "_cinderx.async_cached_classproperty",
+    sizeof(PyAsyncCachedClassPropertyDescrObject),
+    0,
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_IMMUTABLETYPE,
+    PyAsyncCachedClassProperty_slots,
 };
 
 /* end fb T82701047 */

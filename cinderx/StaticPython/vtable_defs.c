@@ -12,6 +12,7 @@
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
+#include "cinderx/module_c_state.h"
 
 #define _PyClassMethod_Check(op) (Py_TYPE(op) == &PyClassMethod_Type)
 
@@ -126,6 +127,7 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignatureFromFunction(
 
 _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignature(
     PyObject* original) {
+  PyTypeObject* type = Py_TYPE(original);
   if (PyFunction_Check(original)) {
     return _PyClassLoader_GetThunkSignatureFromFunction(original, 0);
   } else if (_PyClassMethod_Check(original)) {
@@ -135,7 +137,7 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignature(
       return NULL;
     }
     return _PyClassLoader_GetThunkSignatureFromFunction(original, 0);
-  } else if (Py_TYPE(original) == &PyStaticMethod_Type) {
+  } else if (type == &PyStaticMethod_Type) {
     original = Ci_PyStaticMethod_GetFunc(original);
     if (!PyFunction_Check(original)) {
       PyErr_SetString(PyExc_RuntimeError, "Not a function in a class method");
@@ -145,26 +147,26 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignature(
     // INVOKE_METHOD.
     return _PyClassLoader_GetThunkSignatureFromFunction(original, 1);
   } else if (
-      Py_TYPE(original) == &_PyTypedDescriptorWithDefaultValue_Type ||
-      Py_TYPE(original) == &PyCachedPropertyWithDescr_Type ||
-      Py_TYPE(original) == &PyAsyncCachedPropertyWithDescr_Type ||
-      Py_TYPE(original) == &PyProperty_Type) {
+      type == &_PyTypedDescriptorWithDefaultValue_Type ||
+      type == &PyProperty_Type ||
+      type == Ci_GetAsyncCachedPropertyWithDescrType() ||
+      type == Ci_GetCachedPropertyWithDescrType()) {
     return &simple_sigs[1];
-  } else if (Py_TYPE(original) == &_PyType_PropertyThunk) {
+  } else if (type == &_PyType_PropertyThunk) {
     // TODO: Test setter case?
     if (_PyClassLoader_PropertyThunk_Kind(original) == THUNK_SETTER) {
       return &simple_sigs[2];
     } else {
       return &simple_sigs[1];
     }
-  } else if (Py_TYPE(original) == &PyMethodDescr_Type) {
+  } else if (type == &PyMethodDescr_Type) {
     PyMethodDescrObject* descr = (PyMethodDescrObject*)original;
     if (descr->d_method->ml_flags == METH_NOARGS) {
       return &simple_sigs[0];
     } else if (descr->d_method->ml_flags == METH_O) {
       return &simple_sigs[1];
     }
-  } else if (Py_TYPE(original) == &PyCFunction_Type) {
+  } else if (type == &PyCFunction_Type) {
     PyCFunctionObject* func = (PyCFunctionObject*)original;
     if (func->m_ml->ml_flags == Ci_METH_TYPED) {
       Ci_PyTypedMethodDef* def = (Ci_PyTypedMethodDef*)func->m_ml->ml_meth;

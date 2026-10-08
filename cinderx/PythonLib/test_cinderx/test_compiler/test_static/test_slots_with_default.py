@@ -546,7 +546,7 @@ class SlotsWithDefaultTests(StaticTestBase):
 
             self.assertEqual(mod.f(mod.C()), (123, 1))
             with self.assertRaisesRegex(
-                TypeError, "'cached_property' doesn't support __set__"
+                TypeError, "'_cinderx.cached_property' doesn't support __set__"
             ):
                 self.assertEqual(mod.f(D()), (2, D.x))
 

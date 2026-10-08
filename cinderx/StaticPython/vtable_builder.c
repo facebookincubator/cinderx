@@ -127,17 +127,18 @@ int used_in_vtable_worker(PyObject* value) {
 }
 
 int used_in_vtable(PyObject* value) {
+  PyTypeObject* type = Py_TYPE(value);
   if (used_in_vtable_worker(value)) {
     return 1;
   } else if (
-      Py_TYPE(value) == &PyStaticMethod_Type &&
+      type == &PyStaticMethod_Type &&
       used_in_vtable_worker(Ci_PyStaticMethod_GetFunc(value))) {
     return 1;
   } else if (
-      Py_TYPE(value) == &PyClassMethod_Type &&
+      type == &PyClassMethod_Type &&
       used_in_vtable_worker(Ci_PyClassMethod_GetFunc(value))) {
     return 1;
-  } else if (Py_TYPE(value) == &PyProperty_Type) {
+  } else if (type == &PyProperty_Type) {
     PyObject* func = ((Ci_propertyobject*)value)->prop_get;
     if (func != NULL && used_in_vtable_worker(func)) {
       return 1;
@@ -146,12 +147,12 @@ int used_in_vtable(PyObject* value) {
     if (func != NULL && used_in_vtable_worker(func)) {
       return 1;
     }
-  } else if (Py_TYPE(value) == &PyCachedPropertyWithDescr_Type) {
+  } else if (type == Ci_GetCachedPropertyWithDescrType()) {
     PyObject* func = ((PyCachedPropertyDescrObject*)value)->func;
     if (used_in_vtable_worker(func)) {
       return 1;
     }
-  } else if (Py_TYPE(value) == &PyAsyncCachedPropertyWithDescr_Type) {
+  } else if (type == Ci_GetAsyncCachedPropertyWithDescrType()) {
     PyObject* func = ((PyAsyncCachedPropertyDescrObject*)value)->func;
     if (used_in_vtable_worker(func)) {
       return 1;
@@ -661,7 +662,9 @@ static PyObject* classloader_get_property_fget(
     PyTypeObject* type,
     PyObject* name,
     PyObject* property) {
-  if (Py_TYPE(property) == &PyProperty_Type) {
+  PyTypeObject* prop_type = Py_TYPE(property);
+
+  if (prop_type == &PyProperty_Type) {
     PyObject* func = ((Ci_propertyobject*)property)->prop_get;
     if (func == NULL) {
       func = classloader_get_property_missing_fget();
@@ -669,9 +672,9 @@ static PyObject* classloader_get_property_fget(
     Py_XINCREF(func);
     return func;
   } else if (
-      Py_TYPE(property) == &PyCachedPropertyWithDescr_Type ||
-      Py_TYPE(property) == &PyAsyncCachedPropertyWithDescr_Type ||
-      Py_TYPE(property) == &_PyTypedDescriptorWithDefaultValue_Type) {
+      prop_type == Ci_GetCachedPropertyWithDescrType() ||
+      prop_type == Ci_GetAsyncCachedPropertyWithDescrType() ||
+      prop_type == &_PyTypedDescriptorWithDefaultValue_Type) {
     PyObject* thunk = _PyClassLoader_PropertyThunkGet_New(property);
     if (thunk == NULL) {
       return NULL;
@@ -691,7 +694,9 @@ static PyObject* classloader_get_property_fset(
     PyTypeObject* type,
     PyObject* name,
     PyObject* property) {
-  if (Py_TYPE(property) == &PyProperty_Type) {
+  PyTypeObject* prop_type = Py_TYPE(property);
+
+  if (prop_type == &PyProperty_Type) {
     PyObject* func = ((Ci_propertyobject*)property)->prop_set;
     if (func == NULL) {
       func = classloader_get_property_missing_fset();
@@ -699,8 +704,8 @@ static PyObject* classloader_get_property_fset(
     Py_XINCREF(func);
     return func;
   } else if (
-      Py_TYPE(property) == &PyCachedPropertyWithDescr_Type ||
-      Py_TYPE(property) == &PyAsyncCachedPropertyWithDescr_Type) {
+      prop_type == Ci_GetCachedPropertyWithDescrType() ||
+      prop_type == Ci_GetAsyncCachedPropertyWithDescrType()) {
     PyObject* func = classloader_get_property_missing_fset();
     Py_XINCREF(func);
     return func;
@@ -717,7 +722,9 @@ static PyObject* classloader_get_property_fdel(
     PyTypeObject* type,
     PyObject* name,
     PyObject* property) {
-  if (Py_TYPE(property) == &PyProperty_Type) {
+  PyTypeObject* prop_type = Py_TYPE(property);
+
+  if (prop_type == &PyProperty_Type) {
     PyObject* func = ((Ci_propertyobject*)property)->prop_del;
     if (func == NULL) {
       func = classloader_get_property_missing_fdel();
@@ -725,8 +732,8 @@ static PyObject* classloader_get_property_fdel(
     Py_XINCREF(func);
     return func;
   } else if (
-      Py_TYPE(property) == &PyCachedPropertyWithDescr_Type ||
-      Py_TYPE(property) == &PyAsyncCachedPropertyWithDescr_Type) {
+      prop_type == Ci_GetCachedPropertyWithDescrType() ||
+      prop_type == Ci_GetAsyncCachedPropertyWithDescrType()) {
     PyObject* func = classloader_get_property_missing_fdel();
     Py_XINCREF(func);
     return func;
@@ -1062,10 +1069,11 @@ int _PyClassLoader_UpdateSlot(
   assert(cur_type != NULL);
 
   // if this is a property slot, also update the getter and setter slots
-  if (Py_TYPE(original) == &PyProperty_Type ||
-      Py_TYPE(original) == &PyCachedPropertyWithDescr_Type ||
-      Py_TYPE(original) == &PyAsyncCachedPropertyWithDescr_Type ||
-      Py_TYPE(original) == &_PyTypedDescriptorWithDefaultValue_Type) {
+  PyTypeObject* original_type = Py_TYPE(original);
+  if (original_type == &PyProperty_Type ||
+      original_type == Ci_GetCachedPropertyWithDescrType() ||
+      original_type == Ci_GetAsyncCachedPropertyWithDescrType() ||
+      original_type == &_PyTypedDescriptorWithDefaultValue_Type) {
     if (new_value) {
       // If we have a new value, and it's not a descriptor, we can type-check it
       // at the time of assignment.
@@ -1143,8 +1151,8 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
     }
     PyTypeObject* val_type = Py_TYPE(value);
     if (val_type == &PyProperty_Type ||
-        val_type == &PyCachedPropertyWithDescr_Type ||
-        val_type == &PyAsyncCachedPropertyWithDescr_Type) {
+        val_type == Ci_GetCachedPropertyWithDescrType() ||
+        val_type == Ci_GetAsyncCachedPropertyWithDescrType()) {
       PyObject* getter_index = PyLong_FromLong(slot_index++);
       PyObject* getter_tuple = get_property_getter_descr_tuple(key);
       err = PyDict_SetItem(slotmap, getter_tuple, getter_index);

@@ -11,6 +11,7 @@
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
+#include "cinderx/module_c_state.h"
 
 int _PyClassLoader_IsPropertyName(PyTupleObject* name) {
   if (PyTuple_GET_SIZE(name) != 2) {
@@ -134,6 +135,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
     int* exact,
     int* func_flags) {
   *optional = *exact = *func_flags = 0;
+  PyTypeObject* func_type = Py_TYPE(func);
   PyTypeObject* res = NULL;
   if (PyFunction_Check(func)) {
     if (_PyClassLoader_IsStaticFunction(func)) {
@@ -142,38 +144,38 @@ PyObject* _PyClassLoader_ResolveReturnType(
       res = &PyBaseObject_Type;
       Py_INCREF(res);
     }
-  } else if (Py_TYPE(func) == &PyStaticMethod_Type) {
+  } else if (func_type == &PyStaticMethod_Type) {
     PyObject* static_func = Ci_PyStaticMethod_GetFunc(func);
     if (_PyClassLoader_IsStaticFunction(static_func)) {
       res = resolve_function_rettype(static_func, optional, exact, func_flags);
     }
     *func_flags |= Ci_FUNC_FLAGS_STATICMETHOD;
-  } else if (Py_TYPE(func) == &PyClassMethod_Type) {
+  } else if (func_type == &PyClassMethod_Type) {
     PyObject* static_func = Ci_PyClassMethod_GetFunc(func);
     if (_PyClassLoader_IsStaticFunction(static_func)) {
       res = resolve_function_rettype(static_func, optional, exact, func_flags);
     }
     *func_flags |= Ci_FUNC_FLAGS_CLASSMETHOD;
-  } else if (Py_TYPE(func) == &PyProperty_Type) {
+  } else if (func_type == &PyProperty_Type) {
     Ci_propertyobject* property = (Ci_propertyobject*)func;
     PyObject* fget = property->prop_get;
     if (_PyClassLoader_IsStaticFunction(fget)) {
       res = resolve_function_rettype(fget, optional, exact, func_flags);
     }
-  } else if (Py_TYPE(func) == &PyCachedPropertyWithDescr_Type) {
+  } else if (func_type == Ci_GetCachedPropertyWithDescrType()) {
     PyCachedPropertyDescrObject* property = (PyCachedPropertyDescrObject*)func;
     if (_PyClassLoader_IsStaticFunction(property->func)) {
       res =
           resolve_function_rettype(property->func, optional, exact, func_flags);
     }
-  } else if (Py_TYPE(func) == &PyAsyncCachedPropertyWithDescr_Type) {
+  } else if (func_type == Ci_GetAsyncCachedPropertyWithDescrType()) {
     PyAsyncCachedPropertyDescrObject* property =
         (PyAsyncCachedPropertyDescrObject*)func;
     if (_PyClassLoader_IsStaticFunction(property->func)) {
       res =
           resolve_function_rettype(property->func, optional, exact, func_flags);
     }
-  } else if (Py_TYPE(func) == &_PyType_PropertyThunk) {
+  } else if (func_type == &_PyType_PropertyThunk) {
     switch (_PyClassLoader_PropertyThunk_Kind(func)) {
       case THUNK_SETTER:
       case THUNK_DELETER: {
@@ -188,7 +190,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
         break;
       }
     }
-  } else if (Py_TYPE(func) == &_PyTypedDescriptorWithDefaultValue_Type) {
+  } else if (func_type == &_PyTypedDescriptorWithDefaultValue_Type) {
     _PyTypedDescriptorWithDefaultValue* td =
         (_PyTypedDescriptorWithDefaultValue*)func;
     if (PyTuple_CheckExact(td->td_type)) {
@@ -206,7 +208,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
     if (res == NULL) {
       return NULL;
     }
-  } else if (Py_TYPE(func) == &_PyType_StaticThunk) {
+  } else if (func_type == &_PyType_StaticThunk) {
     _Py_StaticThunk* sthunk = (_Py_StaticThunk*)func;
     res = sthunk->thunk_tcs.tcs_rt.rt_expected;
     *optional = sthunk->thunk_tcs.tcs_rt.rt_optional;
@@ -273,8 +275,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
         }
       }
     } else if (
-        Py_TYPE(func) == &PyMethodDescr_Type ||
-        Py_TYPE(func) == &PyCFunction_Type) {
+        func_type == &PyMethodDescr_Type || func_type == &PyCFunction_Type) {
       // We emit invokes to untyped builtin methods; just assume they
       // return object.
       *exact = 0;
