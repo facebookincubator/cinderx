@@ -19,7 +19,7 @@ class Simplify final : public Pass {
   Simplify(const Simplify&) = delete;
   Simplify& operator=(const Simplify&) = delete;
 
-  void run(Function& func) override;
+  bool run(Function& func) override;
 
   static std::unique_ptr<Simplify> factory() {
     return std::make_unique<Simplify>();

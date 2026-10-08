@@ -2806,7 +2806,7 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
 } // namespace
 
-void Simplify::run(Function& irfunc) {
+bool Simplify::run(Function& irfunc) {
   Env env{irfunc};
 
   const SimplifierConfig& config = getConfig().simplifier;
@@ -2816,6 +2816,7 @@ void Simplify::run(Function& irfunc) {
   // Iterate the simplifier until the CFG stops changing, or we hit limits on
   // total number of iterations or the number of new blocks added.
   bool changed = true;
+  bool changed_ever = false;
   for (size_t i = 0;
        changed && i < iteration_limit && env.new_blocks < new_block_limit;
        ++i) {
@@ -2901,6 +2902,8 @@ void Simplify::run(Function& irfunc) {
     }
 
     if (changed) {
+      changed_ever = true;
+
       // This iteration may have split blocks or folded CondBranches into
       // Branches, so any cached dominance is stale before we run CleanCFG
       // (which consults the dominator tree).  This is conservative, `changed`
@@ -2913,6 +2916,8 @@ void Simplify::run(Function& irfunc) {
       CleanCFG{}.run(irfunc);
     }
   }
+
+  return changed_ever;
 }
 
 } // namespace cinderx::jit::hir

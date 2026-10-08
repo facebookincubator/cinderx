@@ -318,7 +318,7 @@ bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
 
 } // namespace
 
-void LoadMethodElimination::run(Function& irfunc) {
+bool LoadMethodElimination::run(Function& irfunc) {
   bool changed = false;
   UnorderedMap<LoadMethodBase*, MethodInvoke> invokes;
   for (auto& block : irfunc.cfg.blocks) {
@@ -368,6 +368,7 @@ void LoadMethodElimination::run(Function& irfunc) {
   if (changed) {
     reflowTypes(irfunc);
   }
+  return changed;
 }
 
 } // namespace cinderx::jit::hir

@@ -68,7 +68,7 @@ struct InlineStackState {
 
 } // namespace
 
-void InsertUpdatePrevInstr::run([[maybe_unused]] Function& func) {
+bool InsertUpdatePrevInstr::run(Function& func) {
   // We can have instructions w/ different code objects when we have
   // inlined functions so we maintain multiple BytecodeIndexToLine based upon
   // the code object
@@ -81,6 +81,7 @@ void InsertUpdatePrevInstr::run([[maybe_unused]] Function& func) {
 
   worklist.emplace(func.cfg.entry_block, nullptr);
   [[maybe_unused]] bool inited_once = false;
+  size_t new_instrs = 0;
   while (!worklist.empty()) {
     auto cur = worklist.top();
     auto block = cur.block;
@@ -101,6 +102,7 @@ void InsertUpdatePrevInstr::run([[maybe_unused]] Function& func) {
             last_emitted = UpdatePrevInstr::create(line_no, parent);
             last_emitted->copyBytecodeOffset(instr);
             last_emitted->insertBefore(instr);
+            new_instrs += 1;
           }
         };
         // If we don't have a valid line table to optimize with, update after
@@ -188,6 +190,8 @@ void InsertUpdatePrevInstr::run([[maybe_unused]] Function& func) {
       }
     }
   }
+
+  return new_instrs > 0;
 }
 
 } // namespace cinderx::jit::hir

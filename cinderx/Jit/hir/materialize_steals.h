@@ -10,7 +10,7 @@ class MaterializeSteals final : public Pass {
  public:
   MaterializeSteals() : Pass("MaterializeSteals") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<MaterializeSteals> factory() {
     return std::make_unique<MaterializeSteals>();

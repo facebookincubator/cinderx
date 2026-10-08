@@ -10,7 +10,7 @@ class GuardTypeRemoval final : public Pass {
  public:
   GuardTypeRemoval() : Pass("GuardTypeRemoval") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<GuardTypeRemoval> factory() {
     return std::make_unique<GuardTypeRemoval>();

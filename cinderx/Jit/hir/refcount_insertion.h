@@ -14,7 +14,7 @@ class RefcountInsertion final : public Pass {
   RefcountInsertion(const RefcountInsertion&) = delete;
   RefcountInsertion& operator=(const RefcountInsertion&) = delete;
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<RefcountInsertion> factory() {
     return std::make_unique<RefcountInsertion>();

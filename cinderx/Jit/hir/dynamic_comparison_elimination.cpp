@@ -19,7 +19,7 @@ Instr* replaceCompare(Compare* compare, IsTruthy* truthy) {
 
 } // namespace
 
-void DynamicComparisonElimination::run(Function& irfunc) {
+bool DynamicComparisonElimination::run(Function& irfunc) {
   LivenessAnalysis liveness{irfunc};
   liveness.run();
   auto last_uses = liveness.getLastUses();
@@ -116,6 +116,7 @@ void DynamicComparisonElimination::run(Function& irfunc) {
   if (changed) {
     reflowTypes(irfunc);
   }
+  return changed;
 }
 
 } // namespace cinderx::jit::hir

@@ -96,7 +96,7 @@ bool guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
 
 } // namespace
 
-void GuardTypeRemoval::run(Function& func) {
+bool GuardTypeRemoval::run(Function& func) {
   RegUses reg_uses = collectDirectRegUses(func);
   std::vector<std::unique_ptr<Instr>> removed_guards;
   for (auto& block : func.cfg.blocks) {
@@ -124,6 +124,7 @@ void GuardTypeRemoval::run(Function& func) {
     CopyPropagation{}.run(func);
     reflowTypes(func);
   }
+  return changed;
 }
 
 } // namespace cinderx::jit::hir

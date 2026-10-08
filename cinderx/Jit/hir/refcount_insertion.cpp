@@ -1284,7 +1284,7 @@ void optimizeLongDecrefRuns(Function& irfunc) {
 
 } // namespace
 
-void RefcountInsertion::run(Function& func) {
+bool RefcountInsertion::run(Function& func) {
   PhiElimination{}.run(func);
   bindGuards(func);
   func.cfg.splitCriticalEdges();
@@ -1358,6 +1358,10 @@ void RefcountInsertion::run(Function& func) {
   // Optimize long decref runs
   optimizeLongDecrefRuns(func);
   func.invalidateDomTree();
+
+  // Assume this always modifies the CFG.  Nothing will ever depend on the
+  // return value of this pass.
+  return true;
 }
 
 } // namespace cinderx::jit::hir

@@ -53,8 +53,9 @@ class AllPasses : public Pass {
  public:
   AllPasses() : Pass("@AllPasses") {}
 
-  void run(Function& irfunc) override {
+  bool run(Function& irfunc) override {
     Compiler::runPasses(irfunc, PassConfig::kAll);
+    return true;
   }
 
   static std::unique_ptr<AllPasses> factory() {

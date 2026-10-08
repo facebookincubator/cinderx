@@ -16,7 +16,7 @@ bool isUseful(Instr& instr) {
 
 } // namespace
 
-void DeadCodeElimination::run(Function& func) {
+bool DeadCodeElimination::run(Function& func) {
   Worklist<Instr*> worklist;
   for (auto& block : func.cfg.blocks) {
     for (Instr& instr : block) {
@@ -25,6 +25,7 @@ void DeadCodeElimination::run(Function& func) {
       }
     }
   }
+
   std::unordered_set<Instr*> live_set;
   while (!worklist.empty()) {
     auto live_op = worklist.front();
@@ -38,6 +39,8 @@ void DeadCodeElimination::run(Function& func) {
       });
     }
   }
+
+  size_t deleted = 0;
   for (auto& block : func.cfg.blocks) {
     for (auto it = block.begin(); it != block.end();) {
       auto& instr = *it;
@@ -45,9 +48,12 @@ void DeadCodeElimination::run(Function& func) {
       if (!live_set.contains(&instr)) {
         instr.unlink();
         delete &instr;
+        deleted += 1;
       }
     }
   }
+
+  return deleted > 0;
 }
 
 } // namespace cinderx::jit::hir

@@ -22,7 +22,7 @@ class SinkPrimitiveBox final : public Pass {
  public:
   SinkPrimitiveBox() : Pass("SinkPrimitiveBox") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<SinkPrimitiveBox> factory() {
     return std::make_unique<SinkPrimitiveBox>();

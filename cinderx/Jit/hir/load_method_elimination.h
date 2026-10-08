@@ -10,7 +10,7 @@ class LoadMethodElimination final : public Pass {
  public:
   LoadMethodElimination() : Pass("LoadMethodElimination") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<LoadMethodElimination> factory() {
     return std::make_unique<LoadMethodElimination>();

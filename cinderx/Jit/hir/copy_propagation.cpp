@@ -4,7 +4,7 @@
 
 namespace cinderx::jit::hir {
 
-void CopyPropagation::run(Function& irfunc) {
+bool CopyPropagation::run(Function& irfunc) {
   std::vector<Instr*> assigns;
   for (auto block : irfunc.cfg.getRPOTraversal()) {
     for (auto& instr : *block) {
@@ -23,6 +23,8 @@ void CopyPropagation::run(Function& irfunc) {
     instr->unlink();
     delete instr;
   }
+
+  return !assigns.empty();
 }
 
 } // namespace cinderx::jit::hir

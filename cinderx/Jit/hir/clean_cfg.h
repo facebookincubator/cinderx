@@ -11,7 +11,7 @@ class CleanCFG final : public Pass {
  public:
   CleanCFG() : Pass("CleanCFG") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<CleanCFG> factory() {
     return std::make_unique<CleanCFG>();

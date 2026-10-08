@@ -11,7 +11,8 @@ namespace cinderx::jit::hir {
 // increfs for values that will be stolen, but those increfs are no-ops for
 // deferred-RC tagged pointers. MaterializeRef strips the tag and performs a
 // real incref when needed, ensuring the stolen reference is properly owned.
-void MaterializeSteals::run(Function& func) {
+bool MaterializeSteals::run(Function& func) {
+  size_t new_instrs = 0;
   for (auto& block : func.cfg.blocks) {
     for (auto it = block.begin(); it != block.end(); ++it) {
       Instr& instr = *it;
@@ -48,9 +49,13 @@ void MaterializeSteals::run(Function& func) {
         output->setType(outputType(*materialized));
         block.insert(materialized, cursor);
         instr.setOperand(i, output);
+
+        new_instrs += 1;
       }
     }
   }
+
+  return new_instrs > 0;
 }
 
 } // namespace cinderx::jit::hir

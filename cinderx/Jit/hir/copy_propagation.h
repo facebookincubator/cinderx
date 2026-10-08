@@ -11,7 +11,7 @@ class CopyPropagation final : public Pass {
  public:
   CopyPropagation() : Pass("CopyPropagation") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<CopyPropagation> factory() {
     return std::make_unique<CopyPropagation>();

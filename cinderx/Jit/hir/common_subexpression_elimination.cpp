@@ -240,7 +240,7 @@ std::optional<ValueKey> valueKey(const Instr& instr) {
 
 } // namespace
 
-void CommonSubexpressionElimination::run(Function& irfunc) {
+bool CommonSubexpressionElimination::run(Function& irfunc) {
   const DominatorTree& dom = irfunc.domTree();
   std::unordered_map<ValueKey, Register*, ValueKeyHash> table;
   std::vector<std::unique_ptr<Instr>> removed;
@@ -296,10 +296,11 @@ void CommonSubexpressionElimination::run(Function& irfunc) {
   }
 
   if (removed.empty()) {
-    return;
+    return false;
   }
   CopyPropagation{}.run(irfunc);
   irfunc.invalidateDomTree();
+  return true;
 }
 
 } // namespace cinderx::jit::hir

@@ -15,7 +15,7 @@ class CallSiteLiveValues final : public Pass {
   CallSiteLiveValues(const CallSiteLiveValues&) = delete;
   CallSiteLiveValues& operator=(const CallSiteLiveValues&) = delete;
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 };
 
 } // namespace cinderx::jit::hir

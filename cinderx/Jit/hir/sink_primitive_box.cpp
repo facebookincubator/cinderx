@@ -99,7 +99,7 @@ RegisterSet collectBoxedUses(Function& func) {
 
 } // namespace
 
-void SinkPrimitiveBox::run(Function& func) {
+bool SinkPrimitiveBox::run(Function& func) {
   RegisterSet required_objects = collectBoxedUses(func);
 
   // Map each box we can remove to the unboxed value it was built from.
@@ -115,7 +115,7 @@ void SinkPrimitiveBox::run(Function& func) {
   }
 
   if (sink_map.empty()) {
-    return;
+    return false;
   }
 
   // Rewrite the boxes' remaining (frame-state only) uses to the unboxed value.
@@ -148,6 +148,7 @@ void SinkPrimitiveBox::run(Function& func) {
   // Rewriting inputs can change the type of a Phi or Assign that carried the
   // boxed value through SSA bookkeeping.
   reflowTypes(func);
+  return true;
 }
 
 } // namespace cinderx::jit::hir

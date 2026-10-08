@@ -10,7 +10,7 @@ class DynamicComparisonElimination final : public Pass {
  public:
   DynamicComparisonElimination() : Pass("DynamicComparisonElimination") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<DynamicComparisonElimination> factory() {
     return std::make_unique<DynamicComparisonElimination>();

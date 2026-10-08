@@ -559,12 +559,13 @@ std::vector<BasicBlock*> SSAConstructor::sortedSuccessors(BasicBlock* block) {
 
 } // namespace
 
-void SSAify::run(Function& irfunc) {
-  run(irfunc, irfunc.cfg.entry_block);
-  PhiElimination{}.run(irfunc);
+bool SSAify::run(Function& irfunc) {
+  bool changed = run(irfunc, irfunc.cfg.entry_block);
+  changed |= PhiElimination{}.run(irfunc);
+  return changed;
 }
 
-void SSAify::run(Function& irfunc, BasicBlock* start) {
+bool SSAify::run(Function& irfunc, BasicBlock* start) {
   if (start == irfunc.cfg.entry_block) {
     // Whole-function SSA: reuse (and seed) the function's cached dominator tree
     // rather than build a throwaway one. SSA construction only inserts Phis and
@@ -577,6 +578,10 @@ void SSAify::run(Function& irfunc, BasicBlock* start) {
     SSAConstructor{irfunc.env, start, dom}.run();
   }
   reflowTypes(irfunc, start);
+
+  // Assume this always modifies the CFG.  Nothing will ever depend on the
+  // return value of this pass.
+  return true;
 }
 
 } // namespace cinderx::jit::hir

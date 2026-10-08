@@ -81,7 +81,7 @@ void fillCallSiteLiveRegs(
 
 } // namespace
 
-void CallSiteLiveValues::run(Function& irfunc) {
+bool CallSiteLiveValues::run(Function& irfunc) {
   LivenessAnalysis liveness{irfunc};
   liveness.run();
 
@@ -97,6 +97,8 @@ void CallSiteLiveValues::run(Function& irfunc) {
       live = std::move(live_before);
     }
   }
+
+  return true;
 }
 
 } // namespace cinderx::jit::hir

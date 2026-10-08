@@ -12,7 +12,7 @@ class DeadCodeElimination final : public Pass {
  public:
   DeadCodeElimination() : Pass("DeadCodeElimination") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<DeadCodeElimination> factory() {
     return std::make_unique<DeadCodeElimination>();

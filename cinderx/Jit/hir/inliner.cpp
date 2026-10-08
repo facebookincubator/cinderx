@@ -835,7 +835,7 @@ std::vector<BasicBlock*> inlinedBlocks(BasicBlock* entry, BasicBlock* exit) {
 // Optimize the frame management. If the function is simple enough we can
 // just remove it. If the function can deopt then we will lazily create the
 // frame. If we have arbitrary code execution we need to setup the frame.
-void optimizeFrame(EndInlinedFunction* end) {
+bool optimizeFrame(EndInlinedFunction* end) {
   BeginInlinedFunction* begin = end->matchingBegin();
   // A callee that owns cell or free variables (e.g. the `__class__` cell that
   // zero-arg super() forces into the code object) keeps them in this frame's
@@ -843,7 +843,7 @@ void optimizeFrame(EndInlinedFunction* end) {
   // deopting instruction, so keep the frame explicitly rather than relying on
   // the region scan below to catch it.
   if (numCellvars(begin->code()) > 0 || numFreevars(begin->code()) > 0) {
-    return;
+    return false;
   }
   BasicBlock* begin_block = begin->block();
   BasicBlock* end_block = end->block();
@@ -895,7 +895,7 @@ void optimizeFrame(EndInlinedFunction* end) {
         continue;
       }
       if (hasArbitraryExecution(*instr)) {
-        return;
+        return false;
       }
       // Deopts are okay, we'll just need to lazily materialize the frame
       // if we deopt.
@@ -912,7 +912,7 @@ void optimizeFrame(EndInlinedFunction* end) {
       instr->unlink();
       delete instr;
     }
-    return;
+    return true;
   }
   begin->setLazyFrames(true);
   end->setLazyFrames(true);
@@ -921,21 +921,22 @@ void optimizeFrame(EndInlinedFunction* end) {
       fs->lazy_frame = true;
     }
   }
+  return true;
 }
 
 } // namespace
 
-void InlineFunctionCalls::run(Function& irfunc) {
+bool InlineFunctionCalls::run(Function& irfunc) {
   if (irfunc.code == nullptr) {
     // In tests, irfunc may not have bytecode.
-    return;
+    return false;
   }
   if (irfunc.code->co_flags & kCoFlagsAnyGenerator) {
     // TASK(T109706798): Support inlining into generators
     LOG_INLINER(
         "Refusing to inline functions into {}: function is a generator",
         irfunc.fullname);
-    return;
+    return false;
   }
 
   const size_t cost_limit = getConfig().inliner.cost_limit;
@@ -1069,11 +1070,14 @@ void InlineFunctionCalls::run(Function& irfunc) {
     enqueueCandidates(call_code, call.preloader->fullname(), nested);
   }
 
+  // Check if inlining actually happened.
+  if (cost == original_cost) {
+    return false;
+  }
+
   // Inlining spliced callee sub-CFGs into the caller, changing block structure,
   // so drop any cached dominance before CleanCFG (which consults it).
-  if (cost != original_cost) {
-    irfunc.invalidateDomTree();
-  }
+  irfunc.invalidateDomTree();
 
   // Inlining a callee with no reachable return leaves unreachable blocks
   // behind.  We can't drop them inside the loop above (that might free call
@@ -1105,9 +1109,11 @@ void InlineFunctionCalls::run(Function& irfunc) {
   for (EndInlinedFunction* end : ends) {
     optimizeFrame(end);
   }
+
+  return true;
 }
 
-void BeginInlinedFunctionElimination::run(Function& irfunc) {
+bool BeginInlinedFunctionElimination::run(Function& irfunc) {
   // Second sweep with the same scan: picks up regions that only became
   // eliminable after simplification, and re-checks lazy regions (eliminating
   // any whose deopts all folded away). Regions eliminated by the first sweep
@@ -1121,9 +1127,12 @@ void BeginInlinedFunctionElimination::run(Function& irfunc) {
       ends.push_back(static_cast<EndInlinedFunction*>(&instr));
     }
   }
+
+  bool changed = false;
   for (EndInlinedFunction* end : ends) {
-    optimizeFrame(end);
+    changed |= optimizeFrame(end);
   }
+  return changed;
 }
 
 } // namespace cinderx::jit::hir

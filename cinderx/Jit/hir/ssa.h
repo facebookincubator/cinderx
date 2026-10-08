@@ -22,8 +22,8 @@ class SSAify final : public Pass {
   SSAify(const SSAify&) = delete;
   SSAify& operator=(const SSAify&) = delete;
 
-  void run(Function& irfunc) override;
-  void run(Function& irfunc, BasicBlock* block);
+  bool run(Function& irfunc) override;
+  bool run(Function& irfunc, BasicBlock* block);
 
   static std::unique_ptr<SSAify> factory() {
     return std::make_unique<SSAify>();

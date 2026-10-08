@@ -4,7 +4,7 @@
 
 namespace cinderx::jit::hir {
 
-void HIRStats::run(Function& irfunc) {
+bool HIRStats::run(Function& irfunc) {
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
       stats_.instrs[std::string(instr.opname())]++;
@@ -17,6 +17,8 @@ void HIRStats::run(Function& irfunc) {
       }
     }
   }
+
+  return false;
 }
 
 void HIRStats::Stats::dump(std::string_view function_name) const {

@@ -11,7 +11,7 @@ class PhiElimination final : public Pass {
  public:
   PhiElimination() : Pass("PhiElimination") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<PhiElimination> factory() {
     return std::make_unique<PhiElimination>();

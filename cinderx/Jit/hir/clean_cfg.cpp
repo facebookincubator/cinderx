@@ -6,7 +6,7 @@
 
 namespace cinderx::jit::hir {
 
-void CleanCFG::run(Function& irfunc) {
+bool CleanCFG::run(Function& irfunc) {
   constexpr size_t kRunLimit = 10;
   size_t run = 0;
   bool changed = false;
@@ -33,6 +33,8 @@ void CleanCFG::run(Function& irfunc) {
   if (changed) {
     reflowTypes(irfunc);
   }
+
+  return changed;
 }
 
 } // namespace cinderx::jit::hir

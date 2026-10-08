@@ -13,7 +13,7 @@ class HIRStats final : public Pass {
  public:
   HIRStats() : Pass("HIRStats") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<HIRStats> factory() {
     return std::make_unique<HIRStats>();

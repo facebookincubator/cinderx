@@ -14,7 +14,7 @@ class CommonSubexpressionElimination final : public Pass {
  public:
   CommonSubexpressionElimination() : Pass("CommonSubexpressionElimination") {}
 
-  void run(Function& irfunc) override;
+  bool run(Function& irfunc) override;
 
   static std::unique_ptr<CommonSubexpressionElimination> factory() {
     return std::make_unique<CommonSubexpressionElimination>();

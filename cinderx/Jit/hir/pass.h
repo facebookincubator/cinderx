@@ -19,7 +19,10 @@ class Pass {
   explicit Pass(std::string_view name) : name_{name} {}
   virtual ~Pass() = default;
 
-  virtual void run(Function& irfunc) = 0;
+  // Execute the pass, and return a true/false status on whether the CFG was
+  // modified.  It's okay to conservatively return true, the return value is
+  // used to determine whether it makes sense to run dependent optimizations.
+  virtual bool run(Function& irfunc) = 0;
 
   constexpr std::string_view name() const {
     return name_;
