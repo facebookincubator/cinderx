@@ -1232,7 +1232,7 @@ def test():
   ASSERT_NE(slow_load, nullptr);
   EXPECT_STREQ(PyUnicode_AsUTF8(slow_load->name()), "foo");
 #else
-  GTEST_SKIP() << "Split-dict slow-path LoadAttr is only emitted on GIL 3.14+";
+  SKIP("Split-dict slow-path LoadAttr is only emitted on GIL 3.14+");
 #endif
 }
 

@@ -851,11 +851,11 @@ TEST_F(LIRTargetSelectTest, SelectsConditionalXorForImmortalBoolBox) {
   uint64_t false_addr = addr(Py_False);
   uint64_t diff = true_addr ^ false_addr;
   if (!asmjit::arm::Utils::isLogicalImm(diff, 64)) {
-    GTEST_SKIP() << "Py_True/Py_False diff not a logical immediate here";
+    SKIP("Py_True/Py_False diff not a logical immediate here");
   }
   if (testFitsInSingleMov(true_addr, 64) ||
       testFitsInSingleMov(false_addr, 64)) {
-    GTEST_SKIP() << "Py_True/Py_False fit in a single mov here";
+    SKIP("Py_True/Py_False fit in a single mov here");
   }
 
   const char* src = R"(
