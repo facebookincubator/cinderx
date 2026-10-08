@@ -119,8 +119,6 @@ struct DeoptFrameMetadata {
   // Index into live_values for each entry in the operand stack.
   FrozenList<int> stack;
 
-  jit::hir::BlockStack block_stack;
-
   // Code object associated with the JIT-compiled inlined function from which
   // this was generated.
   PyCodeObject* code{nullptr};

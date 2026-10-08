@@ -604,7 +604,6 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
     // Translate locals and cells
     populate_localsplus(meta.frame_meta.at(frame_idx), frame);
     populate_stack(meta.frame_meta.at(frame_idx), frame);
-    meta.frame_meta.at(frame_idx).block_stack = frame->block_stack;
     meta.frame_meta.at(frame_idx).cause_instr_idx = frame->cur_instr_offs;
     meta.frame_meta.at(frame_idx).code = frame->code.get();
     meta.frame_meta.at(frame_idx).lazy_frame = frame->lazy_frame;
