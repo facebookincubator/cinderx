@@ -37,6 +37,11 @@ def opnames(func: Callable[..., TCallableRet]) -> list[str]:
     return [_all_opnames[insn.opcode] for insn in bytecode]
 
 
+def _is_free_threaded() -> bool:
+    is_gil_enabled = getattr(sys, "_is_gil_enabled", None)
+    return is_gil_enabled is not None and not is_gil_enabled()
+
+
 # Run the given function a certain number of times to ensure the specializing
 # interpreter kicks in. Then compile it with cinder.
 def specialize(
@@ -743,3 +748,94 @@ class SpecializationTests(CinderXTestCase):
         self.assertEqual(sums((), (3, 4)), 7)
         self.assertEqual(sums((1, 2), ()), 3)
         self.assertEqual(sums((), ()), 0)
+
+    def test_for_iter_list_basic(self) -> None:
+        def total(values: list[int]) -> int:
+            s = 0
+            for v in values:
+                s += v
+            return s
+
+        # Warm up so FOR_ITER specializes to FOR_ITER_LIST before compiling.
+        cinderx.jit.jit_suppress(total)
+        for _ in range(100):
+            total([1, 2, 3])
+        cinderx.jit.jit_unsuppress(total)
+
+        if _is_free_threaded():
+            # The list fast path is disabled on free-threaded builds, where
+            # another thread could reallocate the list's storage mid-loop.
+            self.assertHIROpcodes(total, absent=["LoadArrayItem"])
+        else:
+            self.assertHIROpcodes(
+                total,
+                present=["GuardType", "LoadArrayItem", "IntBinaryOp"],
+                absent=["InvokeIterNext"],
+            )
+
+        self.assertEqual(total([1, 2, 3]), 6)
+        self.assertEqual(total([]), 0)
+        self.assertEqual(total([42]), 42)
+
+    def test_for_iter_list_back_to_back_loops(self) -> None:
+        # The empty-list check adds an edge that skips the loop entirely, so
+        # the second loop's setup Snapshots must not keep naming the first
+        # loop's guarded iterator: it has no definition on that edge. The
+        # empty cases below exercise the skip edge of each loop.
+        def sums(first: list[int], second: list[int]) -> int:
+            s = 0
+            for v in first:
+                s += v
+            for v in second:
+                s += v
+            return s
+
+        # Warm up so FOR_ITER specializes to FOR_ITER_LIST before compiling.
+        cinderx.jit.jit_suppress(sums)
+        for _ in range(100):
+            sums([1, 2], [3, 4])
+        cinderx.jit.jit_unsuppress(sums)
+
+        self.assertTrue(cinderx.jit.force_compile(sums))
+        self.assertEqual(sums([1, 2], [3, 4]), 10)
+        self.assertEqual(sums([], [3, 4]), 7)
+        self.assertEqual(sums([1, 2], []), 3)
+        self.assertEqual(sums([], []), 0)
+
+    def test_for_iter_list_mutation_during_iteration(self) -> None:
+        # Lists are mutable, so the JIT must re-check the length on every
+        # iteration: appends extend the visit, pops shorten it.
+
+        def grow() -> list[int]:
+            seen: list[int] = []
+            values = [1, 2]
+            for v in values:
+                seen.append(v)
+                if v == 1:
+                    values.append(3)  # noqa: B909 - mutation is the test
+            return seen
+
+        cinderx.jit.jit_suppress(grow)
+        for _ in range(100):
+            grow()
+        cinderx.jit.jit_unsuppress(grow)
+
+        self.assertTrue(cinderx.jit.force_compile(grow))
+        self.assertEqual(grow(), [1, 2, 3])
+
+        def shrink() -> list[int]:
+            seen: list[int] = []
+            values = [1, 2, 3]
+            for v in values:
+                seen.append(v)
+                if v == 1:
+                    values.pop()  # noqa: B909 - mutation is the test
+            return seen
+
+        cinderx.jit.jit_suppress(shrink)
+        for _ in range(100):
+            shrink()
+        cinderx.jit.jit_unsuppress(shrink)
+
+        self.assertTrue(cinderx.jit.force_compile(shrink))
+        self.assertEqual(shrink(), [1, 2])
