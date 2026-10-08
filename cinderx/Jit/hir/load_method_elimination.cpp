@@ -319,52 +319,53 @@ bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
 } // namespace
 
 void LoadMethodElimination::run(Function& irfunc) {
-  bool changed = true;
-  while (changed) {
-    changed = false;
-    UnorderedMap<LoadMethodBase*, MethodInvoke> invokes;
-    for (auto& block : irfunc.cfg.blocks) {
-      for (auto& instr : block) {
-        if (!instr.isCallMethod()) {
-          continue;
-        }
-        auto cm = static_cast<CallMethod*>(&instr);
-        auto func_instr = cm->func()->instr();
-        if (func_instr->isLoadMethodSuper()) {
-          continue;
-        }
+  bool changed = false;
+  UnorderedMap<LoadMethodBase*, MethodInvoke> invokes;
+  for (auto& block : irfunc.cfg.blocks) {
+    for (auto& instr : block) {
+      if (!instr.isCallMethod()) {
+        continue;
+      }
+      auto cm = static_cast<CallMethod*>(&instr);
+      auto func_instr = cm->func()->instr();
+      if (func_instr->isLoadMethodSuper()) {
+        continue;
+      }
 
-        if (!isLoadMethodBase(*func_instr)) {
-          // {FillTypeMethodCache | LoadTypeMethodCacheEntryValue} and
-          // CallMethod represent loading and invoking methods off a type (e.g.
-          // dict.fromkeys(...)) which do not need to follow
-          // LoadMethod/CallMethod pairing invariant and do not benefit from
-          // tryEliminateLoadMethod which only handles eliminating of method
-          // calls on the instance
-          continue;
-        }
+      if (!isLoadMethodBase(*func_instr)) {
+        // {FillTypeMethodCache | LoadTypeMethodCacheEntryValue} and
+        // CallMethod represent loading and invoking methods off a type (e.g.
+        // dict.fromkeys(...)) which do not need to follow
+        // LoadMethod/CallMethod pairing invariant and do not benefit from
+        // tryEliminateLoadMethod which only handles eliminating of method
+        // calls on the instance
+        continue;
+      }
 
-        auto lm = static_cast<LoadMethodBase*>(func_instr);
+      auto lm = static_cast<LoadMethodBase*>(func_instr);
 
-        JIT_DCHECK(
-            cm->self()->instr()->isGetSecondOutput(),
-            "GetSecondOutput/CallMethod should be paired but got "
-            "{}/CallMethod",
-            cm->self()->instr()->opname());
-        auto glmi = static_cast<GetSecondOutput*>(cm->self()->instr());
-        auto result = invokes.emplace(lm, MethodInvoke{lm, glmi, cm});
-        if (!result.second) {
-          // This pass currently only handles 1:1 LoadMethod/CallMethod
-          // combinations. If there are multiple CallMethod for a given
-          // LoadMethod, bail out.
-          // TASK(T138839090): support multiple CallMethod
-          invokes.erase(result.first);
-        }
+      JIT_DCHECK(
+          cm->self()->instr()->isGetSecondOutput(),
+          "GetSecondOutput/CallMethod should be paired but got "
+          "{}/CallMethod",
+          cm->self()->instr()->opname());
+      auto glmi = static_cast<GetSecondOutput*>(cm->self()->instr());
+      auto result = invokes.emplace(lm, MethodInvoke{lm, glmi, cm});
+      if (!result.second) {
+        // This pass currently only handles 1:1 LoadMethod/CallMethod
+        // combinations. If there are multiple CallMethod for a given
+        // LoadMethod, bail out.
+        // TASK(T138839090): support multiple CallMethod
+        invokes.erase(result.first);
       }
     }
-    for (auto [lm, invoke] : invokes) {
-      changed |= tryEliminateLoadMethod(irfunc, invoke);
-    }
+  }
+
+  for (auto [lm, invoke] : invokes) {
+    changed |= tryEliminateLoadMethod(irfunc, invoke);
+  }
+
+  if (changed) {
     reflowTypes(irfunc);
   }
 }
