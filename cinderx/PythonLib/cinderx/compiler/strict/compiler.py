@@ -80,10 +80,6 @@ class Compiler(StaticCompiler):
             os.getenv("PYTHONSTRICTVERBOSE")
             or sys._xoptions.get("strict-verbose") is True
         )
-        self.disable_analysis = bool(
-            os.getenv("PYTHONSTRICTDISABLEANALYSIS")
-            or sys._xoptions.get("strict-disable-analysis") is True
-        )
         self.raise_on_error = raise_on_error
         self.log_time_func = log_time_func
         self.enable_patching = enable_patching
