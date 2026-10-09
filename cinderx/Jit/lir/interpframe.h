@@ -156,22 +156,19 @@ consteval FrameInitTable buildFrameInitTable() {
       DataType::kObject);
 #endif
 
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
 #ifdef Py_GIL_DISABLED
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, tlbc_index)),
       FrameFieldKind::kZero,
       DataType::k32bit);
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, frame_obj)),
       FrameFieldKind::kZero,
       DataType::kObject);
 #endif
-#endif
-
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner)),
       FrameFieldKind::kOwnerThread,
       DataType::k8bit);
-
-#ifndef ENABLE_LIGHTWEIGHT_FRAMES
+#else
   // Without ENABLE_LIGHTWEIGHT_FRAMES, eagerly-initialized frames must set
   // every field the interpreter expects. (Lazy frames skip this table: only
   // f_funcobj is stored and the deopt path materializes the rest.)
@@ -185,16 +182,47 @@ consteval FrameInitTable buildFrameInitTable() {
       FrameFieldKind::kZero,
       DataType::kObject);
 
+// owner+1 holds visited; on 3.16+ debug it also holds stackpointer_valid,
+// which must be 1, so that config keeps the separate stores below.
+#if PY_VERSION_HEX >= 0x030E0000 && \
+    !(defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000)
+#ifdef Py_GIL_DISABLED
+  // Zero tlbc_index, return_offset, owner, and visited with one 64-bit store.
+  static_assert(
+      offsetof(_PyInterpreterFrame, tlbc_index) + sizeof(int32_t) ==
+      offsetof(_PyInterpreterFrame, return_offset));
+  static_assert(
+      offsetof(_PyInterpreterFrame, return_offset) + sizeof(uint16_t) ==
+      offsetof(_PyInterpreterFrame, owner));
+  static_assert(offsetof(_PyInterpreterFrame, tlbc_index) % kPointerSize == 0);
+  add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, tlbc_index)),
+      FrameFieldKind::kZero,
+      DataType::kObject);
+#else
+  // Zero return_offset, owner, and visited with one 32-bit store.
+  static_assert(
+      offsetof(_PyInterpreterFrame, return_offset) + sizeof(uint16_t) ==
+      offsetof(_PyInterpreterFrame, owner));
+  static_assert(
+      offsetof(_PyInterpreterFrame, return_offset) % sizeof(uint32_t) == 0);
+  add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, return_offset)),
+      FrameFieldKind::kZero,
+      DataType::k32bit);
+#endif
+#else
+#ifdef Py_GIL_DISABLED
+  add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, tlbc_index)),
+      FrameFieldKind::kZero,
+      DataType::k32bit);
+#endif
+  add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner)),
+      FrameFieldKind::kOwnerThread,
+      DataType::k8bit);
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, return_offset)),
       FrameFieldKind::kZero,
       DataType::k16bit);
 #if PY_VERSION_HEX >= 0x030E0000
-  // ugly, visited is a bitfield on debug builds and we can't use offset of on
-  // it.
 #if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
-  // On 3.16+ debug builds this byte also holds stackpointer_valid, which the
-  // interpreter asserts is 1 on a freshly-spilled frame. Zeroing it (as below)
-  // would trip _PyFrame_StackPointerInvalidate, so set stackpointer_valid=1.
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner) + 1),
       FrameFieldKind::kDebugFrameByte,
       DataType::k8bit);
@@ -208,7 +236,7 @@ consteval FrameInitTable buildFrameInitTable() {
       FrameFieldKind::kStackPointer,
       DataType::k32bit);
 #endif
-
+#endif
 #endif
 
   // Sort by offset (insertion sort for consteval compatibility).
