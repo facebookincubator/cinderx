@@ -10,10 +10,38 @@
 #if PY_VERSION_HEX >= 0x030E0000
 #include "pycore_opcode_utils.h"
 #endif
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#include "internal/pycore_interpframe.h"
+#endif
 
 namespace cinderx {
 
 ModuleState* s_cinderx_state;
+
+namespace {
+
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+int noopReifier(_PyInterpreterFrame*, PyObject*) {
+  return 0;
+}
+
+void initJITExecutableDealloc(ModuleState* state) {
+  auto code = Ref<PyCodeObject>::steal(
+      PyCode_NewEmpty("<cinderx>", "<jit_executable>", 0));
+  JIT_CHECK(code != nullptr, "failed to create code object");
+  JIT_THROW_IF(code == nullptr, "failed to create code object");
+  auto executable =
+      Ref<>::steal(PyUnstable_MakeJITExecutable(noopReifier, code, nullptr));
+  JIT_THROW_IF(executable == nullptr, "failed to create JIT executable");
+  state->jit_executable_dealloc = Py_TYPE(executable)->tp_dealloc;
+  JIT_THROW_IF(
+      !PyUnstable_JITExecutable_Check(executable),
+      "CPython's internal headers replaced CinderX's "
+      "PyUnstable_JITExecutable_Check");
+}
+#endif
+
+} // namespace
 
 int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(static_type_error);
@@ -125,6 +153,10 @@ void setModuleState(BorrowedRef<> mod) {
   s_cinderx_state = state;
   state->cinderx_module = mod;
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  initJITExecutableDealloc(state);
+#endif
+
 #if PY_VERSION_HEX >= 0x030E0000
   Ci_common_consts[CONSTANT_ASSERTIONERROR] = PyExc_AssertionError;
   Ci_common_consts[CONSTANT_NOTIMPLEMENTEDERROR] = PyExc_NotImplementedError;
@@ -168,4 +200,11 @@ void removeModuleState() {
 
 #if PY_VERSION_HEX >= 0x030E0000
 PyObject* Ci_common_consts[NUM_COMMON_CONSTANTS];
+#endif
+
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+extern "C" destructor Ci_GetJITExecutableDealloc(void) {
+  cinderx::ModuleState* state = cinderx::getModuleState();
+  return state != nullptr ? state->jit_executable_dealloc : nullptr;
+}
 #endif

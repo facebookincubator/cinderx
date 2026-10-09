@@ -1510,7 +1510,7 @@ void LIRGenerator::generateExitBlocks() {
     std::optional<destructor> exec_dtor;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
     executable = env_->reifier;
-    exec_dtor = PyUnstable_JITExecutable_Type.tp_dealloc;
+    exec_dtor = Py_TYPE(executable)->tp_dealloc;
 #else
     executable = reinterpret_cast<PyObject*>(func_->code.get());
     exec_dtor = PyCode_Type.tp_dealloc;
@@ -5325,7 +5325,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
         BorrowedRef<> reifier = inline_code_to_reifier_.at(code.get());
         executable = reifier.get();
-        exec_dtor = PyUnstable_JITExecutable_Type.tp_dealloc;
+        exec_dtor = Py_TYPE(executable)->tp_dealloc;
 #else
         executable = code.getObj();
         exec_dtor = PyCode_Type.tp_dealloc;
@@ -6214,7 +6214,7 @@ void LIRGenerator::emitDecrefExecutable(BasicBlockBuilder& bbb) {
   std::optional<destructor> dtor;
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   executable = env_->reifier;
-  dtor = PyUnstable_JITExecutable_Type.tp_dealloc;
+  dtor = Py_TYPE(executable)->tp_dealloc;
 #else
   executable = reinterpret_cast<PyObject*>(func_->code.get());
   dtor = PyCode_Type.tp_dealloc;

@@ -26,6 +26,29 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+// Override CPython's check so CinderX doesn't link against its JIT executable
+// type or destructor, letting the same binary load into runtimes that define
+// the type statically or per-interpreter.  This must precede the internal frame
+// headers, whose inline functions expand the check.
+#ifdef PyUnstable_JITExecutable_Check
+#error "cinderx/python.h must be included before CPython's internal headers"
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+// Destructor of the runtime's JIT executable type, taken from an instance
+// created during CinderX initialization. Stored in ModuleState.
+destructor Ci_GetJITExecutableDealloc(void);
+#ifdef __cplusplus
+}
+#endif
+
+#define PyUnstable_JITExecutable_Check(op) \
+  (Py_TYPE(op)->tp_dealloc == Ci_GetJITExecutableDealloc())
+#endif
+
 #if PY_VERSION_HEX >= 0x030E0000
 #ifdef __THROW
 // mi_decl_throw is defined to be __THROW and breaks in C++ files.

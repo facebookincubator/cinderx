@@ -19,6 +19,20 @@
 
 #include "internal/pycore_interp.h"
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_runtime.h"
+
+// Whether the runtime's _PyRuntimeState fields are where CinderX was compiled
+// to expect them.  _main_interpreter is the last field, so taking out the
+// PyInterpreterState sizes ignores changes made solely to the interpreter
+// state.
+static inline bool Ci_RuntimeStateLayoutMatches(void) {
+  const _Py_DebugOffsets* offsets = &_PyRuntime.debug_offsets;
+  return offsets->runtime_state.size - offsets->interpreter_state.size ==
+      sizeof(_PyRuntimeState) - sizeof(PyInterpreterState);
+}
+#endif
+
 #if PY_VERSION_HEX < 0x030D0000
 
 // Basic renames that went into 3.13.

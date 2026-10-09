@@ -138,6 +138,12 @@ struct ModuleState {
   // Sentinel function object placed in JIT frames to identify them.
   Ref<> frame_reifier;
 
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  // Destructor of the runtime's JIT executable type, taken from an instance
+  // created during CinderX initialization.
+  destructor jit_executable_dealloc{nullptr};
+#endif
+
   // Original sys._clear_type_cache, forwarded to by our replacement.
   Ref<> sys_clear_caches;
 

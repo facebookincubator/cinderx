@@ -464,9 +464,8 @@ static PyObject* get_tp_subclasses(PyTypeObject* self, bool create) {
 
   if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
 #if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000
-    _PyRuntimeState* runtime = &_PyRuntime;
-    if (runtime->debug_offsets.runtime_state.size != sizeof(_PyRuntimeState)) {
-      // Binary incompatibility, this isn't safe, active ostrich mode
+    if (!Ci_RuntimeStateLayoutMatches()) {
+      // Binary incompatibility, this isn't safe, activate ostrich mode
       return NULL;
     }
 #endif
@@ -1353,9 +1352,8 @@ static int track_subclasses(PyTypeObject* self) {
   PyObject* subclasses = get_tp_subclasses(self, true);
   if (subclasses == NULL) {
 #if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000
-    _PyRuntimeState* runtime = &_PyRuntime;
-    if (runtime->debug_offsets.runtime_state.size != sizeof(_PyRuntimeState)) {
-      // Binary incompatibility, this isn't safe, active ostrich mode
+    if (!Ci_RuntimeStateLayoutMatches()) {
+      // Binary incompatibility, this isn't safe, activate ostrich mode
       return 0;
     }
 #endif
