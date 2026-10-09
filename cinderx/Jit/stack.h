@@ -5,6 +5,7 @@
 #include "cinderx/Common/log.h"
 
 #include <initializer_list>
+#include <utility>
 #include <vector>
 
 namespace cinderx::jit {
@@ -17,7 +18,7 @@ class Stack {
 
   T pop() {
     JIT_CHECK(!stack_.empty(), "Can't pop from empty stack");
-    T result = stack_.back();
+    T result = std::move(stack_.back());
     stack_.pop_back();
     return result;
   }
@@ -68,9 +69,7 @@ class Stack {
     return stack_.size();
   }
 
-  bool operator==(const Stack& other) const {
-    return stack_ == other.stack_;
-  }
+  bool operator==(const Stack& other) const = default;
 
   auto begin() {
     return stack_.begin();

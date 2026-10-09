@@ -252,7 +252,7 @@ std::optional<T> parseNumber(std::string_view s) {
     return static_cast<T>(n);
   } else {
     T n = 0;
-    auto result = std::from_chars(&s.front(), (&s.back()) + 1, n);
+    auto result = std::from_chars(s.data(), s.data() + s.size(), n);
     if (result.ec == std::errc{}) {
       return n;
     }
