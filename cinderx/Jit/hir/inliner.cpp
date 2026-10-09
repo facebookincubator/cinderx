@@ -1100,12 +1100,7 @@ bool InlineFunctionCalls::run(Function& irfunc) {
       }
     }
   }
-  std::sort(
-      ends.begin(),
-      ends.end(),
-      [](EndInlinedFunction* a, EndInlinedFunction* b) {
-        return a->inlineDepth() < b->inlineDepth();
-      });
+  std::ranges::sort(ends, {}, &EndInlinedFunction::inlineDepth);
   for (EndInlinedFunction* end : ends) {
     optimizeFrame(end);
   }

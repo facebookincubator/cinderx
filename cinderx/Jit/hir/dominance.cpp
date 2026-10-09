@@ -46,9 +46,7 @@ DominatorTree::DominatorTree(BasicBlock* start) {
     children_[immediateDominator(rpo_[i])->id].push_back(rpo_[i]);
   }
   for (auto& [id, kids] : children_) {
-    std::sort(kids.begin(), kids.end(), [](BasicBlock* a, BasicBlock* b) {
-      return a->id < b->id;
-    });
+    std::ranges::sort(kids, {}, &BasicBlock::id);
   }
 }
 

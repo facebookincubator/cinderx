@@ -154,10 +154,7 @@ void LiveInterval::sortAndMergeRanges() {
   if (ranges_.size() < 2) {
     return;
   }
-  std::sort(
-      ranges_.begin(),
-      ranges_.end(),
-      [](const LiveRange& a, const LiveRange& b) { return a.start < b.start; });
+  std::ranges::sort(ranges_, {}, &LiveRange::start);
   size_t w = 0;
   for (size_t r = 1; r < ranges_.size(); ++r) {
     // Half-open ranges merge when the next one starts at or before this one

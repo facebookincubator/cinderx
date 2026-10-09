@@ -6744,15 +6744,9 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
   }
 
   // Sort and deduplicate by ID for deterministic code layout.
-  std::sort(deopt_entries.begin(), deopt_entries.end(), [](auto& a, auto& b) {
-    return a.id < b.id;
-  });
-  deopt_entries.erase(
-      std::unique(
-          deopt_entries.begin(),
-          deopt_entries.end(),
-          [](auto& a, auto& b) { return a.id == b.id; }),
-      deopt_entries.end());
+  std::ranges::sort(deopt_entries, {}, &DeoptEntry::id);
+  auto tail = std::ranges::unique(deopt_entries, {}, &DeoptEntry::id);
+  deopt_entries.erase(tail.begin(), tail.end());
 
   // Create stage 1 blocks first (one per deopt point), then stage 2 last.
   // This gives the natural layout: stage 1 blocks followed by stage 2.

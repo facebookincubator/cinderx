@@ -12,6 +12,7 @@
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
+#include <algorithm>
 #include <memory>
 
 namespace cinderx::jit::hir {
@@ -21,9 +22,7 @@ const RegisterSet kEmptyRegSet;
 std::ostream& operator<<(std::ostream& os, const RegisterSet& regs) {
   fmt::print(os, "RegisterSet[{}] = {{", regs.size());
   std::vector<Register*> sorted_regs{regs.begin(), regs.end()};
-  std::sort(sorted_regs.begin(), sorted_regs.end(), [](auto r1, auto r2) {
-    return r1->id() < r2->id();
-  });
+  std::ranges::sort(sorted_regs, {}, &Register::id);
   auto sep = "";
   for (auto reg : sorted_regs) {
     fmt::print(os, "{}{}", sep, *reg);

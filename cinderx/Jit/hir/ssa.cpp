@@ -455,9 +455,7 @@ void SSAConstructor::renameBlock(
     for (auto& [var, info] : phi_it->second) {
       vars.push_back(var);
     }
-    std::sort(vars.begin(), vars.end(), [](Register* a, Register* b) {
-      return a->id() < b->id();
-    });
+    std::ranges::sort(vars, {}, &Register::id);
     for (Register* var : vars) {
       Register* out = env_.allocateRegister();
       phi_it->second[var].output = out;
@@ -551,9 +549,7 @@ std::vector<BasicBlock*> SSAConstructor::sortedSuccessors(BasicBlock* block) {
       succs.push_back(to);
     }
   }
-  std::sort(succs.begin(), succs.end(), [](BasicBlock* a, BasicBlock* b) {
-    return a->id < b->id;
-  });
+  std::ranges::sort(succs, {}, &BasicBlock::id);
   return succs;
 }
 

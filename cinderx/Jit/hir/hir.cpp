@@ -177,12 +177,7 @@ void Phi::setArgs(const std::unordered_map<BasicBlock*, Register*>& args) {
     basic_blocks_.push_back(kv.first);
   }
 
-  std::sort(
-      basic_blocks_.begin(),
-      basic_blocks_.end(),
-      [](const BasicBlock* a, const BasicBlock* b) -> bool {
-        return a->id < b->id;
-      });
+  std::ranges::sort(basic_blocks_, {}, &BasicBlock::id);
 
   std::size_t i = 0;
   for (auto& block : basic_blocks_) {

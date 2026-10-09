@@ -61,10 +61,7 @@ void fillCallSiteLiveRegs(
       "Instruction should have no live regs");
 
   std::vector<Register*> sorted_regs{live_regs.begin(), live_regs.end()};
-  std::sort(
-      sorted_regs.begin(), sorted_regs.end(), [](Register* a, Register* b) {
-        return a->id() < b->id();
-      });
+  std::ranges::sort(sorted_regs, {}, &Register::id);
 
   for (Register* reg : sorted_regs) {
     if (reg->type().couldBe(TCPtr)) {
