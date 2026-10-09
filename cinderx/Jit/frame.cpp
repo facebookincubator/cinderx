@@ -774,10 +774,8 @@ void retainActiveDeferredData(
       // alive.
       if (func != nullptr && func != Py_None) {
         OwnedCompilationKey key{func};
-        auto it = pending.find(key);
-        if (it != pending.end()) {
-          still_active.emplace(std::move(key), std::move(it->second));
-          pending.erase(it);
+        if (auto it = pending.find(key); it != pending.end()) {
+          still_active.insert(pending.extract(it));
         }
       }
       frame = frame->previous;
