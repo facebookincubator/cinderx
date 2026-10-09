@@ -29,14 +29,12 @@ live value. This state has three main parts:
 
 1. **Uncounted:** A value is Uncounted if its type does not intersect with
    `Object` or if it is an immortal value not subject to reference
-   counting. For now, the only value known to be immortal by the compiler is
-   the sentinel value that can be returned by `InvokeIterNext`. We will
-   probably extend this to other singletons like `None`, `True`, `False`, and
-   others in the future.
-2. **Borrowed:** A borrowed value is a value that the JITted code does not own
-   a reference to, but is being kept alive by another reference that we can
-   track the lifetime of. Borrowed values are associated with *borrow
-   support*, which is discussed further down.
+   counting. This covers common values like `None`, `True`, `False`, but it also
+   applies to the sentinel value that can be returned by `InvokeIterNext`.
+2. **Borrowed:** A borrowed value is a value that the JIT-compiled code does not
+   own a reference to, but is being kept alive by another reference that we can
+   track the lifetime of. Borrowed values are associated with *borrow support*,
+   which is discussed further down.
 3. **Owned:** An owned value is either the result of an opcode that produces a
    new reference (e.g., `MakeList`) or a borrowed value that was promoted to
    owned because its borrow support disappeared.
