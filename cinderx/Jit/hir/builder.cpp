@@ -1412,18 +1412,7 @@ void HIRBuilder::translate(
             if (specialized == FOR_ITER_RANGE) {
               emitForIterRange(irfunc.cfg, tc, bc_instr);
             } else if (specialized == FOR_ITER_TUPLE) {
-              emitForIterSeqObject(
-                  irfunc.cfg, tc, bc_instr, SeqIterKind::kTuple);
-            } else if (specialized == FOR_ITER_LIST) {
-              // The interpreter only takes the fast path when the list is
-              // owned by the current thread; the JIT cannot check that, so
-              // stay generic on free-threaded builds (as for UNPACK_SEQUENCE).
-              if constexpr (kFreeThreadedBuild) {
-                emitForIter(tc, bc_instr);
-              } else {
-                emitForIterSeqObject(
-                    irfunc.cfg, tc, bc_instr, SeqIterKind::kList);
-              }
+              emitForIterTuple(irfunc.cfg, tc, bc_instr);
             } else {
               emitForIter(tc, bc_instr);
             }
@@ -1669,9 +1658,8 @@ void HIRBuilder::translate(
             ? prev_bc_instr.specializedOpcode()
             : -1;
         if (prev_specialized == FOR_ITER_RANGE ||
-            prev_specialized == FOR_ITER_TUPLE ||
-            (prev_specialized == FOR_ITER_LIST && !kFreeThreadedBuild)) {
-          // The specialized emitForIter*() helpers end the current block with
+            prev_specialized == FOR_ITER_TUPLE) {
+          // emitForIterRange()/emitForIterTuple() end the current block with
           // an unconditional Branch into the loop body and wire the exhausted
           // edge to the footer directly from the header, so recover the
           // successors from there rather than from a CondBranchIterNotDone.
@@ -4244,19 +4232,16 @@ void HIRBuilder::emitForIterRange(
   emit_next(tc);
 }
 
-void HIRBuilder::emitForIterSeqObject(
+void HIRBuilder::emitForIterTuple(
     CFG& cfg,
     TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    SeqIterKind kind) {
-  // Local mirror shared by CPython's _PyTupleIterObject and _PyListIterObject,
-  // which have identical layouts.
-  struct SeqIterObject {
+    const jit::BytecodeInstruction& bc_instr) {
+  // Local mirror of CPython's internal _PyTupleIterObject.
+  struct TupleIterObject {
     PyObject_HEAD
     Py_ssize_t it_index;
     PyObject* it_seq;
   };
-  bool is_tuple = kind == SeqIterKind::kTuple;
 
   Register* iterator = forIterTop(tc.frame);
   BasicBlock* footer = getBlockAtOff(bc_instr.getJumpTarget());
@@ -4264,16 +4249,14 @@ void HIRBuilder::emitForIterSeqObject(
   Register* value = allocateTemp();
   Register* seq = allocateTemp();
   Register* index = allocateTemp();
-  Type iter_type =
-      Type::fromTypeExact(is_tuple ? &PyTupleIter_Type : &PyListIter_Type);
-  Type seq_exact = is_tuple ? TTupleExact : TListExact;
+  Type tuple_iter_type = Type::fromTypeExact(&PyTupleIter_Type);
 
-  constexpr int32_t kIndexOffset = offsetof(SeqIterObject, it_index);
-  constexpr int32_t kSeqOffset = offsetof(SeqIterObject, it_seq);
+  constexpr int32_t kIndexOffset = offsetof(TupleIterObject, it_index);
+  constexpr int32_t kSeqOffset = offsetof(TupleIterObject, it_seq);
   // ob_size and Py_ssize_t fields are 8 bytes where the JIT runs; emitFastLen
   // loads ob_size as TCInt64 and LoadVarObjectSize returns TCInt64.
   constexpr Type kIndexType = TCInt64;
-  const Type kSeqType = seq_exact | TNullptr;
+  const Type kSeqType = TTupleExact | TNullptr;
 
   auto emit_has_seq = [&](TranslationContext& iter_tc, BasicBlock* next) {
     iter_tc.emit<LoadField>(seq, iterator, "it_seq", kSeqOffset, kSeqType);
@@ -4285,9 +4268,6 @@ void HIRBuilder::emitForIterSeqObject(
     iter_tc.emit<CondBranch>(has_seq, next, footer);
   };
 
-  // Sequences are mutable in general: the body may append (reallocating
-  // ob_item) or pop (shrinking the size), so the size and the item pointer
-  // are reloaded on every iteration and never carried across the backedge.
   auto emit_has_next = [&](TranslationContext& iter_tc, BasicBlock* next) {
     iter_tc.emit<LoadField>(
         index, iterator, "it_index", kIndexOffset, kIndexType);
@@ -4300,25 +4280,17 @@ void HIRBuilder::emitForIterSeqObject(
   };
 
   auto emit_next = [&](TranslationContext& iter_tc) {
-    // Produce the next item inline (mirrors CPython's _ITER_NEXT_TUPLE and
-    // _ITER_NEXT_LIST): value = seq[index]; index += 1
-    Register* seq_obj = allocateTemp();
-    iter_tc.emit<RefineType>(seq_obj, seq_exact, seq);
+    // Produce the next item inline (mirrors CPython's _ITER_NEXT_TUPLE):
+    //   value = seq[index]; index += 1
+    Register* tuple_seq = allocateTemp();
+    iter_tc.emit<RefineType>(tuple_seq, TTupleExact, seq);
+    Register* offset_reg = allocateTemp();
+    iter_tc.emit<LoadConst>(
+        offset_reg, Type::fromCInt(offsetof(PyTupleObject, ob_item), TCInt64));
     Register* ob_item = allocateTemp();
-    if (is_tuple) {
-      // Tuple items live inline.
-      Register* offset_reg = allocateTemp();
-      iter_tc.emit<LoadConst>(
-          offset_reg,
-          Type::fromCInt(offsetof(PyTupleObject, ob_item), TCInt64));
-      iter_tc.emit<LoadFieldAddress>(ob_item, seq_obj, offset_reg);
-    } else {
-      // List items live in a separately allocated array.
-      iter_tc.emit<LoadField>(
-          ob_item, seq_obj, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
-    }
+    iter_tc.emit<LoadFieldAddress>(ob_item, tuple_seq, offset_reg);
     iter_tc.emit<LoadArrayItem>(
-        value, ob_item, index, seq_obj, /*offset=*/0, TObject);
+        value, ob_item, index, tuple_seq, /*offset=*/0, TObject);
 
     Register* one = allocateTemp();
     iter_tc.emit<LoadConst>(one, Type::fromCInt(1, kIndexType));
@@ -4341,7 +4313,7 @@ void HIRBuilder::emitForIterSeqObject(
   if (Branch* entry = singleEntryBranch(tc.block)) {
     TranslationContext initial_check{cfg.allocateBlock(), tc.frame};
     initial_check.emitSnapshot();
-    emitSpecializedIterGuard(initial_check, iterator, iter_type);
+    emitSpecializedIterGuard(initial_check, iterator, tuple_iter_type);
     entry->setTarget(initial_check.block);
     TranslationContext initial_index{cfg.allocateBlock(), tc.frame};
     emit_has_seq(initial_check, initial_index.block);
@@ -4352,7 +4324,7 @@ void HIRBuilder::emitForIterSeqObject(
   }
 
   if (!prechecked) {
-    emitSpecializedIterGuard(tc, iterator, iter_type);
+    emitSpecializedIterGuard(tc, iterator, tuple_iter_type);
   }
   emit_has_seq(tc, index_check);
   tc.block = index_check;

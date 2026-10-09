@@ -300,13 +300,10 @@ class HIRBuilder {
       CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  // Sequence iterator flavors handled by emitForIterSeqObject().
-  enum class SeqIterKind { kTuple, kList };
-  void emitForIterSeqObject(
+  void emitForIterTuple(
       CFG& cfg,
       TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      SeqIterKind kind);
+      const jit::BytecodeInstruction& bc_instr);
   void emitInvokeMethodVectorCall(
       TranslationContext& tc,
       std::vector<Register*>& arg_regs,
