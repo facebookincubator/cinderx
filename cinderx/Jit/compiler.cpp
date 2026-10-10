@@ -67,7 +67,8 @@ void checkHirSize(const hir::Function& func) {
 }
 
 template <typename T>
-void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
+bool runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
+  bool changed = false;
   COMPILE_TIMER(func.compilation_phase_timer,
                 pass.name(),
                 DUMP_HIR_IF(
@@ -78,7 +79,7 @@ void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
                     func);
 
                 Timer timer;
-                pass.run(func);
+                changed = pass.run(func);
                 std::size_t time_ns = timer.finish().count();
                 callback(func, pass.name(), time_ns);
 
@@ -102,6 +103,7 @@ void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
                     func.fullname,
                     pass.name(),
                     func);)
+  return changed;
 }
 
 } // namespace
@@ -127,9 +129,7 @@ void Compiler::runPasses(
   // Written this way because it's hard to forward the P type variable down to
   // runPass if it's not tied to one of the lambda's arguments.
   auto runPassIf = [&]<typename P>(P&& pass, PassConfig bit) {
-    if (config & bit) {
-      runPass(pass, irfunc, callback);
-    }
+    return (config & bit) && runPass(pass, irfunc, callback);
   };
 
   runPassIf(hir::Simplify{}, PassConfig::kSimplify);
@@ -139,14 +139,11 @@ void Compiler::runPasses(
   runPassIf(hir::GuardTypeRemoval{}, PassConfig::kGuardTypeRemoval);
   runPassIf(hir::PhiElimination{}, PassConfig::kPhiElim);
 
-  if (config & PassConfig::kInliner) {
-    runPass(jit::hir::InlineFunctionCalls{}, irfunc, callback);
-
+  if (runPassIf(jit::hir::InlineFunctionCalls{}, PassConfig::kInliner)) {
     runPassIf(hir::Simplify{}, PassConfig::kSimplify);
     runPassIf(
         hir::BeginInlinedFunctionElimination{},
         PassConfig::kBeginInlinedFunctionElim);
-
     runPassIf(hir::LoadMethodElimination{}, PassConfig::kLoadMethodElim);
   }
 
