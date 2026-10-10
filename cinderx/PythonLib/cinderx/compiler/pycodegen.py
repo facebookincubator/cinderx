@@ -379,6 +379,10 @@ class CodeGenerator(ASTVisitor):
     # and starred calls is skipped entirely. Only enabled for the Python
     # versions whose compiler performs this optimization.
     _skip_empty_starred_literals: bool = False
+    # gh-153354: the `.format > VALUE_WITH_FAKE_GLOBALS` check at the start of
+    # a generated __annotate__ function converts its result with TO_BOOL. Only
+    # enabled for the Python versions whose compiler does this.
+    _annotations_prologue_to_bool: bool = False
 
     __initialized = None
 
@@ -6068,6 +6072,8 @@ class CodeGenerator314(CodeGenerator312):
         outer_gen.emit("LOAD_FAST", ".format")
         outer_gen.emit("LOAD_CONST", 2)  # _Py_ANNOTATE_FORMAT_VALUE_WITH_FAKE_GLOBALS
         outer_gen.emit("COMPARE_OP", ">")
+        if self._annotations_prologue_to_bool:
+            outer_gen.emit("TO_BOOL")
         outer_gen.emit("POP_JUMP_IF_FALSE", body)
         outer_gen.nextBlock()
         outer_gen.emit("LOAD_COMMON_CONSTANT", NotImplementedError)
@@ -6904,6 +6910,8 @@ class CodeGenerator316(CodeGenerator315):
     # entry (symtable.SymbolTableType.INLINED_COMPREHENSION) instead of folding
     # its symbols into the enclosing entry.
     _inlined_comprehension_has_own_symtable_entry: bool = True
+    # gh-153354: 3.16 converts the __annotate__ format check with TO_BOOL.
+    _annotations_prologue_to_bool: bool = True
 
     @classmethod
     def optimize_tree(
