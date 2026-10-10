@@ -4208,14 +4208,16 @@ int register_gc_callback() {
 // (e.g. JIT finalization) that is draining in-flight compiles.
 // Uses the registry member of the JIT Context; if context is null (e.g.
 // during fork child handling when JIT not initialized), no-op.
-void finishBackgroundCompile(const CompilationKey& key) {
+//
+// The compile's admission has already been released by
+// processBackgroundCompile(), and must not be released again here.  The worker
+// only gets here after waiting for the GIL, and in that window the main thread
+// may have admitted the same key for a new task.
+void finishBackgroundCompile() {
   auto* ctx = getContext();
   if (ctx == nullptr) {
     return;
   }
-  // Releasing the active compile is idempotent: the normal path already dropped
-  // it at the end of compilePreloaderImpl, but the give-up paths have not.
-  ctx->removeActiveCompile(key);
   auto& reg = ctx->backgroundCompileRegistry();
   std::lock_guard<std::mutex> guard(reg.mutex);
   if (reg.in_flight_count) {
@@ -4339,27 +4341,29 @@ void processBackgroundCompile(
   // Re-install the preloaders into this thread's isolated preloader manager
   // so the inliner can find dependent preloaders during compilation.
 
-  std::optional<CompiledFunctionData> compiled_func;
   hir::Preloader* preloader =
       hir::preloaderManager().find(code, task->builtins, task->globals);
-  if (preloader != nullptr && !isOverMaxCodeSize()) {
-    {
-      // Hand the task's reference to the function down into the compile so
-      // whatever ends up owning the function can take it over rather than
-      // creating one here, which would race the interpreter's refcount.  If
-      // nothing claims it, it comes back and the task releases it once the
-      // worker is back under the GIL.
-      auto [result, unclaimed] =
-          compilePreloaderImpl(jit_ctx, *preloader, std::move(task->func));
-      task->func = std::move(unclaimed);
-      if (result != Result::OK) {
-        JIT_DLOG(
-            "Background compile failed: {} for {}",
-            static_cast<int>(result),
-            preloader->fullname());
-        return;
-      }
-    }
+  if (preloader == nullptr || isOverMaxCodeSize()) {
+    // Nothing is going to compile this, so give the admission back here.
+    // compilePreloaderImpl() releases it on every other path.
+    jit_ctx->removeActiveCompile(
+        CompilationKey{task->code, task->builtins, task->globals});
+    return;
+  }
+
+  // Hand the task's reference to the function down into the compile so
+  // whatever ends up owning the function can take it over rather than
+  // creating one here, which would race the interpreter's refcount.  If
+  // nothing claims it, it comes back and the task releases it once the
+  // worker is back under the GIL.
+  auto [result, unclaimed] =
+      compilePreloaderImpl(jit_ctx, *preloader, std::move(task->func));
+  task->func = std::move(unclaimed);
+  if (result != Result::OK) {
+    JIT_DLOG(
+        "Background compile failed: {} for {}",
+        static_cast<int>(result),
+        preloader->fullname());
   }
 }
 
@@ -4407,8 +4411,7 @@ void backgroundCompileWorkerLoop(
     }
 
     jitCtx()->finalizePendingCompiles();
-    finishBackgroundCompile(
-        CompilationKey{task->code, task->builtins, task->globals});
+    finishBackgroundCompile();
   }
 
   // The worker state is current and attached, so it can be cleared and
@@ -5222,33 +5225,23 @@ void typeNameModified(BorrowedRef<PyTypeObject> type) {
   }
 }
 
-std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
-    jit::CompilerContext<Compiler>* jit_ctx,
-    const hir::Preloader& preloader,
-    Ref<PyFunctionObject>&& func) {
-  // The admitted preloader owns the code and its environment. A nested
-  // code's outer registration may have disappeared since admission.
+namespace {
+
+// Recheck the code flags that admitCompile() checked, as they may have changed
+// since admission.
+bool hasCompilableCodeFlags(const hir::Preloader& preloader) {
   BorrowedRef<PyCodeObject> code = preloader.code();
-
-  if (code == nullptr) {
-    JIT_DLOG("Can't compile {} as it has no code object", preloader.fullname());
-    return {Result::CANNOT_SPECIALIZE, std::move(func)};
-  }
-
-  BorrowedRef<PyDictObject> builtins = preloader.builtins();
-  BorrowedRef<PyDictObject> globals = preloader.globals();
-
   if (!hasRequiredCodeFlags(code)) {
     JIT_DLOG(
         "Can't compile {} due to missing required code flags",
         preloader.fullname());
-    return {Result::CANNOT_SPECIALIZE, std::move(func)};
+    return false;
   }
   if (code->co_flags & CI_CO_SUPPRESS_JIT) {
     JIT_DLOG(
         "Can't compile {} as it has had the JIT suppressed",
         preloader.fullname());
-    return {Result::CANNOT_SPECIALIZE, std::move(func)};
+    return false;
   }
   constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
   if (code->co_flags & forbidden_flags) {
@@ -5256,17 +5249,42 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
         "Cannot JIT compile {} as it has prohibited code flags: 0x{:x}",
         preloader.fullname(),
         code->co_flags & forbidden_flags);
-    return {Result::CANNOT_SPECIALIZE, std::move(func)};
+    return false;
   }
+  return true;
+}
 
-  CompilationKey key{code, builtins, globals};
+} // namespace
+
+std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
+    jit::CompilerContext<Compiler>* jit_ctx,
+    const hir::Preloader& preloader,
+    Ref<PyFunctionObject>&& func) {
+  // The admitted preloader owns the code and its environment. A nested
+  // code's outer registration may have disappeared since admission.
+  BorrowedRef<PyCodeObject> code = preloader.code();
+  JIT_CHECK(
+      code != nullptr,
+      "Can't compile {} as it has no code object",
+      preloader.fullname());
+
+  CompilationKey key{code, preloader.builtins(), preloader.globals()};
   // The caller is responsible for admitting this compile while holding the GIL
   // (see admitCompile).  Doing the compiled_codes_ lookup here would read it
   // from the background worker, which runs with the GIL released.
+  //
+  // This function takes over the admission and releases it on every path out.
+  // The caller must not release it again: once released, another thread can
+  // admit the same key, and a second release would drop that admission.
   JIT_DCHECK(
       jit_ctx->hasActiveCompile(key),
       "compile of {} was not admitted by its caller",
       preloader.fullname());
+
+  if (!hasCompilableCodeFlags(preloader)) {
+    jit_ctx->removeActiveCompile(key);
+    return {Result::CANNOT_SPECIALIZE, std::move(func)};
+  }
 
   std::optional<CompiledFunctionData> compiled_func;
   try {

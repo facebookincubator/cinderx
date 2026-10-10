@@ -97,6 +97,67 @@ class BackgroundCompileTest(unittest.TestCase):
         result2 = test_func(10)
         self.assertEqual(result2, 21)
 
+    def test_readmit_after_failed_background_compile(self) -> None:
+        """A failed background compile must not release the admission of a
+        later compile of the same code.
+
+        Every call to make() creates a new function for the same code object.
+        The JIT can't compile DELETE_DEREF, so every compile fails.  The main
+        thread holds onto the GIL long enough for the worker to fail the first
+        compile and block waiting for it, then admits the code again.  Releasing
+        the admission twice trips a JIT_DCHECK when the worker reaches the
+        second compile.
+
+        Runs out-of-process to control the GIL switch interval and to keep the
+        test runner's threads from taking the GIL.
+        """
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import sys
+            import time
+
+            import cinderx.jit
+
+            cinderx.jit.background_compile(True)
+
+            def make():
+                x = 1
+
+                def inner():
+                    nonlocal x
+                    del x
+
+                return inner
+
+            def hold_gil(seconds):
+                deadline = time.monotonic() + seconds
+                while time.monotonic() < deadline:
+                    pass
+
+            # Get the compiles of make() and hold_gil() out of the way, so the
+            # worker is free when the loop below queues a compile of inner().
+            make()()
+            hold_gil(0)
+            cinderx.jit.wait_for_background_compiles()
+
+            sys.setswitchinterval(10)
+            for _ in range(3):
+                make()()
+                hold_gil(0.1)
+                make()()
+                cinderx.jit.wait_for_background_compiles()
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, "-X", "cinderx-jit-all", str(test_file)],
+                check=True,
+                env=subprocess_env(),
+            )
+
     @passUnless(hasattr(os, "fork"), "requires os.fork()")
     def test_fork_after_background_compile(self) -> None:
         """Forking once the background compile worker thread exists must leave
