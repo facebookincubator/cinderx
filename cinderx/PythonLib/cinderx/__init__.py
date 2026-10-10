@@ -7,6 +7,7 @@ from __future__ import annotations
 import gc
 import platform
 import sys
+from importlib import import_module
 from os import environ
 
 
@@ -507,7 +508,7 @@ except ImportError as e:
         pass
 
 
-def maybe_enable_parallel_gc() -> None:
+def _maybe_enable_parallel_gc() -> None:
     """Conditionally enable parallel GC based on environment variables."""
     is_parallel_gc_enabled = environ.get("PARALLEL_GC_ENABLED", "0") == "1"
     if not has_parallel_gc() or not is_parallel_gc_enabled:
@@ -537,6 +538,22 @@ def maybe_enable_parallel_gc() -> None:
     )
 
 
+def _maybe_enable_static_python() -> None:
+    """
+    Conditionally enable Static Python.
+    """
+
+    static_python = environ.get("CINDERX_STATIC_PYTHON", "")
+    if static_python == "" or static_python == "0":
+        return
+
+    loader = import_module("cinderx.compiler.strict.loader")
+    loader.init_static_python()
+
+    enable_patching = environ.get("PYTHONENABLEPATCHING")
+    loader.install(enable_patching=enable_patching != "" and enable_patching != "0")
+
+
 _is_init: bool = False
 
 
@@ -552,7 +569,8 @@ def init() -> None:
     if _is_init:
         return
 
-    maybe_enable_parallel_gc()
+    _maybe_enable_parallel_gc()
+    _maybe_enable_static_python()
 
     # Install CinderX-optimized replacements for hot stdlib paths.
     from cinderx import _context

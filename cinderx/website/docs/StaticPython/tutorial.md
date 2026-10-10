@@ -26,7 +26,7 @@ For more control, you can install the loader yourself by calling
 `cinderx.compiler.strict.loader.install()` in the `main` module of
 your program (before anything else is imported.) Note this means the
 main module itself cannot be Static Python. You can also just set the
-`PYTHONINSTALLSTRICTLOADER` environment variable to a nonzero value,
+`CINDERX_STATIC_PYTHON` environment variable to `1`,
 and the loader will be installed for you.
 
 Once you've installed the loader, any module with `import __static__`
