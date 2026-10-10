@@ -6939,6 +6939,18 @@ class CodeGenerator316(CodeGenerator315):
         # INTRINSIC_ADD_CONDITIONAL_ANNOTATION binary intrinsic instead of SET_ADD.
         self.emit_call_intrinsic_2("INTRINSIC_ADD_CONDITIONAL_ANNOTATION")
 
+    def visitMatchClass(self, node: ast.MatchClass, pc: PatternContext) -> None:
+        if node.patterns or node.kwd_attrs or node.kwd_patterns:
+            super().visitMatchClass(node, pc)
+            return
+
+        # gh-138912: 3.16 matches a class pattern without sub-patterns with an
+        # isinstance() check instead of MATCH_CLASS.
+        self.visit(node.cls)
+        self.set_pos(node)
+        self.emit_call_intrinsic_2("INTRINSIC_MATCH_CLASS_ISINSTANCE")
+        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE")
+
     def make_annotations_code_holder(self, code_gen: CodeGenerator) -> CodeHolder:
         # 3.16 extended the ".format" -> "format" rename to the
         # typevar-bound/default and type-alias-value scopes (CPython's
