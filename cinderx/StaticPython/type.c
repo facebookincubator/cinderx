@@ -288,6 +288,9 @@ PyObject* _PyClassLoader_ResolveContainer(PyObject* container_path) {
         PyObject* new_type =
             classloader_instantiate_generic(type, type_arg, Py_None);
         Py_DECREF(type);
+        if (new_type == NULL) {
+          return NULL;
+        }
         type = new_type;
       } else if (
           PyUnicode_Check(type_arg) &&

@@ -18,6 +18,26 @@ class CheckedListTests(StaticTestBase):
         # pyrefly: ignore [unsupported-operation]
         self.assertEqual(CheckedList[int].__module__, "__static__")
 
+    def test_checked_list_forward_reference(self) -> None:
+        codestr = """
+            from __static__ import CheckedList
+
+            def f() -> None:
+                CheckedList[T]()
+
+            try:
+                f()
+            except AttributeError as exc:
+                error = str(exc)
+
+            class T:
+                pass
+
+            f()
+        """
+        with self.in_strict_module(codestr) as mod:
+            self.assertIn("has no attribute 'T'", mod.error)
+
     def test_checked_list_append_bad_type(self) -> None:
         # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
