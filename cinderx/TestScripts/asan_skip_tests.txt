@@ -23,3 +23,9 @@ test.test_io.test_bufferedio.CBufferedReaderTest.test_read1_error_does_not_cause
 # ASAN report on stderr. The subprocess inherits our ASAN log_path, so the
 # report lands in the log files instead and fails jobs that check them.
 test.test_capi.test_mem.AddressSanitizerTests.test_buffer_overflow
+
+# Runs in a thread with an 8 MiB C stack (run_with_limited_c_stack). Each nesting
+# level goes through the Python-level UserList.__repr__, and in unoptimized ASAN
+# builds the frames between recursion checks outgrow the stack margin, so this
+# dies with an unrecoverable stack overflow instead of RecursionError.
+test.test_userlist.UserListTest.test_repr_deep
