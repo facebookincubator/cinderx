@@ -543,7 +543,10 @@ def _maybe_enable_static_python() -> None:
     Conditionally enable Static Python.
     """
 
-    static_python = environ.get("CINDERX_STATIC_PYTHON", "")
+    # Prioritize the new CINDERX variable, but also check the older form.
+    static_python = environ.get(
+        "CINDERX_STATIC_PYTHON", environ.get("PYTHONINSTALLSTRICTLOADER", "")
+    )
     if static_python == "" or static_python == "0":
         return
 
