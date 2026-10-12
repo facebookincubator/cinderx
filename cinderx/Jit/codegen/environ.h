@@ -8,6 +8,7 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/debug_info.h"
+#include "cinderx/Jit/profile.h"
 #include "cinderx/Jit/stable_storage.h"
 
 #include <asmjit/asmjit.h>
@@ -147,6 +148,20 @@ struct Environ {
     return std::move(stable_storage_);
   }
 #endif
+
+  ProfileCollector& profileCollector() {
+    JIT_THROW_IF(
+        profile_collector_ == nullptr,
+        "profile collector has already been transferred");
+    return *profile_collector_;
+  }
+
+  std::unique_ptr<ProfileCollector> takeProfileCollector() {
+    JIT_THROW_IF(
+        profile_collector_ == nullptr,
+        "profile collector has already been transferred");
+    return std::move(profile_collector_);
+  }
 
   // Pending references to be added to CodeRuntime at end of compilation.
   // During threaded compilation, we record borrowed references here without
@@ -290,6 +305,8 @@ struct Environ {
   std::unique_ptr<PerCompilationStableStorage> stable_storage_{
       std::make_unique<PerCompilationStableStorage>()};
 #endif
+  std::unique_ptr<ProfileCollector> profile_collector_{
+      std::make_unique<ProfileCollector>()};
 };
 
 } // namespace cinderx::jit::codegen

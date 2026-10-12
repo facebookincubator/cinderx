@@ -50,13 +50,6 @@ InlineCacheSite::InlineCacheSite(
 
 InlineCacheSite::InlineCacheSite(
     BCOffset bytecode_offset,
-    BinaryOpCache* cache_ptr)
-    : kind{Kind::kBinaryOp}, bytecode_offset{bytecode_offset} {
-  cache.binary_op = cache_ptr;
-}
-
-InlineCacheSite::InlineCacheSite(
-    BCOffset bytecode_offset,
     StoreAttrCache* cache_ptr)
     : kind{Kind::kStoreAttr}, bytecode_offset{bytecode_offset} {
   cache.store_attr = cache_ptr;
@@ -127,11 +120,8 @@ PerCompilationStableStorage::allocateLoadTypeMethodCache() {
 }
 
 BinaryOpCache* PerCompilationStableStorage::allocateBinaryOpCache(
-    BCOffset bytecode_offset,
     hir::BinaryOpKind op) {
-  auto cache = arena_.allocate<BinaryOpCache>(op);
-  addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
-  return cache;
+  return arena_.allocate<BinaryOpCache>(op);
 }
 
 StoreAttrCache* PerCompilationStableStorage::allocateStoreAttrCache(
@@ -204,7 +194,6 @@ LoadTypeMethodCache* ContextStableStorage::allocateLoadTypeMethodCache(
 }
 
 BinaryOpCache* ContextStableStorage::allocateBinaryOpCache(
-    [[maybe_unused]] BCOffset bytecode_offset,
     hir::BinaryOpKind op) {
   return binary_op_caches_.allocate(op);
 }

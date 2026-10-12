@@ -98,6 +98,7 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/hir/function.h"
+#include "cinderx/Jit/profile.h"
 #include "cinderx/Jit/stable_storage.h"
 
 #include <chrono>
@@ -143,6 +144,7 @@ struct CompiledFunctionData {
   // with the compiled data preserves them during deferred code destruction.
   std::unique_ptr<PerCompilationStableStorage> stable_storage;
 #endif
+  std::unique_ptr<ProfileCollector> profile_collector;
   // The HIR representation of this code object.  Optional, only used when debug
   // logging.
   std::unique_ptr<hir::Function> irfunc;
@@ -255,6 +257,7 @@ class CompiledFunction {
 #ifndef ENABLE_PREFORK_MODEL
   const std::vector<InlineCacheSite>& inlineCacheSites() const;
 #endif
+  Profile snapshotProfile() const;
 
   // Associate a function with this CompiledFunction and set its vectorcall
   // entry point, the function will keep the compiled code alive.

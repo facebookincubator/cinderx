@@ -84,6 +84,10 @@ class NativeGenerator {
   }
 #endif
 
+  std::unique_ptr<ProfileCollector> takeProfileCollector() {
+    return env_.takeProfileCollector();
+  }
+
   bool isGen() const {
     return func_->code->co_flags & kCoFlagsAnyGenerator;
   }

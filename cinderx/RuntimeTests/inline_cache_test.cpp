@@ -49,17 +49,17 @@ TEST_F(InlineCacheTest, CompiledDataOwnsAndReclaimsDiscoverableInlineCaches) {
         live_count);
 
     const BCOffset bytecode_offset{24};
-    BinaryOpCache* cache = original.stable_storage->allocateBinaryOpCache(
-        bytecode_offset, BinaryOpKind::kAdd);
+    LoadMethodCache* cache =
+        original.stable_storage->allocateLoadMethodCache(bytecode_offset);
 
     CompiledFunctionData moved{std::move(original)};
 
     const std::vector<InlineCacheSite>& sites =
         moved.stable_storage->inlineCacheSites();
     ASSERT_EQ(sites.size(), 1);
-    EXPECT_EQ(sites.front().kind, InlineCacheSite::Kind::kBinaryOp);
+    EXPECT_EQ(sites.front().kind, InlineCacheSite::Kind::kLoadMethod);
     EXPECT_EQ(sites.front().bytecode_offset, bytecode_offset);
-    EXPECT_EQ(sites.front().cache.binary_op, cache);
+    EXPECT_EQ(sites.front().cache.load_method, cache);
     EXPECT_EQ(live_count, 1);
   }
   EXPECT_EQ(live_count, 0);

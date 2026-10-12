@@ -24,7 +24,6 @@ struct InlineCacheSite {
     kLoadModuleMethod,
     kLoadTypeAttr,
     kLoadTypeMethod,
-    kBinaryOp,
     kStoreAttr,
     kCompare,
   };
@@ -35,7 +34,6 @@ struct InlineCacheSite {
   InlineCacheSite(BCOffset bytecode_offset, LoadModuleMethodCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, LoadTypeAttrCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, LoadTypeMethodCache* cache);
-  InlineCacheSite(BCOffset bytecode_offset, BinaryOpCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, StoreAttrCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, CompareCache* cache);
 
@@ -48,7 +46,6 @@ struct InlineCacheSite {
     LoadModuleMethodCache* load_module_method;
     LoadTypeAttrCache* load_type_attr;
     LoadTypeMethodCache* load_type_method;
-    BinaryOpCache* binary_op;
     StoreAttrCache* store_attr;
     CompareCache* compare;
   } cache{};
@@ -74,9 +71,7 @@ class PerCompilationStableStorage final {
   LoadTypeAttrCache* allocateLoadTypeAttrCache(BCOffset bytecode_offset);
   LoadTypeMethodCache* allocateLoadTypeMethodCache();
   LoadTypeMethodCache* allocateLoadTypeMethodCache(BCOffset bytecode_offset);
-  BinaryOpCache* allocateBinaryOpCache(
-      BCOffset bytecode_offset,
-      hir::BinaryOpKind op);
+  BinaryOpCache* allocateBinaryOpCache(hir::BinaryOpKind op);
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
   CompareCache* allocateCompareCache(
       BCOffset bytecode_offset,
@@ -126,9 +121,7 @@ class ContextStableStorage final {
       BCOffset bytecode_offset);
   LoadTypeMethodCache* allocateLoadTypeMethodCache();
   LoadTypeMethodCache* allocateLoadTypeMethodCache(BCOffset bytecode_offset);
-  BinaryOpCache* allocateBinaryOpCache(
-      BCOffset bytecode_offset,
-      hir::BinaryOpKind op);
+  BinaryOpCache* allocateBinaryOpCache(hir::BinaryOpKind op);
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
   CompareCache* allocateCompareCache(
       BCOffset bytecode_offset,

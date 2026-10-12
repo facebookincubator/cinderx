@@ -13,16 +13,19 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
 
 namespace cinderx::jit::hir {
-// Defined in cinderx/Jit/hir/hir.h; only the complete type is needed in
-// inline_cache.cpp, so a forward declaration suffices here.
+// Defined in cinderx/Jit/hir/hir.h and cinderx/Jit/hir/type.h; only the
+// complete types are needed in inline_cache.cpp, so forward declarations
+// suffice here.
 enum class BinaryOpKind;
 enum class CompareOp;
+class Type;
 } // namespace cinderx::jit::hir
 
 namespace cinderx::jit {
@@ -1188,6 +1191,10 @@ class CompareCache {
 
 // Invalidate all load/store attr caches for type
 void notifyICsTypeChanged(BorrowedRef<PyTypeObject> type);
+
+// Map an inline-cache specialization to the HIR type it guarantees, or
+// nullopt when the specialization carries no usable type feedback.
+std::optional<hir::Type> specializedTypeToHirType(SpecializedType type);
 
 } // namespace cinderx::jit
 

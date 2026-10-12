@@ -45,6 +45,84 @@ class BinaryOpCacheCodegenTest : public RuntimeTest {
   Config saved_config_;
 };
 
+#ifndef ENABLE_PREFORK_MODEL
+TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesBinaryOpsByLocation) {
+  PerCompilationStableStorage storage;
+  ProfileCollector collector;
+  const BCOffset long_offset{24};
+  BinaryOpCache* long_cache = storage.allocateBinaryOpCache(BinaryOpKind::kAdd);
+  collector.add(nullptr, long_offset, long_cache);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  Ref<> long_result = Ref<>::steal(BinaryOpCache::add(one, two, long_cache));
+  ASSERT_NE(long_result, nullptr);
+
+  const BCOffset list_offset{48};
+  BinaryOpCache* list_cache = storage.allocateBinaryOpCache(BinaryOpKind::kAdd);
+  collector.add(nullptr, list_offset, list_cache);
+  auto left = Ref<>::steal(PyList_New(0));
+  auto right = Ref<>::steal(PyList_New(0));
+  Ref<> list_result = Ref<>::steal(BinaryOpCache::add(left, right, list_cache));
+  ASSERT_NE(list_result, nullptr);
+
+  const BCOffset cold_offset{60};
+  BinaryOpCache* cold_cache = storage.allocateBinaryOpCache(BinaryOpKind::kAdd);
+  collector.add(nullptr, cold_offset, cold_cache);
+
+  const BCOffset float_offset{12};
+  BinaryOpCache* float_cache =
+      storage.allocateBinaryOpCache(BinaryOpKind::kAdd);
+  collector.add(nullptr, float_offset, float_cache);
+  auto one_float = Ref<>::steal(PyFloat_FromDouble(1.0));
+  auto two_float = Ref<>::steal(PyFloat_FromDouble(2.0));
+  Ref<> float_result =
+      Ref<>::steal(BinaryOpCache::add(one_float, two_float, float_cache));
+  ASSERT_NE(float_result, nullptr);
+
+  const BCOffset unicode_offset{6};
+  BinaryOpCache* unicode_cache =
+      storage.allocateBinaryOpCache(BinaryOpKind::kAdd);
+  collector.add(nullptr, unicode_offset, unicode_cache);
+  auto left_unicode = Ref<>::steal(PyUnicode_FromString("left"));
+  auto right_unicode = Ref<>::steal(PyUnicode_FromString("right"));
+  Ref<> unicode_result = Ref<>::steal(
+      BinaryOpCache::add(left_unicode, right_unicode, unicode_cache));
+  ASSERT_NE(unicode_result, nullptr);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 4);
+
+  const BinaryOpProfile* long_profile =
+      profile.find<BinaryOpProfile>(nullptr, long_offset);
+  ASSERT_NE(long_profile, nullptr);
+  EXPECT_EQ(long_profile->left_type, TLongCompact);
+  EXPECT_EQ(long_profile->right_type, TLongCompact);
+
+  const BinaryOpProfile* float_profile =
+      profile.find<BinaryOpProfile>(nullptr, float_offset);
+  ASSERT_NE(float_profile, nullptr);
+  EXPECT_EQ(float_profile->left_type, TFloatExact);
+  EXPECT_EQ(float_profile->right_type, TFloatExact);
+
+  const BinaryOpProfile* unicode_profile =
+      profile.find<BinaryOpProfile>(nullptr, unicode_offset);
+  ASSERT_NE(unicode_profile, nullptr);
+  EXPECT_EQ(unicode_profile->left_type, TUnicodeExact);
+  EXPECT_EQ(unicode_profile->right_type, TUnicodeExact);
+
+  const BinaryOpProfile* list_profile =
+      profile.find<BinaryOpProfile>(nullptr, list_offset);
+  ASSERT_NE(list_profile, nullptr);
+  EXPECT_EQ(list_profile->left_type, TListExact);
+  EXPECT_EQ(list_profile->right_type, TListExact);
+
+  // A cache that was never called produces no profile entry.
+  EXPECT_EQ(profile.find<BinaryOpProfile>(nullptr, cold_offset), nullptr);
+
+  EXPECT_NE(profile.find<BinaryOpProfile>(nullptr, list_offset), nullptr);
+}
+#endif
+
 TEST_F(BinaryOpCacheCodegenTest, IntThenStrAddExecuteCorrectly) {
   const char* src = R"(
 def test(a, b):

@@ -10,6 +10,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/disassembler.h"
 #include "cinderx/Jit/hir/printer.h"
+#include "cinderx/Jit/profile.h"
 #include "cinderx/module_c_state.h"
 #include "cinderx/module_state.h"
 
@@ -252,6 +253,13 @@ const std::vector<InlineCacheSite>& CompiledFunction::inlineCacheSites() const {
   return data_->stable_storage->inlineCacheSites();
 }
 #endif
+
+Profile CompiledFunction::snapshotProfile() const {
+  JIT_DCHECK(
+      data_ != nullptr && data_->profile_collector != nullptr,
+      "profile collector is not available");
+  return data_->profile_collector->snapshot();
+}
 
 void CompiledFunction::setOwner(CompiledFunctionOwner* owner) {
   owner_ = owner;

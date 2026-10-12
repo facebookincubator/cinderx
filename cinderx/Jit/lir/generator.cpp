@@ -3654,8 +3654,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         }
 
         if (cache_entry != nullptr) {
-          BinaryOpCache* cache = stable_storage_.allocateBinaryOpCache(
-              bin_op->bytecodeOffset(), bin_op->op());
+          BinaryOpCache* cache =
+              stable_storage_.allocateBinaryOpCache(bin_op->op());
+          env_->profileCollector().add(
+              bin_op->frameState()->code, bin_op->bytecodeOffset(), cache);
           // Emit a direct call to the op-specific dispatch entry point. Each
           // entry point switches on the cache's per-op specialization enum.
           bbb.appendCallInstruction(

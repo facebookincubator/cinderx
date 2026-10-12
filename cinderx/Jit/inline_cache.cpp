@@ -4154,4 +4154,31 @@ void notifyICsTypeChanged(BorrowedRef<PyTypeObject> type) {
   ltm_watcher.typeChanged(type);
 }
 
+std::optional<hir::Type> specializedTypeToHirType(SpecializedType type) {
+  switch (type) {
+    case SpecializedType::kCompactLong:
+      return hir::TLongCompact;
+    case SpecializedType::kLong:
+      return hir::TLongExact;
+    case SpecializedType::kUnicode:
+      return hir::TUnicodeExact;
+    case SpecializedType::kFloat:
+      return hir::TFloatExact;
+    case SpecializedType::kList:
+      return hir::TListExact;
+    case SpecializedType::kTuple:
+      return hir::TTupleExact;
+    case SpecializedType::kComplex:
+      return hir::TComplexExact;
+    case SpecializedType::kSet:
+      return hir::TSetExact;
+    case SpecializedType::kBool:
+      // Only comparison specializations produce bools; no binary-op row uses
+      // this, so mapping it here is unreachable for binary ops.
+      return hir::TBool;
+    default:
+      return std::nullopt;
+  }
+}
+
 } // namespace cinderx::jit

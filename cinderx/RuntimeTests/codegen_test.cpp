@@ -5,9 +5,11 @@
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
+#include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <cstddef>
+#include <stdexcept>
 #include <vector>
 
 using namespace cinderx::jit::codegen;
@@ -191,5 +193,12 @@ TEST(StackAllocTest, TheWalkCoversTheWholeFrame) {
 }
 
 #endif
+
+TEST_F(CodegenTest, TakeProfileCollectorTwiceThrows) {
+  Environ env;
+  ASSERT_NE(env.takeProfileCollector(), nullptr);
+  EXPECT_THROW(env.takeProfileCollector(), std::runtime_error);
+  EXPECT_THROW(env.profileCollector(), std::runtime_error);
+}
 
 } // namespace cinderx::jit::codegen
