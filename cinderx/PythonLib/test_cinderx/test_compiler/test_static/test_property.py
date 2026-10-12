@@ -471,11 +471,9 @@ class PropertyTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             c = mod.C()
-            if sys.version_info >= (3, 12):
-                err = "property 'prop' of 'C' object has no setter"
-            else:
-                err = "can't set attribute"
-            with self.assertRaisesRegex(AttributeError, err):
+            with self.assertRaisesRegex(
+                AttributeError, "property 'prop' of 'C' object has no setter"
+            ):
                 c.prop = 2
             with self.assertRaisesRegex(AttributeError, "can't set attribute"):
                 c.set(2)

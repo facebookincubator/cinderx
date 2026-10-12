@@ -23,16 +23,10 @@ class SbsCorpusCompileTests(TestCase):
 # tests can be run with:
 #  python -m test.test_compiler SbsCorpusCompileTests.test_00_const
 def add_test(modname: str, fname: str) -> None:
-    if "3_12/" in fname and sys.version_info <= (3, 12):
-        return
-    if "3_14/" in fname and sys.version_info <= (3, 14):
+    if "/3_14/" in fname and sys.version_info < (3, 14):
         return
 
     def test_corpus(self: SbsCorpusCompileTests) -> None:
-        if "/3_12/" in fname and sys.version_info[:2] < (3, 12):
-            return
-        if "/3_14/" in fname and sys.version_info[:2] < (3, 14):
-            return
         with open(fname, "rb") as inp:
             encoding, _lines = detect_encoding(inp.readline)
             code = b"".join(list(_lines) + inp.readlines()).decode(encoding)

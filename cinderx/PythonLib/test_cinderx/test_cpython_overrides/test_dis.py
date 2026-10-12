@@ -191,13 +191,9 @@ class CinderX_DisTests(unittest.TestCase):
             with self.subTest(opname=opname):
                 # pyrefly: ignore [missing-attribute]
                 width = dis._OPNAME_WIDTH
-                if sys.version_info >= (3, 12):
-                    if opcode in dis.hasarg:
-                        # pyrefly: ignore [missing-attribute]
-                        width += 1 + dis._OPARG_WIDTH
-                else:
-                    if opcode < dis.HAVE_ARGUMENT:
-                        width += 1 + dis._OPARG_WIDTH
+                if opcode in dis.hasarg:
+                    # pyrefly: ignore [missing-attribute]
+                    width += 1 + dis._OPARG_WIDTH
                 self.assertLessEqual(len(opname), width)
 
 
