@@ -1,8 +1,14 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-from types import CodeType
+from __future__ import annotations
 
-from test_cinderx.test_compiler.test_static.test_pyrefly_binder import PyreBinderTests
+from types import CodeType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from test_cinderx.test_compiler.test_static.test_pyrefly_binder import (
+        PyreBinderTests,
+    )
 
 
 def verify(test: PyreBinderTests, code: CodeType) -> None:
