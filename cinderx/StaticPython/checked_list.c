@@ -2415,6 +2415,9 @@ static PySequenceMethods list_as_sequence = {
     (ssizeargfunc)list_inplace_repeat, /* sq_inplace_repeat */
 };
 
+static PyObject*
+chklist_slice(PyListObject* self, Py_ssize_t ilow, Py_ssize_t ihigh);
+
 static PyObject* list_subscript(PyListObject* self, PyObject* item) {
   if (_PyIndex_Check(item)) {
     Py_ssize_t i;
@@ -2439,11 +2442,11 @@ static PyObject* list_subscript(PyListObject* self, PyObject* item) {
     slicelength = PySlice_AdjustIndices(Py_SIZE(self), &start, &stop, step);
 
     if (slicelength <= 0) {
-      return PyList_New(0);
+      return Ci_CheckedList_New(Py_TYPE(self), 0);
     } else if (step == 1) {
-      return list_slice(self, start, stop);
+      return chklist_slice(self, start, stop);
     } else {
-      result = list_new_prealloc(slicelength);
+      result = Ci_CheckedList_New(Py_TYPE(self), slicelength);
       if (!result) {
         return NULL;
       }

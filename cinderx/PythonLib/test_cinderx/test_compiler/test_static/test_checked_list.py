@@ -647,3 +647,37 @@ class CheckedListTests(StaticTestBase):
             for _ in range(50):
                 mod.f()
             self.assertEqual(mod.f(), 6)
+
+    def test_checked_list_slice(self) -> None:
+        # pyrefly: ignore [unsupported-operation]
+        original = CheckedList[int]([1, 2, 3])
+        for index in (
+            slice(0, 2),
+            slice(None, 0),
+            slice(3, 1),
+            slice(None, None, 2),
+            slice(None, None, -1),
+        ):
+            with self.subTest(index=index):
+                result = original[index]
+                self.assertIs(type(result), type(original))
+                self.assertEqual(list(result), [1, 2, 3][index])
+                result.append(4)
+                self.assertEqual(list(result), [1, 2, 3][index] + [4])
+                self.assertEqual(list(original), [1, 2, 3])
+                with self.assertRaisesRegex(TypeError, "int"):
+                    # pyrefly: ignore [bad-argument-type]
+                    result.append("bad")
+
+    def test_checked_list_compile_slice_append(self) -> None:
+        for index in ("0:2", ":0", "3:1", "::2", "::-1"):
+            with self.subTest(index=index):
+                codestr = f"""
+                    from __static__ import CheckedList
+                    def testfunc() -> CheckedList[int]:
+                        a: CheckedList[int] = [1, 2, 3]
+                        a[{index}].append(3)
+                        return a
+                """
+                with self.in_strict_module(codestr) as mod:
+                    self.assertEqual(list(mod.testfunc()), [1, 2, 3])
