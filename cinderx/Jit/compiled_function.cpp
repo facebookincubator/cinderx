@@ -543,6 +543,37 @@ int CompiledFunction::traverse(visitproc visit, void* arg) {
 }
 
 void CompiledFunction::clear(bool context_finalizing) {
+  // A compile can be cleared while its machine code is still running:
+  // forgetCode() and deoptFunc() do exactly that from the bottom of a
+  // recursion, with every outer frame still executing it.  Hand the code to
+  // the deferred map so it survives until those frames unwind;
+  // processDeferredCleanup() frees it once no thread is in it.
+  //
+  // This has to happen here rather than in the destructor.  The destructor
+  // captures owner_ and the runtime before calling clear(), but tp_clear
+  // normally runs first and has already nulled both, so its deferral never
+  // fired and the code was released out from under live frames.  Off Windows
+  // that went unnoticed: the allocator leaves the pages mapped, so returning
+  // through the freed code happens to work.
+  //
+  // The deferred map takes its own reference rather than this one, so every
+  // data_ accessor keeps working for whatever still holds this object.
+  //
+  // This applies during interpreter finalization too: a JIT-compiled __del__
+  // can run from there, so its code has to outlast the clear just the same.
+  if (!contiguous_data_ && !context_finalizing && owner_ != nullptr &&
+      data_ != nullptr && data_->runtime != nullptr) {
+    cinderx::ModuleState* state = cinderx::getModuleState();
+    if (state != nullptr && state->jit_context != nullptr) {
+      Ref<> code = Ref<>::create(data_->runtime->code());
+      Ref<> builtins = Ref<>::create(data_->runtime->builtins());
+      Ref<> globals = Ref<>::create(data_->runtime->globals());
+      Py_INCREF(data_);
+      owner_->deferCompiledData(
+          std::move(code), std::move(builtins), std::move(globals), data_);
+    }
+  }
+
   // During shutdown the Context and its prefork stable storage may be destroyed
   // while CFs still exist in function dicts. Null out borrowed pointers to
   // avoid dereferencing them later.

@@ -186,22 +186,26 @@ Context::~Context() {
   }
 #endif
 
-  // The deferred map holds owning references to module dicts (the code's
-  // globals/builtins captured in OwnedCompilationKey) as well as the
-  // CompiledFunctionData objects.  During interpreter finalization those dicts
-  // may already have been GC-untracked by the runtime while our map still holds
-  // the last reference.  Letting the map's destructor decref them would re-run
-  // PyObject_GC_UnTrack on an already-untracked object and crash.  Since the
-  // process is exiting, intentionally leak these references instead of
-  // releasing them.  Outside of finalization the normal map destruction
-  // releases them.
+  // The deferred map's keys hold owning references to module dicts (the code's
+  // globals/builtins captured in OwnedCompilationKey).  During interpreter
+  // finalization those dicts may already have been GC-untracked by the runtime
+  // while our map still holds the last reference.  Letting the map's destructor
+  // decref them would re-run PyObject_GC_UnTrack on an already-untracked object
+  // and crash.  Since the process is exiting, intentionally leak the keys
+  // instead of releasing them.  Outside of finalization the normal map
+  // destruction releases them.
+  //
+  // The values are left alone.  A CompiledFunctionData is ours rather than the
+  // runtime's, so destroying it is safe this late, and it is what hands the
+  // code buffer back to the allocator.  Releasing it here instead would leak
+  // every compile that no generation-2 GC reached -- which is all of them for a
+  // process that de-opts during finalization and then exits.
   if (Py_IsFinalizing()) {
     for (auto& entry : deferred_compiled_data_) {
       OwnedCompilationKey& key = const_cast<OwnedCompilationKey&>(entry.first);
       (void)key.code.release();
       (void)key.builtins.release();
       (void)key.globals.release();
-      (void)entry.second.release();
     }
   }
 }
