@@ -184,6 +184,17 @@ def skip_if_ft_macos(
     return passIf(FREE_THREADING_BUILD and sys.platform == "darwin", reason)
 
 
+def skip_if_ft_not_linux(
+    reason: str,
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    """
+    Skip a test on free-threaded builds other than Linux.
+
+    As skip_if_ft_macos(), for the cases where Windows behaves the same way.
+    """
+    return passIf(FREE_THREADING_BUILD and sys.platform != "linux", reason)
+
+
 def skip_unless_jit(
     reason: str,
 ) -> Callable[[Callable[..., None]], Callable[..., None]]:
