@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 // In Meta's setup, ASAN_OPTIONS set in an environment variable are ignored.
 // However, we want to respect the log_path we set via cinder_test_runner.py
@@ -35,7 +36,18 @@ void open_asan_logfile(void) {
     if (strncmp(token, log_path_str, log_path_len) == 0) {
       char* filename = token + log_path_len;
       int fd = open(filename, O_WRONLY | O_APPEND | O_CREAT, 0666);
-      __sanitizer_set_report_fd((void*)(uintptr_t)fd);
+      // open() can reuse a closed stdin, stdout, or stderr descriptor, making
+      // Python treat the log as that stream at startup. Move the log above
+      // stderr and close the original so Python still sees the stream as
+      // closed.
+      if (fd >= 0 && fd <= STDERR_FILENO) {
+        int report_fd = fcntl(fd, F_DUPFD, STDERR_FILENO + 1);
+        close(fd);
+        fd = report_fd;
+      }
+      if (fd >= 0) {
+        __sanitizer_set_report_fd((void*)(uintptr_t)fd);
+      }
       break;
     }
     token = strtok_r(NULL, ",", &tokenptr);
