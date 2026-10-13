@@ -153,7 +153,7 @@ void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
 Py_ssize_t frameOffset(const DeoptMetadata& deopt_meta, size_t depth) {
   Py_ssize_t off = 0;
   for (size_t i = 0; i <= depth; i++) {
-    off -= frameHeaderSize(deopt_meta.frame_meta.at(i).code);
+    off -= frameHeaderSize(deopt_meta.frame_meta.at(i).code());
   }
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   if (depth == 0) {
@@ -189,27 +189,21 @@ _PyInterpreterFrame* materializeDeoptFrame(
     size_t depth,
     _PyInterpreterFrame* src) {
   const DeoptFrameMetadata& frame_meta = deopt_meta.frame_meta.at(depth);
-  if (frame_meta.code != nullptr &&
-      (frame_meta.code->co_flags & kCoFlagsAnyGenerator)) {
+  auto code = frame_meta.code();
+  if (code != nullptr && (code->co_flags & kCoFlagsAnyGenerator)) {
     jitFramePopulateFrame(src);
     jitFrameRemoveReifier(src);
     return src;
   }
-  if (frame_meta.lazy_frame) {
+  if (frame_meta.lazyFrame()) {
     _PyInterpreterFrame* new_frame =
-        _PyThreadState_PushFrame(tstate, frame_meta.code->co_framesize);
+        _PyThreadState_PushFrame(tstate, code->co_framesize);
     if (new_frame == nullptr) {
       return nullptr;
     }
     BorrowedRef<PyFunctionObject> func{frameFunction(src)};
     jitFrameInit(
-        tstate,
-        new_frame,
-        func,
-        frame_meta.code,
-        0,
-        FRAME_OWNED_BY_THREAD,
-        nullptr);
+        tstate, new_frame, func, code, 0, FRAME_OWNED_BY_THREAD, nullptr);
     return new_frame;
   }
   return convertInterpreterFrameFromStackToSlab(tstate, src);

@@ -121,15 +121,49 @@ struct DeoptFrameMetadata {
 
   // Code object associated with the JIT-compiled inlined function from which
   // this was generated.
-  PyCodeObject* code{nullptr};
-
-  BCIndex cause_instr_idx{0};
+  PyCodeObject* code() const {
+    return reinterpret_cast<PyCodeObject*>(tagged_code_ & ~kTagMask);
+  }
+  void setCode(PyCodeObject* code) {
+    uintptr_t bits = reinterpret_cast<uintptr_t>(code);
+    JIT_THROW_IF(
+        (bits & kTagMask) != 0,
+        "Code object {:#x} is not suitably aligned for tagging",
+        bits);
+    tagged_code_ = (tagged_code_ & kTagMask) | bits;
+  }
 
   // Whether this frame is lazy: codegen left it mostly uninitialized (only
   // f_funcobj is set) because it can deopt but never runs arbitrary code.
   // Reification must fully materialize it (via a fresh heap frame) instead
   // of converting the stack frame in place.
-  bool lazy_frame{false};
+  bool lazyFrame() const {
+    return (tagged_code_ & kLazyFrame) != 0;
+  }
+  void setLazyFrame(bool lazy_frame) {
+    if (lazy_frame) {
+      tagged_code_ |= kLazyFrame;
+    } else {
+      tagged_code_ &= ~kLazyFrame;
+    }
+  }
+
+  // Bytecode index of the instruction that triggered the deopt.
+  BCIndex causeInstrIdx() const {
+    return cause_instr_idx_;
+  }
+  void setCauseInstrIdx(BCIndex idx) {
+    cause_instr_idx_ = idx;
+  }
+
+ private:
+  // Tag bit stolen from the code pointer, whose alignment leaves the low bit
+  // clear.
+  static constexpr uintptr_t kLazyFrame = 1;
+  static constexpr uintptr_t kTagMask = kLazyFrame;
+
+  uintptr_t tagged_code_{0};
+  BCIndex cause_instr_idx_{0};
 };
 
 // DeoptMetadata captures all the information necessary to reconstruct a
@@ -160,7 +194,7 @@ struct DeoptMetadata {
   DeoptReason reason{DeoptReason::kUnhandledException};
 
   BorrowedRef<PyCodeObject> code() const {
-    return innermostFrame().code;
+    return innermostFrame().code();
   }
 
   // If part of an inlined function, the depth into the call stack that this

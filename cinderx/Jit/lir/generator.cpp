@@ -5828,13 +5828,13 @@ void LIRGenerator::updateDeoptIndex(
       int num_frames = num_callers + 1;
       meta.frame_meta.initialize(num_frames);
       // Innermost frame: the Decref's own code and bytecode offset.
-      meta.frame_meta[num_frames - 1].code = code;
-      meta.frame_meta[num_frames - 1].cause_instr_idx = i.bytecodeOffset();
+      meta.frame_meta[num_frames - 1].setCode(code);
+      meta.frame_meta[num_frames - 1].setCauseInstrIdx(i.bytecodeOffset());
       // Caller frames from the FrameState parent chain (outermost first).
       int idx = num_frames - 2;
       for (const auto* f = caller_fs; f != nullptr; f = f->parent) {
-        meta.frame_meta[idx].code = f->code;
-        meta.frame_meta[idx].cause_instr_idx = f->instrOffset();
+        meta.frame_meta[idx].setCode(f->code);
+        meta.frame_meta[idx].setCauseInstrIdx(f->instrOffset());
         idx--;
       }
       auto deopt_id = env_->code_rt->addRawDeoptMetadata(std::move(meta));

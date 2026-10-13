@@ -180,9 +180,9 @@ BCIndex getDeoptResumeIndex(
   // the bytecode's C call completed — advance past it.
   if (is_instrumentation_deopt && is_innermost) {
     if (meta.reason == DeoptReason::kPeriodicTaskFailure) {
-      return frame.cause_instr_idx;
+      return frame.causeInstrIdx();
     }
-    return BytecodeInstruction(frame.code, frame.cause_instr_idx)
+    return BytecodeInstruction(frame.code(), frame.causeInstrIdx())
         .nextInstrOffset();
   }
 
@@ -190,7 +190,7 @@ BCIndex getDeoptResumeIndex(
        (meta.reason == DeoptReason::kGuardFailure ||
         meta.reason == DeoptReason::kRaise)) ||
       forced_deopt) {
-    return frame.cause_instr_idx;
+    return frame.causeInstrIdx();
   }
 
 #if PY_VERSION_HEX >= 0x030E0000
@@ -199,13 +199,13 @@ BCIndex getDeoptResumeIndex(
     // and then we'll dispatch to the error handler. We're never going to
     // execute the instruction but we need the instr_ptr to point at the
     // faulting instruction for stack traces to show up correctly.
-    return BytecodeInstruction(frame.code, frame.cause_instr_idx)
+    return BytecodeInstruction(frame.code(), frame.causeInstrIdx())
                .nextInstrOffset()
                .asIndex() -
         1;
   }
 #endif
-  return BytecodeInstruction(frame.code, frame.cause_instr_idx)
+  return BytecodeInstruction(frame.code(), frame.causeInstrIdx())
       .nextInstrOffset();
 }
 
@@ -385,8 +385,8 @@ uint64_t MemoryView::readRaw(const LiveValue& value) const {
 }
 
 Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
-  BorrowedRef<PyCodeObject> code = meta.innermostFrame().code;
-  BCOffset bc_off = meta.innermostFrame().cause_instr_idx;
+  BorrowedRef<PyCodeObject> code = meta.innermostFrame().code();
+  BCOffset bc_off = meta.innermostFrame().causeInstrIdx();
 
   // Bytecode offset will be negative if the interpreter wants to resume
   // executing at the start of the function.  Report a negative/invalid opcode
@@ -604,9 +604,9 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
     // Translate locals and cells
     populate_localsplus(meta.frame_meta.at(frame_idx), frame);
     populate_stack(meta.frame_meta.at(frame_idx), frame);
-    meta.frame_meta.at(frame_idx).cause_instr_idx = frame->cur_instr_offs;
-    meta.frame_meta.at(frame_idx).code = frame->code.get();
-    meta.frame_meta.at(frame_idx).lazy_frame = frame->lazy_frame;
+    meta.frame_meta.at(frame_idx).setCauseInstrIdx(frame->cur_instr_offs);
+    meta.frame_meta.at(frame_idx).setCode(frame->code.get());
+    meta.frame_meta.at(frame_idx).setLazyFrame(frame->lazy_frame);
   }
 
   if (hir::Register* guilty_reg = instr.guiltyReg()) {

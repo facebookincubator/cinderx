@@ -102,7 +102,7 @@ def test(a, b):
   dm.reason = DeoptReason::kGuardFailure;
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
-  dfm.cause_instr_idx = BCOffset{0};
+  dfm.setCauseInstrIdx(BCOffset{0});
   dm.frame_meta = {std::move(dfm)};
 
   Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
@@ -149,13 +149,13 @@ def test(a, b):
   // Resuming at BINARY_OP +
 #if PY_VERSION_HEX >= 0x030F0000
   // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
-  dfm.cause_instr_idx = BCOffset{6};
+  dfm.setCauseInstrIdx(BCOffset{6});
 #elif PY_VERSION_HEX >= 0x030E0000
   // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
-  dfm.cause_instr_idx = BCOffset{4};
+  dfm.setCauseInstrIdx(BCOffset{4});
 #else
   // Skip RESUME, LOAD_FAST, LOAD_FAST
-  dfm.cause_instr_idx = BCOffset{6};
+  dfm.setCauseInstrIdx(BCOffset{6});
 #endif
   dm.frame_meta = {std::move(dfm)};
 
@@ -206,13 +206,13 @@ def test(a, b):
   // Resuming at BINARY_OP +
 #if PY_VERSION_HEX >= 0x030F0000
   // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
-  dfm.cause_instr_idx = BCOffset{6};
+  dfm.setCauseInstrIdx(BCOffset{6});
 #elif PY_VERSION_HEX >= 0x030E0000
   // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
-  dfm.cause_instr_idx = BCOffset{4};
+  dfm.setCauseInstrIdx(BCOffset{4});
 #else
   // Skip RESUME, LOAD_FAST, LOAD_FAST
-  dfm.cause_instr_idx = BCOffset{6};
+  dfm.setCauseInstrIdx(BCOffset{6});
 #endif
   dm.frame_meta = {std::move(dfm)};
 
@@ -270,9 +270,9 @@ def test(num):
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 2};
 #if PY_VERSION_HEX >= 0x030F0000
-  dfm.cause_instr_idx = BCOffset{12};
+  dfm.setCauseInstrIdx(BCOffset{12});
 #else
-  dfm.cause_instr_idx = BCOffset{10};
+  dfm.setCauseInstrIdx(BCOffset{10});
 #endif
   dm.frame_meta = {std::move(dfm)};
 
@@ -337,7 +337,7 @@ def test(x, y):
     DeoptFrameMetadata dfm;
     dfm.localsplus = {0};
     dfm.stack = {0};
-    dfm.cause_instr_idx = BCOffset(jump_index);
+    dfm.setCauseInstrIdx(BCOffset(jump_index));
     dm.frame_meta = {std::move(dfm)};
 
     Ref<> result =

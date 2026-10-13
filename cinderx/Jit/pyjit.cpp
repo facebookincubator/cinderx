@@ -3027,10 +3027,10 @@ void collect_deopt_stat(
   DEFINE_STATIC_STRING(reason);
 
   const DeoptFrameMetadata& frame_meta = meta.innermostFrame();
-  BorrowedRef<PyCodeObject> code = frame_meta.code;
+  BorrowedRef<PyCodeObject> code = frame_meta.code();
 
   auto func_qualname = code->co_qualname;
-  BCOffset line_offset = frame_meta.cause_instr_idx;
+  BCOffset line_offset = frame_meta.causeInstrIdx();
   int lineno_raw = code->co_linetable != nullptr
       ? PyCode_Addr2Line(code, line_offset.value())
       : -1;
