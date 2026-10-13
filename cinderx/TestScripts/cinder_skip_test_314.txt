@@ -20,9 +20,5 @@ test.test_gc.GCTests.test_heap_size
 # the smaller POSIX values this CPython test expects to accept.
 test.test_thread.ThreadRunningTests.test_nt_and_posix_stack_size
 
-# These appear to be broken upstream without CinderX
-test.test_urllib.urlopen_HttpTests.test_url_host_with_control_char_rejected
-test.test_urllib.urlopen_HttpTests.test_url_host_with_newline_header_injection_rejected
-
 # AI thinks this is broken upstream but fixed in 3.15+
 test.test_zipimport.CompressedZipImportTestCase.testPackageExplicitDirectories
