@@ -7,6 +7,7 @@ import importlib
 # Pre-loaded so ModuleAttrPinTests._import's invalidate_caches() below never
 # triggers a fresh import while sys.modules is swapped out.
 import importlib.metadata
+import subprocess
 import sys
 import unittest
 from textwrap import dedent
@@ -907,6 +908,19 @@ LEAF_SOURCE = """
     class Klass:
         pass
 
+    def python_func(value):
+        return value + 1
+
+    c_func = len
+
+    class Callable:
+        def __call__(self, value):
+            return value + 3
+
+    class NonCallable:
+        pass
+
+    callable_obj = Callable()
     attr = Klass
     """
 
@@ -915,12 +929,12 @@ LEAF_SOURCE = """
 @skip_if_prefork("the compiled function shows up as a leak due to immortalization")
 class ModuleAttrPinTests(unittest.TestCase):
     """The JIT resolves a module attribute at compile time and pins it with a
-    GuardIs when the value is a module or a type.  Rebinding such an attribute
-    has to deopt and re-execute the LOAD_ATTR in the interpreter, which only
-    works if the deopt's FrameState still holds the module receiver on the
-    operand stack.  Before T284563326 was fixed the receiver was missing, so
-    the interpreter read the stack slot underneath it: a segfault with nothing
-    below, a wrong receiver otherwise.
+    GuardIs when the value is a module or a stable callable. Rebinding such an
+    attribute has to deopt and re-execute the LOAD_ATTR in the interpreter,
+    which only works if the deopt's FrameState still holds the module receiver
+    on the operand stack. Before T284563326 was fixed the receiver was missing,
+    so the interpreter read the stack slot underneath it: a segfault with
+    nothing below, a wrong receiver otherwise.
     """
 
     def _import(self, tmp, name, source):
@@ -940,6 +954,13 @@ class ModuleAttrPinTests(unittest.TestCase):
         self.assertIn("LoadModuleAttrCached", counts)
         # One GuardIs pins the module global, the rest pin attribute values.
         self.assertGreaterEqual(counts.get("GuardIs", 0), num_pins + 1)
+
+    def _assert_attr_not_pinned(self, func):
+        self.assertTrue(cinderx.jit.is_jit_compiled(func))
+        counts = cinderx.jit.get_function_hir_opcode_counts(func)
+        self.assertIsNotNone(counts)
+        self.assertIn("LoadModuleAttrCached", counts)
+        self.assertEqual(counts.get("GuardIs", 0), 1)
 
     def _guard_deopts(self, qualname):
         deopts = cinderx.jit.get_and_clear_runtime_stats().get("deopt") or []
@@ -971,6 +992,88 @@ class ModuleAttrPinTests(unittest.TestCase):
             leaf.attr = 2
             self.assertEqual(user.load(), 2)
             self.assertGreaterEqual(self._guard_deopts("load"), 1)
+
+    def test_rebind_python_function_valued_attr(self):
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_leaf
+
+                def call(value):
+                    return pin_leaf.python_func(value)
+                """,
+            )
+            cinderx.jit.force_compile(user.call)
+            self._assert_attr_pinned(user.call)
+            self.assertEqual(user.call(40), 41)
+
+            cinderx.jit.get_and_clear_runtime_stats()
+            leaf.python_func = lambda value: value + 2
+            self.assertEqual(user.call(40), 42)
+            self.assertGreaterEqual(self._guard_deopts("call"), 1)
+
+    def test_rebind_c_function_valued_attr(self):
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_leaf
+
+                def call(value):
+                    return pin_leaf.c_func(value)
+                """,
+            )
+            cinderx.jit.force_compile(user.call)
+            self._assert_attr_pinned(user.call)
+            self.assertEqual(user.call([1, 2]), 2)
+
+            cinderx.jit.get_and_clear_runtime_stats()
+            leaf.c_func = lambda value: len(value) + 1
+            self.assertEqual(user.call([1, 2]), 3)
+            self.assertGreaterEqual(self._guard_deopts("call"), 1)
+
+    def test_pinned_c_function_does_not_reenter_jit_shutdown(self):
+        source = dedent("""
+            import _cinderx
+            import cinderx.jit
+
+            def call():
+                return _cinderx.is_sanitizer_build()
+
+            cinderx.jit.force_compile(call)
+            call()
+        """)
+        subprocess.run(
+            [sys.executable, "-X", "jit-all", "-c", source],
+            check=True,
+            env=cinder_support.subprocess_env(),
+        )
+
+    def test_callable_instance_valued_attr_is_not_pinned(self):
+        with cinder_support.temp_sys_path() as tmp:
+            leaf = self._import(tmp, "pin_leaf", LEAF_SOURCE)
+            user = self._import(
+                tmp,
+                "pin_user",
+                """
+                import pin_leaf
+
+                def call(value):
+                    return pin_leaf.callable_obj(value)
+                """,
+            )
+            cinderx.jit.force_compile(user.call)
+            self._assert_attr_not_pinned(user.call)
+            self.assertEqual(user.call(40), 43)
+
+            leaf.callable_obj.__class__ = leaf.NonCallable
+            with self.assertRaisesRegex(TypeError, "object is not callable"):
+                user.call(40)
 
     def test_rebind_class_valued_attr_with_stack_underneath(self):
         """The receiver isn't at the bottom of the operand stack here, so a

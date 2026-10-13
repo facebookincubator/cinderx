@@ -5653,7 +5653,10 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v15
+    v16:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v15 {
+    }
+    Snapshot
+    Return v16
   }
 }
 --- Expected 3.14 ---
@@ -5698,7 +5701,10 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v15
+    v16:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v15 {
+    }
+    Snapshot
+    Return v16
   }
 }
 --- Expected 3.15 ---
@@ -5743,7 +5749,10 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v15
+    v16:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v15 {
+    }
+    Snapshot
+    Return v16
   }
 }
 --- Expected 3.16 ---
@@ -5788,7 +5797,10 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v15
+    v16:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v15 {
+    }
+    Snapshot
+    Return v16
   }
 }
 --- Expected 3.14t ---
@@ -17379,13 +17391,16 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v16:Object = VectorCall<0> v15 {
+    v16:MortalObjectUser[builtin_function_or_method:time:0xdeadbeef] = GuardIs<0xdeadbeef> v15 {
+    }
+    Snapshot
+    v17:Object = VectorCall<0> v16 {
       FrameState {
         CurInstrOffset 32
       }
     }
     Snapshot
-    Return v16
+    Return v17
   }
 }
 --- Expected 3.14 ---
@@ -17421,14 +17436,17 @@ fun jittestmodule:test {
       }
     }
     Snapshot
+    v16:MortalObjectUser[builtin_function_or_method:time:0xdeadbeef] = GuardIs<0xdeadbeef> v15 {
+    }
+    Snapshot
     v12:Nullptr = LoadConst<Nullptr>
-    v16:Object = VectorCall<0> v15 {
+    v17:Object = VectorCall<0> v16 {
       FrameState {
         CurInstrOffset 34
       }
     }
     Snapshot
-    Return v16
+    Return v17
   }
 }
 --- Expected 3.15 ---
@@ -17464,14 +17482,17 @@ fun jittestmodule:test {
       }
     }
     Snapshot
+    v16:MortalObjectUser[builtin_function_or_method:time:0xdeadbeef] = GuardIs<0xdeadbeef> v15 {
+    }
+    Snapshot
     v12:Nullptr = LoadConst<Nullptr>
-    v16:Object = VectorCall<0> v15 {
+    v17:Object = VectorCall<0> v16 {
       FrameState {
         CurInstrOffset 36
       }
     }
     Snapshot
-    Return v16
+    Return v17
   }
 }
 --- Expected 3.16 ---
@@ -17507,14 +17528,17 @@ fun jittestmodule:test {
       }
     }
     Snapshot
+    v16:MortalObjectUser[builtin_function_or_method:time:0xdeadbeef] = GuardIs<0xdeadbeef> v15 {
+    }
+    Snapshot
     v12:Nullptr = LoadConst<Nullptr>
-    v16:Object = VectorCall<0> v15 {
+    v17:Object = VectorCall<0> v16 {
       FrameState {
         CurInstrOffset 36
       }
     }
     Snapshot
-    Return v16
+    Return v17
   }
 }
 --- Expected 3.14t ---

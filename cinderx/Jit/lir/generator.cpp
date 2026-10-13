@@ -1927,10 +1927,6 @@ bool LIRGenerator::translateSpecializedCall(
     return false;
   }
 
-  // Only inline loading the entry points to native functions.  These objects
-  // will not have their vectorcall entry points modified by the JIT, so it
-  // always makes sense to load them at JIT-time and burn them directly into
-  // code.
   if (type != &PyCFunction_Type) {
     return false;
   }
@@ -1959,9 +1955,9 @@ bool LIRGenerator::translateSpecializedCall(
       (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS)) {
     case METH_NOARGS:
       if (hir_instr.numArgs() == 0) {
-        bbb.appendCallInstruction(
+        bbb.appendIndirectCallInstruction(
             hir_instr.output(),
-            PyCFunction_GET_FUNCTION(callee),
+            &reinterpret_cast<PyCFunctionObject*>(callee)->m_ml->ml_meth,
             PyCFunction_GET_SELF(callee),
             nullptr);
         return true;
@@ -1969,9 +1965,9 @@ bool LIRGenerator::translateSpecializedCall(
       break;
     case METH_O:
       if (hir_instr.numArgs() == 1) {
-        bbb.appendCallInstruction(
+        bbb.appendIndirectCallInstruction(
             hir_instr.output(),
-            PyCFunction_GET_FUNCTION(callee),
+            &reinterpret_cast<PyCFunctionObject*>(callee)->m_ml->ml_meth,
             PyCFunction_GET_SELF(callee),
             hir_instr.arg(0));
         return true;

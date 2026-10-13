@@ -11,6 +11,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace cinderx {
 
@@ -55,6 +56,68 @@ def func():
   auto res = Ref<>::steal(compiled->invoke(pyfunc, args, 0));
   ASSERT_NE(res, nullptr);
   ASSERT_EQ(PyLong_AsLong(res), 314159);
+}
+
+TEST_F(ASMGeneratorTest, NativeModuleCallObservesMethodMutation) {
+  PyCFunction original = [](PyObject* self, PyObject*) {
+    return Py_NewRef(self);
+  };
+  static PyMethodDef methods[] = {
+      {"method", original, METH_NOARGS, nullptr},
+      {"method", original, METH_O, nullptr}};
+  PyCFunction replacement = [](PyObject*, PyObject* arg) {
+    return Py_NewRef(arg == nullptr ? Py_None : arg);
+  };
+
+  for (PyMethodDef& method : methods) {
+    const int flags = method.ml_flags;
+    SCOPED_TRACE(flags);
+    method.ml_meth = original;
+    auto self = Ref<>::steal(PyLong_FromLong(42));
+    ASSERT_NE(self, nullptr);
+    auto native = Ref<>::steal(PyCFunction_NewEx(&method, self, nullptr));
+    ASSERT_NE(native, nullptr);
+    auto module = Ref<>::steal(PyModule_New("mutable_native"));
+    ASSERT_NE(module, nullptr);
+    ASSERT_EQ(PyObject_SetAttrString(module, "method", native), 0);
+    ASSERT_EQ(
+        PyDict_SetItemString(
+            PyImport_GetModuleDict(), "mutable_native", module),
+        0);
+
+    const char* src = flags == METH_NOARGS ? R"(
+import mutable_native
+
+def func():
+    return mutable_native.method()
+)"
+                                           : R"(
+import mutable_native
+
+def func(arg):
+    return mutable_native.method(arg)
+)";
+    Ref<> pyfunc = compileAndGet(src, "func");
+    ASSERT_NE(pyfunc, nullptr);
+    auto compiled = GenerateCode(pyfunc);
+    ASSERT_NE(compiled, nullptr);
+    auto arg = Ref<>::steal(PyLong_FromLong(123));
+    ASSERT_NE(arg, nullptr);
+    std::vector<PyObject*> args;
+    if (flags == METH_O) {
+      args.push_back(arg);
+    }
+
+    auto result =
+        Ref<>::steal(compiled->invoke(pyfunc, args.data(), args.size()));
+    ASSERT_EQ(result, self);
+    method.ml_meth = replacement;
+    result = Ref<>::steal(compiled->invoke(pyfunc, args.data(), args.size()));
+    EXPECT_EQ(result.get(), flags == METH_NOARGS ? Py_None : arg.get());
+    method.ml_meth = original;
+    result = Ref<>::steal(compiled->invoke(pyfunc, args.data(), args.size()));
+    EXPECT_EQ(result, self);
+  }
 }
 
 TEST_F(ASMGeneratorTest, FunctionWithoutReturnUsesValuelessEpilogue) {

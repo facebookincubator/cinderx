@@ -2093,15 +2093,16 @@ BorrowedRef<> staticModuleForReceiver(Register* reg) {
 
 // Given a LoadModuleAttrCached (cached) that reads `load_attr`'s attribute from
 // the statically-known module `mod`, resolve the attribute at compile time and,
-// if it is itself a module or a type, pin its identity with a GuardIs. Returns
-// the pinned register, or nullptr if nothing was pinned (leaving `cached`
-// as-is).
+// if it is itself a module or a stable callable, pin its identity with a
+// GuardIs. Returns the pinned register, or nullptr if nothing was pinned
+// (leaving `cached` as-is).
 //
 // Pinning modules lets a chain like `pkg.submod.attr` recognize each level as a
-// module; pinning types exposes the concrete type to type-based optimizations.
-// Other values (functions, constants, ...) are left to the runtime cache. The
-// GuardIs deopts if the attribute is later rebound to a different object, and
-// the runtime LoadModuleAttrCached is retained for correctness.
+// module; pinning callables exposes the concrete target to call optimizations.
+// Arbitrary callable instances are excluded because their type, and therefore
+// their callability, can change without changing their identity.
+// The GuardIs deopts if the attribute is later rebound to a different object,
+// and the runtime LoadModuleAttrCached is retained for correctness.
 Register* pinModuleAttr(
     Env& env,
     BorrowedRef<> mod,
@@ -2116,6 +2117,7 @@ Register* pinModuleAttr(
   BorrowedRef<> value = loadModuleAttrSafe(mod, name);
   if (value == nullptr ||
       !(PyModule_Check(value) || Ci_StrictModule_Check(value) ||
+        PyFunction_Check(value) || PyCFunction_Check(value) ||
         PyType_Check(value))) {
     return nullptr;
   }
