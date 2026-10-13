@@ -7,6 +7,14 @@
 
 namespace cinderx::jit {
 
+int CodeRuntime::References::traverse(visitproc visit, void* arg) const {
+  for (const auto& ref : objects) {
+    Py_VISIT(ref.get());
+  }
+  Py_VISIT(reifier.get());
+  return 0;
+}
+
 GenYieldPoint::GenYieldPoint(std::size_t deopt_idx, ptrdiff_t yield_from_offset)
     : deopt_idx_{deopt_idx}, yield_from_offset_{yield_from_offset} {}
 
@@ -72,25 +80,19 @@ void CodeRuntime::transferReferences(std::unordered_set<Ref<>>&& refs) {
   references_.merge(std::move(refs));
 }
 
-void CodeRuntime::releaseReferences() {
-  // We want to be careful here with the freeing of these references. Freeing
-  // the objects could cause our CompiledFunction to be freed as well so first
-  // we grab the references and then clear them.
+CodeRuntime::References CodeRuntime::releaseReferences() {
+  // Transfer ownership without decrefing. The caller decides when it is safe
+  // to destroy the returned references.
   JIT_DCHECK(
       ThreadedCompileContext::canAccessSharedData(), "lock should be held");
 
-  std::unordered_set<Ref<>> refs;
+  References refs;
+  refs.objects = std::move(references_);
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  Ref<> tmp;
+  refs.reifier = std::move(reifier_);
 #endif
-  {
-    refs = std::move(references_);
-    is_cleared_ = true;
-#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
-    reifier_.reset(nullptr);
-#endif
-  }
-  // and then we let the dtors clean everything up
+  is_cleared_ = true;
+  return refs;
 }
 
 GenYieldPoint* CodeRuntime::addGenYieldPoint(GenYieldPoint&& gen_yield_point) {

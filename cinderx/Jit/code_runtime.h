@@ -48,6 +48,20 @@ class GenYieldPoint {
 // associated with a JIT-compiled function.
 class alignas(16) CodeRuntime {
  public:
+  struct References {
+    References() = default;
+    References(const References&) = delete;
+    References& operator=(const References&) = delete;
+    References(References&&) = default;
+    References& operator=(References&&) = default;
+    ~References() = default;
+
+    std::unordered_set<Ref<>> objects;
+    Ref<> reifier;
+
+    int traverse(visitproc visit, void* arg) const;
+  };
+
   explicit CodeRuntime(BorrowedRef<PyFunctionObject> func);
   CodeRuntime(
       BorrowedRef<PyCodeObject> code,
@@ -62,8 +76,9 @@ class alignas(16) CodeRuntime {
   // Transfer references to be owned by the CodeRuntime.
   void transferReferences(std::unordered_set<Ref<>>&& refs);
 
-  // Release any references this CodeRuntime holds to Python objects.
-  void releaseReferences();
+  // Hand over every Python reference this CodeRuntime holds. The caller
+  // owns them from here and decides when they can be destroyed.
+  References releaseReferences();
 
   // Store meta-data about generator yield point.
   GenYieldPoint* addGenYieldPoint(GenYieldPoint&& gen_yield_point);
@@ -132,7 +147,7 @@ class alignas(16) CodeRuntime {
   BorrowedRef<PyDictObject> globals_;
 
   // References owned by this CodeRuntime.
-  std::unordered_set<Ref<PyObject>> references_;
+  std::unordered_set<Ref<>> references_;
 
   // Metadata about yield points. Deque so we can have raw pointers to content.
   std::deque<GenYieldPoint> gen_yield_points_;

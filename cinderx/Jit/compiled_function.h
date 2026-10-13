@@ -152,8 +152,12 @@ struct CompiledFunctionData {
   // owned by the JIT Context's stable storage; otherwise it is owned by
   // stable_storage above.
   CodeRuntime* runtime{nullptr};
+  // References retained until generated code is no longer executing.
+  CodeRuntime::References retired_runtime_references;
 
   CompiledFunctionData() = default;
+
+  void clearRetiredRuntimeReferences();
 };
 
 class CompiledFunction;

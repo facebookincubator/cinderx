@@ -84,6 +84,25 @@ TEST_F(InlineCacheTest, CompiledDataOwnsCodeRuntimeStorage) {
   EXPECT_EQ(Py_REFCNT(func.get()), initial_refcount);
 }
 
+TEST_F(InlineCacheTest, GCClearReleasesRetiredCodeRuntimeReferences) {
+  Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
+  const Py_ssize_t initial_refcount = Py_REFCNT(func.get());
+
+  CompiledFunctionData data;
+  data.stable_storage = std::make_unique<PerCompilationStableStorage>();
+  data.runtime = data.stable_storage->allocateCodeRuntime(func);
+  data.runtime->addReference(func.getObj());
+
+  Ref<CompiledFunction> compiled =
+      CompiledFunction::create(std::move(data), false);
+  ASSERT_NE(compiled, nullptr);
+  compiled->clear();
+  ASSERT_EQ(Py_REFCNT(func.get()), initial_refcount + 1);
+
+  ASSERT_EQ(Py_TYPE(compiled.get())->tp_clear(compiled.getObj()), 0);
+  EXPECT_EQ(Py_REFCNT(func.get()), initial_refcount);
+}
+
 TEST_F(InlineCacheTest, DeferredCompiledDataContributesInlineCacheStats) {
   Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
   Context* context = getContext();

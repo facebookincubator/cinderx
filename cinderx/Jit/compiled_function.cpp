@@ -64,6 +64,9 @@ int compiledfunc_clear(PyObject* self) {
   // able to find their way back here to release what they own.
   cf->releaseFunctionRefs();
   cf->clear();
+  if (auto data = cf->data(); data != nullptr) {
+    data->clearRetiredRuntimeReferences();
+  }
   return 0;
 }
 
@@ -138,17 +141,23 @@ int compiledfuncdata_traverse(PyObject* self, visitproc visit, void* arg) {
     // context is gone.
     cinderx::ModuleState* mod_state = cinderx::getModuleState();
     if (mod_state != nullptr && mod_state->jit_context != nullptr) {
-      return cfd->runtime->traverse(visit, arg);
+      if (const int err = cfd->runtime->traverse(visit, arg); err != 0) {
+        return err;
+      }
     }
 #else
-    return cfd->runtime->traverse(visit, arg);
+    if (const int err = cfd->runtime->traverse(visit, arg); err != 0) {
+      return err;
+    }
 #endif
   }
 
-  return 0;
+  return cfd->retired_runtime_references.traverse(visit, arg);
 }
 
-int compiledfuncdata_clear(PyObject* /*self*/) {
+int compiledfuncdata_clear(PyObject* self) {
+  auto cfd = reinterpret_cast<CompiledFunctionData*>(self);
+  cfd->clearRetiredRuntimeReferences();
   return 0;
 }
 
@@ -509,18 +518,25 @@ int CompiledFunction::traverse(visitproc visit, void* arg) {
 
   if (!contiguous_data_) {
     Py_VISIT(data_);
-  } else if (data_->runtime != nullptr) {
+  } else {
+    if (data_->runtime != nullptr) {
 #ifdef ENABLE_PREFORK_MODEL
-    // During shutdown the Context (and its CodeRuntime slab) may be destroyed
-    // while CFs still exist in function dicts.  Skip traversal if the JIT
-    // context is gone.
-    cinderx::ModuleState* mod_state = cinderx::getModuleState();
-    if (mod_state != nullptr && mod_state->jit_context != nullptr) {
-      return data_->runtime->traverse(visit, arg);
-    }
+      // During shutdown the Context (and its CodeRuntime slab) may be destroyed
+      // while CFs still exist in function dicts.  Skip traversal if the JIT
+      // context is gone.
+      cinderx::ModuleState* mod_state = cinderx::getModuleState();
+      if (mod_state != nullptr && mod_state->jit_context != nullptr) {
+        if (const int err = data_->runtime->traverse(visit, arg); err != 0) {
+          return err;
+        }
+      }
 #else
-    return data_->runtime->traverse(visit, arg);
+      if (const int err = data_->runtime->traverse(visit, arg); err != 0) {
+        return err;
+      }
 #endif
+    }
+    return data_->retired_runtime_references.traverse(visit, arg);
   }
 
   return 0;
@@ -566,7 +582,7 @@ void CompiledFunction::clear(bool context_finalizing) {
 
   // Clear all references held by the CodeRuntime.
   if (data_ != nullptr && data_->runtime != nullptr) {
-    data_->runtime->releaseReferences();
+    data_->retired_runtime_references = data_->runtime->releaseReferences();
     data_->runtime = nullptr;
   }
 }
@@ -592,6 +608,13 @@ void CompiledFunction::releaseFunctionRefs() {
   for (size_t i = 0; i < count; i++) {
     Py_DECREF(this);
   }
+}
+
+void CompiledFunctionData::clearRetiredRuntimeReferences() {
+  // Dropping these references runs arbitrary Python destructors, which can
+  // re-enter or even destroy this object. Move them to a local first, so
+  // nothing below touches `this` again.
+  auto references = std::move(retired_runtime_references);
 }
 
 } // namespace cinderx::jit

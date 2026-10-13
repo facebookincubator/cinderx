@@ -120,6 +120,21 @@ def compiled_code_func_with_nested_builtin():
     return nested
 
 
+def make_runtime_reference_functions():
+    namespace = {}
+    exec(
+        """
+def callee():
+    return 42
+
+def caller():
+    return callee()
+""",
+        namespace,
+    )
+    return namespace, namespace["callee"], namespace["caller"]
+
+
 class InlineCacheStatsTests(unittest.TestCase):
     @jit_suppress
     @passIf(
@@ -2310,6 +2325,50 @@ class ForceUncompileTests(unittest.TestCase):
                 self.assertTrue(force_uncompile(wrapper))
                 self.assertFalse(is_jit_compiled(func))
                 self.assertFalse(is_jit_compiled(wrapper))
+
+    @skip_if_prefork(
+        "Prefork builds immortalize compiled functions and their references"
+    )
+    @passIf(
+        not cinderx.jit.is_hir_inliner_enabled(),
+        "requires the HIR inliner",
+    )
+    def test_retained_compile_keeps_runtime_references(self) -> None:
+        _, callee, caller = make_runtime_reference_functions()
+        self.assertTrue(force_compile(caller))
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(caller), 1)
+        compiled = cinderx.jit.get_compiled_function(caller)
+        self.assertIsNotNone(compiled)
+        callee_refs = sys.getrefcount(callee)
+
+        self.assertTrue(force_uncompile(caller))
+        self.assertEqual(sys.getrefcount(callee), callee_refs)
+
+        del compiled
+        self.assertEqual(sys.getrefcount(callee), callee_refs - 1)
+
+    @skip_if_prefork(
+        "Prefork builds immortalize compiled functions and their references"
+    )
+    @passIf(
+        not cinderx.jit.is_hir_inliner_enabled(),
+        "requires the HIR inliner",
+    )
+    def test_retired_runtime_references_do_not_leak_cycles(self) -> None:
+        namespace, callee, caller = make_runtime_reference_functions()
+        self.assertTrue(force_compile(caller))
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(caller), 1)
+        compiled = cinderx.jit.get_compiled_function(caller)
+        self.assertIsNotNone(compiled)
+        callee.compiled = compiled
+        callee_ref = weakref.ref(callee)
+
+        self.assertTrue(force_uncompile(caller))
+        namespace.clear()
+        del callee, caller, compiled
+        gc.collect()
+
+        self.assertIsNone(callee_ref())
 
 
 class LazyCompileTests(unittest.TestCase):
