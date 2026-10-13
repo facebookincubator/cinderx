@@ -4,17 +4,45 @@
 
 #include "cinderx/Jit/hir/analysis.h"
 
+#include <optional>
+#include <vector>
+
 namespace cinderx::jit::hir {
 
 namespace {
 
-Instr* replaceCompare(Compare* compare, IsTruthy* truthy) {
-  return CompareBool::create(
-      truthy->output(),
-      compare->op(),
-      compare->getOperand(0),
-      compare->getOperand(1),
-      *get_frame_state(*truthy));
+// Check that `compare` can be fused into `truthy`, which must both live in
+// `block`.  Every instruction after `compare` up to the block's terminator,
+// other than `truthy`, must be replayable and must not use the compare's
+// output.  Snapshots are exempt and are returned instead, as their uses of the
+// output must go away along with `compare`.
+//
+// Returns std::nullopt if the fusion isn't safe.
+std::optional<std::vector<Instr*>> findSnapshotsToRemove(
+    BasicBlock& block,
+    const Compare& compare,
+    const IsTruthy& truthy) {
+  Register* compare_out = compare.output();
+  std::vector<Instr*> snapshots;
+  for (auto it = std::next(block.rbegin()); it != block.rend(); ++it) {
+    Instr& instr = *it;
+    if (&instr == &compare) {
+      return snapshots;
+    }
+    if (&instr == &truthy) {
+      continue;
+    }
+    if (instr.isSnapshot()) {
+      if (instr.uses(compare_out)) {
+        snapshots.push_back(&instr);
+      }
+      continue;
+    }
+    if (!instr.isReplayable() || instr.uses(compare_out)) {
+      return std::nullopt;
+    }
+  }
+  return snapshots;
 }
 
 } // namespace
@@ -24,95 +52,66 @@ bool DynamicComparisonElimination::run(Function& irfunc) {
   liveness.run();
   auto last_uses = liveness.getLastUses();
 
-  // Optimize "if x is y" case
-  size_t replacements = 0;
+  bool changed = false;
   for (auto& block : irfunc.cfg.blocks) {
-    auto& instr = block.back();
+    auto& branch = block.back();
 
     // Looking for:
-    //   $some_conditional = ...
+    //   $compare = Compare<op> $left $right
     //   $truthy = IsTruthy $compare
     //   CondBranch<x, y> $truthy
-    // Which we then re-write to a form which doesn't use IsTruthy anymore.
-    if (!instr.isCondBranch()) {
+    // Which we then rewrite to:
+    //   $truthy = CompareBool<op> $left $right
+    //   CondBranch<x, y> $truthy
+    if (!branch.isCondBranch()) {
       continue;
     }
 
-    Instr* truthy = instr.getOperand(0)->instr();
-    if (!truthy->isIsTruthy() || truthy->block() != &block) {
+    Instr* truthy_instr = branch.getOperand(0)->instr();
+    if (!truthy_instr->isIsTruthy() || truthy_instr->block() != &block) {
       continue;
     }
+    auto truthy = static_cast<IsTruthy*>(truthy_instr);
 
-    Instr* truthy_target = truthy->getOperand(0)->instr();
-    if (truthy_target->block() != &block ||
-        (!truthy_target->isCompare() && !truthy_target->isVectorCall())) {
+    Instr* compare_instr = truthy->getOperand(0)->instr();
+    if (!compare_instr->isCompare() || compare_instr->block() != &block) {
       continue;
     }
+    auto compare = static_cast<Compare*>(compare_instr);
 
+    // The compare's output can't be used past the IsTruthy.
     auto& dying_regs = map_get(last_uses, truthy, kEmptyRegSet);
-
-    if (!dying_regs.contains(truthy->getOperand(0))) {
-      // Compare output lives on, we can't re-write...
+    if (!dying_regs.contains(compare->output())) {
       continue;
     }
 
-    // Make sure the output of compare isn't getting used between the compare
-    // and the branch other than by the truthy instruction.
-    std::vector<Instr*> snapshots;
-    bool can_optimize = true;
-    for (auto it = std::next(block.rbegin()); it != block.rend(); ++it) {
-      if (&*it == truthy_target) {
-        break;
-      } else if (&*it != truthy) {
-        if (it->isSnapshot()) {
-          if (it->uses(truthy_target->output())) {
-            snapshots.push_back(&*it);
-          }
-          continue;
-        } else if (!it->isReplayable()) {
-          can_optimize = false;
-          break;
-        }
-
-        if (it->uses(truthy->getOperand(0))) {
-          can_optimize = false;
-          break;
-        }
-      }
-    }
-    if (!can_optimize) {
+    std::optional<std::vector<Instr*>> snapshots =
+        findSnapshotsToRemove(block, *compare, *truthy);
+    if (!snapshots.has_value()) {
       continue;
     }
 
-    Instr* replacement = nullptr;
-    if (truthy_target->isCompare()) {
-      auto compare = static_cast<Compare*>(truthy_target);
+    Instr* replacement = CompareBool::create(
+        truthy->output(),
+        compare->op(),
+        compare->getOperand(0),
+        compare->getOperand(1),
+        *get_frame_state(*truthy));
+    replacement->copyBytecodeOffset(branch);
+    truthy->replaceWith(*replacement);
+    delete truthy;
 
-      replacement = replaceCompare(compare, static_cast<IsTruthy*>(truthy));
+    compare->unlink();
+    delete compare;
+
+    for (Instr* snapshot : *snapshots) {
+      snapshot->unlink();
+      delete snapshot;
     }
 
-    if (replacement != nullptr) {
-      replacements += 1;
-
-      replacement->copyBytecodeOffset(instr);
-      truthy->replaceWith(*replacement);
-
-      truthy_target->unlink();
-      delete truthy_target;
-      delete truthy;
-
-      // There may be zero or more Snapshots between the Compare and the
-      // IsTruthy that uses the output of the Compare (which we want to delete).
-      // Since we're fusing the two operations together, the Snapshot and
-      // its use of the dead intermediate value should be deleted.
-      for (auto snapshot : snapshots) {
-        snapshot->unlink();
-        delete snapshot;
-      }
-    }
+    changed = true;
   }
 
-  bool changed = replacements > 0;
   if (changed) {
     reflowTypes(irfunc);
   }
