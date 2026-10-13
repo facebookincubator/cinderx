@@ -2,7 +2,11 @@
 
 # pyre-strict
 
+import gc
 import sys
+import weakref
+from collections import deque
+from functools import partial
 from types import MemberDescriptorType
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -819,6 +823,62 @@ class StaticFieldTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             a = mod.A()
             self.assertEqual(mod.get_ref(a)(), a)
+
+    def test_inherited_native_weakref_slot_not_moved(self) -> None:
+        # deque's dealloc only clears weakrefs through its own field, so a static
+        # subclass must keep the inherited offset or refcount deaths leave dangling
+        # weakrefs.
+        codestr = """
+            from collections import deque
+
+            class C(deque):
+                x: int
+
+                def __init__(self) -> None:
+                    super().__init__()
+                    self.x = 1
+        """
+        with self.in_module(codestr) as mod:
+            C = mod.C
+            self.assertEqual(C.__weakrefoffset__, deque.__weakrefoffset__)
+            gc.disable()
+            try:
+                c = C()
+                r = weakref.ref(c)
+                del c
+                self.assertIsNone(r())
+            finally:
+                gc.enable()
+
+    def test_inherited_native_dict_and_weakref_slots_not_moved(self) -> None:
+        codestr = """
+            from functools import partial
+
+            class C(partial):
+                x: int
+        """
+        with self.in_module(codestr) as mod:
+            C = mod.C
+            self.assertEqual(C.__weakrefoffset__, partial.__weakrefoffset__)
+            self.assertEqual(C.__dictoffset__, partial.__dictoffset__)
+
+            class Tracked:
+                pass
+
+            gc.disable()
+            try:
+                c = C(print)
+                c.x = 1
+                tracked = Tracked()
+                c.attr = tracked
+                tracked_ref = weakref.ref(tracked)
+                del tracked
+                c_ref = weakref.ref(c)
+                del c
+                self.assertIsNone(c_ref())
+                self.assertIsNone(tracked_ref())
+            finally:
+                gc.enable()
 
     def test_multiple_fields_with_nonstatic_base(self) -> None:
         non_static = """

@@ -1223,17 +1223,25 @@ static int type_new_descriptors(
   slotoffset = _Py_SIZE_ROUND_UP(slotoffset, sizeof(PyObject*));
 
   if (!PyType_HasFeature(type, Py_TPFLAGS_PREHEADER)) {
+    // Only move __dict__/__weakref__ slots this type added itself, as CPython's
+    // type_new_descriptors does. An inherited slot must stay at the base's
+    // offset: subtype_dealloc leaves clearing it to the base's dealloc, which
+    // for a native base only looks at its own field.
     if (type->tp_dictoffset) {
-      if (type->tp_base->tp_itemsize == 0) {
-        type->tp_dictoffset = slotoffset;
+      if (!type->tp_base->tp_dictoffset) {
+        if (type->tp_base->tp_itemsize == 0) {
+          type->tp_dictoffset = slotoffset;
+        }
+        slotoffset += sizeof(PyObject*);
       }
-      slotoffset += sizeof(PyObject*);
       needs_gc = 1;
     }
 
     if (type->tp_weaklistoffset) {
-      type->tp_weaklistoffset = slotoffset;
-      slotoffset += sizeof(PyObject*);
+      if (!type->tp_base->tp_weaklistoffset) {
+        type->tp_weaklistoffset = slotoffset;
+        slotoffset += sizeof(PyObject*);
+      }
       needs_gc = 1;
     }
   } else {
