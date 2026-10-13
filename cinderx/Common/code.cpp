@@ -157,10 +157,6 @@ const char* opcodeName(int opcode) {
   return name != nullptr ? name : "<unknown opcode>";
 }
 
-Py_ssize_t inlineCacheSize(PyCodeObject* code, int index) {
-  return _CiOpcode_Caches[unspecialize(uninstrument(code, index))];
-}
-
 int loadAttrIndex(int oparg) {
   return oparg >> 1;
 }

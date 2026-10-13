@@ -2,7 +2,52 @@
 
 #include "cinderx/Jit/bytecode.h"
 
+#include "cinderx/Jit/threaded_compile.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
+
+#include <atomic>
+
 namespace cinderx::jit {
+
+namespace {
+
+// Load the opcode and oparg from a code object at the given index,
+// uninstrumenting the opcode along the way.
+//
+// Does not do any EXTENDED_ARG or EXTENDED_OPCODE decoding.
+_Py_CODEUNIT loadWord(BorrowedRef<PyCodeObject> code, BCIndex idx) {
+  static_assert(std::atomic_ref<_Py_CODEUNIT>::is_always_lock_free);
+
+  // Reading from the bytecode stream can race with the specializing interpreter
+  // changing the opcode (it will not touch the oparg though).  On free-threaded
+  // builds the specializing interpreter uses atomic operations so we use them
+  // here as well to be compatible.  However this does nothing to protect
+  // against GIL-ful builds of the specializing interpreter...
+  //
+  // Ideally we would load the bytecode in the preloader where we always hold
+  // the GIL, that'll be for a future change.
+  auto ref = std::atomic_ref<_Py_CODEUNIT>{codeUnit(code)[idx.value()]};
+  auto word = ref.load(std::memory_order_relaxed);
+
+  const int opcode = _Py_OPCODE(word);
+  const uint8_t base_opcode = Cix_DEINSTRUMENT(opcode);
+
+  // Opcode was locally instrumented (e.g. INSTRUMENTED_RESUME).
+  if (base_opcode != 0) {
+    return _Py_MAKE_CODEUNIT(base_opcode, _Py_OPARG(word));
+  }
+
+  // Opcode is instrumented via monitoring tables.  Needs the GIL to read the
+  // tables as they can also change.
+  JIT_THROW_IF(
+      opcode == INSTRUMENTED_INSTRUCTION || opcode == INSTRUMENTED_LINE,
+      "Instrumented opcode, based on monitoring tables.  We can't read it "
+      "without taking the GIL, just punt here.");
+
+  return word;
+}
+
+} // namespace
 
 BCOffset BytecodeInstruction::baseOffset() const {
   return baseOffset_;
@@ -13,7 +58,7 @@ BCIndex BytecodeInstruction::baseIndex() const {
 }
 
 BCOffset BytecodeInstruction::opcodeOffset() const {
-  calcOpcodeOffsetAndOparg();
+  ensureDecoded();
   return opcodeIndex_;
 }
 
@@ -22,14 +67,14 @@ BCIndex BytecodeInstruction::opcodeIndex() const {
 }
 
 int BytecodeInstruction::opcode() const {
-  int op = _Py_OPCODE(word());
+  int op = unspecialize(_Py_OPCODE(word()));
   if (extendedOpcode_) {
     return EXTENDED_OPCODE_FLAG | op;
   }
   return op;
 }
 
-void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
+void BytecodeInstruction::ensureDecoded() const {
   if (opcodeIndex_.value() != std::numeric_limits<int>::min()) {
     return;
   }
@@ -40,6 +85,8 @@ void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
     return;
   }
 
+  word_ = loadWord(code_, opcodeIndex_);
+
   // Consume all EXTENDED_ARG opcodes until we get to something else.
   auto consume_extended_args = [&] {
     while (_Py_OPCODE(word()) == EXTENDED_ARG) {
@@ -47,16 +94,20 @@ void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
           opcodeIndex_.value() < end_idx, "EXTENDED_ARG at end of bytecode");
       extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(word());
       opcodeIndex_++;
+      word_ = loadWord(code_, opcodeIndex_);
     }
   };
 
   consume_extended_args();
 
   // Check for EXTENDED_OPCODE, bump forward one opcode if so.
-  if (PY_VERSION_HEX >= 0x030E0000 && _Py_OPCODE(word()) == EXTENDED_OPCODE) {
-    opcodeIndex_++;
-    extendedOparg_ = 0;
-    extendedOpcode_ = true;
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    if (_Py_OPCODE(word()) == EXTENDED_OPCODE) {
+      opcodeIndex_++;
+      extendedOparg_ = 0;
+      extendedOpcode_ = true;
+      word_ = loadWord(code_, opcodeIndex_);
+    }
   }
 
   // If we had an EXTENDED_OPCODE, then it might also be followed by more
@@ -66,12 +117,8 @@ void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
   extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(word());
 }
 
-int BytecodeInstruction::uninstrumentedOpcode() const {
-  return uninstrument(code_, opcodeIndex().value());
-}
-
 int BytecodeInstruction::specializedOpcode() const {
-  int opcode = uninstrumentedOpcode();
+  int opcode = _Py_OPCODE(word());
 
   switch (opcode) {
     case BINARY_OP_ADD_FLOAT:
@@ -111,7 +158,7 @@ int BytecodeInstruction::specializedOpcode() const {
 }
 
 int BytecodeInstruction::oparg() const {
-  calcOpcodeOffsetAndOparg();
+  ensureDecoded();
   return extendedOparg_;
 }
 
@@ -197,14 +244,8 @@ BCOffset BytecodeInstruction::getJumpTarget() const {
 }
 
 BCOffset BytecodeInstruction::nextInstrOffset() const {
-  return BCOffset{
-      opcodeIndex() + inlineCacheSize(code_, opcodeIndex().value()) + 1};
-}
-
-_Py_CODEUNIT BytecodeInstruction::word() const {
-  int opcode = unspecialize(uninstrumentedOpcode());
-  int oparg = _Py_OPARG(codeUnit(code_)[opcodeIndex().value()]);
-  return _Py_MAKE_CODEUNIT(opcode, oparg);
+  int opcode = _Py_OPCODE(word());
+  return BCOffset{opcodeIndex() + _CiOpcode_Caches[unspecialize(opcode)] + 1};
 }
 
 bool BytecodeInstruction::isAbsoluteControlFlow() const {
@@ -224,6 +265,13 @@ bool BytecodeInstruction::isAbsoluteControlFlow() const {
     default:
       return false;
   }
+}
+
+_Py_CODEUNIT BytecodeInstruction::word() const {
+  ensureDecoded();
+  int opcode = _Py_OPCODE(word_);
+  int oparg = _Py_OPARG(word_);
+  return _Py_MAKE_CODEUNIT(opcode, oparg);
 }
 
 BytecodeInstructionBlock::BytecodeInstructionBlock(

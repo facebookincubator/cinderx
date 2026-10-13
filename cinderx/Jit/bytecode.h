@@ -9,7 +9,6 @@
 #include "cinderx/Common/opcode_stubs.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode_offsets.h"
-#include "cinderx/Jit/threaded_compile.h"
 
 #include <iterator>
 #include <limits>
@@ -17,6 +16,8 @@
 namespace cinderx::jit {
 
 // A structured, immutable representation of a CPython bytecode.
+// The opcode and argument are captured on first inspection and retained even
+// if the interpreter subsequently specializes or instruments the live bytecode.
 //
 // This will never directly represent an EXTENDED_ARG bytecode, see opcode() and
 // oparg() for more details.
@@ -35,14 +36,23 @@ class BytecodeInstruction {
   BCOffset opcodeOffset() const;
   BCIndex opcodeIndex() const;
 
-  // Get the instruction's opcode or oparg.
+  // Get the instruction's opcode or oparg.  Opcodes are unspecialized and
+  // uninstrumented.
   //
   // This will never return an EXTENDED_ARG opcode, those get combined by the
   // BytecodeInstructionBlock into a single BytecodeInstruction.  The multi-byte
-  // oparg will be return in one go from oparg().
+  // oparg will be returned in one go from oparg().
   int opcode() const;
-  int specializedOpcode() const;
   int oparg() const;
+
+  // Like opcode(), but return the specialized form of the opcode
+  // (e.g. FOR_ITER_RANGE is specialized from FOR_ITER).
+  //
+  // Note: If the GIL isn't held, the specializing interpreter can change the
+  // opcode at any time.  This class snapshots it so the same
+  // BytecodeInstruction instance will always give you the same consistent
+  // result, but the code object can be changing underneath.
+  int specializedOpcode() const;
 
   // Check if this instruction is a branch, a return, or a general basic block
   // terminator.
@@ -69,23 +79,40 @@ class BytecodeInstruction {
   }
 
  private:
-  void calcOpcodeOffsetAndOparg() const;
-
-  // Return the opcode of the bytecode instruction without instrumentation.
-  int uninstrumentedOpcode() const;
-
-  // Get the instruction's code unit (opcode + oparg). The oparg is NOT extended
-  // from any prior EXTENDED_ARGs and doesn't include the EXTENDED_OPCODE_FLAG.
-  _Py_CODEUNIT word() const;
+  // Decode all EXTENDED_ARG and EXTENDED_OPCODE instructions and cache this
+  // instruction's true opcode, oparg, and index.
+  void ensureDecoded() const;
 
   // Check if this instruction is a control-flow instruction with an absolute
   // offset as its target.
   bool isAbsoluteControlFlow() const;
 
+  // Get the instruction's code unit (opcode + oparg). The oparg is NOT extended
+  // from any prior EXTENDED_ARGs and doesn't include the EXTENDED_OPCODE_FLAG.
+  // The opcode will be uninstrumented but it can be specialized.
+  //
+  // Cached after the first call, the specializing interpreter can specialize or
+  // unspecialize the opcode and this will not report the change.
+  _Py_CODEUNIT word() const;
+
+  // Code object the bytecode instruction found in.
   BorrowedRef<PyCodeObject> code_;
+  // Offset where the bytecode instructions begins.  This might point to a
+  // number of EXTENDED_ARG or EXTENDED_OPCODE that will need to be decoded
+  // first.
   BCOffset baseOffset_;
+
+  // The following fields are computed lazily and then cached.
+
+  // Index of the actual opcode, after EXTENDED_ARG and EXTENDED_OPCODE
+  // instructions are decoded.
   mutable BCIndex opcodeIndex_{std::numeric_limits<int>::min()};
+  // Value of the oparg, after all EXTENDED_ARG instructions are decoded.
   mutable int extendedOparg_{0};
+  // The (opcode,oparg) pair at opcodeIndex_.  The opcode is uninstrumented but
+  // can be specialized.
+  mutable _Py_CODEUNIT word_{};
+  // Whether the opcode was defined with EXTENDED_OPCODE.
   mutable bool extendedOpcode_{false};
 };
 

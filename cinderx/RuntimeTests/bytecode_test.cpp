@@ -77,4 +77,53 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
   EXPECT_EQ(it, bc_block.end());
 }
 
+TEST_F(BytecodeInstructionIteratorTest, RetainsOpcodeAcrossSpecialization) {
+  Ref<PyFunctionObject> func(compileStockAndGet(
+      "def f(iterable):\n"
+      "    for item in iterable:\n"
+      "        pass\n",
+      "f"));
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  BytecodeInstructionBlock block{code};
+  for (const BytecodeInstruction& instr : block) {
+    if (instr.opcode() != FOR_ITER) {
+      continue;
+    }
+    const BCIndex index = instr.opcodeIndex();
+    const _Py_CODEUNIT original = codeUnit(code)[index.value()];
+    for (int opcode : {FOR_ITER, FOR_ITER_RANGE}) {
+      codeUnit(code)[index.value()] =
+          _Py_MAKE_CODEUNIT(opcode, _Py_OPARG(original));
+      ThreadedCompileContext context;
+      context.releaseGil();
+      BytecodeInstruction saved{code, index};
+      EXPECT_EQ(saved.specializedOpcode(), opcode);
+      const BCOffset target = saved.getJumpTarget();
+      const BCOffset next = saved.nextInstrOffset();
+      BytecodeInstruction copy = saved;
+
+      const int changed_opcode = opcode == FOR_ITER ? FOR_ITER_RANGE : FOR_ITER;
+      {
+        ThreadedCompileGILHolder gil;
+        codeUnit(code)[index.value()] =
+            _Py_MAKE_CODEUNIT(changed_opcode, _Py_OPARG(original) + 1);
+      }
+
+      EXPECT_EQ(saved.specializedOpcode(), opcode);
+      EXPECT_EQ(copy.specializedOpcode(), opcode);
+      EXPECT_EQ(saved.opcode(), FOR_ITER);
+      EXPECT_EQ(saved.oparg(), _Py_OPARG(original));
+      EXPECT_EQ(saved.getJumpTarget(), target);
+      EXPECT_EQ(saved.nextInstrOffset(), next);
+      EXPECT_EQ(
+          (BytecodeInstruction{code, index}.specializedOpcode()),
+          changed_opcode);
+      EXPECT_EQ(PyThreadState_GetUnchecked(), nullptr);
+    }
+    codeUnit(code)[index.value()] = original;
+    return;
+  }
+  FAIL() << "Expected a FOR_ITER instruction";
+}
+
 } // namespace cinderx
