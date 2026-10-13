@@ -4,7 +4,6 @@
 
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/dataflow.h"
-#include "cinderx/Jit/hir/dominance.h"
 #include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 
@@ -171,33 +170,6 @@ class AssignmentAnalysis : public RegisterAnalysis {
   RegisterSet args_;
 
   bool is_definite_;
-};
-
-// Stores type information about registers that doesn't get stored in the
-// Register's type. This currently means keeping track of `HintType`s and `Phi`s
-// which can provide type hints
-//
-// Since type information might change throughout the program, the analysis
-// exposes this type information by allowing users to query for the dominating
-// type hint instruction. This gives users access to the potential types as
-// well as where that type information was created. The querying is done at the
-// BasicBlock level under the assumption that BasicBlocks should be small enough
-// that type information that is learned later on in the block should still be
-// valid earlier in the block.
-class RegisterTypeHints {
- public:
-  explicit RegisterTypeHints(const Function& irfunc);
-
-  const Instr* dominatingTypeHint(Register* reg, const BasicBlock* block);
-
- private:
-  // Contains a mapping of Registers to a mapping of BasicBlock ids to type hint
-  // instructions.
-  // This allows users to query type hints for Registers in a
-  // flow-sensitive way
-  std::unordered_map<Register*, std::unordered_map<int, const Instr*>>
-      dom_hint_;
-  DominatorTree doms_;
 };
 
 } // namespace cinderx::jit::hir

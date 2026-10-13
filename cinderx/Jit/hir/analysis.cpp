@@ -326,38 +326,4 @@ void AssignmentAnalysis::computeGenKill(
   }
 }
 
-RegisterTypeHints::RegisterTypeHints(const Function& irfunc)
-    : doms_{irfunc.cfg.entry_block} {
-  for (const auto& block : irfunc.cfg.blocks) {
-    for (const auto& instr : block) {
-      if (instr.isHintType()) {
-        for (size_t i = 0; i < instr.numOperands(); i++) {
-          dom_hint_[instr.getOperand(i)][block.id] = &instr;
-        }
-      } else if (instr.isPhi()) {
-        dom_hint_[instr.output()][block.id] = &instr;
-      }
-    }
-  }
-}
-
-const Instr* RegisterTypeHints::dominatingTypeHint(
-    Register* reg,
-    const BasicBlock* block) {
-  // Make sure we don't default construct the map for untracked registers
-  auto it = dom_hint_.find(reg);
-  if (it == dom_hint_.end()) {
-    return nullptr;
-  }
-  std::unordered_map<int, const Instr*> hint_types = it->second;
-  // Look for the first type hint that dominates the passed in block
-  while (!hint_types[block->id]) {
-    block = doms_.immediateDominator(block);
-    if (block == nullptr) {
-      return nullptr;
-    }
-  }
-  return hint_types[block->id];
-}
-
 } // namespace cinderx::jit::hir
