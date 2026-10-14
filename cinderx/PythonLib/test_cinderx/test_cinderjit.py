@@ -2345,6 +2345,8 @@ class ForceUncompileTests(unittest.TestCase):
         self.assertEqual(sys.getrefcount(callee), callee_refs)
 
         del compiled
+        # Freeing the compiled data is deferred until the next full collection.
+        gc.collect()
         self.assertEqual(sys.getrefcount(callee), callee_refs - 1)
 
     @skip_if_prefork(
