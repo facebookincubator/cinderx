@@ -3200,7 +3200,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           Instruction* digit = bbb.appendInstr(
               OutVReg{DataType::k32bit},
               Opcode::kLoad,
-              Ind{value, digit_offset});
+              Ind{value, digit_offset, DataType::k32bit});
           Instruction* digit64 =
               bbb.appendInstr(OutVReg{DataType::k64bit}, Opcode::kZext, digit);
           // result = sign * digit
@@ -4517,7 +4517,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         hir::Register* dest = instr->output();
         Instruction* receiver = bbb.getDefInstr(instr->receiver());
         auto offset = static_cast<int32_t>(instr->offset());
-        bbb.appendInstr(dest, Opcode::kLoad, Ind{receiver, offset});
+        bbb.appendInstr(
+            dest,
+            Opcode::kLoad,
+            Ind{receiver, offset, hirTypeToDataType(dest->type())});
         break;
       }
 
@@ -5043,8 +5046,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             dest,
             Opcode::kLoad,
             MemoryOrder::kRelaxed,
-            MemImm{reinterpret_cast<int*>(
-                &ThreadedCompileContext::interpreter()->ceval.eval_breaker)});
+            MemImm{
+                reinterpret_cast<int*>(
+                    &ThreadedCompileContext::interpreter()->ceval.eval_breaker),
+                DataType::k32bit});
 #endif
         break;
       }

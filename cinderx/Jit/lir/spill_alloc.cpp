@@ -412,7 +412,11 @@ void SpillAllocator::rewriteIndirect(
   }
 
   indirect->setMemoryIndirect(
-      base_reg, index_reg, indirect->getMultiplier(), indirect->getOffset());
+      base_reg,
+      index_reg,
+      indirect->getMultiplier(),
+      indirect->getOffset(),
+      indirect->dataType());
 }
 
 void SpillAllocator::resolveControlFlow() {

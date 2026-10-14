@@ -24,23 +24,32 @@ class MemoryIndirect {
   explicit MemoryIndirect(Instruction* parent);
   ~MemoryIndirect();
 
-  void setMemoryIndirect(Instruction* base, int32_t offset);
-  void setMemoryIndirect(PhyLocation base, int32_t offset = 0);
-  // Set the base *only*, leaving the offset and index unchanged.
-  void resetMemoryIndirectBase(Instruction* base) {
-    setBaseIndex(base_reg_, base);
-  }
+  void setMemoryIndirect(
+      Instruction* base,
+      int32_t offset,
+      DataType dt = DataType::kObject);
+  void setMemoryIndirect(
+      PhyLocation base,
+      int32_t offset = 0,
+      DataType dt = DataType::kObject);
 
   void setMemoryIndirect(
       PhyLocation base,
       PhyLocation index_reg,
-      uint8_t multiplier);
+      uint8_t multiplier,
+      DataType dt = DataType::kObject);
 
   void setMemoryIndirect(
       std::variant<Instruction*, PhyLocation> base,
       std::variant<Instruction*, PhyLocation> index,
       uint8_t multiplier,
-      int32_t offset);
+      int32_t offset,
+      DataType dt = DataType::kObject);
+
+  // Set the base *only*, leaving the offset and index unchanged.
+  void resetMemoryIndirectBase(Instruction* base) {
+    setBaseIndex(base_reg_, base);
+  }
 
   Operand* getBaseRegOperand() const;
   Operand* getIndexRegOperand() const;
@@ -52,6 +61,9 @@ class MemoryIndirect {
 
   uint8_t getMultiplier() const;
   int32_t getOffset() const;
+
+  DataType dataType() const;
+  void setDataType(DataType dt);
 
  private:
   void setBaseIndex(
@@ -68,8 +80,9 @@ class MemoryIndirect {
   Instruction* parent_{nullptr};
   std::unique_ptr<Operand> base_reg_;
   std::unique_ptr<Operand> index_reg_;
-  uint8_t multiplier_{0};
   int32_t offset_{0};
+  uint8_t multiplier_{0};
+  DataType data_type_{DataType::kObject};
 };
 
 // An operand represents either:
@@ -284,8 +297,8 @@ struct OperandArg<MemoryIndirect, Output> {
 
   Reg base{PhyLocation::REG_INVALID};
   Reg index{PhyLocation::REG_INVALID};
-  uint8_t multiplier{0};
   int32_t offset{0};
+  uint8_t multiplier{0};
   DataType data_type{Operand::kObject};
   static constexpr bool is_output = Output;
 };

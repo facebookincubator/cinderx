@@ -249,7 +249,7 @@ class Instruction {
       allocateLinkedInput(arg.value);
     } else if constexpr (std::is_same_v<ArgType, Ind>) {
       allocateMemoryIndirectInput(
-          arg.base, arg.index, arg.multiplier, arg.offset);
+          arg.base, arg.index, arg.multiplier, arg.offset, arg.data_type);
     } else if constexpr (std::is_same_v<ArgType, OutPhyReg>) {
       output()->setPhyRegister(arg.value);
       output()->setDataType(arg.data_type);
@@ -272,7 +272,7 @@ class Instruction {
       output()->setDataType(arg.data_type);
     } else if constexpr (std::is_same_v<ArgType, OutInd>) {
       output()->setMemoryIndirect(
-          arg.base, arg.index, arg.multiplier, arg.offset);
+          arg.base, arg.index, arg.multiplier, arg.offset, arg.data_type);
     } else {
       static_assert(!sizeof(ArgType*), "Bad argument type.");
     }

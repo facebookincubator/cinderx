@@ -1421,7 +1421,8 @@ void LinearScanAllocator::rewriteInstrOneIndirectOperand(
       base_phy_reg,
       index_phy_reg,
       indirect->getMultiplier(),
-      indirect->getOffset());
+      indirect->getOffset(),
+      indirect->dataType());
 
   if (base_last_use) {
     indirect->getBaseRegOperand()->setLastUse();

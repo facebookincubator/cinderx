@@ -78,7 +78,7 @@ class BasicBlockBuilder {
   Instruction* appendInstr(OutInd dest, Opcode opcode, Args&&... args) {
     auto instr = appendInstr(opcode, std::forward<Args>(args)...);
     instr->output()->setMemoryIndirect(
-        dest.base, dest.index, dest.multiplier, dest.offset);
+        dest.base, dest.index, dest.multiplier, dest.offset, dest.data_type);
     instr->output()->setDataType(dest.data_type);
     return instr;
   }

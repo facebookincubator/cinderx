@@ -13,30 +13,39 @@ MemoryIndirect::MemoryIndirect(Instruction* parent) : parent_(parent) {}
 
 MemoryIndirect::~MemoryIndirect() = default;
 
-void MemoryIndirect::setMemoryIndirect(Instruction* base, int32_t offset) {
-  setMemoryIndirect(base, nullptr /* index */, 0, offset);
+void MemoryIndirect::setMemoryIndirect(
+    Instruction* base,
+    int32_t offset,
+    DataType dt) {
+  setMemoryIndirect(base, nullptr /* index */, 0, offset, dt);
 }
 
-void MemoryIndirect::setMemoryIndirect(PhyLocation base, int32_t offset) {
-  setMemoryIndirect(base, PhyLocation::REG_INVALID, 0, offset);
+void MemoryIndirect::setMemoryIndirect(
+    PhyLocation base,
+    int32_t offset,
+    DataType dt) {
+  setMemoryIndirect(base, PhyLocation::REG_INVALID, 0, offset, dt);
 }
 
 void MemoryIndirect::setMemoryIndirect(
     PhyLocation base,
     PhyLocation index_reg,
-    uint8_t multiplier) {
-  setMemoryIndirect(base, index_reg, multiplier, 0);
+    uint8_t multiplier,
+    DataType dt) {
+  setMemoryIndirect(base, index_reg, multiplier, 0, dt);
 }
 
 void MemoryIndirect::setMemoryIndirect(
     std::variant<Instruction*, PhyLocation> base,
     std::variant<Instruction*, PhyLocation> index,
     uint8_t multiplier,
-    int32_t offset) {
+    int32_t offset,
+    DataType dt) {
   setBaseIndex(base_reg_, base);
   setBaseIndex(index_reg_, index);
   multiplier_ = multiplier;
   offset_ = offset;
+  data_type_ = dt;
 }
 
 Operand* MemoryIndirect::getBaseRegOperand() const {
@@ -61,6 +70,14 @@ uint8_t MemoryIndirect::getMultiplier() const {
 
 int32_t MemoryIndirect::getOffset() const {
   return offset_;
+}
+
+DataType MemoryIndirect::dataType() const {
+  return data_type_;
+}
+
+void MemoryIndirect::setDataType(DataType dt) {
+  data_type_ = dt;
 }
 
 void MemoryIndirect::setBaseIndex(
@@ -101,7 +118,7 @@ Operand::Operand(Instruction* parent) : parent_instr_{parent} {}
 Operand::Operand(Instruction* parent, Operand* operand)
     : parent_instr_{parent},
       type_{operand->type_},
-      data_type_{operand->data_type_} {}
+      data_type_{operand->dataType()} {}
 
 Operand::Operand(
     Instruction* parent,
@@ -353,10 +370,22 @@ DataType Operand::dataType() const {
   if (const Operand* def = linkedDef()) {
     return def->dataType();
   }
+  if (isInd()) {
+    return getMemoryIndirect()->dataType();
+  }
   return data_type_;
 }
 
 void Operand::setDataType(DataType data_type) {
+  if (Operand* def = linkedDef()) {
+    def->setDataType(data_type);
+    return;
+  }
+  if (isInd()) {
+    getMemoryIndirect()->setDataType(data_type);
+    return;
+  }
+
   data_type_ = data_type;
   if (PhyLocation* loc_ptr = std::get_if<PhyLocation>(&value_)) {
     loc_ptr->bitSize = bitSize(data_type);

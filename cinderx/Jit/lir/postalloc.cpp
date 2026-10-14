@@ -1176,10 +1176,10 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   block->allocateInstrBefore(
       instr_iter,
       Opcode::kMove,
-      OutPhyReg(out->getPhyRegister()),
-      Imm(mem_addr, in->dataType()));
+      OutPhyReg{out->getPhyRegister()},
+      Imm{static_cast<uint64_t>(mem_addr)});
 
-  in->setMemoryIndirect(out->getPhyRegister());
+  in->setMemoryIndirect(out->getPhyRegister(), 0 /* offset */, out->dataType());
 
   return kChanged;
 }
