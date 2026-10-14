@@ -46,9 +46,20 @@ static inline Py_ssize_t getDictKeysIndex(
 #if PY_VERSION_HEX >= 0x030E0000
   return _PyDictKeys_StringLookupSplit(keys, name);
 #endif
+  // Split keys are exact strs with cached hashes, so only compare a key whose
+  // hash matches. Interned names usually match by identity first.
+  Py_hash_t hash =
+      PyUnicode_CheckExact(name) ? _PyASCIIObject_CAST(name)->hash : -1;
   for (Py_ssize_t i = 0; i < keys->dk_nentries; i++) {
-    PyDictUnicodeEntry* ep = &DK_UNICODE_ENTRIES(keys)[i];
-    if (PyUnicode_Compare(name, ep->me_key) == 0) {
+    PyObject* key = DK_UNICODE_ENTRIES(keys)[i].me_key;
+    if (key == name) {
+      return i;
+    }
+    Py_hash_t key_hash = _PyASCIIObject_CAST(key)->hash;
+    if (hash != -1 && key_hash != -1 && key_hash != hash) {
+      continue;
+    }
+    if (PyUnicode_Compare(name, key) == 0) {
       return i;
     }
   }

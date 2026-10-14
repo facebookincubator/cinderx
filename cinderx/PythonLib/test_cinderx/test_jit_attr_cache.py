@@ -2,6 +2,7 @@
 
 # pyre-unsafe
 
+import gc
 import importlib
 
 # Pre-loaded so ModuleAttrPinTests._import's invalidate_caches() below never
@@ -1622,6 +1623,66 @@ class LoadAttrCacheTests(unittest.TestCase):
         # Instance dict miss should fall through to __getattr__
         self.assertEqual(get_missing(c), "fallback:missing")
         self.assertEqual(get_missing(c), "fallback:missing")
+
+
+def has_materialized_dict(obj) -> bool:
+    # The GC visits a materialized __dict__, or the inline values if there's none.
+    return any(type(r) is dict for r in gc.get_referents(obj))
+
+
+@cinder_support.failUnlessJITCompiled
+@failUnlessHasOpcodes("LOAD_ATTR")
+def get_flag(obj):
+    return obj.flag
+
+
+@passIf(sys.version_info >= (3, 14), "Tests 3.12's inline values")
+class InlineValuesTests(unittest.TestCase):
+    """JIT attribute lookups read inline values without materializing __dict__."""
+
+    def test_load_method(self):
+        class Oracle:
+            def __init__(self):
+                self.value = 1
+
+            def meaning_of_life(self):
+                return 42
+
+        obj = Oracle()
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertEqual(get_meaning_of_life(obj), 42)
+        self.assertFalse(has_materialized_dict(obj))
+
+    def test_load_method_shadowed_by_instance(self):
+        class Oracle:
+            def __init__(self):
+                self.value = 1
+
+            def meaning_of_life(self):
+                return 42
+
+        self.assertEqual(get_meaning_of_life(Oracle()), 42)
+        obj = Oracle()
+        obj.meaning_of_life = nothing
+        self.assertEqual(get_meaning_of_life(obj), 0)
+        self.assertFalse(has_materialized_dict(obj))
+
+    def test_load_attr_class_var_shadowed_by_instance(self):
+        class Flagged:
+            flag = "class"
+
+            def __init__(self, shadow):
+                self.value = 1
+                if shadow:
+                    self.flag = "instance"
+
+        shadowed = Flagged(True)
+        plain = Flagged(False)
+        for _ in range(3):
+            self.assertEqual(get_flag(shadowed), "instance")
+            self.assertEqual(get_flag(plain), "class")
+        self.assertFalse(has_materialized_dict(shadowed))
+        self.assertFalse(has_materialized_dict(plain))
 
 
 @cinder_support.failUnlessJITCompiled

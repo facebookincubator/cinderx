@@ -795,6 +795,46 @@ PyObject* MemberDescrMutator::getAttr(
   return PyMember_GetOne(reinterpret_cast<char*>(obj), def);
 }
 
+// Looks up name in obj's instance dict, returning nullptr if it isn't there. A
+// nonzero keys_version is a version of the shared keys known not to hold name.
+static Ref<>
+getInstanceAttr(PyObject* obj, PyObject* name, uint32_t keys_version) {
+#if PY_VERSION_HEX < 0x030E0000
+  // Read inline values in place; _PyObject_GetDictPtr() would materialize them
+  // into a dict, writing to the object.
+  BorrowedRef<PyTypeObject> type = Py_TYPE(obj);
+  if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT) &&
+      PyUnicode_CheckExact(name)) {
+    PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
+    if (_PyDictOrValues_IsValues(dorv)) {
+      PyDictKeysObject* keys = getSplitKeys(type);
+      if (keys_version != 0 && keys->dk_version == keys_version) {
+        return nullptr;
+      }
+      Py_ssize_t index = getDictKeysIndex(keys, name);
+      if (index < 0) {
+        return nullptr;
+      }
+      // The slot is NULL if this instance never set name; the empty Ref reads
+      // as not found, like PyDict_GetItem() returning NULL below.
+      return Ref<>::create(_PyDictOrValues_GetValues(dorv)->values[index]);
+    }
+  }
+#endif
+
+  PyObject** dictptr = _PyObject_GetDictPtr(obj);
+  if (dictptr == nullptr || *dictptr == nullptr) {
+    return nullptr;
+  }
+  auto dict = Ref<>::create(*dictptr);
+  if (keys_version != 0 &&
+      reinterpret_cast<PyDictObject*>(dict.get())->ma_keys->dk_version ==
+          keys_version) {
+    return nullptr;
+  }
+  return Ref<>::create(PyDict_GetItem(dict, name));
+}
+
 int DescrOrClassVarMutator::setAttr(
     PyObject* obj,
     PyObject* name,
@@ -838,23 +878,8 @@ PyObject* DescrOrClassVarMutator::getAttr(
     return getter(descr, obj, type);
   }
 
-  Ref<> dict;
-  PyObject** dictptr = _PyObject_GetDictPtr(obj);
-  if (dictptr != nullptr) {
-    dict.reset(*dictptr);
-  }
-
-  // Check instance dict.
-  if (dict != nullptr) {
-    uint32_t keys_version = descr_or_cvar->keys_version;
-    if (keys_version == 0 ||
-        reinterpret_cast<PyDictObject*>(dict.get())->ma_keys->dk_version !=
-            keys_version) {
-      auto res = Ref<>::create(PyDict_GetItem(dict, name));
-      if (res != nullptr) {
-        return res.release();
-      }
-    }
+  if (Ref<> attr = getInstanceAttr(obj, name, descr_or_cvar->keys_version)) {
+    return attr.release();
   }
 
   if (getter != nullptr) {
@@ -2211,8 +2236,6 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
   PyTypeObject* tp = Py_TYPE(obj);
   PyObject* descr;
   descrgetfunc f = nullptr;
-  PyObject **dictptr, *dict;
-  PyObject* attr;
   bool is_method = false;
   bool is_static_method = false;
   bool is_class_method = false;
@@ -2284,19 +2307,11 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
     }
   }
 
-  dictptr = _PyObject_GetDictPtr(obj);
-  if (dictptr != nullptr && (dict = *dictptr) != nullptr) {
-    Py_INCREF(dict);
-    attr = PyDict_GetItem(dict, name);
-    if (attr != nullptr) {
-      maybeCollectCacheStats(
-          cache_stats_, tp, name, CacheMissReason::kUncategorized);
-      Py_INCREF(attr);
-      Py_DECREF(dict);
-      Py_XDECREF(descr);
-      return {Py_None, attr};
-    }
-    Py_DECREF(dict);
+  if (Ref<> attr = getInstanceAttr(obj, name, 0)) {
+    maybeCollectCacheStats(
+        cache_stats_, tp, name, CacheMissReason::kUncategorized);
+    Py_XDECREF(descr);
+    return {Py_None, attr.release()};
   }
 
   if (is_method) {
