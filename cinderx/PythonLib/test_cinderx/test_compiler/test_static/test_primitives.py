@@ -513,21 +513,21 @@ class PrimitivesTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(f(), 44)
 
-    @passIf(True, "this isn't implemented yet")
     def test_unwind(self):
         codestr = """
-            from __static__ import int32
+            from __static__ import box, int32
             def raises():
                 raise IndexError()
 
             def testfunc():
                 x: int32 = 1
                 raises()
-                print(x)
+                print(box(x))
             """
 
         with self.in_module(codestr) as mod:
             f = mod.testfunc
+            self.assertInBytecode(f, "PRIMITIVE_LOAD_CONST", (1, TYPED_INT32))
             with self.assertRaises(IndexError):
                 f()
 
