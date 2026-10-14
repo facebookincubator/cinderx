@@ -12,6 +12,7 @@ thread_local ThreadedCompileContext* ThreadedCompileContext::current_ = nullptr;
 thread_local PyThreadState* ThreadedCompileContext::threaded_compile_tstate_ =
     nullptr;
 thread_local int ThreadedCompileContext::gil_lock_depth_ = 0;
+thread_local bool ThreadedCompileContext::gil_acquired_by_holder_ = false;
 
 ThreadedCompileContext::ThreadedCompileContext() {
   JIT_DCHECK(current_ == nullptr, "should have no current context");
@@ -83,9 +84,16 @@ void ThreadedCompileContext::lock() {
     JIT_DCHECK(
         threaded_compile_tstate_ != nullptr,
         "should only be used on worker threads");
-    JIT_DCHECK(PyThreadState_GetUnchecked() == nullptr, "should not have GIL");
-    // Acquire GIL by restoring thread-local worker threadstate.
-    PyEval_RestoreThread(threaded_compile_tstate_);
+    PyThreadState* attached = PyThreadState_GetUnchecked();
+    gil_acquired_by_holder_ = attached == nullptr;
+    if (gil_acquired_by_holder_) {
+      // Acquire GIL by restoring thread-local worker threadstate.
+      PyEval_RestoreThread(threaded_compile_tstate_);
+    } else {
+      JIT_DCHECK(
+          attached == threaded_compile_tstate_,
+          "should be attached to the worker thread state");
+    }
   }
 
   gil_lock_depth_++;
@@ -97,7 +105,7 @@ void ThreadedCompileContext::unlock() {
   }
 
   gil_lock_depth_--;
-  if (gil_lock_depth_ == 0) {
+  if (gil_lock_depth_ == 0 && gil_acquired_by_holder_) {
     PyThreadState* save = PyEval_SaveThread();
     JIT_DCHECK(
         threaded_compile_tstate_ == save, "should have saved the same thread");

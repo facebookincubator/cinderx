@@ -72,6 +72,43 @@ foo = "hello"
   ASSERT_EQ(result, Py_None);
 }
 
+TEST_F(JITContextTest, ReentrantCompileDuringCleanup) {
+  runCode(R"(
+import weakref
+import cinderx.jit
+
+def to_compile(x):
+    return x + 1
+
+callback_ran = False
+
+@cinderx.jit.jit_suppress
+def on_delete(ref):
+    global callback_ran
+    assert cinderx.jit.force_compile(to_compile)
+    callback_ran = True
+
+class Target:
+    pass
+
+target = Target()
+ref = weakref.ref(target, on_delete)
+assert not cinderx.jit.is_jit_compiled(to_compile)
+)");
+
+  PyThreadState* attached = PyThreadState_Get();
+  {
+    // Worker cleanup runs attached while its compile context is still active.
+    ThreadedCompileContext compile;
+    runCode("del target\n");
+    EXPECT_EQ(PyThreadState_GetUnchecked(), attached);
+    EXPECT_EQ(getGlobal("callback_ran"), Py_True);
+    getContext()->finalizePendingCompiles();
+    runCode("assert cinderx.jit.is_jit_compiled(to_compile)\n");
+  }
+  EXPECT_EQ(PyThreadState_GetUnchecked(), attached);
+}
+
 // A watch deferred during threaded compilation must be validated before it is
 // installed: the type may have changed after the compile checked its
 // assumptions but before the watch was installed, in which case the watch
