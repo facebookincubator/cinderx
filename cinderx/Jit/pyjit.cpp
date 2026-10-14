@@ -1501,6 +1501,18 @@ bool compile_all(size_t workers = 0) {
       auto it = outer_funcs.find(code);
       return it != outer_funcs.end() && it->second == outer;
     }
+
+    std::string name() const {
+      auto [func, _] = splitUnit(unit);
+      if (func != nullptr) {
+        return funcFullname(func);
+      }
+      BorrowedRef<> mod;
+      if (outer != nullptr) {
+        mod = outer->func_module;
+      }
+      return codeFullname(mod, code);
+    }
   };
   std::vector<PreloadUnit> owned_units;
 
@@ -1575,9 +1587,20 @@ bool compile_all(size_t workers = 0) {
           }
         }
         // Preloading can execute arbitrary Python code, so run without a lock.
-        hir::Preloader* preloader = preload(target.unit, target.outer);
-        if (!preloader) {
-          return false;
+        try {
+          hir::Preloader* preloader = preload(target.unit, target.outer);
+          // A null preloader means we hit a Python exception while executing
+          // code and we need to surface it.
+          if (!preloader) {
+            return false;
+          }
+        } catch (const std::exception& exn) {
+          // A C++ exception means **we** screwed something up, which should not
+          // be user-visible behavior.  Swallow it.
+          JIT_DLOG(
+              "Hit preloading failure on {}, error: {}",
+              target.name(),
+              exn.what());
         }
       }
     }
@@ -2310,7 +2333,12 @@ precompile_all(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
     return nullptr;
   }
 
-  if (!compile_all(workers)) {
+  try {
+    if (!compile_all(workers)) {
+      return nullptr;
+    }
+  } catch (const std::exception& exn) {
+    setRuntimeError(exn);
     return nullptr;
   }
 

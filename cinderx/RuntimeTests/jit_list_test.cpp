@@ -4,6 +4,8 @@
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#include <stdexcept>
+
 namespace cinderx {
 
 using JITListTest = RuntimeTest;
@@ -11,6 +13,57 @@ using WildcardJITListTest = RuntimeTest;
 
 using cinderx::jit::JITList;
 using cinderx::jit::WildcardJITList;
+
+namespace {
+
+class FailingJITList : public JITList {
+ public:
+  FailingJITList()
+      : JITList(Ref<>::steal(PyDict_New()), Ref<>::steal(PyDict_New())) {}
+
+  int lookupFunc(BorrowedRef<PyFunctionObject>) const override {
+    throw std::runtime_error("batch discovery failed");
+  }
+};
+
+} // namespace
+
+TEST_F(JITListTest, PrecompileAllRaisesDiscoveryError) {
+  runCode(R"(
+import cinderx.jit
+
+def func():
+    return 42
+
+cinderx.jit.lazy_compile(func)
+)");
+  auto jit_mod = Ref<>::steal(PyImport_ImportModule("cinderx.jit"));
+  ASSERT_NE(jit_mod, nullptr);
+  auto precompile =
+      Ref<>::steal(PyObject_GetAttrString(jit_mod, "precompile_all"));
+  ASSERT_NE(precompile, nullptr);
+
+  auto* mod_state = getModuleState();
+  auto original_list = std::move(mod_state->jit_list);
+  mod_state->jit_list = std::make_unique<FailingJITList>();
+  Ref<> result;
+  EXPECT_NO_THROW(result = Ref<>::steal(PyObject_CallNoArgs(precompile)));
+  mod_state->jit_list = std::move(original_list);
+
+  EXPECT_EQ(result, nullptr);
+  EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_RuntimeError));
+  auto error = Ref<>::steal(PyErr_GetRaisedException());
+  ASSERT_NE(error, nullptr);
+  auto message = Ref<>::steal(PyObject_Str(error));
+  ASSERT_NE(message, nullptr);
+  EXPECT_STREQ(PyUnicode_AsUTF8(message), "batch discovery failed");
+
+  runCode(R"(
+assert cinderx.jit.precompile_all(workers=2)
+assert cinderx.jit.is_jit_compiled(func)
+assert func() == 42
+)");
+}
 
 TEST_F(JITListTest, ParseLine) {
   auto jitlist = JITList::create();

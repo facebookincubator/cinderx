@@ -1,15 +1,103 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-strict
-
 import os
 import sys
 import threading
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from types import CodeType
 
 import cinderx.jit
 from cinderx.test_support import passIf, run_in_fresh_process, skip_unless_jit
+
+
+@skip_unless_jit("Requires JIT compilation")
+class BatchPreloadErrorTest(unittest.TestCase):
+    def setUp(self) -> None:
+        cinderx.jit.background_compile(False)
+
+        def warmup() -> int:
+            return len(())
+
+        self.assertTrue(cinderx.jit.force_compile(warmup))
+
+    @run_in_fresh_process
+    def test_preload_cpp_error_single_worker(self) -> None:
+        self._check_preload_cpp_error(1)
+
+    @run_in_fresh_process
+    def test_preload_cpp_error_multi_worker(self) -> None:
+        self._check_preload_cpp_error(2)
+
+    def _check_preload_cpp_error(self, workers: int) -> None:
+        def bad() -> int:
+            return len(())
+
+        def good() -> int:
+            return 42
+
+        original = bad.__code__
+        self.assertIn("len", original.co_names)
+        # LOAD_GLOBAL now indexes past co_names, triggering a C++ preload error.
+        bad.__code__ = original.replace(co_names=())
+        for func in (bad, good):
+            cinderx.jit.append_jit_list(f"{__name__}:{func.__qualname__}")
+
+        try:
+            self.assertTrue(cinderx.jit.precompile_all(workers=workers))
+            self.assertFalse(cinderx.jit.is_jit_compiled(bad))
+            self.assertTrue(cinderx.jit.is_jit_compiled(good))
+            self.assertEqual(good(), 42)
+        finally:
+            bad.__code__ = original
+
+        self.assertTrue(cinderx.jit.precompile_all(workers=workers))
+        self.assertTrue(cinderx.jit.is_jit_compiled(bad))
+        self.assertEqual(bad(), 0)
+
+    @run_in_fresh_process
+    def test_nested_preload_cpp_error_single_worker(self) -> None:
+        self._check_nested_preload_cpp_error(1)
+
+    @run_in_fresh_process
+    def test_nested_preload_cpp_error_multi_worker(self) -> None:
+        self._check_nested_preload_cpp_error(2)
+
+    def _check_nested_preload_cpp_error(self, workers: int) -> None:
+        def outer():
+            def inner() -> int:
+                return len(())
+
+            return inner
+
+        def good() -> int:
+            return 42
+
+        original = outer.__code__
+        outer.__code__ = original.replace(
+            co_consts=tuple(
+                const.replace(co_names=()) if isinstance(const, CodeType) else const
+                for const in original.co_consts
+            )
+        )
+        name = f"{__name__}:{outer.__qualname__}"
+        cinderx.jit.append_jit_list(name)
+        cinderx.jit.append_jit_list(f"{name}.<locals>.inner")
+        cinderx.jit.append_jit_list(f"{__name__}:{good.__qualname__}")
+
+        try:
+            self.assertTrue(cinderx.jit.precompile_all(workers=workers))
+            self.assertTrue(cinderx.jit.is_jit_compiled(outer))
+            self.assertTrue(cinderx.jit.is_jit_compiled(good))
+            self.assertFalse(cinderx.jit.is_jit_compiled(outer()))
+            self.assertEqual(good(), 42)
+        finally:
+            outer.__code__ = original
+
+        self.assertTrue(cinderx.jit.precompile_all(workers=workers))
+        inner = outer()
+        self.assertTrue(cinderx.jit.is_jit_compiled(inner))
+        self.assertEqual(inner(), 0)
 
 
 @skip_unless_jit("Requires JIT compilation")
