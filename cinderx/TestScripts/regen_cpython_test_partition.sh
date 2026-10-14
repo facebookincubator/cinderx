@@ -6,13 +6,17 @@
 # each module exposes its tests, so it has to run under the CinderX Python for
 # the version in question rather than being computed statically.
 #
-# Usage: regen_cpython_test_partition.sh [--output-root DIR] [VERSION...]
+# Usage: regen_cpython_test_partition.sh [--output-root DIR] [--no-add] [VERSION...]
 #
 # Always regenerates every version already present in the partition file; naming
 # a version adds it to that set. The generator writes the file from its inputs
 # alone, so classifying a subset would silently drop the rest.
 # --output-root writes elsewhere than the CinderX tree, which is how
 # test_cpython_test_partition.sh checks for staleness.
+# --no-add never adds: named versions outside the partition are ignored, and
+# when none of them is in the partition the script exits successfully without
+# doing anything. The Python import hooks use this so versions without Tier 1
+# support are skipped until onboarded, then refreshed by later imports.
 
 set -e
 
@@ -22,6 +26,7 @@ CINDERX_ROOT="$(cd .. && pwd)"
 PARTITION_FILE="$CINDERX_ROOT/cpython_test_partition.bzl"
 OUTPUT_ROOT="$CINDERX_ROOT"
 
+NO_ADD=0
 VERSIONS=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -32,6 +37,10 @@ while [[ $# -gt 0 ]]; do
             fi
             OUTPUT_ROOT="$2"
             shift 2
+            ;;
+        --no-add)
+            NO_ADD=1
+            shift
             ;;
         --)
             shift
@@ -48,6 +57,35 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ $NO_ADD -eq 1 && ${#VERSIONS[@]} -gt 0 ]]; then
+    # Import hooks name their version unconditionally. Only versions with Tier 1
+    # support are in the partition; the rest must be skipped, not onboarded.
+    if ! COVERED_RAW="$(fbpython -c '
+import ast, sys
+with open(sys.argv[1]) as partition_file:
+    tree = ast.parse(partition_file.read())
+covered = set()
+for node in tree.body:
+    if isinstance(node, ast.Assign) and any(
+        isinstance(target, ast.Name) and target.id == "TIER1_TESTS"
+        for target in node.targets
+    ):
+        covered = set(ast.literal_eval(node.value))
+        break
+print("\n".join(sorted(covered & set(sys.argv[2:]))))
+' "$PARTITION_FILE" "${VERSIONS[@]}")"; then
+        echo "Failed to read versions from $PARTITION_FILE" >&2
+        exit 1
+    fi
+    if [[ -z "$COVERED_RAW" ]]; then
+        echo "None of ${VERSIONS[*]} is in $PARTITION_FILE; nothing to refresh." >&2
+        exit 0
+    fi
+    # Fall through with no named versions: the full regeneration below refreshes
+    # the covered ones, which is all --no-add promises.
+    VERSIONS=()
+fi
 
 # Whatever is already covered, so the staleness check does not fail merely
 # because some version has not been onboarded yet.
