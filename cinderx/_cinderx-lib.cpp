@@ -8,6 +8,7 @@
 #include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/pymalloc.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Immortalize/immortalize.h"
@@ -286,6 +287,21 @@ PyDoc_STRVAR(
     "Immortalize all instances accessible through the GC roots.");
 PyObject* cinder_immortalize_heap(PyObject* mod, PyObject* /* args */) {
   return immortalize_heap(mod);
+}
+
+PyDoc_STRVAR(
+    fill_pymalloc_pools_doc,
+    "fill_pymalloc_pools($module, /)\n"
+    "--\n"
+    "\n"
+    "Call once, before the first fork.  Allocate never-freed ballast until\n"
+    "used and previously used pymalloc pools have no free space, so a forked\n"
+    "child allocates from fresh pages instead of copying the parent's.\n"
+    "Each call pins everything freed since the previous one, so don't call\n"
+    "it before every fork.  Return (blocks, pools) allocated; (0, 0) without\n"
+    "pymalloc.");
+PyObject* fill_pymalloc_pools(PyObject* /* mod */, PyObject* /* args */) {
+  return fillPymallocPools();
 }
 
 PyDoc_STRVAR(
@@ -1033,6 +1049,10 @@ PyMethodDef _cinderx_methods[] = {
      cinder_immortalize_heap,
      METH_NOARGS,
      cinder_immortalize_heap_doc},
+    {"fill_pymalloc_pools",
+     fill_pymalloc_pools,
+     METH_NOARGS,
+     fill_pymalloc_pools_doc},
     {"is_immortal", cinder_is_immortal, METH_O, cinder_is_immortal_doc},
     {"is_prefork_build",
      cinder_is_prefork_build,

@@ -67,6 +67,7 @@ try:
         delay_adaptive,
         disable_parallel_gc,
         enable_parallel_gc,
+        fill_pymalloc_pools,
         freeze_type,
         get_adaptive_delay,
         get_parallel_gc_settings,
@@ -458,6 +459,9 @@ except ImportError as e:
         raise RuntimeError(
             "No Parallel GC support because _cinderx did not load correctly"
         )
+
+    def fill_pymalloc_pools() -> tuple[int, int]:
+        return (0, 0)
 
     def freeze_type(ty: object) -> object:
         return ty
