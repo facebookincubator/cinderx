@@ -2,13 +2,21 @@
 
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/simplify.h"
 #include "cinderx/Jit/hir/ssa.h"
+#include "cinderx/Jit/profile.h"
 #include "cinderx/Jit/pyjit.h"
+#include "cinderx/Jit/type_deopt_patchers.h"
+
+#include <optional>
+#include <utility>
 
 namespace cinderx {
 
@@ -49,6 +57,41 @@ std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
       preloader->code() == func->func_code,
       "Expecting the last function to compile to be the first one preloaded");
   return jit::hir::buildHIR(*preloader);
+}
+
+jit::CompiledFunctionData RuntimeTest::recompileWithProfile(
+    BorrowedRef<PyFunctionObject> func,
+    jit::Profile& profile) {
+  auto funcs = jit::preloadFuncAndDeps(func, true /* forcePreload */);
+  JIT_CHECK(!funcs.empty(), "Failed to preload function");
+  const jit::hir::Preloader* preloader = nullptr;
+  for (const auto& unit : funcs) {
+    if (unit.func == func) {
+      preloader = unit.preloader;
+      break;
+    }
+  }
+  JIT_CHECK(preloader != nullptr, "Failed to preload function");
+  auto* ctx =
+      static_cast<jit::CompilerContext<jit::Compiler>*>(jit::getContext());
+  JIT_CHECK(ctx != nullptr, "JIT context was not initialized");
+  std::optional<jit::CompiledFunctionData> data =
+      ctx->compiler().compile(*preloader, profile);
+  JIT_CHECK(data.has_value(), "Failed to recompile function");
+  // Codegen registered this data's patchers on the Context, but the data is
+  // never installed, so unregister them: destroying the data would otherwise
+  // leave the Context watching freed patchers.
+  for (auto& patcher : data->code_patchers) {
+    if (auto typed_patcher =
+            dynamic_cast<jit::TypeDeoptPatcher*>(patcher.get())) {
+      ctx->unwatch(typed_patcher);
+    }
+    if (auto func_patcher =
+            dynamic_cast<jit::FuncCodeDeoptPatcher*>(patcher.get())) {
+      ctx->unwatchFunc(func_patcher);
+    }
+  }
+  return std::move(*data);
 }
 
 void HIRTest::TestBody() {

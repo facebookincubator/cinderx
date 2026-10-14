@@ -514,7 +514,8 @@ std::vector<Register*> resolveArgs(
 // stats).
 std::optional<InlineResult> inlineFunctionCall(
     Function& caller,
-    const AbstractCall& call_instr) {
+    const AbstractCall& call_instr,
+    const Profile* profile) {
   JIT_THROW_IF(call_instr.preloader == nullptr, "called without preloader");
   Preloader& preloader = *call_instr.preloader;
   auto caller_frame_state =
@@ -534,7 +535,7 @@ std::optional<InlineResult> inlineFunctionCall(
     return std::nullopt;
   }
 
-  HIRBuilder hir_builder(preloader);
+  HIRBuilder hir_builder(preloader, profile);
 
   InlineResult result;
   try {
@@ -1049,7 +1050,8 @@ bool InlineFunctionCalls::run(Function& irfunc) {
       continue;
     }
 
-    std::optional<InlineResult> result = inlineFunctionCall(irfunc, call);
+    std::optional<InlineResult> result =
+        inlineFunctionCall(irfunc, call, profile_);
     if (!result.has_value()) {
       // Inlining failed; the reason has been logged.  Don't charge its cost.
       continue;

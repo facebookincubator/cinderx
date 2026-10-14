@@ -108,7 +108,8 @@ void typeNameModified(BorrowedRef<PyTypeObject> type);
 std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
-    Ref<PyFunctionObject>&& func);
+    Ref<PyFunctionObject>&& func,
+    const Profile& profile = {});
 
 bool isPreforkCompilationEnabled();
 

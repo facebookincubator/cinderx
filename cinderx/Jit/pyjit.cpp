@@ -5259,16 +5259,21 @@ bool hasCompilableCodeFlags(const hir::Preloader& preloader) {
 std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
-    Ref<PyFunctionObject>&& func) {
+    Ref<PyFunctionObject>&& func,
+    const Profile& profile) {
   // The admitted preloader owns the code and its environment. A nested
   // code's outer registration may have disappeared since admission.
   BorrowedRef<PyCodeObject> code = preloader.code();
-  JIT_CHECK(
-      code != nullptr,
-      "Can't compile {} as it has no code object",
-      preloader.fullname());
 
-  CompilationKey key{code, preloader.builtins(), preloader.globals()};
+  if (code == nullptr) {
+    JIT_DLOG("Can't compile {} as it has no code object", preloader.fullname());
+    return {Result::CANNOT_SPECIALIZE, std::move(func)};
+  }
+
+  BorrowedRef<PyDictObject> builtins = preloader.builtins();
+  BorrowedRef<PyDictObject> globals = preloader.globals();
+
+  CompilationKey key{code, builtins, globals};
   // The caller is responsible for admitting this compile while holding the GIL
   // (see admitCompile).  Doing the compiled_codes_ lookup here would read it
   // from the background worker, which runs with the GIL released.
@@ -5288,7 +5293,7 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
 
   std::optional<CompiledFunctionData> compiled_func;
   try {
-    compiled_func = jit_ctx->compiler().compile(preloader);
+    compiled_func = jit_ctx->compiler().compile(preloader, profile);
   } catch (const std::exception& exn) {
     JIT_DLOG("{}", exn.what());
   }

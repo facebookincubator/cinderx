@@ -49,6 +49,7 @@ struct BackgroundCompileTask {
   Ref<PyCodeObject> code;
   Ref<PyDictObject> builtins;
   Ref<PyDictObject> globals;
+  Profile profile;
 };
 
 // Process-wide state for background compilation. A single long-lived worker

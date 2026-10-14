@@ -19,6 +19,11 @@
 
 namespace cinderx {
 
+namespace jit {
+struct CompiledFunctionData;
+struct Profile;
+} // namespace jit
+
 #define JIT_TEST_MOD_NAME "jittestmodule"
 
 void setPythonProgramName(std::string name);
@@ -204,6 +209,12 @@ class RuntimeTest : public ::testing::Test {
     runStockCode(src);
     return getGlobal(name);
   }
+
+  // Recompile `func` with `profile`, returning the compiler output directly
+  // without installing it.
+  jit::CompiledFunctionData recompileWithProfile(
+      BorrowedRef<PyFunctionObject> func,
+      jit::Profile& profile);
 
   Ref<> getGlobal(const char* name) {
     PyObject* obj = PyDict_GetItemString(globals_, name);

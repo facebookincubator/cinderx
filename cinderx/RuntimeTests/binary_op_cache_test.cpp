@@ -17,6 +17,8 @@
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
+#include "cinderx/Jit/profile.h"
+#include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
@@ -120,6 +122,99 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesBinaryOpsByLocation) {
   EXPECT_EQ(profile.find<BinaryOpProfile>(nullptr, cold_offset), nullptr);
 
   EXPECT_NE(profile.find<BinaryOpProfile>(nullptr, list_offset), nullptr);
+}
+
+#endif
+
+#if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED) && \
+    defined(ENABLE_LIGHTWEIGHT_FRAMES) &&                          \
+    (defined(__APPLE__) || defined(__linux__))
+TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesFromBinaryOpProfile) {
+  const char* src = R"(
+def test(a, b):
+  return a + b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto lhs = Ref<>::steal(PyLong_FromLong(1));
+  auto rhs = Ref<>::steal(PyLong_FromLong(2));
+  PyObject* args[] = {lhs, rhs};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(PyLong_AsLong(result), 3);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const BinaryOpProfile* binary_op_profile =
+      profile.find<BinaryOpProfile>(profile.entries().begin()->first);
+  ASSERT_NE(binary_op_profile, nullptr);
+  EXPECT_EQ(binary_op_profile->left_type, TLongCompact);
+  EXPECT_EQ(binary_op_profile->right_type, TLongCompact);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kBinaryOp)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLongBinaryOp)], 1);
+
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(PyLong_AsLong(recompiled_result), 3);
+}
+
+TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesInlinedBinaryOp) {
+  // Locations are (code, offset) pairs, so only a single inlined call site is
+  // exercised here: two copies of the same inlined BinaryOp would register
+  // the same location twice.
+  const char* src = R"(
+def add(a, b):
+  return a + b
+
+def test(a, b):
+  return add(a, b)
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  PyObject* args[] = {one, two};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(PyLong_AsLong(result), 3);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  ASSERT_EQ(first->inlinedFunctionsStats().num_inlined_functions, 1);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const BinaryOpProfile* binary_op_profile =
+      profile.find<BinaryOpProfile>(profile.entries().begin()->first);
+  ASSERT_NE(binary_op_profile, nullptr);
+  EXPECT_EQ(binary_op_profile->left_type, TLongCompact);
+  EXPECT_EQ(binary_op_profile->right_type, TLongCompact);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kBinaryOp)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLongBinaryOp)], 1);
+
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(PyLong_AsLong(recompiled_result), 3);
 }
 #endif
 

@@ -24,6 +24,7 @@ extern "C" {
 #include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
+#include "cinderx/Jit/profile.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -613,6 +614,12 @@ bool HIRBuilder::isSimpleLeafFunction(BorrowedRef<PyCodeObject> code) {
 
 std::unique_ptr<Function> buildHIR(const Preloader& preloader) {
   return HIRBuilder{preloader}.buildHIR();
+}
+
+std::unique_ptr<Function> buildHIR(
+    const Preloader& preloader,
+    const Profile& profile) {
+  return HIRBuilder{preloader, profile}.buildHIR();
 }
 
 // This performs an abstract interpretation over the bytecode for func in order
@@ -2086,6 +2093,24 @@ void HIRBuilder::emitKwNames(
       kwnames_, Type::fromObject(PyTuple_GET_ITEM(code_->co_consts, index)));
 }
 
+bool HIRBuilder::emitBinaryOpProfileGuards(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr,
+    Register* left,
+    Register* right) {
+  if (profile_ == nullptr) {
+    return false;
+  }
+  const BinaryOpProfile* binop =
+      profile_->find<BinaryOpProfile>(tc.frame.code, bc_instr.baseOffset());
+  if (binop == nullptr) {
+    return false;
+  }
+  tc.emit<GuardType>(left, binop->left_type, left, tc.frame);
+  tc.emit<GuardType>(right, binop->right_type, right, tc.frame);
+  return true;
+}
+
 void HIRBuilder::emitBinaryOp(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
@@ -2097,7 +2122,8 @@ void HIRBuilder::emitBinaryOp(
   int opcode = bc_instr.opcode();
   int oparg = bc_instr.oparg();
 
-  if (getConfig().specialized_opcodes) {
+  if (!emitBinaryOpProfileGuards(tc, bc_instr, left, right) &&
+      getConfig().specialized_opcodes) {
     switch (bc_instr.specializedOpcode()) {
       // A guarded operand lets Simplify infer types across the whole
       // expression and lower it to unboxed Long/Double arithmetic, so a

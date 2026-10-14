@@ -4,19 +4,27 @@
 
 #include "cinderx/Jit/hir/pass.h"
 
+namespace cinderx::jit {
+struct Profile;
+}
+
 namespace cinderx::jit::hir {
 
 // Inline function calls and add in BeginInlinedFunction and EndInlinedFunction
 // instructions.
 class InlineFunctionCalls final : public Pass {
  public:
-  InlineFunctionCalls() : Pass("InlineFunctionCalls") {}
+  explicit InlineFunctionCalls(const Profile* profile = nullptr)
+      : Pass("InlineFunctionCalls"), profile_{profile} {}
 
   bool run(Function& irfunc) override;
 
   static std::unique_ptr<InlineFunctionCalls> factory() {
     return std::make_unique<InlineFunctionCalls>();
   }
+
+ private:
+  const Profile* profile_;
 };
 
 // Try to elide {Begin,End}InlinedFunction instructions for simple functions

@@ -111,13 +111,30 @@ bool runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
 void Compiler::runPasses(jit::hir::Function& irfunc, PassConfig config) {
   PostPassFunction callback =
       [](hir::Function&, std::string_view, std::size_t) {};
-  runPasses(irfunc, config, callback);
+  runPassesImpl(irfunc, config, callback, nullptr);
+}
+
+void Compiler::runPasses(
+    jit::hir::Function& irfunc,
+    PassConfig config,
+    const Profile& profile) {
+  PostPassFunction callback =
+      [](hir::Function&, std::string_view, std::size_t) {};
+  runPassesImpl(irfunc, config, callback, &profile);
 }
 
 void Compiler::runPasses(
     jit::hir::Function& irfunc,
     PassConfig config,
     PostPassFunction callback) {
+  runPassesImpl(irfunc, config, std::move(callback), nullptr);
+}
+
+void Compiler::runPassesImpl(
+    jit::hir::Function& irfunc,
+    PassConfig config,
+    PostPassFunction callback,
+    const Profile* profile) {
   // Bail out before doing any work if the freshly-built HIR is already too
   // large to be worth compiling.  Checked once here rather than before every
   // pass to avoid repeatedly walking the CFG.
@@ -139,7 +156,7 @@ void Compiler::runPasses(
   runPassIf(hir::GuardTypeRemoval{}, PassConfig::kGuardTypeRemoval);
   runPassIf(hir::PhiElimination{}, PassConfig::kPhiElim);
 
-  if (runPassIf(jit::hir::InlineFunctionCalls{}, PassConfig::kInliner)) {
+  if (runPassIf(jit::hir::InlineFunctionCalls{profile}, PassConfig::kInliner)) {
     runPassIf(hir::Simplify{}, PassConfig::kSimplify);
     runPassIf(
         hir::BeginInlinedFunctionElimination{},
@@ -220,7 +237,8 @@ PassConfig createConfig() {
 }
 
 std::optional<CompiledFunctionData> Compiler::compile(
-    const jit::hir::Preloader& preloader) {
+    const jit::hir::Preloader& preloader,
+    const Profile& profile) {
   const std::string& fullname = preloader.fullname();
   if (!PyDict_CheckExact(preloader.globals())) {
     JIT_DLOG(
@@ -249,7 +267,7 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 
   Timer timer;
-  std::unique_ptr<hir::Function> irfunc(hir::buildHIR(preloader));
+  std::unique_ptr<hir::Function> irfunc(hir::buildHIR(preloader, profile));
 
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
@@ -269,7 +287,7 @@ std::optional<CompiledFunctionData> Compiler::compile(
   COMPILE_TIMER(
       irfunc->compilation_phase_timer,
       "HIR transformations",
-      Compiler::runPasses(*irfunc, config))
+      Compiler::runPasses(*irfunc, config, profile))
 
   hir::OpcodeCounts hir_opcode_counts = hir::count_opcodes(*irfunc);
 
@@ -333,6 +351,7 @@ std::optional<CompiledFunctionData> Compiler::compile(
 #ifndef ENABLE_PREFORK_MODEL
   compiled_data.stable_storage = ngen->takeStableStorage();
 #endif
+  compiled_data.profile_collector = ngen->takeProfileCollector();
   if (getConfig().log.debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
     compiled_data.irfunc = std::move(irfunc);

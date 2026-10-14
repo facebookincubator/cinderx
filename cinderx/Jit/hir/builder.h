@@ -16,7 +16,11 @@
 #include <unordered_set>
 #include <vector>
 
-namespace cinderx::jit::hir {
+namespace cinderx::jit {
+
+struct Profile;
+
+namespace hir {
 
 class BasicBlock;
 class Environment;
@@ -75,6 +79,9 @@ class BlockCanonicalizer {
 // to SSA, flow types, optimize, and insert refcount operations using liveness
 // analysis.
 std::unique_ptr<Function> buildHIR(const Preloader& preloader);
+std::unique_ptr<Function> buildHIR(
+    const Preloader& preloader,
+    const Profile& profile);
 
 // Inlining merges all of the different callee Returns (which terminate blocks,
 // leading to a bunch of distinct exit blocks) into Branches to one Return
@@ -89,6 +96,10 @@ class HIRBuilder {
  public:
   explicit HIRBuilder(const Preloader& preloader)
       : code_(preloader.code()), preloader_(preloader) {}
+  HIRBuilder(const Preloader& preloader, const Profile& profile)
+      : HIRBuilder(preloader, &profile) {}
+  HIRBuilder(const Preloader& preloader, const Profile* profile)
+      : code_(preloader.code()), preloader_(preloader), profile_(profile) {}
 
   HIRBuilder(const HIRBuilder&) = delete;
   HIRBuilder& operator=(const HIRBuilder&) = delete;
@@ -140,6 +151,11 @@ class HIRBuilder {
   void emitBinaryOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  bool emitBinaryOpProfileGuards(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr,
+      Register* left,
+      Register* right);
   void emitUnaryOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -552,6 +568,7 @@ class HIRBuilder {
   BorrowedRef<PyCodeObject> code_;
   BlockMap block_map_;
   const Preloader& preloader_;
+  const Profile* profile_{nullptr};
 
   // The function's register Environment, set in buildHIRImpl.
   Environment* env_{nullptr};
@@ -582,4 +599,5 @@ class HIRBuilder {
   static bool isSimpleLeafFunction(BorrowedRef<PyCodeObject> code);
 };
 
-} // namespace cinderx::jit::hir
+} // namespace hir
+} // namespace cinderx::jit
