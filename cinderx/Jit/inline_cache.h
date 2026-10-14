@@ -18,6 +18,7 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace cinderx::jit::hir {
 // Defined in cinderx/Jit/hir/hir.h and cinderx/Jit/hir/type.h; only the
@@ -503,6 +504,7 @@ class AttributeCache {
 
  protected:
   std::span<AttributeMutator> entries();
+  std::span<const AttributeMutator> entries() const;
 
   AttributeMutator* findEmptyEntry();
 
@@ -678,6 +680,16 @@ class LoadAttrCache : public AttributeCache {
 
   // Address of the dispatch slot, for codegen to load and call through.
   LoadAttrTarget* targetAddr();
+
+  // One populated entry observed for recompile profiling.
+  struct ProfiledEntry {
+    PyTypeObject* type;
+    AttributeMutator::Kind kind;
+  };
+
+  // Snapshot the populated entries for recompile profiling, in slot order.
+  // The GIL must be held, as for all cache operations.
+  std::vector<ProfiledEntry> profiledEntries() const;
 
   LoadAttrCache(const LoadAttrCache&) = delete;
   LoadAttrCache& operator=(const LoadAttrCache&) = delete;

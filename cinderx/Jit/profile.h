@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <compare>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <variant>
 
@@ -45,16 +46,34 @@ struct BinaryOpProfile {
   bool operator==(const BinaryOpProfile&) const = default;
 };
 
+// Profile feedback from a LoadAttr inline cache.
+struct LoadAttrProfile {
+  // Borrowed reference to the receiver type, present only when the cache
+  // observed a single receiver type. The owning reference lives in Profile's
+  // owned set, keeping the type alive until the recompilation consumes the
+  // profile.
+  BorrowedRef<PyTypeObject> receiver_type;
+  // Kind of attribute access observed, present only when the cache observed a
+  // single entry.
+  std::optional<AttributeMutator::Kind> kind;
+  // True when the cache observed more than one entry.
+  bool polymorphic{false};
+
+  bool operator==(const LoadAttrProfile&) const = default;
+};
+
 // The various types of entries that can be contained in a profile
-using ProfileEntry = std::variant<BinaryOpProfile>;
+using ProfileEntry = std::variant<BinaryOpProfile, LoadAttrProfile>;
 
 // A snapshot of the profiling information for a CompiledFunction that can
 // be used during re-compilation.
 struct Profile {
   Profile() = default;
 
-  explicit Profile(std::unordered_map<ProfileLocation, ProfileEntry>&& entries)
-      : entries_(std::move(entries)) {}
+  explicit Profile(
+      std::unordered_map<ProfileLocation, ProfileEntry>&& entries,
+      std::unordered_set<Ref<>>&& owned_refs = {})
+      : entries_(std::move(entries)), owned_refs_(std::move(owned_refs)) {}
 
   template <typename T>
   const T* find(const ProfileLocation& location) const {
@@ -76,9 +95,14 @@ struct Profile {
 
  private:
   std::unordered_map<ProfileLocation, ProfileEntry> entries_;
+  // Owning references for the borrowed pointers in entries_. Entries hold
+  // BorrowedRefs so they can be copied without the GIL during compilation;
+  // this set keeps the referents alive until the recompilation consumes the
+  // profile.
+  std::unordered_set<Ref<>> owned_refs_;
 };
 
-using ProfileSource = std::variant<BinaryOpCache*>;
+using ProfileSource = std::variant<BinaryOpCache*, LoadAttrCache*>;
 
 // Snapshots the profiling information for a CompiledFunction. The collector
 // gets seeded with the caches associated with a CompiledFunction during
@@ -87,10 +111,18 @@ using ProfileSource = std::variant<BinaryOpCache*>;
 // further specialization.
 class ProfileCollector {
  public:
-  void add(
-      BorrowedRef<PyCodeObject> location,
-      BCOffset offset,
-      BinaryOpCache* cache);
+  // Register a live inline cache for a location. Templated over the cache
+  // type so new cache kinds only extend ProfileSource; the variant
+  // conversion below rejects anything else.
+  template <typename CacheT>
+  void add(BorrowedRef<PyCodeObject> location, BCOffset offset, CacheT* cache) {
+#ifndef ENABLE_PREFORK_MODEL
+    entries_[ProfileLocation(location, offset)].emplace_back(cache);
+#endif
+  }
+  // Snapshot the observed inline-cache states. Must be called with the GIL
+  // held: profiling LoadAttr caches takes strong references to the observed
+  // receiver types.
   Profile snapshot() const;
 
  private:

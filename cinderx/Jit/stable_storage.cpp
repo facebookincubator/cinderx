@@ -8,13 +8,6 @@ namespace cinderx::jit {
 
 InlineCacheSite::InlineCacheSite(
     BCOffset bytecode_offset,
-    LoadAttrCache* cache_ptr)
-    : kind{Kind::kLoadAttr}, bytecode_offset{bytecode_offset} {
-  cache.load_attr = cache_ptr;
-}
-
-InlineCacheSite::InlineCacheSite(
-    BCOffset bytecode_offset,
     LoadMethodCache* cache_ptr)
     : kind{Kind::kLoadMethod}, bytecode_offset{bytecode_offset} {
   cache.load_method = cache_ptr;
@@ -67,11 +60,8 @@ PerCompilationStableStorage::inlineCacheSites() const {
   return inline_cache_sites_;
 }
 
-LoadAttrCache* PerCompilationStableStorage::allocateLoadAttrCache(
-    BCOffset bytecode_offset) {
-  auto cache = arena_.allocate<LoadAttrCache, AttributeCacheSizeTrait>();
-  addInlineCacheSite(InlineCacheSite{bytecode_offset, cache});
-  return cache;
+LoadAttrCache* PerCompilationStableStorage::allocateLoadAttrCache() {
+  return arena_.allocate<LoadAttrCache, AttributeCacheSizeTrait>();
 }
 
 LoadMethodCache* PerCompilationStableStorage::allocateLoadMethodCache(
@@ -155,8 +145,7 @@ void PerCompilationStableStorage::addInlineCacheSite(InlineCacheSite site) {
   inline_cache_sites_.emplace_back(std::move(site));
 }
 
-LoadAttrCache* ContextStableStorage::allocateLoadAttrCache(
-    [[maybe_unused]] BCOffset bytecode_offset) {
+LoadAttrCache* ContextStableStorage::allocateLoadAttrCache() {
   return load_attr_caches_.allocate();
 }
 

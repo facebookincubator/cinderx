@@ -18,7 +18,6 @@ using InlineCacheStats = std::vector<CacheStats>;
 
 struct InlineCacheSite {
   enum class Kind {
-    kLoadAttr,
     kLoadMethod,
     kLoadModuleAttr,
     kLoadModuleMethod,
@@ -28,7 +27,6 @@ struct InlineCacheSite {
     kCompare,
   };
 
-  InlineCacheSite(BCOffset bytecode_offset, LoadAttrCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, LoadMethodCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, LoadModuleAttrCache* cache);
   InlineCacheSite(BCOffset bytecode_offset, LoadModuleMethodCache* cache);
@@ -40,7 +38,6 @@ struct InlineCacheSite {
   Kind kind;
   BCOffset bytecode_offset;
   union {
-    LoadAttrCache* load_attr;
     LoadMethodCache* load_method;
     LoadModuleAttrCache* load_module_attr;
     LoadModuleMethodCache* load_module_method;
@@ -62,7 +59,7 @@ class PerCompilationStableStorage final {
 
   const std::vector<InlineCacheSite>& inlineCacheSites() const;
 
-  LoadAttrCache* allocateLoadAttrCache(BCOffset bytecode_offset);
+  LoadAttrCache* allocateLoadAttrCache();
   LoadMethodCache* allocateLoadMethodCache(BCOffset bytecode_offset);
   LoadModuleAttrCache* allocateLoadModuleAttrCache(BCOffset bytecode_offset);
   LoadModuleMethodCache* allocateLoadModuleMethodCache(
@@ -112,7 +109,7 @@ class ContextStableStorage final {
     return code_runtimes_;
   }
 
-  LoadAttrCache* allocateLoadAttrCache(BCOffset bytecode_offset);
+  LoadAttrCache* allocateLoadAttrCache();
   LoadTypeAttrCache* allocateLoadTypeAttrCache();
   LoadTypeAttrCache* allocateLoadTypeAttrCache(BCOffset bytecode_offset);
   LoadMethodCache* allocateLoadMethodCache(BCOffset bytecode_offset);

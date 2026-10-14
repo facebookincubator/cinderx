@@ -7,6 +7,8 @@
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/inline_cache.h"
+#include "cinderx/Jit/profile.h"
+#include "cinderx/Jit/pyjit.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #if PY_VERSION_HEX > 0x030E0000
@@ -15,6 +17,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <vector>
 
 namespace cinderx {
 
@@ -2349,5 +2352,305 @@ obj = C()
   EXPECT_TRUE(PyErr_Occurred());
   PyErr_Clear();
 }
+
+#ifndef ENABLE_PREFORK_MODEL
+TEST_F(InlineCacheTest, LoadAttrProfileMonomorphic) {
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, R"(
+class C:
+  pass
+
+c = C()
+c.x = 1
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), obj, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 1);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, cache.get());
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_attr = profile.find<LoadAttrProfile>(location);
+  ASSERT_NE(load_attr, nullptr);
+  EXPECT_FALSE(load_attr->polymorphic);
+  EXPECT_EQ(load_attr->receiver_type.get(), Py_TYPE(obj.get()));
+  EXPECT_TRUE(load_attr->kind.has_value());
+}
+
+TEST_F(InlineCacheTest, LoadAttrProfilePolymorphic) {
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, R"(
+class C:
+  pass
+
+class D:
+  pass
+
+c = C()
+c.x = 1
+d = D()
+d.x = 2
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 1);
+  res = callLoad(cache.get(), d, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 2);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, cache.get());
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_attr = profile.find<LoadAttrProfile>(location);
+  ASSERT_NE(load_attr, nullptr);
+  EXPECT_TRUE(load_attr->polymorphic);
+  EXPECT_TRUE(load_attr->receiver_type == nullptr);
+  EXPECT_FALSE(load_attr->kind.has_value());
+}
+
+TEST_F(InlineCacheTest, LoadAttrProfileEmptyCache) {
+  getMutableConfig().attr_cache_size = 4;
+  CacheStorage<LoadAttrCache> cache;
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, cache.get());
+
+  Profile profile = collector.snapshot();
+  EXPECT_EQ(profile.entries().size(), 0);
+  EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
+}
+
+TEST_F(InlineCacheTest, LoadAttrProfileDuplicateCaches) {
+  // Inlining the same callee twice registers two caches under one location.
+  // Agreeing observations merge into a single entry; disagreeing ones merge
+  // to the polymorphic marker.
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, R"(
+class C:
+  pass
+
+class D:
+  pass
+
+c = C()
+c.x = 1
+d = D()
+d.x = 2
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  ProfileCollector collector;
+
+  const ProfileLocation agreeing_location{nullptr, BCOffset{8}};
+  CacheStorage<LoadAttrCache> first_agreeing;
+  CacheStorage<LoadAttrCache> second_agreeing;
+  collector.add(
+      agreeing_location.code,
+      agreeing_location.bytecode_offset,
+      first_agreeing.get());
+  collector.add(
+      agreeing_location.code,
+      agreeing_location.bytecode_offset,
+      second_agreeing.get());
+  auto res = callLoad(first_agreeing.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  res = callLoad(second_agreeing.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+
+  const ProfileLocation disagreeing_location{nullptr, BCOffset{16}};
+  CacheStorage<LoadAttrCache> c_cache;
+  CacheStorage<LoadAttrCache> d_cache;
+  collector.add(
+      disagreeing_location.code,
+      disagreeing_location.bytecode_offset,
+      c_cache.get());
+  collector.add(
+      disagreeing_location.code,
+      disagreeing_location.bytecode_offset,
+      d_cache.get());
+  res = callLoad(c_cache.get(), c, name);
+  ASSERT_NE(res.get(), nullptr);
+  res = callLoad(d_cache.get(), d, name);
+  ASSERT_NE(res.get(), nullptr);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 2);
+
+  const LoadAttrProfile* agreeing =
+      profile.find<LoadAttrProfile>(agreeing_location);
+  ASSERT_NE(agreeing, nullptr);
+  EXPECT_FALSE(agreeing->polymorphic);
+  EXPECT_EQ(agreeing->receiver_type.get(), Py_TYPE(c.get()));
+
+  const LoadAttrProfile* disagreeing =
+      profile.find<LoadAttrProfile>(disagreeing_location);
+  ASSERT_NE(disagreeing, nullptr);
+  EXPECT_TRUE(disagreeing->polymorphic);
+}
+
+TEST_F(InlineCacheTest, LoadAttrProfileDataDescriptor) {
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, R"(
+class C:
+  @property
+  def x(self):
+    return 1
+
+c = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), obj, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 1);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, cache.get());
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_attr = profile.find<LoadAttrProfile>(location);
+  ASSERT_NE(load_attr, nullptr);
+  EXPECT_FALSE(load_attr->polymorphic);
+  EXPECT_EQ(load_attr->receiver_type.get(), Py_TYPE(obj.get()));
+  ASSERT_TRUE(load_attr->kind.has_value());
+  EXPECT_EQ(*load_attr->kind, AttributeMutator::Kind::kDataDescr);
+}
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+TEST_F(InlineCacheTest, LoadAttrProfileSkipsClassReceivers) {
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, R"(
+class C:
+  x = 1
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "C");
+  ASSERT_NE(cls.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  CacheStorage<LoadAttrCache> cache;
+  auto res = callLoad(cache.get(), cls, name);
+  ASSERT_NE(res.get(), nullptr);
+  EXPECT_EQ(asLong(res), 1);
+
+  // The cache observed a single class-receiver entry, which cannot be
+  // represented as a receiver-type guard and so produces no profile.
+  const std::vector<LoadAttrCache::ProfiledEntry> entries =
+      cache->profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries.front().kind, AttributeMutator::Kind::kType);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, cache.get());
+
+  Profile profile = collector.snapshot();
+  EXPECT_EQ(profile.entries().size(), 0);
+  EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
+}
+#endif
+#endif
+
+#if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED) && \
+    defined(ENABLE_LIGHTWEIGHT_FRAMES) &&                          \
+    (defined(__APPLE__) || defined(__linux__))
+TEST_F(InlineCacheTest, RecompileGuardsLoadAttrReceiverFromProfile) {
+  getMutableConfig().attr_cache_size = 4;
+  const char* src = R"(
+class C:
+  pass
+
+c = C()
+c.x = 1
+
+def test(obj):
+  return obj.x
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto locals = runToLocals(this, src);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+
+  PyObject* args[] = {obj.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(asLong(result), 1);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kLoadAttr)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kGuardType)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_attr =
+      profile.find<LoadAttrProfile>(profile.entries().begin()->first);
+  ASSERT_NE(load_attr, nullptr);
+  EXPECT_FALSE(load_attr->polymorphic);
+  EXPECT_EQ(load_attr->receiver_type.get(), Py_TYPE(obj.get()));
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+#if PY_VERSION_HEX >= 0x030E0000
+  // The guarded receiver keeps its cached LoadAttr.
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLoadAttr)], 1);
+#else
+  // The guarded receiver lets Simplify inline the split-dict load.
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLoadAttr)], 0);
+#endif
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(asLong(recompiled_result), 1);
+}
+
+#endif
 
 } // namespace cinderx

@@ -2901,7 +2901,8 @@ void HIRBuilder::emitLoadAttr(
 
   Register* receiver = tc.frame.stack.pop();
 
-  if (getConfig().specialized_opcodes) {
+  if (!emitLoadAttrProfileGuards(tc, bc_instr, receiver) &&
+      getConfig().specialized_opcodes) {
     switch (bc_instr.specializedOpcode()) {
       case LOAD_ATTR_MODULE: {
         Type type = Type::fromTypeExact(&PyModule_Type);
@@ -2921,6 +2922,28 @@ void HIRBuilder::emitLoadAttr(
       PyTuple_GET_ITEM(tc.frame.code->co_names, name_idx))};
   tc.emit<LoadAttr>(1, result, receiver, name, tc.frame);
   tc.frame.stack.push(result);
+}
+
+bool HIRBuilder::emitLoadAttrProfileGuards(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr,
+    Register* receiver) {
+  if (profile_ == nullptr) {
+    return false;
+  }
+  ProfileLocation location =
+      ProfileLocation(tc.frame.code, bc_instr.baseOffset());
+  const LoadAttrProfile* load_attr = profile_->find<LoadAttrProfile>(location);
+  if (load_attr == nullptr || load_attr->polymorphic ||
+      load_attr->receiver_type == nullptr) {
+    return false;
+  }
+  tc.emit<GuardType>(
+      receiver,
+      Type::fromTypeExact(load_attr->receiver_type.get()),
+      receiver,
+      tc.frame);
+  return true;
 }
 
 void HIRBuilder::emitLoadMethod(TranslationContext& tc, int name_idx) {

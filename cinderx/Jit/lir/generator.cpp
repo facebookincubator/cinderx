@@ -3421,8 +3421,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         if (instr->hasDefault()) {
           bbb.appendCallInstruction(dst, rt::getOptionalAttr, base, name);
         } else if (getConfig().attr_caches) {
-          auto cache =
-              stable_storage_.allocateLoadAttrCache(instr->bytecodeOffset());
+          auto cache = stable_storage_.allocateLoadAttrCache();
+          env_->profileCollector().add(
+              instr->frameState()->code, instr->bytecodeOffset(), cache);
           if constexpr (kInlineCachesTargetPromote) {
             // The cache picks its own entry point based on how many entries it
             // holds, so load the callee from the cache rather than baking it

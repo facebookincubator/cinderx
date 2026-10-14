@@ -25,9 +25,32 @@ std::optional<ProfileEntry> binaryOpPayload(const BinaryOpCache& cache) {
       *left_type, *right_type, res.has_value() ? *res : TObject};
 }
 
+std::optional<ProfileEntry> loadAttrPayload(const LoadAttrCache& cache) {
+  const std::vector<LoadAttrCache::ProfiledEntry> entries =
+      cache.profiledEntries();
+  if (entries.empty()) {
+    return std::nullopt;
+  }
+  if (entries.size() > 1) {
+    return LoadAttrProfile{{}, std::nullopt, true};
+  }
+  const LoadAttrCache::ProfiledEntry& entry = entries.front();
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  if (AttributeMutator::isTypeAttrKind(entry.kind)) {
+    // Class-receiver entries are keyed on the receiver's identity rather than
+    // its type, so they cannot be represented as a receiver-type guard.
+    return std::nullopt;
+  }
+#endif
+  return LoadAttrProfile{entry.type, entry.kind, false};
+}
+
 std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   if (const auto* cache = std::get_if<BinaryOpCache*>(&source)) {
     return binaryOpPayload(**cache);
+  }
+  if (const auto* cache = std::get_if<LoadAttrCache*>(&source)) {
+    return loadAttrPayload(**cache);
   }
   return std::nullopt;
 }
@@ -46,19 +69,25 @@ std::optional<ProfileEntry> mergePayloads(std::vector<ProfileEntry>& observed) {
           })) {
     return std::move(observed.front());
   }
+  if (std::holds_alternative<LoadAttrProfile>(first)) {
+    return LoadAttrProfile{{}, std::nullopt, true};
+  }
   return std::nullopt;
 }
 
-} // namespace
-
-void ProfileCollector::add(
-    BorrowedRef<PyCodeObject> code,
-    BCOffset offset,
-    BinaryOpCache* cache) {
-#ifndef ENABLE_PREFORK_MODEL
-  entries_[ProfileLocation(code, offset)].emplace_back(cache);
-#endif
+// Take owning references for the borrowed pointers in a final entry, for
+// Profile's owned set. Must be called with the GIL held.
+void collectOwnedRefs(
+    const ProfileEntry& entry,
+    std::unordered_set<Ref<>>& owned) {
+  if (const auto* load_attr = std::get_if<LoadAttrProfile>(&entry)) {
+    if (load_attr->receiver_type != nullptr) {
+      owned.insert(Ref<>::create(load_attr->receiver_type.getObj()));
+    }
+  }
 }
+
+} // namespace
 
 Profile ProfileCollector::snapshot() const {
 #ifdef ENABLE_PREFORK_MODEL
@@ -85,8 +114,11 @@ Profile ProfileCollector::snapshot() const {
       entries.erase(location);
     }
   }
-
-  return Profile(std::move(entries));
+  std::unordered_set<Ref<>> owned_refs;
+  for (const auto& [location, entry] : entries) {
+    collectOwnedRefs(entry, owned_refs);
+  }
+  return Profile(std::move(entries), std::move(owned_refs));
 #endif
 }
 

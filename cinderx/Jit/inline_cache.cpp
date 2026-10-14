@@ -1275,6 +1275,22 @@ std::span<AttributeMutator> AttributeCache::entries() {
   return {entries_, getConfig().attr_cache_size};
 }
 
+std::span<const AttributeMutator> AttributeCache::entries() const {
+  return {entries_, getConfig().attr_cache_size};
+}
+
+std::vector<LoadAttrCache::ProfiledEntry> LoadAttrCache::profiledEntries()
+    const {
+  std::vector<ProfiledEntry> result;
+  for (const AttributeMutator& entry : entries()) {
+    if (entry.isEmpty()) {
+      continue;
+    }
+    result.push_back({entry.type(), entry.getKind()});
+  }
+  return result;
+}
+
 unsigned AttributeCache::countEntries() {
   unsigned count = 0;
   for (auto& entry : entries()) {
