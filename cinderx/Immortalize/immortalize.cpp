@@ -8,6 +8,8 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
+#include <vector>
+
 namespace cinderx {
 
 namespace {
@@ -19,7 +21,8 @@ struct _gc_runtime_state* get_gc_state() {
   return &PyInterpreterState_Get()->gc;
 }
 
-void immortalize_exact_dict_entries(PyObject* obj) {
+// Covers dict subclasses too: GC traversal skips their string keys.
+void immortalize_dict_entries(PyObject* obj) {
   PyObject* key;
   PyObject* value;
   Py_ssize_t pos = 0;
@@ -36,24 +39,25 @@ void immortalize_exact_dict_entries(PyObject* obj) {
   }
 }
 
-// Code objects are not GC-traversed in 3.12, so their tuple fields can be
-// immortal leaves with mortal entries. Keep this scoped to direct code tuple
-// entries rather than changing global tuple semantics.
-void immortalize_code_tuple_field(BorrowedRef<> obj) {
-  PyObject* tuple = obj.get();
-  if (tuple == nullptr) {
-    return;
-  }
-
-  immortalize(tuple);
-
-  if (!PyTuple_CheckExact(tuple)) {
-    return;
-  }
-
-  Py_ssize_t size = PyTuple_GET_SIZE(tuple);
-  for (Py_ssize_t i = 0; i < size; i++) {
-    immortalize(PyTuple_GET_ITEM(tuple, i));
+// The heap walk never reaches items of untracked tuples. Nested tuples are
+// followed iteratively so deep nesting can't exhaust the stack. Tuples that
+// are already immortal are skipped: their items were covered when they were
+// immortalized. Only exact tuples: some tuple subclasses, such as Static
+// Python's vtable, don't store items in the tuple layout.
+void immortalize_tuple_items(PyObject* root) {
+  std::vector<PyObject*> pending{root};
+  while (!pending.empty()) {
+    PyObject* tuple = pending.back();
+    pending.pop_back();
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(tuple); i++) {
+      PyObject* item = PyTuple_GET_ITEM(tuple, i);
+      if (item == nullptr || !PyTuple_CheckExact(item)) {
+        immortalize(item);
+      } else if (can_immortalize(item)) {
+        IMMORTALIZE(item);
+        pending.push_back(item);
+      }
+    }
   }
 }
 
@@ -81,8 +85,12 @@ bool immortalize(PyObject* obj) {
 
   IMMORTALIZE(obj);
 
-  if (PyDict_CheckExact(obj)) {
-    immortalize_exact_dict_entries(obj);
+  if (PyTuple_CheckExact(obj)) {
+    immortalize_tuple_items(obj);
+  }
+
+  if (PyDict_Check(obj)) {
+    immortalize_dict_entries(obj);
   }
 
   if (PyCode_Check(obj)) {
@@ -92,9 +100,10 @@ bool immortalize(PyObject* obj) {
     IMMORTALIZE(code->co_linetable);
     IMMORTALIZE(code->co_exceptiontable);
 
-    immortalize_code_tuple_field(code->co_localsplusnames);
-    immortalize_code_tuple_field(code->co_consts);
-    immortalize_code_tuple_field(code->co_names);
+    // Code objects are not GC-traversed in 3.12.
+    immortalize(code->co_localsplusnames);
+    immortalize(code->co_consts);
+    immortalize(code->co_names);
 
     // These are strings and we need to check if this is safe.
     immortalize(code->co_filename);

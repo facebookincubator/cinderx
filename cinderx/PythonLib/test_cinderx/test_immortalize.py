@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 
+import collections
 import gc
 import sys
 import unittest
@@ -152,6 +153,7 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(target.__code__))
         self.assertTrue(cinderx.is_immortal(consts))
         self.assertTrue(cinderx.is_immortal(tuple_const))
+        self.assertTrue(cinderx.is_immortal(const))
 
     @run_in_fork
     def test_immortalize_code_consts_nested_exact_dict_entries(self) -> None:
@@ -274,3 +276,89 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(holder))
         self.assertTrue(cinderx.is_immortal(target.__code__))
         self.assertTrue(cinderx.is_immortal(qualname))
+
+    @passIf(
+        _PY_DEBUG_BUILD,
+        "Python 3.12 debug builds only allow interned immortal unicode",
+    )
+    @run_in_fork
+    def test_immortalize_untracked_tuple_items(self) -> None:
+        item = "".join(("tuple_", "item"))
+        tup = (item, None)
+        gc.collect()
+        self.assertFalse(gc.is_tracked(tup))
+        holder = [tup]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(tup))
+        self.assertTrue(cinderx.is_immortal(item))
+
+    @passIf(
+        _PY_DEBUG_BUILD,
+        "Python 3.12 debug builds only allow interned immortal unicode",
+    )
+    @run_in_fork
+    def test_immortalize_nested_untracked_tuple_items(self) -> None:
+        inner_item = "".join(("inner_", "item"))
+        outer_item = "".join(("outer_", "item"))
+        inner = (inner_item,)
+        outer = (inner, outer_item)
+        holder = [outer]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(outer))
+        self.assertTrue(cinderx.is_immortal(outer_item))
+        self.assertTrue(cinderx.is_immortal(inner))
+        self.assertTrue(cinderx.is_immortal(inner_item))
+
+    @passIf(
+        _PY_DEBUG_BUILD,
+        "Python 3.12 debug builds only allow interned immortal unicode",
+    )
+    @run_in_fork
+    def test_immortalize_deeply_nested_tuple_items(self) -> None:
+        leaf = "".join(("leaf_", "item"))
+        chain = (leaf,)
+        for _ in range(1_000_000):
+            chain = (chain,)
+        gc.collect()
+        holder = [chain]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(chain))
+        self.assertTrue(cinderx.is_immortal(leaf))
+
+    @passIf(
+        _PY_DEBUG_BUILD,
+        "Python 3.12 debug builds only allow interned immortal unicode",
+    )
+    @run_in_fork
+    def test_immortalize_dict_subclass_entries(self) -> None:
+        class Mapping(dict):
+            pass
+
+        key = "".join(("subclass_", "key"))
+        value = object()
+        mapping = Mapping()
+        mapping[key] = value
+        default_key = "".join(("default_", "key"))
+        default_value = object()
+        defaults: collections.defaultdict[str, object] = collections.defaultdict(list)
+        defaults[default_key] = default_value
+        holder = [mapping, defaults]
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.is_immortal(holder))
+        self.assertTrue(cinderx.is_immortal(mapping))
+        self.assertTrue(cinderx.is_immortal(key))
+        self.assertTrue(cinderx.is_immortal(value))
+        self.assertTrue(cinderx.is_immortal(defaults))
+        self.assertTrue(cinderx.is_immortal(default_key))
+        self.assertTrue(cinderx.is_immortal(default_value))
