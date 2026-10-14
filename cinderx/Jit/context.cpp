@@ -366,7 +366,7 @@ void Context::fixupFunctionEntryCachePostMultiThreadedCompile() {
 }
 
 bool Context::hasFunctionEntryCache(BorrowedRef<PyCodeObject> code) const {
-  return function_entry_caches_.find(code) != function_entry_caches_.end();
+  return function_entry_caches_.contains(code);
 }
 
 _PyTypedArgsInfo* Context::findFunctionPrimitiveArgInfo(

@@ -985,7 +985,7 @@ void stealInputs(
 
     auto reg = instr.getOperand(i);
     auto& rstate = map_get(env.live_regs, reg);
-    if (rstate.isOwned() && dying_regs.count(reg)) {
+    if (rstate.isOwned() && dying_regs.contains(reg)) {
       // This instruction is the last use of reg and we own a reference to it.
       // Normally we let ownership for the input pass to the instruction's
       // receiver.

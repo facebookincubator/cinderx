@@ -1725,8 +1725,7 @@ void BlockCanonicalizer::insertCopies(
 
   auto orig_reg = reg;
   for (auto dst : copies_[reg]) {
-    auto it = copies_.find(dst);
-    if (it != copies_.end()) {
+    if (copies_.contains(dst)) {
       // The destination also needs to be moved. So deal with it first.
       processing_.insert(reg);
       insertCopies(dst, terminator, alloced);

@@ -192,10 +192,9 @@ void GlobalCacheManager::clear() {
     keys.push_back(pair.first);
   }
   for (auto dict : keys) {
-    auto dict_it = watch_map_.find(dict);
     // notifyDictUnwatch may clear out our dictionary and builtins,
     // so we need to make sure each dictionary is still being watched
-    if (dict_it != watch_map_.end()) {
+    if (watch_map_.contains(dict)) {
       notifyDictUnwatch(dict);
       cinderx::getModuleState()->watcher_state.unwatchDict(dict);
     }
