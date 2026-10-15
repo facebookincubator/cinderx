@@ -64,7 +64,8 @@ struct LoadAttrProfile {
   // Borrowed reference to the receiver type, present only when the cache
   // observed a single receiver type. The owning reference lives in Profile's
   // owned set, keeping the type alive until the recompilation consumes the
-  // profile.
+  // profile. For class-receiver entries this is
+  // the class itself rather than Py_TYPE(receiver); see kind.
   BorrowedRef<PyTypeObject> receiver_type;
   // Kind of attribute access observed, present only when the cache observed a
   // single entry.

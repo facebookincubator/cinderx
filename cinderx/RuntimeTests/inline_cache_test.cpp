@@ -2570,7 +2570,7 @@ c = C()
 }
 
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
-TEST_F(InlineCacheTest, LoadAttrProfileSkipsClassReceivers) {
+TEST_F(InlineCacheTest, LoadAttrProfileRecordsClassReceivers) {
   getMutableConfig().attr_cache_size = 4;
   auto locals = runToLocals(this, R"(
 class C:
@@ -2587,8 +2587,8 @@ class C:
   ASSERT_NE(res.get(), nullptr);
   EXPECT_EQ(asLong(res), 1);
 
-  // The cache observed a single class-receiver entry, which cannot be
-  // represented as a receiver-type guard and so produces no profile.
+  // The cache observed a single class-receiver entry, recorded as the
+  // class itself.
   const std::vector<LoadAttrCache::ProfiledEntry> entries =
       cache->profiledEntries();
   ASSERT_EQ(entries.size(), 1);
@@ -2599,8 +2599,15 @@ class C:
   collector.add(location.code, location.bytecode_offset, cache.get());
 
   Profile profile = collector.snapshot();
-  EXPECT_EQ(profile.entries().size(), 0);
-  EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_attr = profile.find<LoadAttrProfile>(location);
+  ASSERT_NE(load_attr, nullptr);
+  EXPECT_FALSE(load_attr->polymorphic);
+  EXPECT_EQ(
+      load_attr->receiver_type.get(),
+      reinterpret_cast<PyTypeObject*>(cls.get()));
+  ASSERT_TRUE(load_attr->kind.has_value());
+  EXPECT_EQ(*load_attr->kind, AttributeMutator::Kind::kType);
 }
 #endif // CINDERX_IC_USE_TARGET_PROMOTION
 
@@ -2966,6 +2973,64 @@ def test(obj):
   ASSERT_NE(recompiled_result, nullptr);
   EXPECT_EQ(asLong(recompiled_result), 1);
 }
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+TEST_F(InlineCacheTest, RecompileGuardsLoadAttrClassReceiverFromProfile) {
+  getMutableConfig().attr_cache_size = 4;
+  const char* src = R"(
+class C:
+  x = 1
+
+def test(cls):
+  return cls.x
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto locals = runToLocals(this, src);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "C");
+  ASSERT_NE(cls.get(), nullptr);
+
+  PyObject* args[] = {cls.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(asLong(result), 1);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kLoadAttr)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kGuardIs)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_attr =
+      profile.find<LoadAttrProfile>(profile.entries().begin()->first);
+  ASSERT_NE(load_attr, nullptr);
+  EXPECT_FALSE(load_attr->polymorphic);
+  EXPECT_EQ(
+      load_attr->receiver_type.get(),
+      reinterpret_cast<PyTypeObject*>(cls.get()));
+  ASSERT_TRUE(load_attr->kind.has_value());
+  EXPECT_EQ(*load_attr->kind, AttributeMutator::Kind::kType);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardIs)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(asLong(recompiled_result), 1);
+}
+#endif
 
 TEST_F(InlineCacheTest, LoadAttrProfileCarriesForward) {
   // A carried use is snapshotted into the new profile.

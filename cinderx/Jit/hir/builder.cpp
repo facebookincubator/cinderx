@@ -2941,11 +2941,25 @@ bool HIRBuilder::emitLoadAttrProfileGuards(
       load_attr->receiver_type == nullptr) {
     return false;
   }
-  tc.emit<GuardType>(
-      receiver,
-      Type::fromTypeExact(load_attr->receiver_type.get()),
-      receiver,
-      tc.frame);
+  bool exact_class = false;
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+  exact_class = load_attr->kind.has_value() &&
+      AttributeMutator::isTypeAttrKind(*load_attr->kind);
+#endif
+  if (exact_class) {
+    // Class receivers match on identity rather than on Py_TYPE(receiver).
+    env_->addReference(load_attr->receiver_type.getObj());
+    tc.emit<GuardIs>(
+        receiver,
+        reinterpret_cast<PyObject*>(load_attr->receiver_type.get()),
+        receiver);
+  } else {
+    tc.emit<GuardType>(
+        receiver,
+        Type::fromTypeExact(load_attr->receiver_type.get()),
+        receiver,
+        tc.frame);
+  }
   tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*load_attr});
   return true;
 }

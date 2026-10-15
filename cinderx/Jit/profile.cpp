@@ -50,13 +50,8 @@ std::optional<ProfileEntry> loadAttrPayload(const LoadAttrCache& cache) {
     return LoadAttrProfile{{}, std::nullopt, true};
   }
   const LoadAttrCache::ProfiledEntry& entry = entries.front();
-#ifdef CINDERX_IC_USE_TARGET_PROMOTION
-  if (AttributeMutator::isTypeAttrKind(entry.kind)) {
-    // Class-receiver entries are keyed on the receiver's identity rather than
-    // its type, so they cannot be represented as a receiver-type guard.
-    return std::nullopt;
-  }
-#endif
+  // Class-receiver entries store the class itself rather than
+  // Py_TYPE(receiver); the kind tells the consumer to guard identity.
   return LoadAttrProfile{entry.type, entry.kind, false};
 }
 
