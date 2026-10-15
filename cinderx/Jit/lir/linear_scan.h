@@ -355,6 +355,7 @@ class LinearScanAllocator : public RegisterAllocator {
       LinearScanAllocatorTest,
       ArbitraryExecutionCallReservesAllRegistersInFreeThreadedBuild);
   FRIEND_TEST(LinearScanAllocatorTest, DeoptExitReservesVectorRegisters);
+  FRIEND_TEST(LinearScanAllocatorTest, ExchangePreservesBothValueWidths);
 };
 
 std::ostream& operator<<(std::ostream& out, const LiveRange& rhs);

@@ -1779,17 +1779,11 @@ void LinearScanAllocator::rewriteLIREmitCopies(
             from,
             to);
         auto instr = block->allocateInstrBefore(instr_iter, Opcode::kExchange);
-#if defined(CINDER_AARCH64)
-        // ARM64: always use 64-bit for GP register exchanges (same
-        // reasoning as the kCopy case above — a narrower exchange
-        // truncates the wider value sharing the physical register).
-        // FP registers must keep kDouble.
+        // Either exchanged value may be wider than orig_opnd_size.
+        // FP operands keep their register-class tag.
         auto xchg_dt = (from.isFpRegister() || to.isFpRegister())
             ? orig_opnd_size
             : DataType::k64bit;
-#else
-        auto xchg_dt = orig_opnd_size;
-#endif
         instr->allocatePhyRegisterInput(from)->setDataType(xchg_dt);
         instr->output()->setPhyRegOrStackSlot(to);
         instr->output()->setDataType(xchg_dt);

@@ -5,6 +5,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/spill_alloc.h"
@@ -108,6 +109,45 @@ BB %5
     return result;
   }
 };
+
+TEST_F(LinearScanAllocatorTest, ExchangePreservesBothValueWidths) {
+  struct ExchangeCase {
+    int first_reg;
+    DataType first_type;
+    DataType second_type;
+    bool is_fp;
+  };
+  const ExchangeCase cases[] = {
+      {0, DataType::k32bit, DataType::kObject, false},
+      {0, DataType::kObject, DataType::k32bit, false},
+      {codegen::VECD_REG_BASE, DataType::kDouble, DataType::kDouble, true},
+  };
+
+  for (const ExchangeCase& test_case : cases) {
+    SCOPED_TRACE(
+        ::testing::Message()
+        << test_case.first_type << " <-> " << test_case.second_type);
+    Function func;
+    BasicBlock* block = func.allocateBasicBlock();
+    LinearScanAllocator allocator{&func};
+    LinearScanAllocator::CopyGraphWithOperand copies;
+    copies.addEdge(
+        test_case.first_reg, test_case.first_reg + 1, test_case.first_type);
+    copies.addEdge(
+        test_case.first_reg + 1, test_case.first_reg, test_case.second_type);
+    allocator.rewriteLIREmitCopies(block, block->instructions().end(), copies);
+
+    ASSERT_EQ(block->getNumInstrs(), 1);
+    Instruction* exchange = block->getFirstInstr();
+    ASSERT_EQ(exchange->opcode(), Opcode::kExchange);
+    size_t required_bits =
+        std::max(bitSize(test_case.first_type), bitSize(test_case.second_type));
+    EXPECT_GE(exchange->getInput(0)->sizeInBits(), required_bits);
+    EXPECT_GE(exchange->output()->sizeInBits(), required_bits);
+    EXPECT_EQ(exchange->getInput(0)->isFp(), test_case.is_fp);
+    EXPECT_EQ(exchange->output()->isFp(), test_case.is_fp);
+  }
+}
 
 TEST_F(LinearScanAllocatorTest, IntervalIntersectWithRange) {
   Operand operand;
