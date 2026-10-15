@@ -283,39 +283,66 @@ if sys.version_info >= (3, 14):
         BINARY_OP_SUBTRACT_FLOAT=2,
         BINARY_OP_SUBTRACT_INT=2,
         BINARY_SLICE=3,
+        # pyrefly: ignore [unsupported-operation]
         BUILD_INTERPOLATION=lambda oparg: 2 + (oparg & 1),
+        # pyrefly: ignore [bad-argument-type]
         BUILD_LIST=lambda oparg: oparg,
+        # pyrefly: ignore [unsupported-operation]
         BUILD_MAP=lambda oparg: oparg * 2,
+        # pyrefly: ignore [bad-argument-type]
         BUILD_SET=lambda oparg: oparg,
+        # pyrefly: ignore [bad-argument-type]
         BUILD_SLICE=lambda oparg: oparg,
+        # pyrefly: ignore [bad-argument-type]
         BUILD_STRING=lambda oparg: oparg,
         BUILD_TEMPLATE=2,
+        # pyrefly: ignore [bad-argument-type]
         BUILD_TUPLE=lambda oparg: oparg,
         CACHE=0,
+        # pyrefly: ignore [unsupported-operation]
         CALL=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_ALLOC_AND_ENTER_INIT=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_BOUND_METHOD_EXACT_ARGS=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_BOUND_METHOD_GENERAL=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_BUILTIN_CLASS=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_BUILTIN_FAST=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_BUILTIN_FAST_WITH_KEYWORDS=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_BUILTIN_O=lambda oparg: 2 + oparg,
         CALL_FUNCTION_EX=4,
         CALL_INTRINSIC_1=1,
         CALL_INTRINSIC_2=2,
+        # pyrefly: ignore [unsupported-operation]
         CALL_ISINSTANCE=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_KW=lambda oparg: 3 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_KW_BOUND_METHOD=lambda oparg: 3 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_KW_NON_PY=lambda oparg: 3 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_KW_PY=lambda oparg: 3 + oparg,
         CALL_LEN=3,
         CALL_LIST_APPEND=3,
+        # pyrefly: ignore [unsupported-operation]
         CALL_METHOD_DESCRIPTOR_FAST=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_METHOD_DESCRIPTOR_NOARGS=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_METHOD_DESCRIPTOR_O=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_NON_PY_GENERAL=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_PY_EXACT_ARGS=lambda oparg: 2 + oparg,
+        # pyrefly: ignore [unsupported-operation]
         CALL_PY_GENERAL=lambda oparg: 2 + oparg,
         CALL_STR_1=3,
         CALL_TUPLE_1=3,
@@ -331,6 +358,7 @@ if sys.version_info >= (3, 14):
         CONTAINS_OP_DICT=2,
         CONTAINS_OP_SET=2,
         CONVERT_VALUE=1,
+        # pyrefly: ignore [unsupported-operation]
         COPY=lambda oparg: 1 + (oparg - 1),
         COPY_FREE_VARS=0,
         DELETE_ATTR=1,
@@ -339,7 +367,9 @@ if sys.version_info >= (3, 14):
         DELETE_GLOBAL=0,
         DELETE_NAME=0,
         DELETE_SUBSCR=2,
+        # pyrefly: ignore [unsupported-operation]
         DICT_MERGE=lambda oparg: 5 + (oparg - 1),
+        # pyrefly: ignore [unsupported-operation]
         DICT_UPDATE=lambda oparg: 2 + (oparg - 1),
         EAGER_IMPORT_NAME=2,
         END_ASYNC_FOR=2,
@@ -363,8 +393,10 @@ if sys.version_info >= (3, 14):
         GET_YIELD_FROM_ITER=1,
         IMPORT_FROM=1,
         IMPORT_NAME=2,
+        # pyrefly: ignore [unsupported-operation]
         INSTRUMENTED_CALL=lambda oparg: 2 + oparg,
         INSTRUMENTED_CALL_FUNCTION_EX=4,
+        # pyrefly: ignore [unsupported-operation]
         INSTRUMENTED_CALL_KW=lambda oparg: 3 + oparg,
         INSTRUMENTED_END_ASYNC_FOR=2,
         INSTRUMENTED_END_FOR=2,
@@ -395,7 +427,9 @@ if sys.version_info >= (3, 14):
         JUMP_IF_FALSE=1,
         JUMP_IF_TRUE=1,
         JUMP_NO_INTERRUPT=0,
+        # pyrefly: ignore [unsupported-operation]
         LIST_APPEND=lambda oparg: 2 + (oparg - 1),
+        # pyrefly: ignore [unsupported-operation]
         LIST_EXTEND=lambda oparg: 2 + (oparg - 1),
         LOAD_ATTR=1,
         LOAD_ATTR_CLASS=1,
@@ -438,6 +472,7 @@ if sys.version_info >= (3, 14):
         LOAD_SUPER_ATTR_METHOD=3,
         MAKE_CELL=0,
         MAKE_FUNCTION=1,
+        # pyrefly: ignore [unsupported-operation]
         MAP_ADD=lambda oparg: 3 + (oparg - 1),
         MATCH_CLASS=3,
         MATCH_KEYS=2,
@@ -455,7 +490,9 @@ if sys.version_info >= (3, 14):
         POP_TOP=1,
         PUSH_EXC_INFO=1,
         PUSH_NULL=0,
+        # pyrefly: ignore [bad-argument-type]
         RAISE_VARARGS=lambda oparg: oparg,
+        # pyrefly: ignore [unsupported-operation]
         RERAISE=lambda oparg: 1 + oparg,
         RESERVED=0,
         RESUME=0,
@@ -468,8 +505,10 @@ if sys.version_info >= (3, 14):
         SETUP_CLEANUP=0,
         SETUP_FINALLY=0,
         SETUP_WITH=0,
+        # pyrefly: ignore [unsupported-operation]
         SET_ADD=lambda oparg: 2 + (oparg - 1),
         SET_FUNCTION_ATTRIBUTE=2,
+        # pyrefly: ignore [unsupported-operation]
         SET_UPDATE=lambda oparg: 2 + (oparg - 1),
         STORE_ATTR=2,
         STORE_ATTR_INSTANCE_VALUE=2,
@@ -486,6 +525,7 @@ if sys.version_info >= (3, 14):
         STORE_SUBSCR=3,
         STORE_SUBSCR_DICT=3,
         STORE_SUBSCR_LIST_INT=3,
+        # pyrefly: ignore [unsupported-operation]
         SWAP=lambda oparg: 2 + (oparg - 2),
         TO_BOOL=1,
         TO_BOOL_ALWAYS_TRUE=1,
@@ -608,6 +648,7 @@ if sys.version_info >= (3, 14):
         CONTAINS_OP_DICT=1,
         CONTAINS_OP_SET=1,
         CONVERT_VALUE=1,
+        # pyrefly: ignore [unsupported-operation]
         COPY=lambda oparg: 2 + (oparg - 1),
         COPY_FREE_VARS=0,
         DELETE_ATTR=0,
@@ -616,7 +657,9 @@ if sys.version_info >= (3, 14):
         DELETE_GLOBAL=0,
         DELETE_NAME=0,
         DELETE_SUBSCR=0,
+        # pyrefly: ignore [unsupported-operation]
         DICT_MERGE=lambda oparg: 4 + (oparg - 1),
+        # pyrefly: ignore [unsupported-operation]
         DICT_UPDATE=lambda oparg: 1 + (oparg - 1),
         EAGER_IMPORT_NAME=1,
         END_ASYNC_FOR=0,
@@ -651,6 +694,7 @@ if sys.version_info >= (3, 14):
         INSTRUMENTED_JUMP_BACKWARD=0,
         INSTRUMENTED_JUMP_FORWARD=0,
         INSTRUMENTED_LINE=0,
+        # pyrefly: ignore [unsupported-operation]
         INSTRUMENTED_LOAD_SUPER_ATTR=lambda oparg: 1 + (oparg & 1),
         INSTRUMENTED_NOT_TAKEN=0,
         INSTRUMENTED_POP_ITER=0,
@@ -672,21 +716,29 @@ if sys.version_info >= (3, 14):
         JUMP_IF_FALSE=1,
         JUMP_IF_TRUE=1,
         JUMP_NO_INTERRUPT=0,
+        # pyrefly: ignore [unsupported-operation]
         LIST_APPEND=lambda oparg: 1 + (oparg - 1),
+        # pyrefly: ignore [unsupported-operation]
         LIST_EXTEND=lambda oparg: 1 + (oparg - 1),
         LOAD_ATTR=lambda oparg: (2 if (isinstance(oparg, tuple) and oparg[1]) else 1),
+        # pyrefly: ignore [unsupported-operation]
         LOAD_ATTR_CLASS=lambda oparg: 1 + (oparg & 1),
+        # pyrefly: ignore [unsupported-operation]
         LOAD_ATTR_CLASS_WITH_METACLASS_CHECK=lambda oparg: 1 + (oparg & 1),
         LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN=1,
+        # pyrefly: ignore [unsupported-operation]
         LOAD_ATTR_INSTANCE_VALUE=lambda oparg: 1 + (oparg & 1),
         LOAD_ATTR_METHOD_LAZY_DICT=2,
         LOAD_ATTR_METHOD_NO_DICT=2,
         LOAD_ATTR_METHOD_WITH_VALUES=2,
+        # pyrefly: ignore [unsupported-operation]
         LOAD_ATTR_MODULE=lambda oparg: 1 + (oparg & 1),
         LOAD_ATTR_NONDESCRIPTOR_NO_DICT=1,
         LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES=1,
         LOAD_ATTR_PROPERTY=0,
+        # pyrefly: ignore [unsupported-operation]
         LOAD_ATTR_SLOT=lambda oparg: 1 + (oparg & 1),
+        # pyrefly: ignore [unsupported-operation]
         LOAD_ATTR_WITH_HINT=lambda oparg: 1 + (oparg & 1),
         LOAD_BUILD_CLASS=1,
         LOAD_CLOSURE=1,
@@ -704,19 +756,23 @@ if sys.version_info >= (3, 14):
         LOAD_FROM_DICT_OR_DEREF=1,
         LOAD_FROM_DICT_OR_GLOBALS=1,
         LOAD_GLOBAL=lambda oparg: 2 if isinstance(oparg, tuple) else 1,
+        # pyrefly: ignore [unsupported-operation]
         LOAD_GLOBAL_BUILTIN=lambda oparg: 1 + (oparg & 1),
+        # pyrefly: ignore [unsupported-operation]
         LOAD_GLOBAL_MODULE=lambda oparg: 1 + (oparg & 1),
         LOAD_LOCALS=1,
         LOAD_NAME=1,
         LOAD_SMALL_INT=1,
         LOAD_SPECIAL=2,
         LOAD_SUPER_ATTR=lambda oparg: (
+            # pyrefly: ignore [bad-index]
             2 if oparg[0] in ("LOAD_SUPER_METHOD", "LOAD_ZERO_SUPER_METHOD") else 1
         ),
         LOAD_SUPER_ATTR_ATTR=1,
         LOAD_SUPER_ATTR_METHOD=2,
         MAKE_CELL=0,
         MAKE_FUNCTION=1,
+        # pyrefly: ignore [unsupported-operation]
         MAP_ADD=lambda oparg: 1 + (oparg - 1),
         MATCH_CLASS=1,
         MATCH_KEYS=3,
@@ -735,6 +791,7 @@ if sys.version_info >= (3, 14):
         PUSH_EXC_INFO=2,
         PUSH_NULL=1,
         RAISE_VARARGS=0,
+        # pyrefly: ignore [bad-argument-type]
         RERAISE=lambda oparg: oparg,
         RESERVED=0,
         RESUME=0,
@@ -747,8 +804,10 @@ if sys.version_info >= (3, 14):
         SETUP_CLEANUP=2,
         SETUP_FINALLY=1,
         SETUP_WITH=1,
+        # pyrefly: ignore [unsupported-operation]
         SET_ADD=lambda oparg: 1 + (oparg - 1),
         SET_FUNCTION_ATTRIBUTE=1,
+        # pyrefly: ignore [unsupported-operation]
         SET_UPDATE=lambda oparg: 1 + (oparg - 1),
         STORE_ATTR=0,
         STORE_ATTR_INSTANCE_VALUE=0,
@@ -765,6 +824,7 @@ if sys.version_info >= (3, 14):
         STORE_SUBSCR=0,
         STORE_SUBSCR_DICT=0,
         STORE_SUBSCR_LIST_INT=0,
+        # pyrefly: ignore [unsupported-operation]
         SWAP=lambda oparg: 2 + (oparg - 2),
         TO_BOOL=1,
         TO_BOOL_ALWAYS_TRUE=1,
@@ -776,9 +836,13 @@ if sys.version_info >= (3, 14):
         UNARY_INVERT=1,
         UNARY_NEGATIVE=1,
         UNARY_NOT=1,
+        # pyrefly: ignore [unsupported-operation]
         UNPACK_EX=lambda oparg: 1 + (oparg & 0xFF) + (oparg >> 8),
+        # pyrefly: ignore [bad-argument-type]
         UNPACK_SEQUENCE=lambda oparg: oparg,
+        # pyrefly: ignore [bad-argument-type]
         UNPACK_SEQUENCE_LIST=lambda oparg: oparg,
+        # pyrefly: ignore [bad-argument-type]
         UNPACK_SEQUENCE_TUPLE=lambda oparg: oparg,
         UNPACK_SEQUENCE_TWO_TUPLE=2,
         WITH_EXCEPT_START=6,
