@@ -65,6 +65,7 @@ class ThreadedCompileContext {
   // GIL-based lock.
   static thread_local PyThreadState* threaded_compile_tstate_;
   static thread_local int gil_lock_depth_;
+  static thread_local bool gil_acquired_by_holder_;
 
   // Saved main thread state when GIL is released (batch compile).
   PyThreadState* main_{nullptr};
