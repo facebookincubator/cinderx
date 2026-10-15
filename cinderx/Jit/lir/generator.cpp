@@ -3546,6 +3546,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         if (getConfig().attr_caches) {
           auto cache =
               stable_storage_.allocateLoadMethodCache(instr->bytecodeOffset());
+          env_->profileCollector().add(
+              instr->frameState()->code, instr->bytecodeOffset(), cache);
           if (getConfig().collect_attr_cache_stats) {
             BorrowedRef<PyCodeObject> code = instr->frameState()->code;
             cache->initCacheStats(

@@ -1063,7 +1063,7 @@ void HIRBuilder::translate(
           break;
         }
         case LOAD_METHOD: {
-          emitLoadMethod(tc, bc_instr.oparg());
+          emitLoadMethod(tc, bc_instr, bc_instr.oparg());
           break;
         }
         case LOAD_METHOD_STATIC: {
@@ -2896,7 +2896,7 @@ void HIRBuilder::emitLoadAttr(
   // LOAD_METHOD has been merged into LOAD_ATTR, and the oparg tells you
   // which one it should be.
   if (oparg & 1) {
-    emitLoadMethod(tc, name_idx);
+    emitLoadMethod(tc, bc_instr, name_idx);
     return;
   }
 
@@ -2948,8 +2948,35 @@ bool HIRBuilder::emitLoadAttrProfileGuards(
   return true;
 }
 
-void HIRBuilder::emitLoadMethod(TranslationContext& tc, int name_idx) {
+bool HIRBuilder::emitLoadMethodProfileGuards(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr,
+    Register* receiver) {
+  if (profile_ == nullptr) {
+    return false;
+  }
+  ProfileLocation location =
+      ProfileLocation(tc.frame.code, bc_instr.baseOffset());
+  const LoadAttrProfile* profile = profile_->find<LoadAttrProfile>(location);
+  if (profile == nullptr || profile->polymorphic ||
+      profile->receiver_type == nullptr) {
+    return false;
+  }
+  tc.emit<GuardType>(
+      receiver,
+      Type::fromTypeExact(profile->receiver_type.get()),
+      receiver,
+      tc.frame);
+  tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*profile});
+  return true;
+}
+
+void HIRBuilder::emitLoadMethod(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr,
+    int name_idx) {
   Register* receiver = tc.frame.stack.pop();
+  emitLoadMethodProfileGuards(tc, bc_instr, receiver);
   Register* result = allocateTemp();
   Register* method_instance = allocateTemp();
   tc.emit<LoadMethod>(result, receiver, name_idx, tc.frame);

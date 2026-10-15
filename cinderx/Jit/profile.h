@@ -48,7 +48,9 @@ struct BinaryOpProfile {
   bool operator==(const BinaryOpProfile&) const = default;
 };
 
-// Profile feedback from a LoadAttr inline cache.
+// Profile feedback from a LoadAttr or LoadMethod inline cache. LoadMethod
+// caches only use the receiver type (and the polymorphic marker); kind is
+// unset for them.
 struct LoadAttrProfile {
   // Borrowed reference to the receiver type, present only when the cache
   // observed a single receiver type. The owning reference lives in Profile's
@@ -122,7 +124,8 @@ struct Profile {
   std::unordered_set<Ref<>> owned_refs_;
 };
 
-using ProfileSource = std::variant<BinaryOpCache*, LoadAttrCache*>;
+using ProfileSource =
+    std::variant<BinaryOpCache*, LoadAttrCache*, LoadMethodCache*>;
 
 // Snapshots the profiling information for a CompiledFunction. The collector
 // gets seeded with the caches associated with a CompiledFunction during
@@ -144,8 +147,8 @@ class ProfileCollector {
   // emitting an inline cache.
   void add(ProfileLocation location, ProfileEntry payload);
   // Snapshot the observed inline-cache states. Must be called with the GIL
-  // held: profiling LoadAttr caches takes strong references to the observed
-  // receiver types.
+  // held: profiling attribute/method caches takes strong references to the
+  // observed receiver types.
   Profile snapshot() const;
 
  private:

@@ -2229,6 +2229,20 @@ void LoadMethodCache::typeChanged(PyTypeObject* type) {
   }
 }
 
+std::vector<LoadMethodCache::ProfiledEntry> LoadMethodCache::profiledEntries()
+    const {
+  std::vector<ProfiledEntry> result;
+  for (const Entry& entry : entries_) {
+    if (entry.type == nullptr) {
+      continue;
+    }
+    result.push_back(
+        {entry.type.get(),
+         !loadMethodValueIsUnbound(entry.value) && !entry.is_class_method});
+  }
+  return result;
+}
+
 void LoadMethodCache::initCacheStats(
     const char* filename,
     const char* method_name) {
@@ -2421,10 +2435,12 @@ void LoadMethodCache::fill(
     bool has_getattr_hook,
     bool is_bound_method,
     bool is_class_method) {
-  if (!Ci_Type_HasValidVersionTag(type)) {
-    // The type must have a valid version tag in order for us to be able to
-    // invalidate the cache when the type is modified. See the comment at
-    // the top of `PyType_Modified` for more details.
+  // The type must have a valid version tag in order for us to be able to
+  // invalidate the cache when the type is modified. See the comment at the top
+  // of `PyType_Modified` for more details.  Assigning rather than only testing
+  // matters from 3.14 on, where the tag is handed out lazily and a type that
+  // has only ever been used through this cache never gets one.
+  if (!ensureVersionTag(type)) {
     return;
   }
 

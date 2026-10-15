@@ -829,6 +829,20 @@ class LoadMethodCache {
   void clearCacheStats();
   const CacheStats* cacheStats();
 
+  // One populated entry observed for recompile profiling.
+  struct ProfiledEntry {
+    PyTypeObject* type;
+    // True when the entry caches a bound method (the value's low tag bit is
+    // clear and it is not a class method). Only such entries can be
+    // specialized as a receiver-type guard; unbound entries (staticmethods,
+    // class variables, __getattr__ sentinels) and class methods cannot.
+    bool is_bound_method;
+  };
+
+  // Snapshot the populated entries for recompile profiling, in slot order.
+  // The GIL must be held, as for all cache operations.
+  std::vector<ProfiledEntry> profiledEntries() const;
+
  private:
   LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
   void fill(

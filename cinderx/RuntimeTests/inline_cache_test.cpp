@@ -1359,6 +1359,23 @@ long asLong(BorrowedRef<> obj) {
   return PyLong_AsLong(obj);
 }
 
+// RAII toggle for the GuardTypeRemoval HIR pass, restored even when an
+// assertion fails mid-test.
+struct ScopedGuardTypeRemoval {
+  explicit ScopedGuardTypeRemoval(bool enabled)
+      : saved_(getConfig().hir_opts.guard_type_removal) {
+    getMutableConfig().hir_opts.guard_type_removal = enabled;
+  }
+  ~ScopedGuardTypeRemoval() {
+    getMutableConfig().hir_opts.guard_type_removal = saved_;
+  }
+
+  ScopedGuardTypeRemoval(const ScopedGuardTypeRemoval&) = delete;
+  ScopedGuardTypeRemoval& operator=(const ScopedGuardTypeRemoval&) = delete;
+
+  bool saved_;
+};
+
 constexpr const char* kTwoTypes = R"(
 class C:
   def __init__(self):
@@ -2585,7 +2602,6 @@ class C:
   EXPECT_EQ(profile.entries().size(), 0);
   EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
 }
-
 #endif // CINDERX_IC_USE_TARGET_PROMOTION
 
 TEST_F(InlineCacheTest, LoadAttrProfileMergesDuplicateCarriedUses) {
@@ -2621,6 +2637,264 @@ TEST_F(InlineCacheTest, LoadAttrProfileMergesDuplicateCarriedUses) {
   ASSERT_NE(agreeing, nullptr);
   EXPECT_FALSE(agreeing->polymorphic);
   EXPECT_EQ(agreeing->receiver_type.get(), &PyLong_Type);
+
+  const LoadAttrProfile* disagreeing =
+      profile.find<LoadAttrProfile>(disagreeing_location);
+  ASSERT_NE(disagreeing, nullptr);
+  EXPECT_TRUE(disagreeing->polymorphic);
+}
+
+TEST_F(InlineCacheTest, LoadMethodProfileMonomorphic) {
+  auto locals = runToLocals(this, R"(
+class C:
+  def meth(self):
+    return 1
+
+c = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("meth"));
+  ASSERT_NE(name.get(), nullptr);
+
+  LoadMethodCache cache{};
+  LoadMethodResult res = cache.lookup(obj, name);
+  ASSERT_NE(res.callable, nullptr);
+  ASSERT_NE(res.self_or_null, nullptr);
+  Py_DECREF(res.callable);
+  Py_DECREF(res.self_or_null);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, &cache);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_method = profile.find<LoadAttrProfile>(location);
+  ASSERT_NE(load_method, nullptr);
+  EXPECT_FALSE(load_method->polymorphic);
+  EXPECT_EQ(load_method->receiver_type.get(), Py_TYPE(obj.get()));
+}
+
+TEST_F(InlineCacheTest, LoadMethodProfilePolymorphic) {
+  auto locals = runToLocals(this, R"(
+class C:
+  def meth(self):
+    return 1
+
+class D:
+  def meth(self):
+    return 2
+
+c = C()
+d = D()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("meth"));
+  ASSERT_NE(name.get(), nullptr);
+
+  LoadMethodCache cache{};
+  LoadMethodResult res = cache.lookup(c, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+  res = cache.lookup(d, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, &cache);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_method = profile.find<LoadAttrProfile>(location);
+  ASSERT_NE(load_method, nullptr);
+  EXPECT_TRUE(load_method->polymorphic);
+  EXPECT_TRUE(load_method->receiver_type == nullptr);
+}
+
+TEST_F(InlineCacheTest, LoadMethodProfileEmptyCache) {
+  LoadMethodCache cache{};
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, &cache);
+
+  Profile profile = collector.snapshot();
+  EXPECT_EQ(profile.entries().size(), 0);
+  EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
+}
+
+TEST_F(InlineCacheTest, LoadMethodProfileSkipsUnboundEntries) {
+  auto locals = runToLocals(this, R"(
+class C:
+  @staticmethod
+  def meth():
+    return 1
+
+c = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("meth"));
+  ASSERT_NE(name.get(), nullptr);
+
+  LoadMethodCache cache{};
+  LoadMethodResult res = cache.lookup(obj, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+
+  // The cache observed a single staticmethod entry, which is not a bound
+  // method call on the receiver and so produces no profile.
+  const std::vector<LoadMethodCache::ProfiledEntry> entries =
+      cache.profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_FALSE(entries.front().is_bound_method);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, &cache);
+
+  Profile profile = collector.snapshot();
+  EXPECT_EQ(profile.entries().size(), 0);
+  EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
+}
+
+TEST_F(InlineCacheTest, LoadMethodProfileSkipsClassMethods) {
+  auto locals = runToLocals(this, R"(
+class C:
+  @classmethod
+  def meth(cls):
+    return 1
+
+c = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("meth"));
+  ASSERT_NE(name.get(), nullptr);
+
+  LoadMethodCache cache{};
+  LoadMethodResult res = cache.lookup(obj, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+
+  // A class method binds to the receiver's type rather than the receiver, so
+  // it is not a monomorphic method call and produces no profile.
+  const std::vector<LoadMethodCache::ProfiledEntry> entries =
+      cache.profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_FALSE(entries.front().is_bound_method);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, &cache);
+
+  Profile profile = collector.snapshot();
+  EXPECT_EQ(profile.entries().size(), 0);
+  EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
+}
+
+TEST_F(InlineCacheTest, LoadMethodProfileCarriesForward) {
+  // A carried use is snapshotted into the new profile.
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(
+      location,
+      ProfileEntry{LoadAttrProfile{&PyLong_Type, std::nullopt, false}});
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_method = profile.find<LoadAttrProfile>(location);
+  ASSERT_NE(load_method, nullptr);
+  EXPECT_FALSE(load_method->polymorphic);
+  EXPECT_EQ(load_method->receiver_type.get(), &PyLong_Type);
+}
+
+TEST_F(InlineCacheTest, LoadMethodProfileDuplicateCaches) {
+  // Same duplicate-location merge as LoadAttr: agreeing observations stay
+  // monomorphic, disagreeing ones go polymorphic.
+  auto locals = runToLocals(this, R"(
+class C:
+  def meth(self):
+    return 1
+
+class D:
+  def meth(self):
+    return 2
+
+c = C()
+d = D()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("meth"));
+  ASSERT_NE(name.get(), nullptr);
+
+  ProfileCollector collector;
+
+  const ProfileLocation agreeing_location{nullptr, BCOffset{8}};
+  LoadMethodCache first_agreeing{};
+  LoadMethodCache second_agreeing{};
+  collector.add(
+      agreeing_location.code,
+      agreeing_location.bytecode_offset,
+      &first_agreeing);
+  collector.add(
+      agreeing_location.code,
+      agreeing_location.bytecode_offset,
+      &second_agreeing);
+  LoadMethodResult res = first_agreeing.lookup(c, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+  res = second_agreeing.lookup(c, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+
+  const ProfileLocation disagreeing_location{nullptr, BCOffset{16}};
+  LoadMethodCache c_cache{};
+  LoadMethodCache d_cache{};
+  collector.add(
+      disagreeing_location.code,
+      disagreeing_location.bytecode_offset,
+      &c_cache);
+  collector.add(
+      disagreeing_location.code,
+      disagreeing_location.bytecode_offset,
+      &d_cache);
+  res = c_cache.lookup(c, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+  res = d_cache.lookup(d, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 2);
+
+  const LoadAttrProfile* agreeing =
+      profile.find<LoadAttrProfile>(agreeing_location);
+  ASSERT_NE(agreeing, nullptr);
+  EXPECT_FALSE(agreeing->polymorphic);
+  EXPECT_EQ(agreeing->receiver_type.get(), Py_TYPE(c.get()));
 
   const LoadAttrProfile* disagreeing =
       profile.find<LoadAttrProfile>(disagreeing_location);
@@ -2694,7 +2968,7 @@ def test(obj):
 }
 
 TEST_F(InlineCacheTest, LoadAttrProfileCarriesForward) {
-  // A borrowed carried use upgrades to a strong profile entry.
+  // A carried use is snapshotted into the new profile.
   ProfileCollector collector;
   const ProfileLocation location{nullptr, BCOffset{8}};
   collector.add(
@@ -2781,6 +3055,120 @@ def test(obj):
   EXPECT_EQ(asLong(rerecompiled_result), 1);
 }
 
+TEST_F(InlineCacheTest, RecompileEmitsLoadMethodGuardFromProfile) {
+  // Disable dead-guard removal so the guard emitted from the profile is
+  // still visible in the final opcode counts.
+  ScopedGuardTypeRemoval disable_removal(false);
+
+  const char* src = R"(
+class C:
+  def meth(self):
+    return 1
+
+c = C()
+
+def test(obj):
+  return obj.meth()
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto locals = runToLocals(this, src);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+
+  PyObject* args[] = {obj.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(asLong(result), 1);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kLoadMethod)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kGuardType)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_method =
+      profile.find<LoadAttrProfile>(profile.entries().begin()->first);
+  ASSERT_NE(load_method, nullptr);
+  EXPECT_FALSE(load_method->polymorphic);
+  EXPECT_EQ(load_method->receiver_type.get(), Py_TYPE(obj.get()));
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  // The monomorphic cache entry produces a receiver guard plus the marker
+  // that carries the profile forward to the next recompile. Foreground
+  // elimination consumes the guarded type and rewrites the LoadMethod.
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLoadMethod)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(asLong(recompiled_result), 1);
+}
+
+TEST_F(InlineCacheTest, RecompileDropsDeadLoadMethodGuardOnHeapReceiver) {
+  const char* src = R"(
+class C:
+  def meth(self):
+    return 1
+
+c = C()
+
+def test(obj):
+  return obj.meth()
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto locals = runToLocals(this, src);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+
+  PyObject* args[] = {obj.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(asLong(result), 1);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+
+  // The profile is captured for heap receivers the same as for immutable
+  // ones; only the downstream specialization differs.
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_method =
+      profile.find<LoadAttrProfile>(profile.entries().begin()->first);
+  ASSERT_NE(load_method, nullptr);
+  EXPECT_FALSE(load_method->polymorphic);
+  EXPECT_EQ(load_method->receiver_type.get(), Py_TYPE(obj.get()));
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  // Foreground compiles run load-method elimination, which rewrites the
+  // LoadMethod using the refined receiver type; the guard survives.
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLoadMethod)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(asLong(recompiled_result), 1);
+}
 #endif
 
 } // namespace cinderx

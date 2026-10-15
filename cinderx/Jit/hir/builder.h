@@ -202,7 +202,14 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       Register* receiver);
-  void emitLoadMethod(TranslationContext& tc, int name_idx);
+  bool emitLoadMethodProfileGuards(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr,
+      Register* receiver);
+  void emitLoadMethod(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr,
+      int name_idx);
   void emitLoadMethodOrAttrSuper(
       CFG& cfg,
       TranslationContext& tc,

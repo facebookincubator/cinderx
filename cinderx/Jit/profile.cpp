@@ -45,12 +45,36 @@ std::optional<ProfileEntry> loadAttrPayload(const LoadAttrCache& cache) {
   return LoadAttrProfile{entry.type, entry.kind, false};
 }
 
+// LoadMethod caches reuse LoadAttrProfile with no kind: only the receiver
+// type (and the polymorphic marker) is meaningful for them.
+std::optional<ProfileEntry> loadMethodPayload(const LoadMethodCache& cache) {
+  const std::vector<LoadMethodCache::ProfiledEntry> entries =
+      cache.profiledEntries();
+  if (entries.empty()) {
+    return std::nullopt;
+  }
+  if (entries.size() > 1) {
+    return LoadAttrProfile{{}, std::nullopt, true};
+  }
+  const LoadMethodCache::ProfiledEntry& entry = entries.front();
+  if (!entry.is_bound_method) {
+    // Unbound entries (staticmethods, class variables, __getattr__ sentinels)
+    // and class methods are not plain method calls on the receiver, so they
+    // cannot be specialized as a receiver-type guard.
+    return std::nullopt;
+  }
+  return LoadAttrProfile{entry.type, std::nullopt, false};
+}
+
 std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   if (const auto* cache = std::get_if<BinaryOpCache*>(&source)) {
     return binaryOpPayload(**cache);
   }
   if (const auto* cache = std::get_if<LoadAttrCache*>(&source)) {
     return loadAttrPayload(**cache);
+  }
+  if (const auto* cache = std::get_if<LoadMethodCache*>(&source)) {
+    return loadMethodPayload(**cache);
   }
   return std::nullopt;
 }
