@@ -20,6 +20,7 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/slab_arena.h"
 #include "cinderx/Common/string.h"
+#include "cinderx/Common/thread.h"
 #include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
@@ -1137,15 +1138,62 @@ std::pair<BorrowedRef<PyFunctionObject>, BorrowedRef<PyCodeObject>> splitUnit(
   return {nullptr, code};
 }
 
-PyThreadState* acquireCompileWorkerThreadState(PyInterpreterState* interp) {
-  // Create the state on its owning worker so thread-local runtime state is
-  // initialized for the thread that uses it. Passing the interpreter avoids
-  // the subinterpreter-unsafe PyGILState_Ensure().
-  PyThreadState* tstate = PyThreadState_New(interp);
-  JIT_THROW_IF(tstate == nullptr, "Failed to allocate worker thread state");
-  PyEval_AcquireThread(tstate);
-  return tstate;
-}
+// Owns a worker's Python thread state and deletes it when the worker exits.
+class CompileWorkerThreadState {
+ public:
+  explicit CompileWorkerThreadState(PyInterpreterState* interp)
+      : tstate_{PyThreadState_New(interp)} {
+    // Create the state on its owning worker so thread-local runtime state is
+    // initialized for the thread that uses it. Passing the interpreter avoids
+    // the subinterpreter-unsafe PyGILState_Ensure().
+    JIT_THROW_IF(tstate_ == nullptr, "Failed to allocate worker thread state");
+    PyEval_AcquireThread(tstate_);
+  }
+
+  ~CompileWorkerThreadState() {
+    // The state must be current and attached, with worker TLS already cleared.
+    PyThreadState_Clear(tstate_);
+    PyThreadState_DeleteCurrent();
+  }
+
+  CompileWorkerThreadState(const CompileWorkerThreadState&) = delete;
+  CompileWorkerThreadState(CompileWorkerThreadState&&) = delete;
+  CompileWorkerThreadState& operator=(const CompileWorkerThreadState&) = delete;
+  CompileWorkerThreadState& operator=(CompileWorkerThreadState&&) = delete;
+
+  PyThreadState* tstate() const {
+    return tstate_;
+  }
+
+ private:
+  PyThreadState* tstate_;
+};
+
+// Scopes a batch worker's compile context and preloader manager in TLS.
+class CompileWorkerContext {
+ public:
+  CompileWorkerContext(
+      ThreadedCompileContext& context,
+      PyThreadState* tstate,
+      hir::PreloaderManager* preloaders)
+      : context_{context} {
+    context_.beginWorker(tstate);
+    hir::setThreadLocalPreloaderManager(preloaders);
+  }
+
+  ~CompileWorkerContext() {
+    context_.endWorker();
+    hir::setThreadLocalPreloaderManager(nullptr);
+  }
+
+  CompileWorkerContext(const CompileWorkerContext&) = delete;
+  CompileWorkerContext(CompileWorkerContext&&) = delete;
+  CompileWorkerContext& operator=(const CompileWorkerContext&) = delete;
+  CompileWorkerContext& operator=(CompileWorkerContext&&) = delete;
+
+ private:
+  ThreadedCompileContext& context_;
+};
 
 hir::Preloader* findPreloader(BorrowedRef<> unit) {
   auto [func, code] = splitUnit(unit);
@@ -1248,18 +1296,19 @@ std::pair<Result, CompilationUnit> tryCompilePreloaded(CompilationUnit&& unit) {
 }
 
 void compile_worker_thread(
+    size_t thread_id,
     PyInterpreterState* interp,
     std::shared_ptr<ThreadedCompileQueue> context,
-    std::shared_ptr<hir::IsolatedPreloaders> isolated) {
-  JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
+    std::shared_ptr<hir::IsolatedPreloaders> isolated) try {
+  std::string thread_name = fmt::format("cx_compile_{}", thread_id);
+  if (thread_name.size() > kMaxThreadNameLen) {
+    thread_name = "cx_compile_XXXX";
+  }
+  setThreadName(thread_name.c_str());
 
-  PyThreadState* tstate = acquireCompileWorkerThreadState(interp);
-
-  // Publish the context and isolated preload manager via TLS so that
-  // compileRunning()/preloaderManager() work on this worker.
-  hir::setThreadLocalPreloaderManager(isolated->manager());
-
-  context->beginWorker(tstate);
+  CompileWorkerThreadState thread_state{interp};
+  CompileWorkerContext worker_context{
+      *context, thread_state.tstate(), isolated->manager()};
 
   {
     // Release the GIL for the lifetime of this scope, saving our tstate so it
@@ -1306,17 +1355,8 @@ void compile_worker_thread(
         attempts,
         retries);
   }
-  // Leaving the scope reattached the worker state and reacquired the GIL when
-  // it is enabled.
-  context->endWorker();
-
-  // Clear TLS for preload manager (context TLS already cleared by endWorker).
-  hir::setThreadLocalPreloaderManager(nullptr);
-
-  // The worker state is current and attached, so it can be cleared and
-  // deleted by its owning thread.
-  PyThreadState_Clear(tstate);
-  PyThreadState_DeleteCurrent();
+} catch (const std::exception& exn) {
+  JIT_DLOG("Thread {} failed with exception:\n{}", thread_id, exn.what());
 }
 
 void compile_units_preloaded(ThreadedCompileQueue::WorkList&& units) {
@@ -1352,7 +1392,7 @@ bool multithread_compile_units_preloaded(
   std::vector<std::thread>& worker_threads = mod_state->compile_worker_threads;
   for (size_t i = 0; i < worker_count; i++) {
     worker_threads.emplace_back(
-        compile_worker_thread, interp, compilation, isolated);
+        compile_worker_thread, i, interp, compilation, isolated);
   }
   // Keep the coordinator attached until every worker is launched in case
   // thread creation has been hooked to run arbitrary code. In GIL builds,
@@ -4400,18 +4440,10 @@ void processBackgroundCompile(
 // drained.
 void backgroundCompileWorkerLoop(
     CompilerContext<Compiler>* jit_ctx,
-    PyInterpreterState* interp) {
-  JIT_DLOG(
-      "Background compile worker thread started: {}",
-      std::this_thread::get_id());
-#ifndef WIN32
-  pthread_setname_np(
-#ifndef __APPLE__
-      pthread_self(),
-#endif
-      "cinderx_compile");
-#endif
-  PyThreadState* tstate = acquireCompileWorkerThreadState(interp);
+    PyInterpreterState* interp) try {
+  setThreadName("bg_cx_compile");
+
+  CompileWorkerThreadState thread_state{interp};
 
   ThreadedCompileContext bgContext;
   BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
@@ -4442,14 +4474,14 @@ void backgroundCompileWorkerLoop(
     finishBackgroundCompile();
   }
 
-  // The worker state is current and attached, so it can be cleared and
-  // deleted by its owning thread.
-  PyThreadState_Clear(tstate);
-  PyThreadState_DeleteCurrent();
-
   JIT_DLOG(
       "Background compile worker thread exiting: {}",
       std::this_thread::get_id());
+} catch (const std::exception& exn) {
+  JIT_DLOG(
+      "Background compile thread {} failed with exception:\n{}",
+      std::this_thread::get_id(),
+      exn.what());
 }
 
 bool startBackgroundWorkerThread(
