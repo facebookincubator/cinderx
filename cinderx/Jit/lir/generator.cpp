@@ -1521,6 +1521,7 @@ void LIRGenerator::generateExitBlocks() {
     // EpilogueEnd goes on the builder's current block which may differ
     // from exit_block_ when inline code created additional blocks.
     BasicBlock* epilogue_block = bbb.curBlock();
+    emitAnnotation(epilogue_block, "Epilogue");
     epilogue_end_ = bbb.appendInstr(Opcode::kEpilogueEnd, VReg{exit_phi_});
     if (epilogue_block != exit_block_) {
       exit_epilogue_ = epilogue_block;
@@ -6254,6 +6255,7 @@ void LIRGenerator::emitUnlinkFrame(
     std::optional<destructor> exec_dtor,
     Instruction* callee_frame) {
   if (has_freevars) {
+    emitAnnotation(bbb.curBlock(), "Unlink frame");
     bbb.appendInvokeInstruction(rt::unlinkFrame, env_->asm_tstate);
   } else if (!env_->can_deopt) {
     emitInlineUnlinkLeafFrame(
@@ -6274,6 +6276,7 @@ void LIRGenerator::emitInlineUnlinkLeafFrame(
   CurrentFrameAccessor cfa = makeCurrentFrameAccessor(bbb);
   Instruction* frame = callee_frame != nullptr ? callee_frame : cfa.load();
 
+  emitAnnotation(bbb.curBlock(), "Inline unlink leaf frame");
   Instruction* prev = bbb.appendInstr(
       OutVReg{},
       Opcode::kLoad,
@@ -6309,6 +6312,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
 
   auto done_block = bbb.allocateBlock();
   auto not_materialized = bbb.allocateBlock();
+  emitAnnotation(bbb.curBlock(), "Unlink fast frame");
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   Instruction* frame_status = bbb.appendInstr(
@@ -6334,6 +6338,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
 
   {
     BasicBlock* materialized_block = bbb.allocateBlock();
+    emitAnnotation(materialized_block, "Unlink materialized frame");
     bbb.appendBlock(materialized_block);
     if (getConfig().mem.multiple_code_sections) {
       materialized_block->setSection(codegen::CodeSection::kCold);
@@ -6343,6 +6348,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
   }
 
   bbb.switchBlock(not_materialized);
+  emitAnnotation(not_materialized, "Unlink non-materialized frame");
 
   Instruction* prev = bbb.appendInstr(
       OutVReg{},
@@ -6353,6 +6359,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
   cfa.store(prev);
 
   if (is_generator && func_reg != nullptr) {
+    emitAnnotation(bbb.curBlock(), "Decref function");
     makeDecref(
         bbb,
         func_reg,
@@ -6361,6 +6368,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
         false);
   }
   if (!_Py_IsImmortal(executable)) {
+    emitAnnotation(bbb.curBlock(), "Decref executable");
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Opcode::kMove, executable);
     makeDecref(bbb, exec_reg, nullptr, exec_dtor, false);
@@ -6778,6 +6786,11 @@ void GenerateDeoptExitBlocks(Function* lir_func, jit::codegen::Environ* env) {
   for (const auto& entry : deopt_entries) {
     auto* stage1_block = lir_func->allocateBasicBlock();
     stage1_block->setSection(codegen::CodeSection::kCold);
+
+    // Single shared label for all stage 1 exits. The text annotation also
+    // suppresses per-instruction HIR annotations from the kCall origin, so
+    // the exits don't inherit their guard's label.
+    emitAnnotation(stage1_block, "Stage 1 deoptimization exits");
 
     // The deopt metadata index is pushed/stored so the global trampoline
     // can look up the DeoptMetadata.
