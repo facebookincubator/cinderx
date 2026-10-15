@@ -4065,7 +4065,31 @@ void HIRBuilder::emitStoreAttr(
       return;
     }
   }
+  emitStoreAttrProfileGuards(tc, bc_instr, receiver);
   tc.emit<StoreAttr>(receiver, value, bc_instr.oparg(), tc.frame);
+}
+
+bool HIRBuilder::emitStoreAttrProfileGuards(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr,
+    Register* receiver) {
+  if (profile_ == nullptr) {
+    return false;
+  }
+  ProfileLocation location =
+      ProfileLocation(tc.frame.code, bc_instr.baseOffset());
+  const StoreAttrProfile* profile = profile_->find<StoreAttrProfile>(location);
+  if (profile == nullptr || profile->polymorphic ||
+      profile->receiver_type == nullptr) {
+    return false;
+  }
+  tc.emit<GuardType>(
+      receiver,
+      Type::fromTypeExact(profile->receiver_type.get()),
+      receiver,
+      tc.frame);
+  tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*profile});
+  return true;
 }
 
 void HIRBuilder::moveOverwrittenStackRegisters(

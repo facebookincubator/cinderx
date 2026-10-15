@@ -778,18 +778,33 @@ static std::string format_immediates(
       } else if (const auto* compare = std::get_if<CompareProfile>(&payload)) {
         os << fmt::format(
             "compare<{}, {}>", compare->left_type, compare->right_type);
-      } else {
-        const auto& load_attr = std::get<LoadAttrProfile>(payload);
+      } else if (
+          const auto* load_attr = std::get_if<LoadAttrProfile>(&payload)) {
         os << "loadattr<";
-        if (load_attr.polymorphic) {
+        if (load_attr->polymorphic) {
           os << "polymorphic";
         } else {
           os
-              << (load_attr.receiver_type != nullptr
-                      ? load_attr.receiver_type->tp_name
+              << (load_attr->receiver_type != nullptr
+                      ? load_attr->receiver_type->tp_name
                       : "null");
-          if (load_attr.kind.has_value()) {
-            os << fmt::format(", {}", attrKindName(*load_attr.kind));
+          if (load_attr->kind.has_value()) {
+            os << fmt::format(", {}", attrKindName(*load_attr->kind));
+          }
+        }
+        os << ">";
+      } else {
+        const auto& store_attr = std::get<StoreAttrProfile>(payload);
+        os << "storeattr<";
+        if (store_attr.polymorphic) {
+          os << "polymorphic";
+        } else {
+          os
+              << (store_attr.receiver_type != nullptr
+                      ? store_attr.receiver_type->tp_name
+                      : "null");
+          if (store_attr.kind.has_value()) {
+            os << fmt::format(", {}", attrKindName(*store_attr.kind));
           }
         }
         os << ">";

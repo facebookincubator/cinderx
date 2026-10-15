@@ -79,14 +79,29 @@ struct LoadAttrProfile {
   bool operator==(const LoadAttrProfile&) const = default;
 };
 
+// Profile feedback from a StoreAttr inline cache.
+struct StoreAttrProfile {
+  // Borrowed reference to the receiver type, present only when the cache
+  // observed a single receiver type. The owning reference lives in Profile's
+  // owned set.
+  BorrowedRef<PyTypeObject> receiver_type;
+  // Kind of attribute access observed, present only when the cache observed a
+  // single entry.
+  std::optional<AttributeMutator::Kind> kind;
+  // True when the cache observed more than one entry.
+  bool polymorphic{false};
+
+  bool operator==(const StoreAttrProfile&) const = default;
+};
+
 // The various types of entries that can be contained in a profile. Entries
 // hold borrowed references so they can be recorded in HIR and in the
 // collector's secondary entries without the GIL; the type is kept alive by
 // the originating profile during compilation and by CodeRuntime references
 // afterwards, and snapshot() takes owning references for the new profile's
 // owned set with the GIL held.
-using ProfileEntry =
-    std::variant<BinaryOpProfile, CompareProfile, LoadAttrProfile>;
+using ProfileEntry = std::
+    variant<BinaryOpProfile, CompareProfile, LoadAttrProfile, StoreAttrProfile>;
 
 // Invokes func once with each Python object borrowed by entry that must be
 // kept alive while the entry is in use. Entries hold borrowed references so
@@ -100,6 +115,10 @@ void collectProfileEntryRefs(const ProfileEntry& entry, F&& func) {
     }
     if (load_attr->receiver_module != nullptr) {
       func(load_attr->receiver_module);
+    }
+  } else if (const auto* store_attr = std::get_if<StoreAttrProfile>(&entry)) {
+    if (store_attr->receiver_type != nullptr) {
+      func(BorrowedRef<>(store_attr->receiver_type.getObj()));
     }
   }
 }
@@ -168,8 +187,12 @@ struct Profile {
   std::unordered_set<BorrowedRef<PyCodeObject>> codes_;
 };
 
-using ProfileSource = std::
-    variant<BinaryOpCache*, CompareCache*, LoadAttrCache*, LoadMethodCache*>;
+using ProfileSource = std::variant<
+    BinaryOpCache*,
+    CompareCache*,
+    LoadAttrCache*,
+    LoadMethodCache*,
+    StoreAttrCache*>;
 
 // Snapshots the profiling information for a CompiledFunction. The collector
 // gets seeded with the caches associated with a CompiledFunction during

@@ -1297,6 +1297,18 @@ std::vector<LoadAttrCache::ProfiledEntry> LoadAttrCache::profiledEntries()
   return result;
 }
 
+std::vector<StoreAttrCache::ProfiledEntry> StoreAttrCache::profiledEntries()
+    const {
+  std::vector<ProfiledEntry> result;
+  for (const AttributeMutator& entry : entries()) {
+    if (entry.isEmpty()) {
+      continue;
+    }
+    result.push_back({entry.type(), entry.getKind()});
+  }
+  return result;
+}
+
 unsigned AttributeCache::countEntries() {
   unsigned count = 0;
   for (auto& entry : entries()) {

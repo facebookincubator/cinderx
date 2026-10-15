@@ -2644,6 +2644,39 @@ TEST_F(InlineCacheTest, LoadAttrProfileRecordsModuleReceivers) {
 }
 #endif // CINDERX_IC_USE_TARGET_PROMOTION
 
+TEST_F(InlineCacheTest, StoreAttrProfileMonomorphic) {
+  getMutableConfig().attr_cache_size = 4;
+  auto locals = runToLocals(this, R"(
+class C:
+  def __init__(self):
+    self.x = 0
+
+c = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+  auto value = Ref<>::steal(PyLong_FromLong(41));
+  ASSERT_NE(value.get(), nullptr);
+
+  CacheStorage<StoreAttrCache> cache;
+  ASSERT_EQ(callStore(cache.get(), obj, name, value), 0);
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, cache.get());
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const StoreAttrProfile* store_attr = profile.find<StoreAttrProfile>(location);
+  ASSERT_NE(store_attr, nullptr);
+  EXPECT_FALSE(store_attr->polymorphic);
+  EXPECT_EQ(store_attr->receiver_type.get(), Py_TYPE(obj.get()));
+  ASSERT_TRUE(store_attr->kind.has_value());
+}
+
 TEST_F(InlineCacheTest, LoadAttrProfileMergesDuplicateCarriedUses) {
   // Duplicate carried uses at one location merge like duplicate live caches:
   // agreeing payloads stay monomorphic, disagreeing ones go polymorphic.
@@ -3123,6 +3156,75 @@ def test(mod):
   EXPECT_EQ(asLong(recompiled_result), 5);
 }
 #endif
+
+TEST_F(InlineCacheTest, RecompileGuardsStoreAttrReceiverFromProfile) {
+  // Disable dead-guard removal so the guard emitted from the profile is
+  // still visible in the final opcode counts.
+  ScopedGuardTypeRemoval disable_removal(false);
+
+  getMutableConfig().attr_cache_size = 4;
+  const char* src = R"(
+class C:
+  def __init__(self):
+    self.x = 0
+
+def test(obj, v):
+  obj.x = v
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto locals = runToLocals(this, src);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "C");
+  ASSERT_NE(cls.get(), nullptr);
+  auto obj = Ref<>::steal(PyObject_CallNoArgs(cls.get()));
+  ASSERT_NE(obj.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  auto v1 = Ref<>::steal(PyLong_FromLong(41));
+  PyObject* args[] = {obj.get(), v1.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  auto stored = Ref<>::steal(PyObject_GetAttr(obj, name));
+  ASSERT_NE(stored.get(), nullptr);
+  EXPECT_EQ(asLong(stored), 41);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kStoreAttr)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kGuardType)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const StoreAttrProfile* store_attr =
+      profile.find<StoreAttrProfile>(profile.entries().begin()->first);
+  ASSERT_NE(store_attr, nullptr);
+  EXPECT_FALSE(store_attr->polymorphic);
+  EXPECT_EQ(store_attr->receiver_type.get(), Py_TYPE(obj.get()));
+  ASSERT_TRUE(store_attr->kind.has_value());
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kStoreAttr)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+
+  auto v2 = Ref<>::steal(PyLong_FromLong(42));
+  PyObject* reargs[] = {obj.get(), v2.get()};
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), reargs, 2, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  stored = Ref<>::steal(PyObject_GetAttr(obj, name));
+  ASSERT_NE(stored.get(), nullptr);
+  EXPECT_EQ(asLong(stored), 42);
+}
 
 TEST_F(InlineCacheTest, LoadAttrProfileCarriesForward) {
   // A carried use is snapshotted into the new profile.

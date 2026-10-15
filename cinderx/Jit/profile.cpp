@@ -76,6 +76,19 @@ std::optional<ProfileEntry> loadMethodPayload(const LoadMethodCache& cache) {
   return LoadAttrProfile{entry.type, std::nullopt, false};
 }
 
+std::optional<ProfileEntry> storeAttrPayload(const StoreAttrCache& cache) {
+  const std::vector<StoreAttrCache::ProfiledEntry> entries =
+      cache.profiledEntries();
+  if (entries.empty()) {
+    return std::nullopt;
+  }
+  if (entries.size() > 1) {
+    return StoreAttrProfile{{}, std::nullopt, true};
+  }
+  const StoreAttrCache::ProfiledEntry& entry = entries.front();
+  return StoreAttrProfile{entry.type, entry.kind, false};
+}
+
 std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   if (const auto* cache = std::get_if<BinaryOpCache*>(&source)) {
     return binaryOpPayload(**cache);
@@ -88,6 +101,9 @@ std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   }
   if (const auto* cache = std::get_if<LoadMethodCache*>(&source)) {
     return loadMethodPayload(**cache);
+  }
+  if (const auto* cache = std::get_if<StoreAttrCache*>(&source)) {
+    return storeAttrPayload(**cache);
   }
   return std::nullopt;
 }
@@ -108,6 +124,9 @@ std::optional<ProfileEntry> mergePayloads(std::vector<ProfileEntry>& observed) {
   }
   if (std::holds_alternative<LoadAttrProfile>(first)) {
     return LoadAttrProfile{{}, std::nullopt, true};
+  }
+  if (std::holds_alternative<StoreAttrProfile>(first)) {
+    return StoreAttrProfile{{}, std::nullopt, true};
   }
   return std::nullopt;
 }

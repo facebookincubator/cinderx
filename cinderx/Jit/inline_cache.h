@@ -618,6 +618,16 @@ class StoreAttrCache : public AttributeCache {
   // Address of the dispatch slot, for codegen to load and call through.
   StoreAttrTarget* targetAddr();
 
+  // One populated entry observed for recompile profiling.
+  struct ProfiledEntry {
+    PyTypeObject* type;
+    AttributeMutator::Kind kind;
+  };
+
+  // Snapshot the populated entries for recompile profiling, in slot order.
+  // The GIL must be held, as for all cache operations.
+  std::vector<ProfiledEntry> profiledEntries() const;
+
   StoreAttrCache(const StoreAttrCache&) = delete;
   StoreAttrCache& operator=(const StoreAttrCache&) = delete;
 

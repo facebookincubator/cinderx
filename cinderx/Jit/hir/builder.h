@@ -283,6 +283,10 @@ class HIRBuilder {
   void emitStoreAttr(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  bool emitStoreAttrProfileGuards(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr,
+      Register* receiver);
   void emitStoreFast(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

@@ -4192,6 +4192,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         if (getConfig().attr_caches) {
           auto cache =
               stable_storage_.allocateStoreAttrCache(instr->bytecodeOffset());
+          env_->profileCollector().add(
+              instr->frameState()->code, instr->bytecodeOffset(), cache);
           // See kLoadAttr: the callee lives in the cache.
           Instruction* result;
           if constexpr (kInlineCachesTargetPromote) {
