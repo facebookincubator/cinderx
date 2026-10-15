@@ -232,6 +232,80 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileMergesDuplicateCarriedUses) {
   EXPECT_EQ(profile.find<BinaryOpProfile>(disagreeing_location), nullptr);
 }
 
+TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesComparesByLocation) {
+  ProfileCollector collector;
+  const BCOffset long_offset{24};
+  CompareCache long_cache{CompareOp::kEqual};
+  collector.add(nullptr, long_offset, &long_cache);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  Ref<> long_result = Ref<>::steal(CompareCache::equal(one, two, &long_cache));
+  ASSERT_NE(long_result, nullptr);
+  EXPECT_EQ(long_result.get(), Py_False);
+
+  const BCOffset mixed_offset{48};
+  CompareCache mixed_cache{CompareOp::kEqual};
+  collector.add(nullptr, mixed_offset, &mixed_cache);
+  auto mixed_str = Ref<>::steal(PyUnicode_FromString("x"));
+  Ref<> mixed_result =
+      Ref<>::steal(CompareCache::equal(one, mixed_str, &mixed_cache));
+  ASSERT_NE(mixed_result, nullptr);
+  EXPECT_EQ(mixed_result.get(), Py_False);
+
+  const BCOffset float_offset{12};
+  CompareCache float_cache{CompareOp::kEqual};
+  collector.add(nullptr, float_offset, &float_cache);
+  auto one_float = Ref<>::steal(PyFloat_FromDouble(1.0));
+  auto two_float = Ref<>::steal(PyFloat_FromDouble(2.0));
+  Ref<> float_result =
+      Ref<>::steal(CompareCache::equal(one_float, two_float, &float_cache));
+  ASSERT_NE(float_result, nullptr);
+  EXPECT_EQ(float_result.get(), Py_False);
+
+  const BCOffset unicode_offset{6};
+  CompareCache unicode_cache{CompareOp::kEqual};
+  collector.add(nullptr, unicode_offset, &unicode_cache);
+  auto left_unicode = Ref<>::steal(PyUnicode_FromString("left"));
+  auto right_unicode = Ref<>::steal(PyUnicode_FromString("right"));
+  Ref<> unicode_result = Ref<>::steal(
+      CompareCache::equal(left_unicode, right_unicode, &unicode_cache));
+  ASSERT_NE(unicode_result, nullptr);
+  EXPECT_EQ(unicode_result.get(), Py_False);
+
+  const BCOffset cold_offset{60};
+  CompareCache cold_cache{CompareOp::kEqual};
+  collector.add(nullptr, cold_offset, &cold_cache);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 3);
+
+  const CompareProfile* long_profile =
+      profile.find<CompareProfile>(nullptr, long_offset);
+  ASSERT_NE(long_profile, nullptr);
+  EXPECT_EQ(long_profile->left_type, TLongCompact);
+  EXPECT_EQ(long_profile->right_type, TLongCompact);
+  EXPECT_EQ(long_profile->res_type, TBool);
+
+  const CompareProfile* float_profile =
+      profile.find<CompareProfile>(nullptr, float_offset);
+  ASSERT_NE(float_profile, nullptr);
+  EXPECT_EQ(float_profile->left_type, TFloatExact);
+  EXPECT_EQ(float_profile->right_type, TFloatExact);
+  EXPECT_EQ(float_profile->res_type, TBool);
+
+  const CompareProfile* unicode_profile =
+      profile.find<CompareProfile>(nullptr, unicode_offset);
+  ASSERT_NE(unicode_profile, nullptr);
+  EXPECT_EQ(unicode_profile->left_type, TUnicodeExact);
+  EXPECT_EQ(unicode_profile->right_type, TUnicodeExact);
+  EXPECT_EQ(unicode_profile->res_type, TBool);
+
+  // Mixed operand types go generic, so the site produces no profile entry.
+  EXPECT_EQ(profile.find<CompareProfile>(nullptr, mixed_offset), nullptr);
+  // A cache that was never called produces no profile entry either.
+  EXPECT_EQ(profile.find<CompareProfile>(nullptr, cold_offset), nullptr);
+}
+
 #endif
 
 #if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED) && \
@@ -275,6 +349,48 @@ def test(a, b):
       reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
   ASSERT_NE(recompiled_result, nullptr);
   EXPECT_EQ(PyLong_AsLong(recompiled_result), 3);
+}
+
+TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesFromCompareProfile) {
+  const char* src = R"(
+def test(a, b):
+  return a == b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto lhs = Ref<>::steal(PyLong_FromLong(1));
+  auto rhs = Ref<>::steal(PyLong_FromLong(2));
+  PyObject* args[] = {lhs, rhs};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result.get(), Py_False);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const CompareProfile* compare_profile =
+      profile.find<CompareProfile>(profile.entries().begin()->first);
+  ASSERT_NE(compare_profile, nullptr);
+  EXPECT_EQ(compare_profile->left_type, TLongCompact);
+  EXPECT_EQ(compare_profile->right_type, TLongCompact);
+  EXPECT_EQ(compare_profile->res_type, TBool);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kCompare)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLongCompare)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kPrimitiveCompare)], 1);
+
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(recompiled_result.get(), Py_False);
 }
 
 TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedPayloads) {
@@ -341,6 +457,70 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedPayloads) {
   EXPECT_EQ(conflicting->right_type, TFloatExact);
 }
 
+TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedComparePayloads) {
+  ProfileCollector collector;
+
+  // A carried-only location is emitted as-is.
+  const ProfileLocation carried_location{nullptr, BCOffset{8}};
+  collector.add(
+      carried_location, ProfileEntry{CompareProfile{TLong, TLong, TBool}});
+
+  // A carried payload agreeing with a live cache collapses to one entry.
+  const ProfileLocation agreeing_location{nullptr, BCOffset{16}};
+  CompareCache agreeing_cache{CompareOp::kEqual};
+  collector.add(
+      agreeing_location.code,
+      agreeing_location.bytecode_offset,
+      &agreeing_cache);
+  collector.add(
+      agreeing_location,
+      ProfileEntry{CompareProfile{TLongCompact, TLongCompact, TBool}});
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  Ref<> agreeing_result =
+      Ref<>::steal(CompareCache::equal(one, two, &agreeing_cache));
+  ASSERT_NE(agreeing_result, nullptr);
+
+  // A live cache overwrites a conflicting carried payload.
+  const ProfileLocation conflicting_location{nullptr, BCOffset{24}};
+  CompareCache conflicting_cache{CompareOp::kEqual};
+  collector.add(
+      conflicting_location.code,
+      conflicting_location.bytecode_offset,
+      &conflicting_cache);
+  collector.add(
+      conflicting_location, ProfileEntry{CompareProfile{TLong, TLong, TBool}});
+  auto one_float = Ref<>::steal(PyFloat_FromDouble(1.0));
+  auto two_float = Ref<>::steal(PyFloat_FromDouble(2.0));
+  Ref<> conflicting_result = Ref<>::steal(
+      CompareCache::equal(one_float, two_float, &conflicting_cache));
+  ASSERT_NE(conflicting_result, nullptr);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 3);
+
+  const CompareProfile* carried =
+      profile.find<CompareProfile>(carried_location);
+  ASSERT_NE(carried, nullptr);
+  EXPECT_EQ(carried->left_type, TLong);
+  EXPECT_EQ(carried->right_type, TLong);
+  EXPECT_EQ(carried->res_type, TBool);
+
+  const CompareProfile* agreeing =
+      profile.find<CompareProfile>(agreeing_location);
+  ASSERT_NE(agreeing, nullptr);
+  EXPECT_EQ(agreeing->left_type, TLongCompact);
+  EXPECT_EQ(agreeing->right_type, TLongCompact);
+  EXPECT_EQ(agreeing->res_type, TBool);
+
+  const CompareProfile* conflicting =
+      profile.find<CompareProfile>(conflicting_location);
+  ASSERT_NE(conflicting, nullptr);
+  EXPECT_EQ(conflicting->left_type, TFloatExact);
+  EXPECT_EQ(conflicting->right_type, TFloatExact);
+  EXPECT_EQ(conflicting->res_type, TBool);
+}
+
 TEST_F(BinaryOpCacheCodegenTest, RecompilePersistsProfileAcrossRecompiles) {
   const char* src = R"(
 def test(a, b):
@@ -401,6 +581,73 @@ def test(a, b):
       reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
   ASSERT_NE(rerecompiled_result, nullptr);
   EXPECT_EQ(PyLong_AsLong(rerecompiled_result), 3);
+}
+
+TEST_F(
+    BinaryOpCacheCodegenTest,
+    RecompilePersistsCompareProfileAcrossRecompiles) {
+  const char* src = R"(
+def test(a, b):
+  return a == b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto lhs = Ref<>::steal(PyLong_FromLong(1));
+  auto rhs = Ref<>::steal(PyLong_FromLong(2));
+  PyObject* args[] = {lhs, rhs};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result.get(), Py_False);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kCompare)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+
+  CompiledFunctionData second = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = second.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kCompare)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLongCompare)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kPrimitiveCompare)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+
+  auto recompiled_result = Ref<>::steal(second.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(recompiled_result.get(), Py_False);
+
+  // The recompiled code has no Compare cache left, so this entry can only
+  // come from the carried payload.
+  ASSERT_NE(second.profile_collector, nullptr);
+  Profile carried_profile = second.profile_collector->snapshot();
+  ASSERT_EQ(carried_profile.entries().size(), 1);
+  const CompareProfile* carried = carried_profile.find<CompareProfile>(
+      carried_profile.entries().begin()->first);
+  ASSERT_NE(carried, nullptr);
+  EXPECT_EQ(carried->left_type, TLongCompact);
+  EXPECT_EQ(carried->right_type, TLongCompact);
+  EXPECT_EQ(carried->res_type, TBool);
+
+  CompiledFunctionData third = recompileWithProfile(func, carried_profile);
+  const hir::OpcodeCounts& third_counts = third.hir_opcode_counts;
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kCompare)], 0);
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kLongCompare)], 0);
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kPrimitiveCompare)], 1);
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+
+  auto rerecompiled_result = Ref<>::steal(third.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(rerecompiled_result, nullptr);
+  EXPECT_EQ(rerecompiled_result.get(), Py_False);
 }
 
 TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesInlinedBinaryOp) {

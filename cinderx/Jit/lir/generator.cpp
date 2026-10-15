@@ -3820,8 +3820,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         }
 
         if (cache_entry != nullptr) {
-          CompareCache* cache = stable_storage_.allocateCompareCache(
-              instr->bytecodeOffset(), instr->op());
+          CompareCache* cache =
+              stable_storage_.allocateCompareCache(instr->op());
+          env_->profileCollector().add(
+              instr->frameState()->code, instr->bytecodeOffset(), cache);
           bbb.appendCallInstruction(
               instr->output(),
               cache_entry,

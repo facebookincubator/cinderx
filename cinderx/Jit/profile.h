@@ -48,6 +48,15 @@ struct BinaryOpProfile {
   bool operator==(const BinaryOpProfile&) const = default;
 };
 
+// Profile feedback from a Compare inline cache. Mirrors
+// BinaryOpProfile: operand types plus the result type (always bool
+// for comparisons).
+struct CompareProfile {
+  hir::Type left_type, right_type, res_type;
+
+  bool operator==(const CompareProfile&) const = default;
+};
+
 // Profile feedback from a LoadAttr or LoadMethod inline cache. LoadMethod
 // caches only use the receiver type (and the polymorphic marker); kind is
 // unset for them.
@@ -72,7 +81,8 @@ struct LoadAttrProfile {
 // the originating profile during compilation and by CodeRuntime references
 // afterwards, and snapshot() takes owning references for the new profile's
 // owned set with the GIL held.
-using ProfileEntry = std::variant<BinaryOpProfile, LoadAttrProfile>;
+using ProfileEntry =
+    std::variant<BinaryOpProfile, CompareProfile, LoadAttrProfile>;
 
 // Invokes func once with each Python object borrowed by entry that must be
 // kept alive while the entry is in use. Entries hold borrowed references so
@@ -151,8 +161,8 @@ struct Profile {
   std::unordered_set<BorrowedRef<PyCodeObject>> codes_;
 };
 
-using ProfileSource =
-    std::variant<BinaryOpCache*, LoadAttrCache*, LoadMethodCache*>;
+using ProfileSource = std::
+    variant<BinaryOpCache*, CompareCache*, LoadAttrCache*, LoadMethodCache*>;
 
 // Snapshots the profiling information for a CompiledFunction. The collector
 // gets seeded with the caches associated with a CompiledFunction during

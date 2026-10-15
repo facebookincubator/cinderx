@@ -775,6 +775,9 @@ static std::string format_immediates(
       if (const auto* binop = std::get_if<BinaryOpProfile>(&payload)) {
         os << fmt::format(
             "binary<{}, {}>", binop->left_type, binop->right_type);
+      } else if (const auto* compare = std::get_if<CompareProfile>(&payload)) {
+        os << fmt::format(
+            "compare<{}, {}>", compare->left_type, compare->right_type);
       } else {
         const auto& load_attr = std::get<LoadAttrProfile>(payload);
         os << "loadattr<";

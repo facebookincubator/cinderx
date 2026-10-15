@@ -151,6 +151,7 @@ class HIRBuilder {
   void emitBinaryOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  template <typename CacheT>
   bool emitBinaryOpProfileGuards(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
@@ -181,6 +182,11 @@ class HIRBuilder {
   void emitCompareOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  bool emitCompareProfileGuards(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr,
+      Register* left,
+      Register* right);
   void emitToBool(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

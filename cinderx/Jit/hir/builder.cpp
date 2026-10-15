@@ -2093,6 +2093,7 @@ void HIRBuilder::emitKwNames(
       kwnames_, Type::fromObject(PyTuple_GET_ITEM(code_->co_consts, index)));
 }
 
+template <typename CacheT>
 bool HIRBuilder::emitBinaryOpProfileGuards(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
@@ -2102,7 +2103,7 @@ bool HIRBuilder::emitBinaryOpProfileGuards(
     return false;
   }
   ProfileLocation location{tc.frame.code, bc_instr.baseOffset()};
-  const BinaryOpProfile* binop = profile_->find<BinaryOpProfile>(location);
+  const CacheT* binop = profile_->find<CacheT>(location);
   if (binop == nullptr) {
     return false;
   }
@@ -2123,7 +2124,7 @@ void HIRBuilder::emitBinaryOp(
   int opcode = bc_instr.opcode();
   int oparg = bc_instr.oparg();
 
-  if (!emitBinaryOpProfileGuards(tc, bc_instr, left, right) &&
+  if (!emitBinaryOpProfileGuards<BinaryOpProfile>(tc, bc_instr, left, right) &&
       getConfig().specialized_opcodes) {
     switch (bc_instr.specializedOpcode()) {
       // A guarded operand lets Simplify infer types across the whole
@@ -2741,7 +2742,8 @@ void HIRBuilder::emitCompareOp(
   Register* result = allocateTemp();
   CompareOp op = static_cast<CompareOp>(compare_op);
 
-  if (getConfig().specialized_opcodes) {
+  if (!emitBinaryOpProfileGuards<CompareProfile>(tc, bc_instr, left, right) &&
+      getConfig().specialized_opcodes) {
     switch (bc_instr.specializedOpcode()) {
       case COMPARE_OP_FLOAT:
         tc.emit<GuardType>(left, TFloatExact, left, tc.frame);

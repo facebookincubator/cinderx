@@ -25,6 +25,21 @@ std::optional<ProfileEntry> binaryOpPayload(const BinaryOpCache& cache) {
       *left_type, *right_type, res.has_value() ? *res : TObject};
 }
 
+std::optional<ProfileEntry> comparePayload(const CompareCache& cache) {
+  const CompareCache::CompareSpecialization specialization =
+      cache.specializedTypes();
+  const std::optional<Type> left_type =
+      specializedTypeToHirType(specialization.lhs);
+  const std::optional<Type> right_type =
+      specializedTypeToHirType(specialization.rhs);
+  const std::optional<Type> res = specializedTypeToHirType(specialization.ret);
+  if (!left_type.has_value() || !right_type.has_value()) {
+    return std::nullopt;
+  }
+  return CompareProfile{
+      *left_type, *right_type, res.has_value() ? *res : TObject};
+}
+
 std::optional<ProfileEntry> loadAttrPayload(const LoadAttrCache& cache) {
   const std::vector<LoadAttrCache::ProfiledEntry> entries =
       cache.profiledEntries();
@@ -69,6 +84,9 @@ std::optional<ProfileEntry> loadMethodPayload(const LoadMethodCache& cache) {
 std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   if (const auto* cache = std::get_if<BinaryOpCache*>(&source)) {
     return binaryOpPayload(**cache);
+  }
+  if (const auto* cache = std::get_if<CompareCache*>(&source)) {
+    return comparePayload(**cache);
   }
   if (const auto* cache = std::get_if<LoadAttrCache*>(&source)) {
     return loadAttrPayload(**cache);
