@@ -105,15 +105,15 @@ class SymbolVisitorTests(CompilerTest):
         visitor.visit(module)
         for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
-                self.assertTrue("T" in scope.defs)
-                self.assertTrue("T" in scope.type_params)
-                self.assertTrue(".defaults" in scope.defs)
-                self.assertTrue(".defaults" in scope.params)
+                self.assertIn("T", scope.defs)
+                self.assertIn("T", scope.type_params)
+                self.assertIn(".defaults", scope.defs)
+                self.assertIn(".defaults", scope.params)
 
                 func = scope.children[0]
                 self.assertEqual(len(scope.children), 1)
                 self.assertEqual(func.name, "f")
-                self.assertTrue(isinstance(func, FunctionScope))
+                self.assertIsInstance(func, FunctionScope)
                 self.assertTrue(func.nested)
                 break
         else:
@@ -126,15 +126,15 @@ class SymbolVisitorTests(CompilerTest):
         visitor.visit(module)
         for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
-                self.assertTrue("T" in scope.defs)
-                self.assertTrue("T" in scope.type_params)
-                self.assertTrue(".defaults" in scope.defs)
-                self.assertTrue(".defaults" in scope.params)
+                self.assertIn("T", scope.defs)
+                self.assertIn("T", scope.type_params)
+                self.assertIn(".defaults", scope.defs)
+                self.assertIn(".defaults", scope.params)
 
                 self.assertEqual(len(scope.children), 1)
                 func = scope.children[0]
                 self.assertEqual(func.name, "f")
-                self.assertTrue(isinstance(func, FunctionScope))
+                self.assertIsInstance(func, FunctionScope)
                 self.assertTrue(func.nested)
                 self.assertIn("T", func.defs)
                 break
@@ -159,19 +159,19 @@ class SymbolVisitorTests(CompilerTest):
 
                 bound = scope.children[0]
                 self.assertEqual(bound.name, "T")
-                self.assertTrue(isinstance(bound, TypeVarBoundScope))
+                self.assertIsInstance(bound, TypeVarBoundScope)
                 self.assertTrue(bound.nested)
-                self.assertTrue("str" in bound.uses)
+                self.assertIn("str", bound.uses)
                 self.assertEqual(scope.check_name("str"), SC_GLOBAL_IMPLICIT)
 
                 func = scope.children[1]
                 self.assertEqual(func.name, "f")
-                self.assertTrue(isinstance(func, FunctionScope))
+                self.assertIsInstance(func, FunctionScope)
                 self.assertTrue(func.nested)
-                self.assertTrue("T" in scope.defs)
-                self.assertTrue("T" in scope.type_params)
-                self.assertTrue(".defaults" in scope.defs)
-                self.assertTrue(".defaults" in scope.params)
+                self.assertIn("T", scope.defs)
+                self.assertIn("T", scope.type_params)
+                self.assertIn(".defaults", scope.defs)
+                self.assertIn(".defaults", scope.params)
                 break
         else:
             self.fail("scope not found")
@@ -187,12 +187,12 @@ class SymbolVisitorTests(CompilerTest):
 
                 func = scope.children[0]
                 self.assertEqual(func.name, "f")
-                self.assertTrue(isinstance(func, FunctionScope))
+                self.assertIsInstance(func, FunctionScope)
                 self.assertTrue(func.nested)
-                self.assertTrue("T" in scope.defs)
-                self.assertTrue("T" in scope.type_params)
-                self.assertTrue(".defaults" in scope.defs)
-                self.assertTrue(".defaults" in scope.params)
+                self.assertIn("T", scope.defs)
+                self.assertIn("T", scope.type_params)
+                self.assertIn(".defaults", scope.defs)
+                self.assertIn(".defaults", scope.params)
                 break
         else:
             self.fail("scope not found")
@@ -208,12 +208,12 @@ class SymbolVisitorTests(CompilerTest):
 
                 func = scope.children[0]
                 self.assertEqual(func.name, "f")
-                self.assertTrue(isinstance(func, FunctionScope))
+                self.assertIsInstance(func, FunctionScope)
                 self.assertTrue(func.nested)
-                self.assertTrue("T" in scope.defs)
-                self.assertTrue("T" in scope.type_params)
-                self.assertTrue(".defaults" in scope.defs)
-                self.assertTrue(".defaults" in scope.params)
+                self.assertIn("T", scope.defs)
+                self.assertIn("T", scope.type_params)
+                self.assertIn(".defaults", scope.defs)
+                self.assertIn(".defaults", scope.params)
                 break
         else:
             self.fail("scope not found")
@@ -227,13 +227,13 @@ class SymbolVisitorTests(CompilerTest):
             if isinstance(scope, TypeParamScope) and scope.name == "C":
                 self.assertEqual(len(scope.children), 1)
                 self.assertEqual(scope.children[0].name, "C")
-                self.assertTrue(isinstance(scope.children[0], ClassScope))
+                self.assertIsInstance(scope.children[0], ClassScope)
                 self.assertTrue(scope.children[0].nested)
-                self.assertTrue("T" in scope.defs)
-                self.assertTrue("T" in scope.type_params)
-                self.assertTrue(".generic_base" in scope.defs)
-                self.assertTrue(".type_params" in scope.defs)
-                self.assertTrue(".type_params" in scope.cells)
+                self.assertIn("T", scope.defs)
+                self.assertIn("T", scope.type_params)
+                self.assertIn(".generic_base", scope.defs)
+                self.assertIn(".type_params", scope.defs)
+                self.assertIn(".type_params", scope.cells)
                 break
         else:
             self.fail("scope not found")
