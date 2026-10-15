@@ -2585,8 +2585,50 @@ class C:
   EXPECT_EQ(profile.entries().size(), 0);
   EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
 }
-#endif
-#endif
+
+#endif // CINDERX_IC_USE_TARGET_PROMOTION
+
+TEST_F(InlineCacheTest, LoadAttrProfileMergesDuplicateCarriedUses) {
+  // Duplicate carried uses at one location merge like duplicate live caches:
+  // agreeing payloads stay monomorphic, disagreeing ones go polymorphic.
+  ProfileCollector collector;
+
+  const ProfileLocation agreeing_location{nullptr, BCOffset{8}};
+  collector.add(
+      agreeing_location,
+      ProfileEntry{LoadAttrProfile{
+          &PyLong_Type, AttributeMutator::Kind::kSplit, false}});
+  collector.add(
+      agreeing_location,
+      ProfileEntry{LoadAttrProfile{
+          &PyLong_Type, AttributeMutator::Kind::kSplit, false}});
+
+  const ProfileLocation disagreeing_location{nullptr, BCOffset{16}};
+  collector.add(
+      disagreeing_location,
+      ProfileEntry{LoadAttrProfile{
+          &PyLong_Type, AttributeMutator::Kind::kSplit, false}});
+  collector.add(
+      disagreeing_location,
+      ProfileEntry{LoadAttrProfile{
+          &PyFloat_Type, AttributeMutator::Kind::kSplit, false}});
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 2);
+
+  const LoadAttrProfile* agreeing =
+      profile.find<LoadAttrProfile>(agreeing_location);
+  ASSERT_NE(agreeing, nullptr);
+  EXPECT_FALSE(agreeing->polymorphic);
+  EXPECT_EQ(agreeing->receiver_type.get(), &PyLong_Type);
+
+  const LoadAttrProfile* disagreeing =
+      profile.find<LoadAttrProfile>(disagreeing_location);
+  ASSERT_NE(disagreeing, nullptr);
+  EXPECT_TRUE(disagreeing->polymorphic);
+}
+
+#endif // ENABLE_PREFORK_MODEL
 
 #if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED) && \
     defined(ENABLE_LIGHTWEIGHT_FRAMES) &&                          \
@@ -2649,6 +2691,94 @@ def test(obj):
       reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
   ASSERT_NE(recompiled_result, nullptr);
   EXPECT_EQ(asLong(recompiled_result), 1);
+}
+
+TEST_F(InlineCacheTest, LoadAttrProfileCarriesForward) {
+  // A borrowed carried use upgrades to a strong profile entry.
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(
+      location,
+      ProfileEntry{LoadAttrProfile{
+          &PyLong_Type, AttributeMutator::Kind::kSplit, false}});
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const LoadAttrProfile* load_attr = profile.find<LoadAttrProfile>(location);
+  ASSERT_NE(load_attr, nullptr);
+  EXPECT_FALSE(load_attr->polymorphic);
+  EXPECT_EQ(load_attr->receiver_type.get(), &PyLong_Type);
+  ASSERT_TRUE(load_attr->kind.has_value());
+  EXPECT_EQ(*load_attr->kind, AttributeMutator::Kind::kSplit);
+}
+
+TEST_F(InlineCacheTest, RecompilePersistsLoadAttrProfileAcrossRecompiles) {
+  getMutableConfig().attr_cache_size = 4;
+  const char* src = R"(
+class C:
+  pass
+
+c = C()
+c.x = 1
+
+def test(obj):
+  return obj.x
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto locals = runToLocals(this, src);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  ASSERT_NE(obj.get(), nullptr);
+
+  PyObject* args[] = {obj.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(asLong(result), 1);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kLoadAttr)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kGuardType)], 0);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+
+  CompiledFunctionData second = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = second.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+
+  auto recompiled_result = Ref<>::steal(second.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(asLong(recompiled_result), 1);
+
+  ASSERT_NE(second.profile_collector, nullptr);
+  Profile carried_profile = second.profile_collector->snapshot();
+  ASSERT_EQ(carried_profile.entries().size(), 1);
+  const LoadAttrProfile* carried = carried_profile.find<LoadAttrProfile>(
+      carried_profile.entries().begin()->first);
+  ASSERT_NE(carried, nullptr);
+  EXPECT_FALSE(carried->polymorphic);
+  EXPECT_EQ(carried->receiver_type.get(), Py_TYPE(obj.get()));
+
+  CompiledFunctionData third = recompileWithProfile(func, carried_profile);
+  const hir::OpcodeCounts& third_counts = third.hir_opcode_counts;
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+
+  auto rerecompiled_result = Ref<>::steal(third.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(rerecompiled_result, nullptr);
+  EXPECT_EQ(asLong(rerecompiled_result), 1);
 }
 
 #endif

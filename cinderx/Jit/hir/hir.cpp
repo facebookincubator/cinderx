@@ -491,6 +491,7 @@ bool Instr::isReplayable() const {
     case Opcode::kUnaryNot:
     case Opcode::kRaise:
     case Opcode::kRaiseStatic:
+    case Opcode::kProfileUseTypes:
     case Opcode::kRefineType:
     case Opcode::kTagIfDeferred:
     case Opcode::kStealCellItem:
@@ -930,6 +931,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kRaise:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:
+    case Opcode::kProfileUseTypes:
     case Opcode::kReturn:
     case Opcode::kSetCellItem:
     case Opcode::kSetFunctionAttr:

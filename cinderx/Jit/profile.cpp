@@ -80,14 +80,18 @@ std::optional<ProfileEntry> mergePayloads(std::vector<ProfileEntry>& observed) {
 void collectOwnedRefs(
     const ProfileEntry& entry,
     std::unordered_set<Ref<>>& owned) {
-  if (const auto* load_attr = std::get_if<LoadAttrProfile>(&entry)) {
-    if (load_attr->receiver_type != nullptr) {
-      owned.insert(Ref<>::create(load_attr->receiver_type.getObj()));
-    }
-  }
+  collectProfileEntryRefs(entry, [&](BorrowedRef<> obj) {
+    owned.insert(Ref<>::create(obj.get()));
+  });
 }
 
 } // namespace
+
+void ProfileCollector::add(ProfileLocation location, ProfileEntry payload) {
+#ifndef ENABLE_PREFORK_MODEL
+  secondary_entries_[std::move(location)].emplace_back(std::move(payload));
+#endif
+}
 
 Profile ProfileCollector::snapshot() const {
 #ifdef ENABLE_PREFORK_MODEL
@@ -95,6 +99,18 @@ Profile ProfileCollector::snapshot() const {
 #else
   std::unordered_map<ProfileLocation, ProfileEntry> entries;
   // Populate the uses first; live caches below overwrite them.
+  for (const auto& [location, sources] : secondary_entries_) {
+    std::vector<ProfileEntry> observed;
+    observed.reserve(sources.size());
+    for (const auto& source : sources) {
+      observed.push_back(source);
+    }
+    if (auto merged = mergePayloads(observed)) {
+      entries.insert_or_assign(location, std::move(merged.value()));
+    }
+    // Contradictory carried payloads with no polymorphic representation emit
+    // nothing, so the next compile stays generic.
+  }
   for (const auto& [location, sources] : entries_) {
     std::vector<ProfileEntry> observed;
     for (const auto& source : sources) {

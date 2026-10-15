@@ -559,6 +559,7 @@ Type outputType(
     case Opcode::kRaise:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:
+    case Opcode::kProfileUseTypes:
     case Opcode::kReturn:
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kSetCellItem:

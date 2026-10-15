@@ -8,10 +8,12 @@
 
 #include <algorithm>
 #include <compare>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace cinderx::jit {
 
@@ -62,8 +64,26 @@ struct LoadAttrProfile {
   bool operator==(const LoadAttrProfile&) const = default;
 };
 
-// The various types of entries that can be contained in a profile
+// The various types of entries that can be contained in a profile. Entries
+// hold borrowed references so they can be recorded in HIR and in the
+// collector's secondary entries without the GIL; the type is kept alive by
+// the originating profile during compilation and by CodeRuntime references
+// afterwards, and snapshot() takes owning references for the new profile's
+// owned set with the GIL held.
 using ProfileEntry = std::variant<BinaryOpProfile, LoadAttrProfile>;
+
+// Invokes func once with each Python object borrowed by entry that must be
+// kept alive while the entry is in use. Entries hold borrowed references so
+// they can be recorded without the GIL; the caller owns taking a strong
+// reference, e.g. into Profile's owned set or into the CodeRuntime.
+template <typename F>
+void collectProfileEntryRefs(const ProfileEntry& entry, F&& func) {
+  if (const auto* load_attr = std::get_if<LoadAttrProfile>(&entry)) {
+    if (load_attr->receiver_type != nullptr) {
+      func(BorrowedRef<>(load_attr->receiver_type.getObj()));
+    }
+  }
+}
 
 // A snapshot of the profiling information for a CompiledFunction that can
 // be used during re-compilation.
@@ -115,11 +135,14 @@ class ProfileCollector {
   // type so new cache kinds only extend ProfileSource; the variant
   // conversion below rejects anything else.
   template <typename CacheT>
-  void add(BorrowedRef<PyCodeObject> location, BCOffset offset, CacheT* cache) {
+  void add(BorrowedRef<PyCodeObject> code, BCOffset offset, CacheT* cache) {
 #ifndef ENABLE_PREFORK_MODEL
-    entries_[ProfileLocation(location, offset)].emplace_back(cache);
+    entries_[ProfileLocation(code, offset)].emplace_back(cache);
 #endif
   }
+  // Record a profile used in a re-compile where we're not necessarily
+  // emitting an inline cache.
+  void add(ProfileLocation location, ProfileEntry payload);
   // Snapshot the observed inline-cache states. Must be called with the GIL
   // held: profiling LoadAttr caches takes strong references to the observed
   // receiver types.
@@ -128,6 +151,13 @@ class ProfileCollector {
  private:
 #ifndef ENABLE_PREFORK_MODEL
   std::unordered_map<ProfileLocation, std::vector<ProfileSource>> entries_;
+  // Secondary entries: payloads carried forward from the previous profile.
+  // A location may be reached more than once (e.g. the same bytecode offset
+  // via multiple inlined ProfileUseTypes), so each location accumulates
+  // every carried payload; snapshot() merges them with the same semantics
+  // as live caches.
+  std::unordered_map<ProfileLocation, std::vector<ProfileEntry>>
+      secondary_entries_;
 #endif
 };
 

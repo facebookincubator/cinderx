@@ -10,6 +10,7 @@
 #include "cinderx/Jit/hir/register.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/intrusive_list.h"
+#include "cinderx/Jit/profile.h"
 
 #include <array>
 #include <functional>
@@ -3658,6 +3659,29 @@ class INSTR_CLASS(HintType, (TObject), Operands<>) {
 
  private:
   ProfiledTypes types_;
+};
+
+// Records that a profile payload was used to specialize the code at
+// the given inline-cache location. Has no runtime effect and no output;
+// codegen re-sends the payload to the new compilation's
+// ProfileCollector so the profile survives repeated recompiles, even
+// for sites whose caches were specialized away.
+class INSTR_CLASS(ProfileUseTypes, (), Operands<0>) {
+ public:
+  ProfileUseTypes(ProfileLocation location, ProfileEntry entry)
+      : InstrT(), location_(std::move(location)), entry_(std::move(entry)) {}
+
+  const ProfileLocation& location() const {
+    return location_;
+  }
+
+  const ProfileEntry& entry() const {
+    return entry_;
+  }
+
+ private:
+  ProfileLocation location_;
+  ProfileEntry entry_;
 };
 
 // Check if a LongExact is compact (has at most one 30-bit digit).

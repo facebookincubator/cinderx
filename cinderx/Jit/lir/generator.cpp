@@ -5100,6 +5100,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         // HintTypes are purely informative
         break;
       }
+      case hir::Opcode::kProfileUseTypes: {
+        const auto& use = i.as<ProfileUseTypes>();
+        env_->profileCollector().add(use.location(), use.entry());
+        // The collector only borrows the referenced objects, so keep them
+        // alive for the lifetime of the compiled code.
+        collectProfileEntryRefs(
+            use.entry(), [&](BorrowedRef<> obj) { env_->addReference(obj); });
+        break;
+      }
       case hir::Opcode::kBeginInlinedFunction: {
         auto instr = &i.as<BeginInlinedFunction>();
         // Track references for code, globals, builtins, func.

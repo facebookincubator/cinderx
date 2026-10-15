@@ -1074,6 +1074,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kMergeSetUnpack:
     case Opcode::kRaise:
     case Opcode::kRaiseStatic:
+    case Opcode::kProfileUseTypes:
     case Opcode::kSend:
     case Opcode::kSetCellItem:
     case Opcode::kSetCurrentAwaiter:

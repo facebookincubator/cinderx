@@ -142,6 +142,7 @@ namespace cinderx::jit::hir {
   V(Raise)                         \
   V(RaiseStatic)                   \
   V(RaiseAwaitableError)           \
+  V(ProfileUseTypes)               \
   V(RefineType)                    \
   V(Return)                        \
   V(RunPeriodicTasks)              \

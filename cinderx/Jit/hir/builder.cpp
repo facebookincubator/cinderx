@@ -2101,13 +2101,14 @@ bool HIRBuilder::emitBinaryOpProfileGuards(
   if (profile_ == nullptr) {
     return false;
   }
-  const BinaryOpProfile* binop =
-      profile_->find<BinaryOpProfile>(tc.frame.code, bc_instr.baseOffset());
+  ProfileLocation location{tc.frame.code, bc_instr.baseOffset()};
+  const BinaryOpProfile* binop = profile_->find<BinaryOpProfile>(location);
   if (binop == nullptr) {
     return false;
   }
   tc.emit<GuardType>(left, binop->left_type, left, tc.frame);
   tc.emit<GuardType>(right, binop->right_type, right, tc.frame);
+  tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*binop});
   return true;
 }
 
@@ -2943,6 +2944,7 @@ bool HIRBuilder::emitLoadAttrProfileGuards(
       Type::fromTypeExact(load_attr->receiver_type.get()),
       receiver,
       tc.frame);
+  tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*load_attr});
   return true;
 }
 

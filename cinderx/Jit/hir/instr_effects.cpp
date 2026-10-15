@@ -89,6 +89,10 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kLoadFrame:
       return commonEffects(inst, AOther);
 
+    // Compile-time marker consumed by codegen; must survive DCE.
+    case Opcode::kProfileUseTypes:
+      return commonEffects(inst, AOther);
+
     // These can deopt but don't write to any memory locations when they fall
     // through.
     case Opcode::kCheckErrOccurred:
@@ -558,6 +562,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kPrimitiveUnaryOp:
     case Opcode::kPrimitiveUnbox:
     case Opcode::kUnaryNot:
+    case Opcode::kProfileUseTypes:
     case Opcode::kRefineType:
     case Opcode::kReserveStack:
     case Opcode::kSetCellItem:

@@ -37,6 +37,18 @@ const char* fvc_to_string(int conversion) {
   }
   return "Unknown";
 }
+
+const char* attrKindName(AttributeMutator::Kind kind) {
+  switch (kind) {
+#define KIND_NAME(name, store_ok)    \
+  case AttributeMutator::Kind::name: \
+    return #name;
+    CINDERX_FOREACH_ATTR_KIND(KIND_NAME)
+#undef KIND_NAME
+    default:
+      return "unknown";
+  }
+}
 } // namespace
 
 void HIRPrinter::indent() {
@@ -750,6 +762,34 @@ static std::string format_immediates(
         }
         os << ">";
         profile_sep = ", ";
+      }
+      return os.str();
+    }
+    case Opcode::kProfileUseTypes: {
+      const auto& use = static_cast<const ProfileUseTypes&>(instr);
+      std::ostringstream os;
+      os << "offset<";
+      os << fmt::format("{}", use.location().bytecode_offset.asIndex());
+      os << ">, ";
+      const ProfileEntry& payload = use.entry();
+      if (const auto* binop = std::get_if<BinaryOpProfile>(&payload)) {
+        os << fmt::format(
+            "binary<{}, {}>", binop->left_type, binop->right_type);
+      } else {
+        const auto& load_attr = std::get<LoadAttrProfile>(payload);
+        os << "loadattr<";
+        if (load_attr.polymorphic) {
+          os << "polymorphic";
+        } else {
+          os
+              << (load_attr.receiver_type != nullptr
+                      ? load_attr.receiver_type->tp_name
+                      : "null");
+          if (load_attr.kind.has_value()) {
+            os << fmt::format(", {}", attrKindName(*load_attr.kind));
+          }
+        }
+        os << ">";
       }
       return os.str();
     }
