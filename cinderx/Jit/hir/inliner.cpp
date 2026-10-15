@@ -353,6 +353,9 @@ std::optional<MappedCallArgs> canInline(
 bool ensurePreloader(Function& irfunc, AbstractCall& call) {
   Preloader* preloader = preloaderManager().find(call.func);
   if (!preloader) {
+    if constexpr (kPreforkModel) {
+      return false;
+    }
     ThreadedCompileGILHolder gil;
     try {
       preloader = preloaderManager().add(

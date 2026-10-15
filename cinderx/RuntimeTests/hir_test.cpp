@@ -1239,7 +1239,12 @@ def test():
 void expectInlinedMethodRewrite(
     const Function& irfunc,
     bool has_instance_dict_guard = false) {
-  EXPECT_EQ(irfunc.inline_function_stats.num_inlined_functions, 1);
+  // In prefork-model builds ensurePreloader() cannot create preloaders on
+  // demand, so the LoadMethod is eliminated to a direct VectorCall but the
+  // callee is never inlined.
+  EXPECT_EQ(
+      irfunc.inline_function_stats.num_inlined_functions,
+      kPreforkModel ? 0 : 1);
   bool has_direct_vector_call = false;
   bool has_exact_type_guard = false;
   bool has_inline_values_check = false;
@@ -1267,7 +1272,7 @@ void expectInlinedMethodRewrite(
       }
     }
   }
-  EXPECT_FALSE(has_direct_vector_call);
+  EXPECT_EQ(has_direct_vector_call, kPreforkModel);
   EXPECT_TRUE(has_exact_type_guard);
   EXPECT_EQ(has_inline_values_check, has_instance_dict_guard);
   EXPECT_FALSE(has_combined_dict_check);

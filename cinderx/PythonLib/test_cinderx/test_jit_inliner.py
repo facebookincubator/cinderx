@@ -6,6 +6,7 @@ import types
 import typing
 import unittest
 
+import cinderx
 import cinderx.jit
 from cinderx.jit import jit_suppress
 from cinderx.test_support import (
@@ -775,6 +776,11 @@ def lazy_global_caller():
 @passUnless(INLINER, "Testing the inliner")
 class InlinedFunctionTests(unittest.TestCase):
     def assert_method_rewritten(self, func, *, vector_calls: int = 0) -> None:
+        if cinderx.is_prefork_build():
+            # In prefork-model builds ensurePreloader() cannot create
+            # preloaders on demand, so the LoadMethod is eliminated to a
+            # direct VectorCall but the callee is never inlined.
+            vector_calls = 1
         counts = cinderx.jit.get_function_hir_opcode_counts(func)
         self.assertIsNotNone(counts)
         self.assertEqual(counts.get("LoadMethod", 0), 0)
@@ -803,7 +809,7 @@ class InlinedFunctionTests(unittest.TestCase):
         self.assert_method_rewritten(call_method_on_exact_global_instance)
         self.assertEqual(
             cinderx.jit.get_num_inlined_functions(call_method_on_exact_global_instance),
-            1,
+            0 if cinderx.is_prefork_build() else 1,
         )
         self.assertEqual(call_method_on_exact_global_instance(41), 42)
 
