@@ -95,7 +95,11 @@ struct Profile {
   explicit Profile(
       std::unordered_map<ProfileLocation, ProfileEntry>&& entries,
       std::unordered_set<Ref<>>&& owned_refs = {})
-      : entries_(std::move(entries)), owned_refs_(std::move(owned_refs)) {}
+      : entries_(std::move(entries)), owned_refs_(std::move(owned_refs)) {
+    for (const auto& entry : entries_) {
+      codes_.insert(entry.first.code);
+    }
+  }
 
   template <typename T>
   const T* find(const ProfileLocation& location) const {
@@ -115,6 +119,25 @@ struct Profile {
     return entries_;
   }
 
+  // True when the profile carries an entry for any location in this code
+  // object.
+  bool containsCode(BorrowedRef<PyCodeObject> code) const {
+    return codes_.contains(code);
+  }
+
+  // Fold another profile's entries in. Where both describe the same location
+  // this profile's entry wins: it came from the compilation being profiled,
+  // while the other is only a stand-in for a location that compilation never
+  // saw.
+  void merge(Profile&& other) {
+    entries_.merge(other.entries_);
+    owned_refs_.merge(other.owned_refs_);
+    // Union rather than only the moved-in entries: a key that stayed behind
+    // collided with one of ours, which by definition names a code object we
+    // already have.
+    codes_.insert(other.codes_.begin(), other.codes_.end());
+  }
+
  private:
   std::unordered_map<ProfileLocation, ProfileEntry> entries_;
   // Owning references for the borrowed pointers in entries_. Entries hold
@@ -122,6 +145,10 @@ struct Profile {
   // this set keeps the referents alive until the recompilation consumes the
   // profile.
   std::unordered_set<Ref<>> owned_refs_;
+  // Code objects appearing in `entries_`, so the inliner can ask whether a
+  // callee is covered without walking every location.  Borrowed, like the
+  // references in the keys they come from.
+  std::unordered_set<BorrowedRef<PyCodeObject>> codes_;
 };
 
 using ProfileSource =

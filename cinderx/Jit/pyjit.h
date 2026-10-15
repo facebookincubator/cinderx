@@ -109,8 +109,7 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func,
-    const Profile& profile = {});
-
+    Profile* profile = nullptr);
 bool isPreforkCompilationEnabled();
 
 } // namespace cinderx::jit

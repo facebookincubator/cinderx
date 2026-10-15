@@ -5320,7 +5320,7 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func,
-    const Profile& profile) {
+    Profile* profile) {
   // The admitted preloader owns the code and its environment. A nested
   // code's outer registration may have disappeared since admission.
   BorrowedRef<PyCodeObject> code = preloader.code();

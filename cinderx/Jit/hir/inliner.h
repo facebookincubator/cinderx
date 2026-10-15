@@ -14,7 +14,7 @@ namespace cinderx::jit::hir {
 // instructions.
 class InlineFunctionCalls final : public Pass {
  public:
-  explicit InlineFunctionCalls(const Profile* profile = nullptr)
+  explicit InlineFunctionCalls(Profile* profile = nullptr)
       : Pass("InlineFunctionCalls"), profile_{profile} {}
 
   bool run(Function& irfunc) override;
@@ -24,7 +24,7 @@ class InlineFunctionCalls final : public Pass {
   }
 
  private:
-  const Profile* profile_;
+  Profile* profile_;
 };
 
 // Try to elide {Begin,End}InlinedFunction instructions for simple functions

@@ -55,9 +55,11 @@ class Compiler {
 
   // Compile the function / code object preloaded by the given Preloader.
   // Returns the compiled function data, or nullptr on failure.
+  // The profile is taken by pointer rather than const reference because the
+  // inliner merges callees' own profiles into it; the caller keeps ownership.
   std::optional<CompiledFunctionData> compile(
       const hir::Preloader& preloader,
-      const Profile& profile = {});
+      Profile* profile = nullptr);
 
   // Convenience wrapper to create and compile a preloader from a
   // PyFunctionObject.
@@ -66,8 +68,7 @@ class Compiler {
 
   // Runs all the compiler passes on the HIR function.
   static void runPasses(hir::Function&, PassConfig config);
-  static void
-  runPasses(hir::Function&, PassConfig config, const Profile& profile);
+  static void runPasses(hir::Function&, PassConfig config, Profile* profile);
 
   // Runs the compiler passes, calling callback on the HIR function after each
   // pass.
@@ -84,7 +85,7 @@ class Compiler {
       hir::Function& irfunc,
       PassConfig config,
       PostPassFunction callback,
-      const Profile* profile);
+      Profile* profile);
 
   codegen::NativeGeneratorFactory ngen_factory_;
 };

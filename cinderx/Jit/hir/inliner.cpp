@@ -6,12 +6,15 @@
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/preload.h"
+#include "cinderx/Jit/profile.h"
 #include "cinderx/Jit/threaded_compile.h"
 
 #include <algorithm>
@@ -506,6 +509,26 @@ std::vector<Register*> resolveArgs(
     param_regs[i] = def_reg;
   }
   return param_regs;
+}
+
+// Fold the callee's own last compilation into the profile driving this one.
+//
+// The profile only carries entries for code the previous generation compiled,
+// so a callee being inlined for the first time has none and its inline caches
+// would be rebuilt unguarded.  The callee's own compile did observe them.
+void mergeCalleeProfile(Profile& profile, const Preloader& preloader) {
+  ThreadedCompileGILHolder gil;
+  Context* ctx = getContext();
+  if (ctx == nullptr) {
+    return;
+  }
+  BorrowedRef<CompiledFunction> compiled = ctx->lookupCode(
+      preloader.code(), preloader.builtins(), preloader.globals());
+  if (compiled == nullptr || compiled->data() == nullptr ||
+      compiled->data()->profile_collector == nullptr) {
+    return;
+  }
+  profile.merge(compiled->snapshotProfile());
 }
 
 // Attempt to inline a single call.  On success returns the spliced-in callee
@@ -1012,6 +1035,11 @@ bool InlineFunctionCalls::run(Function& irfunc) {
     enqueueCandidates(irfunc.code, irfunc.fullname, candidates);
   }
 
+  // Callees mergeCalleeProfile() has already been asked about, so a callee
+  // inlined at several call sites costs one GIL acquisition rather than one
+  // per site.
+  std::unordered_set<BorrowedRef<PyCodeObject>> profiled_callees;
+
   while (!queue.empty()) {
     AbstractCall call = queue.top();
     queue.pop();
@@ -1048,6 +1076,11 @@ bool InlineFunctionCalls::run(Function& irfunc) {
           call.preloader->fullname(),
           irfunc.fullname);
       continue;
+    }
+
+    if (profile_ != nullptr && profiled_callees.insert(call_code).second &&
+        !profile_->containsCode(call_code)) {
+      mergeCalleeProfile(*profile_, *call.preloader);
     }
 
     std::optional<InlineResult> result =

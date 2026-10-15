@@ -117,10 +117,10 @@ void Compiler::runPasses(jit::hir::Function& irfunc, PassConfig config) {
 void Compiler::runPasses(
     jit::hir::Function& irfunc,
     PassConfig config,
-    const Profile& profile) {
+    Profile* profile) {
   PostPassFunction callback =
       [](hir::Function&, std::string_view, std::size_t) {};
-  runPassesImpl(irfunc, config, callback, &profile);
+  runPassesImpl(irfunc, config, callback, profile);
 }
 
 void Compiler::runPasses(
@@ -134,7 +134,7 @@ void Compiler::runPassesImpl(
     jit::hir::Function& irfunc,
     PassConfig config,
     PostPassFunction callback,
-    const Profile* profile) {
+    Profile* profile) {
   // Bail out before doing any work if the freshly-built HIR is already too
   // large to be worth compiling.  Checked once here rather than before every
   // pass to avoid repeatedly walking the CFG.
@@ -238,7 +238,7 @@ PassConfig createConfig() {
 
 std::optional<CompiledFunctionData> Compiler::compile(
     const jit::hir::Preloader& preloader,
-    const Profile& profile) {
+    Profile* profile) {
   const std::string& fullname = preloader.fullname();
   if (!PyDict_CheckExact(preloader.globals())) {
     JIT_DLOG(
@@ -266,8 +266,11 @@ std::optional<CompiledFunctionData> Compiler::compile(
     compilation_phase_timer->start("Lowering into HIR");
   }
 
+  Profile empty_profile;
+  Profile& hir_profile = profile != nullptr ? *profile : empty_profile;
+
   Timer timer;
-  std::unique_ptr<hir::Function> irfunc(hir::buildHIR(preloader, profile));
+  std::unique_ptr<hir::Function> irfunc(hir::buildHIR(preloader, hir_profile));
 
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
@@ -284,6 +287,11 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 
   PassConfig config = createConfig();
+  // The caller's profile, not `hir_profile`: the inliner merges into what it is
+  // given, and the merged entries hold strong references to Python types.  The
+  // caller knows to destroy its profile with the GIL held; `empty_profile` is
+  // a local that would be destroyed wherever this compile happens to end,
+  // which on a worker thread is with the GIL released.
   COMPILE_TIMER(
       irfunc->compilation_phase_timer,
       "HIR transformations",
