@@ -870,7 +870,13 @@ void LinearScanAllocator::linearScan() {
     }
 
     if (current->isRegisterAllocated()) {
-      changed_regs_.set(current->allocatedLoc());
+      // Fixed intervals are pure reservations that block allocation (e.g.
+      // call-clobbered regs, FP exclusion at deopt exits, yields) — they
+      // never hold values, so they must not mark registers as modified for
+      // prologue/epilogue save/restore.
+      if (!current->isFixed()) {
+        changed_regs_.set(current->allocatedLoc());
+      }
       active.insert(current);
     } else {
       stack_intervals.emplace(current);

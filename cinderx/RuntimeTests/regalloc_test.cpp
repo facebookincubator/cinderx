@@ -572,6 +572,23 @@ TEST_F(LinearScanAllocatorTest, DeoptExitReservesVectorRegisters) {
       codegen::ALL_VECD_REGISTERS);
 }
 
+TEST_F(LinearScanAllocatorTest, DeoptExitReservationsNotInChangedRegs) {
+  auto lir_func = std::make_unique<Function>();
+  BasicBlock* block = lir_func->allocateBasicBlock();
+  block->allocateInstr(Opcode::kGuard, nullptr);
+  block->allocateInstr(Opcode::kReturn, nullptr);
+  BasicBlock* epilogue = lir_func->allocateBasicBlock();
+  block->addSuccessor(epilogue);
+
+  LinearScanAllocator allocator(lir_func.get());
+  allocator.run();
+
+  // Fixed-interval reservations (e.g. the all-vector reservation at deopt
+  // exits) never hold values, so they must not mark registers as modified
+  // for prologue/epilogue save/restore.
+  EXPECT_TRUE((allocator.getChangedRegs() & codegen::CALLEE_SAVE_REGS).empty());
+}
+
 TEST_F(LinearScanAllocatorTest, InoutRegTest) {
   // OptimizeMoveSequence should not set reg operands that are also output
   auto lirfunc = std::make_unique<Function>();
