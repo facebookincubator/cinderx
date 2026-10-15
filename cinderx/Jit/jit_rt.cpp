@@ -1518,7 +1518,7 @@ GenSendRes genSend(
     PyObject* gen,
     PyObject* v,
     uint64_t finish_yield_from,
-    _PyInterpreterFrame* frame) {
+    [[maybe_unused]] _PyInterpreterFrame* frame) {
   if (v == nullptr) {
     return {nullptr, 1};
   }
