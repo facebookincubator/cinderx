@@ -6,6 +6,10 @@
 #include "internal/pycore_modsupport.h"
 #endif
 
+#if PY_VERSION_HEX < 0x030F0000
+#define PyArg_ParseArray _PyArg_ParseStack
+#endif
+
 #include "cinderx/Common/import.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
@@ -318,7 +322,7 @@ PyObject*
 unsafe_change_type(PyObject* self, PyObject** args, Py_ssize_t nargs) {
   PyObject* obj;
   PyObject* new_type;
-  if (!_PyArg_ParseStack(
+  if (!PyArg_ParseArray(
           args, nargs, "OO:unsafe_change_type", &obj, &new_type)) {
     return NULL;
   }

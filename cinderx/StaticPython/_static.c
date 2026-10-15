@@ -261,7 +261,7 @@ PyObject*
 set_type_code(PyObject* mod, PyObject* const* args, Py_ssize_t nargs) {
   PyTypeObject* type;
   Py_ssize_t code;
-  if (!_PyArg_ParseStack(args, nargs, "O!n", &PyType_Type, &type, &code)) {
+  if (!PyArg_ParseArray(args, nargs, "O!n", &PyType_Type, &type, &code)) {
     return NULL;
   } else if (!(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
     PyErr_SetString(PyExc_TypeError, "expected heap type");

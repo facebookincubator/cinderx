@@ -76,6 +76,13 @@ static inline int PyTime_MonotonicRaw(PyTime_t* result) {
 
 #endif
 
+#if PY_VERSION_HEX < 0x030F0000
+
+// Basic renames that went into 3.15.
+#define PyArg_ParseArray _PyArg_ParseStack
+
+#endif
+
 // Get the interpreter frame stored in a generator object.
 inline _PyInterpreterFrame* generatorFrame(PyGenObject* gen) {
   return
