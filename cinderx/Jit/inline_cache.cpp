@@ -1286,7 +1286,13 @@ std::vector<LoadAttrCache::ProfiledEntry> LoadAttrCache::profiledEntries()
     if (entry.isEmpty()) {
       continue;
     }
-    result.push_back({entry.type(), entry.getKind()});
+    ProfiledEntry profiled{entry.type(), entry.getKind()};
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+    if (entry.getKind() == AttributeMutator::Kind::kModule) {
+      profiled.module = entry.asModule()->module.get();
+    }
+#endif
+    result.push_back(profiled);
   }
   return result;
 }

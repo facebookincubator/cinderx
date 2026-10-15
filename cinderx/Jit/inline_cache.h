@@ -385,6 +385,13 @@ class AttributeMutator {
     return &module_;
   }
 
+  const ModuleMutator* asModule() const {
+    JIT_DCHECK(
+        getKind() == AttributeMutator::Kind::kModule,
+        "should only be used on modules");
+    return &module_;
+  }
+
   // `cls` is the class being read, which goes straight into type_. See
   // TypeMutator.
   void setTypeAttr(PyTypeObject* cls);
@@ -685,6 +692,8 @@ class LoadAttrCache : public AttributeCache {
   struct ProfiledEntry {
     PyTypeObject* type;
     AttributeMutator::Kind kind;
+    // The module itself for module entries, null otherwise.
+    PyObject* module{nullptr};
   };
 
   // Snapshot the populated entries for recompile profiling, in slot order.

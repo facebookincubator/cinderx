@@ -72,6 +72,9 @@ struct LoadAttrProfile {
   std::optional<AttributeMutator::Kind> kind;
   // True when the cache observed more than one entry.
   bool polymorphic{false};
+  // The module itself for module entries, null otherwise. The owning
+  // reference lives in Profile's owned set.
+  BorrowedRef<> receiver_module;
 
   bool operator==(const LoadAttrProfile&) const = default;
 };
@@ -94,6 +97,9 @@ void collectProfileEntryRefs(const ProfileEntry& entry, F&& func) {
   if (const auto* load_attr = std::get_if<LoadAttrProfile>(&entry)) {
     if (load_attr->receiver_type != nullptr) {
       func(BorrowedRef<>(load_attr->receiver_type.getObj()));
+    }
+    if (load_attr->receiver_module != nullptr) {
+      func(load_attr->receiver_module);
     }
   }
 }

@@ -52,7 +52,7 @@ std::optional<ProfileEntry> loadAttrPayload(const LoadAttrCache& cache) {
   const LoadAttrCache::ProfiledEntry& entry = entries.front();
   // Class-receiver entries store the class itself rather than
   // Py_TYPE(receiver); the kind tells the consumer to guard identity.
-  return LoadAttrProfile{entry.type, entry.kind, false};
+  return LoadAttrProfile{entry.type, entry.kind, false, entry.module};
 }
 
 // LoadMethod caches reuse LoadAttrProfile with no kind: only the receiver

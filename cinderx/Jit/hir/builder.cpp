@@ -2941,18 +2941,21 @@ bool HIRBuilder::emitLoadAttrProfileGuards(
       load_attr->receiver_type == nullptr) {
     return false;
   }
-  bool exact_class = false;
+  BorrowedRef<> exact;
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
-  exact_class = load_attr->kind.has_value() &&
-      AttributeMutator::isTypeAttrKind(*load_attr->kind);
+  if (load_attr->kind.has_value()) {
+    if (AttributeMutator::isTypeAttrKind(*load_attr->kind)) {
+      exact = load_attr->receiver_type.getObj();
+    } else if (
+        *load_attr->kind == AttributeMutator::Kind::kModule &&
+        load_attr->receiver_module != nullptr) {
+      exact = load_attr->receiver_module.get();
+    }
+  }
 #endif
-  if (exact_class) {
-    // Class receivers match on identity rather than on Py_TYPE(receiver).
-    env_->addReference(load_attr->receiver_type.getObj());
-    tc.emit<GuardIs>(
-        receiver,
-        reinterpret_cast<PyObject*>(load_attr->receiver_type.get()),
-        receiver);
+  if (exact != nullptr) {
+    env_->addReference(exact);
+    tc.emit<GuardIs>(receiver, exact.get(), receiver);
   } else {
     tc.emit<GuardType>(
         receiver,
