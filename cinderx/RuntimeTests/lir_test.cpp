@@ -1813,6 +1813,18 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.parseHIR(hir_source);
   ASSERT_NE(irfunc, nullptr);
 
+  // Manually add in a code object, needed when generating deopt metadata.
+  Ref<PyFunctionObject> pyfunc(compileAndGet("def test():\n  a = a\n", "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  BorrowedRef<PyCodeObject> code = PyFunction_GetCode(pyfunc);
+  for (hir::BasicBlock& block : irfunc->cfg.blocks) {
+    for (hir::Instr& instr : block) {
+      if (hir::DeoptBase* deopt = instr.asDeoptBase()) {
+        deopt->frameState()->code = code;
+      }
+    }
+  }
+
   Compiler::runPasses(
       *irfunc,
       static_cast<PassConfig>(
@@ -1820,7 +1832,7 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
           PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
   codegen::Environ env;
-  CodeRuntime code_runtime{irfunc->code, irfunc->builtins, irfunc->globals};
+  CodeRuntime code_runtime{pyfunc};
 
   env.ctx = getContext();
   env.code_rt = &code_runtime;
@@ -1828,6 +1840,12 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   LIRGenerator lir_gen(irfunc.get(), &env);
 
   auto lir_func = lir_gen.translateFunction();
+
+  ASSERT_EQ(code_runtime.deoptMetadatas().size(), 1);
+  const DeoptFrameMetadata& frame_meta =
+      code_runtime.getDeoptMetadata(0).innermostFrame();
+  EXPECT_EQ(frame_meta.causeInstrIdx(), BCIndex{1});
+  EXPECT_EQ(frame_meta.nextInstrIdx(), BCIndex{2});
 
   std::stringstream ss;
 

@@ -179,11 +179,9 @@ BCIndex getDeoptResumeIndex(
   // hasn't completed (RunPeriodicTasks) — re-execute. Other reasons mean
   // the bytecode's C call completed — advance past it.
   if (is_instrumentation_deopt && is_innermost) {
-    if (meta.reason == DeoptReason::kPeriodicTaskFailure) {
-      return frame.causeInstrIdx();
-    }
-    return BytecodeInstruction(frame.code(), frame.causeInstrIdx())
-        .nextInstrOffset();
+    return meta.reason == DeoptReason::kPeriodicTaskFailure
+        ? frame.causeInstrIdx()
+        : frame.nextInstrIdx();
   }
 
   if ((is_innermost &&
@@ -199,14 +197,10 @@ BCIndex getDeoptResumeIndex(
     // and then we'll dispatch to the error handler. We're never going to
     // execute the instruction but we need the instr_ptr to point at the
     // faulting instruction for stack traces to show up correctly.
-    return BytecodeInstruction(frame.code(), frame.causeInstrIdx())
-               .nextInstrOffset()
-               .asIndex() -
-        1;
+    return frame.nextInstrIdx() - 1;
   }
 #endif
-  return BytecodeInstruction(frame.code(), frame.causeInstrIdx())
-      .nextInstrOffset();
+  return frame.nextInstrIdx();
 }
 
 void reifyFrameImpl(
@@ -393,8 +387,13 @@ Ref<> profileDeopt(const DeoptMetadata& meta, const MemoryView& mem) {
   // for that case.
   [[maybe_unused]] int opcode = -1;
   if (bc_off.value() >= 0) {
-    BytecodeInstruction bc_instr{code, bc_off};
-    opcode = bc_instr.opcode();
+    // This can throw an exception when trying to decode opcodes.  In that case,
+    // just fail open and record -1 as the opcode.
+    try {
+      BytecodeInstruction bc_instr{code, bc_off};
+      opcode = bc_instr.opcode();
+    } catch (const std::exception&) {
+    }
   }
 
   USDT(
@@ -601,12 +600,20 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
 
   for (hir::FrameState* frame = fs; frame != nullptr; frame = frame->parent) {
     int frame_idx = num_frames--;
-    // Translate locals and cells
-    populate_localsplus(meta.frame_meta.at(frame_idx), frame);
-    populate_stack(meta.frame_meta.at(frame_idx), frame);
-    meta.frame_meta.at(frame_idx).setCauseInstrIdx(frame->cur_instr_offs);
-    meta.frame_meta.at(frame_idx).setCode(frame->code.get());
-    meta.frame_meta.at(frame_idx).setLazyFrame(frame->lazy_frame);
+    // Translate locals and cells.
+    auto& frame_meta = meta.frame_meta.at(frame_idx);
+
+    populate_localsplus(frame_meta, frame);
+    populate_stack(frame_meta, frame);
+
+    BorrowedRef<PyCodeObject> code = frame->code;
+    BCIndex cause_instr_idx = frame->cur_instr_offs;
+    BCIndex next_instr_idx =
+        BytecodeInstruction{code, cause_instr_idx}.nextInstrOffset();
+    frame_meta.setCauseInstrIdx(cause_instr_idx);
+    frame_meta.setNextInstrIdx(next_instr_idx);
+    frame_meta.setCode(code);
+    frame_meta.setLazyFrame(frame->lazy_frame);
   }
 
   if (hir::Register* guilty_reg = instr.guiltyReg()) {

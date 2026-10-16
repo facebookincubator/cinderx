@@ -156,6 +156,14 @@ struct DeoptFrameMetadata {
     cause_instr_idx_ = idx;
   }
 
+  // Bytecode index of the instruction after the one that caused the deopt.
+  BCIndex nextInstrIdx() const {
+    return next_instr_idx_;
+  }
+  void setNextInstrIdx(BCIndex idx) {
+    next_instr_idx_ = idx;
+  }
+
  private:
   // Tag bit stolen from the code pointer, whose alignment leaves the low bit
   // clear.
@@ -164,6 +172,7 @@ struct DeoptFrameMetadata {
 
   uintptr_t tagged_code_{0};
   BCIndex cause_instr_idx_{0};
+  BCIndex next_instr_idx_{0};
 };
 
 // DeoptMetadata captures all the information necessary to reconstruct a
