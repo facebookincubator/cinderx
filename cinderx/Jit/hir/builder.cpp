@@ -70,21 +70,6 @@ void rotateStackTop(OperandStack& stack, int count) {
   std::rotate(stack.end() - count, stack.end() - 1, stack.end());
 }
 
-// If block has a single predecessor terminated by an unconditional branch to
-// it, return that branch so the caller can reroute the entry edge through a
-// precheck block; otherwise return nullptr.
-Branch* singleEntryBranch(BasicBlock* block) {
-  if (block->inEdges().size() != 1) {
-    return nullptr;
-  }
-  auto* branch = dynamic_cast<Branch*>(
-      (*block->inEdges().begin())->from()->getTerminator());
-  if (branch == nullptr || branch->target() != block) {
-    return nullptr;
-  }
-  return branch;
-}
-
 // Check that an opcode is one we know how to translate into HIR.
 bool isSupportedOpcode(int opcode) {
   switch (opcode) {
@@ -1414,26 +1399,9 @@ void HIRBuilder::translate(
           break;
         }
         case FOR_ITER: {
-          if (getConfig().specialized_opcodes) {
-            int specialized = bc_instr.specializedOpcode();
-            if (specialized == FOR_ITER_RANGE) {
-              emitForIterRange(irfunc.cfg, tc, bc_instr);
-            } else if (specialized == FOR_ITER_TUPLE) {
-              emitForIterSeqObject(
-                  irfunc.cfg, tc, bc_instr, SeqIterKind::kTuple);
-            } else if (specialized == FOR_ITER_LIST) {
-              // The interpreter only takes the fast path when the list is
-              // owned by the current thread; the JIT cannot check that, so
-              // stay generic on free-threaded builds (as for UNPACK_SEQUENCE).
-              if constexpr (kFreeThreadedBuild) {
-                emitForIter(tc, bc_instr);
-              } else {
-                emitForIterSeqObject(
-                    irfunc.cfg, tc, bc_instr, SeqIterKind::kList);
-              }
-            } else {
-              emitForIter(tc, bc_instr);
-            }
+          if (getConfig().specialized_opcodes &&
+              bc_instr.specializedOpcode() == FOR_ITER_RANGE) {
+            emitForIterRange(irfunc.cfg, tc, bc_instr);
           } else {
             emitForIter(tc, bc_instr);
           }
@@ -1672,16 +1640,12 @@ void HIRBuilder::translate(
           // Pop both the produced value and the iterator itself.
           new_frame.stack.discard(2);
         }
-        int prev_specialized = getConfig().specialized_opcodes
-            ? prev_bc_instr.specializedOpcode()
-            : -1;
-        if (prev_specialized == FOR_ITER_RANGE ||
-            prev_specialized == FOR_ITER_TUPLE ||
-            (prev_specialized == FOR_ITER_LIST && !kFreeThreadedBuild)) {
-          // The specialized emitForIter*() helpers end the current block with
-          // an unconditional Branch into the loop body and wire the exhausted
-          // edge to the footer directly from the header, so recover the
-          // successors from there rather than from a CondBranchIterNotDone.
+        if (getConfig().specialized_opcodes &&
+            prev_bc_instr.specializedOpcode() == FOR_ITER_RANGE) {
+          // emitForIterRange() ends the current block with an unconditional
+          // Branch into the loop body and wires the exhausted edge to the
+          // footer directly from the header, so recover the successors from
+          // there rather than from a CondBranchIterNotDone.
           auto branch = static_cast<Branch*>(last_instr);
           queue.emplace_back(branch->target(), tc.frame);
           queue.emplace_back(
@@ -4265,20 +4229,6 @@ void HIRBuilder::emitForIter(
   tc.emit<CondBranchIterNotDone>(next_val, body, footer);
 }
 
-void HIRBuilder::emitSpecializedIterGuard(
-    TranslationContext& tc,
-    Register* iterator,
-    Type iter_type) {
-  // Specialized FOR_ITER opcodes are specialization hints, so guard that the
-  // iterator really has the expected type.
-  tc.emit<GuardType>(iterator, iter_type, iterator, tc.frame);
-
-  // Specialized iterators are only ever accessed with LoadField and
-  // StoreField instructions, which will never generate UseType instructions
-  // on their own.  Add one here.
-  tc.emit<UseType>(iterator, iter_type);
-}
-
 void HIRBuilder::emitForIterRange(
     CFG& cfg,
     TranslationContext& tc,
@@ -4303,6 +4253,17 @@ void HIRBuilder::emitForIterRange(
   constexpr int32_t kLenOffset = offsetof(RangeIterObject, len);
   constexpr Type kRangeIntType =
       sizeof(long) == sizeof(int32_t) ? TCInt32 : TCInt64;
+
+  auto emit_guard = [&](TranslationContext& iter_tc) {
+    // FOR_ITER_RANGE is a specialization hint, so guard that the iterator
+    // really is a range iterator.
+    iter_tc.emit<GuardType>(iterator, range_type, iterator, iter_tc.frame);
+
+    // The range iterator is only ever accessed with LoadField and StoreField
+    // instructions, which will never generate UseType instructions on their
+    // own.  Add one here.
+    iter_tc.emit<UseType>(iterator, range_type);
+  };
 
   auto emit_not_empty = [&](TranslationContext& iter_tc, BasicBlock* next) {
     iter_tc.emit<LoadField>(len, iterator, "len", kLenOffset, kRangeIntType);
@@ -4346,137 +4307,24 @@ void HIRBuilder::emitForIterRange(
   // Keep the entry edge out of the loop header so its uninitialized locals do
   // not merge with values from the backedge.  Both checks share produce.
   bool prechecked = false;
-  if (Branch* entry = singleEntryBranch(tc.block)) {
-    TranslationContext initial_check{cfg.allocateBlock(), tc.frame};
-    initial_check.emitSnapshot();
-    emitSpecializedIterGuard(initial_check, iterator, range_type);
-    entry->setTarget(initial_check.block);
-    emit_not_empty(initial_check, produce);
-    block_canonicalizer_->run(initial_check.block, initial_check.frame.stack);
-    prechecked = true;
+  if (tc.block->inEdges().size() == 1) {
+    BasicBlock* preheader = (*tc.block->inEdges().begin())->from();
+    auto* branch = dynamic_cast<Branch*>(preheader->getTerminator());
+    if (branch != nullptr && branch->target() == tc.block) {
+      TranslationContext initial_check{cfg.allocateBlock(), tc.frame};
+      initial_check.emitSnapshot();
+      emit_guard(initial_check);
+      branch->setTarget(initial_check.block);
+      emit_not_empty(initial_check, produce);
+      block_canonicalizer_->run(initial_check.block, initial_check.frame.stack);
+      prechecked = true;
+    }
   }
 
   if (!prechecked) {
-    emitSpecializedIterGuard(tc, iterator, range_type);
+    emit_guard(tc);
   }
   emit_not_empty(tc, produce);
-  tc.block = produce;
-  emit_next(tc);
-}
-
-void HIRBuilder::emitForIterSeqObject(
-    CFG& cfg,
-    TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    SeqIterKind kind) {
-  // Local mirror shared by CPython's _PyTupleIterObject and _PyListIterObject,
-  // which have identical layouts.
-  struct SeqIterObject {
-    PyObject_HEAD
-    Py_ssize_t it_index;
-    PyObject* it_seq;
-  };
-  bool is_tuple = kind == SeqIterKind::kTuple;
-
-  Register* iterator = forIterTop(tc.frame);
-  BasicBlock* footer = getBlockAtOff(bc_instr.getJumpTarget());
-  BasicBlock* body = getBlockAtOff(bc_instr.nextInstrOffset());
-  Register* value = allocateTemp();
-  Register* seq = allocateTemp();
-  Register* index = allocateTemp();
-  Type iter_type =
-      Type::fromTypeExact(is_tuple ? &PyTupleIter_Type : &PyListIter_Type);
-  Type seq_exact = is_tuple ? TTupleExact : TListExact;
-
-  constexpr int32_t kIndexOffset = offsetof(SeqIterObject, it_index);
-  constexpr int32_t kSeqOffset = offsetof(SeqIterObject, it_seq);
-  // ob_size and Py_ssize_t fields are 8 bytes where the JIT runs; emitFastLen
-  // loads ob_size as TCInt64 and LoadVarObjectSize returns TCInt64.
-  constexpr Type kIndexType = TCInt64;
-  const Type kSeqType = seq_exact | TNullptr;
-
-  auto emit_has_seq = [&](TranslationContext& iter_tc, BasicBlock* next) {
-    iter_tc.emit<LoadField>(seq, iterator, "it_seq", kSeqOffset, kSeqType);
-    Register* null = allocateTemp();
-    iter_tc.emit<LoadConst>(null, TNullptr);
-    Register* has_seq = allocateTemp();
-    iter_tc.emit<PrimitiveCompare>(
-        has_seq, PrimitiveCompareOp::kNotEqual, seq, null);
-    iter_tc.emit<CondBranch>(has_seq, next, footer);
-  };
-
-  // Sequences are mutable in general: the body may append (reallocating
-  // ob_item) or pop (shrinking the size), so the size and the item pointer
-  // are reloaded on every iteration and never carried across the backedge.
-  auto emit_has_next = [&](TranslationContext& iter_tc, BasicBlock* next) {
-    iter_tc.emit<LoadField>(
-        index, iterator, "it_index", kIndexOffset, kIndexType);
-    Register* size = allocateTemp();
-    iter_tc.emit<LoadVarObjectSize>(size, seq);
-    Register* has_next = allocateTemp();
-    iter_tc.emit<PrimitiveCompare>(
-        has_next, PrimitiveCompareOp::kLessThan, index, size);
-    iter_tc.emit<CondBranch>(has_next, next, footer);
-  };
-
-  auto emit_next = [&](TranslationContext& iter_tc) {
-    // Produce the next item inline (mirrors CPython's _ITER_NEXT_TUPLE and
-    // _ITER_NEXT_LIST): value = seq[index]; index += 1
-    Register* seq_obj = allocateTemp();
-    iter_tc.emit<RefineType>(seq_obj, seq_exact, seq);
-    Register* ob_item = allocateTemp();
-    if (is_tuple) {
-      // Tuple items live inline.
-      Register* offset_reg = allocateTemp();
-      iter_tc.emit<LoadConst>(
-          offset_reg,
-          Type::fromCInt(offsetof(PyTupleObject, ob_item), TCInt64));
-      iter_tc.emit<LoadFieldAddress>(ob_item, seq_obj, offset_reg);
-    } else {
-      // List items live in a separately allocated array.
-      iter_tc.emit<LoadField>(
-          ob_item, seq_obj, "ob_item", offsetof(PyListObject, ob_item), TCPtr);
-    }
-    iter_tc.emit<LoadArrayItem>(
-        value, ob_item, index, seq_obj, /*offset=*/0, TObject);
-
-    Register* one = allocateTemp();
-    iter_tc.emit<LoadConst>(one, Type::fromCInt(1, kIndexType));
-    Register* new_index = allocateTemp();
-    iter_tc.emit<IntBinaryOp>(new_index, BinaryOpKind::kAdd, index, one);
-    Register* null_prev = allocateTemp();
-    iter_tc.emit<LoadConst>(null_prev, TNullptr);
-    iter_tc.emit<StoreField>(
-        iterator, "it_index", kIndexOffset, new_index, kIndexType, null_prev);
-
-    iter_tc.frame.stack.push(value);
-    iter_tc.emit<Branch>(body);
-  };
-
-  BasicBlock* produce = cfg.allocateBlock();
-  BasicBlock* index_check = cfg.allocateBlock();
-  // Keep the entry edge out of the loop header so its uninitialized locals do
-  // not merge with values from the backedge.  All checks share produce.
-  bool prechecked = false;
-  if (Branch* entry = singleEntryBranch(tc.block)) {
-    TranslationContext initial_check{cfg.allocateBlock(), tc.frame};
-    initial_check.emitSnapshot();
-    emitSpecializedIterGuard(initial_check, iterator, iter_type);
-    entry->setTarget(initial_check.block);
-    TranslationContext initial_index{cfg.allocateBlock(), tc.frame};
-    emit_has_seq(initial_check, initial_index.block);
-    block_canonicalizer_->run(initial_check.block, initial_check.frame.stack);
-    emit_has_next(initial_index, produce);
-    block_canonicalizer_->run(initial_index.block, initial_index.frame.stack);
-    prechecked = true;
-  }
-
-  if (!prechecked) {
-    emitSpecializedIterGuard(tc, iterator, iter_type);
-  }
-  emit_has_seq(tc, index_check);
-  tc.block = index_check;
-  emit_has_next(tc, produce);
   tc.block = produce;
   emit_next(tc);
 }

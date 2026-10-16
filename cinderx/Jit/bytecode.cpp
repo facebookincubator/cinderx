@@ -139,9 +139,7 @@ int BytecodeInstruction::specializedOpcode() const {
     case COMPARE_OP_STR:
     case CONTAINS_OP_DICT:
     case CONTAINS_OP_SET:
-    case FOR_ITER_LIST:
     case FOR_ITER_RANGE:
-    case FOR_ITER_TUPLE:
     case LOAD_ATTR_MODULE:
     case STORE_SUBSCR_DICT:
     case STORE_SUBSCR_LIST_INT:

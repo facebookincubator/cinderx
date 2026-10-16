@@ -318,10 +318,6 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitGetIter(TranslationContext& tc);
-  void emitSpecializedIterGuard(
-      TranslationContext& tc,
-      Register* iterator,
-      Type iter_type);
   void emitGetYieldFromIter(CFG& cfg, TranslationContext& tc);
   void emitListAppend(
       TranslationContext& tc,
@@ -337,13 +333,6 @@ class HIRBuilder {
       CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  // Sequence iterator flavors handled by emitForIterSeqObject().
-  enum class SeqIterKind { kTuple, kList };
-  void emitForIterSeqObject(
-      CFG& cfg,
-      TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      SeqIterKind kind);
   void emitInvokeMethodVectorCall(
       TranslationContext& tc,
       std::vector<Register*>& arg_regs,
