@@ -1,12 +1,15 @@
 #!/bin/bash
 
+# Print stats about how HIR generation has changed between the current and base
+# revisions.
+
 set -xe
 export HG_PLAIN=1
 
-TEST_LIST_FILE=$1
-PYTHON_VERSION=$2
-
 cd "$(dirname "$(readlink -f "$0")")"/
+
+: "${PYTHON_VERSION:=3.14}"
+: "${TEST_LIST_FILE:=hir_stats_cpython_tests.txt}"
 
 is_sandcastle() {
     [[ -n "${SANDCASTLE:-}" || -n "${SANDCASTLE_ID:-}" || -n "${SANDCASTLE_INSTANCE_ID:-}" ]]
