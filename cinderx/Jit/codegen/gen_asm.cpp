@@ -936,6 +936,7 @@ void* NativeGenerator::getVectorcallEntry() {
       getFunction()->compilation_phase_timer,
       "Lowering into LIR",
       lir_func = lirgen.translateFunction())
+  env_.code_rt->setDeoptMetadatas(std::move(env_.deopt_metadatas));
   checkLirSize(*lir_func);
 
   JIT_LOGIF(

@@ -1840,6 +1840,7 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   LIRGenerator lir_gen(irfunc.get(), &env);
 
   auto lir_func = lir_gen.translateFunction();
+  code_runtime.setDeoptMetadatas(std::move(env.deopt_metadatas));
 
   ASSERT_EQ(code_runtime.deoptMetadatas().size(), 1);
   const DeoptFrameMetadata& frame_meta =

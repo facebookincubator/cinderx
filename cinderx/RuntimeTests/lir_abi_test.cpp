@@ -75,7 +75,7 @@ class LIRABITest : public RuntimeTest {
         break;
       case Opcode::kDeoptPatchpoint:
       case Opcode::kGuard: {
-        env.code_rt->addRawDeoptMetadata(DeoptMetadata{});
+        env.addRawDeoptMetadata(DeoptMetadata{});
         // Create a dummy deopt exit block for the translator to look up.
         auto* deopt_bb = function.allocateBasicBlock();
         env.deopt_exit_blocks[0] = deopt_bb;
@@ -86,6 +86,7 @@ class LIRABITest : public RuntimeTest {
         break;
     }
 
+    env.code_rt->setDeoptMetadatas(std::move(env.deopt_metadatas));
     // Translate the instruction using the auto translator.
     autogen::AutoTranslator::getInstance().translateInstr(&env, insn);
   }
@@ -286,10 +287,11 @@ TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
           hir::RefKind::kOwned,
           hir::ValueKind::kObject,
           LiveValue::Source::kUnknown}};
-  std::size_t deopt_idx = env.code_rt->addRawDeoptMetadata(std::move(metadata));
+  std::size_t deopt_idx = env.addRawDeoptMetadata(std::move(metadata));
   env.callsite_live_value_metadata.emplace(
       call, Environ::CallSiteLiveValueMetadata{deopt_idx, live_values});
 
+  env.code_rt->setDeoptMetadatas(std::move(env.deopt_metadatas));
   autogen::AutoTranslator::getInstance().translateInstr(&env, call);
 
   const DeoptMetadata& filled_metadata =

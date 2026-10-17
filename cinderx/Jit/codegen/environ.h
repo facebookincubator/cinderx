@@ -190,13 +190,21 @@ struct Environ {
   // register the same instruction.
   UnorderedMap<const hir::LiveValuesBase*, std::size_t> deopt_instr_cache;
 
+  std::vector<DeoptMetadata> deopt_metadatas;
+
+  // Add metadata without using the instruction-based dedup cache.
+  std::size_t addRawDeoptMetadata(DeoptMetadata&& deopt_meta) {
+    deopt_metadatas.emplace_back(std::move(deopt_meta));
+    return deopt_metadatas.size() - 1;
+  }
+
   template <typename InstrT>
   std::size_t addDeoptMetadata(const InstrT& instr) {
     auto [it, inserted] = deopt_instr_cache.emplace(&instr, 0);
     if (!inserted) {
       return it->second;
     }
-    it->second = code_rt->addRawDeoptMetadata(DeoptMetadata::fromInstr(instr));
+    it->second = addRawDeoptMetadata(DeoptMetadata::fromInstr(instr));
     return it->second;
   }
 

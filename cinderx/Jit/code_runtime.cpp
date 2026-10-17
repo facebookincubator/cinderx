@@ -100,9 +100,12 @@ GenYieldPoint* CodeRuntime::addGenYieldPoint(GenYieldPoint&& gen_yield_point) {
   return &gen_yield_points_.back();
 }
 
-std::size_t CodeRuntime::addRawDeoptMetadata(DeoptMetadata&& deopt_meta) {
-  deopt_metadatas_.emplace_back(std::move(deopt_meta));
-  return deopt_metadatas_.size() - 1;
+void CodeRuntime::setDeoptMetadatas(
+    std::vector<DeoptMetadata>&& deopt_metadatas) {
+  deopt_metadatas_.initialize(deopt_metadatas.size());
+  for (std::size_t i = 0; i < deopt_metadatas.size(); ++i) {
+    deopt_metadatas_[i] = std::move(deopt_metadatas[i]);
+  }
 }
 
 DeoptMetadata& CodeRuntime::getDeoptMetadata(std::size_t id) {
@@ -113,7 +116,7 @@ const DeoptMetadata& CodeRuntime::getDeoptMetadata(std::size_t id) const {
   return deopt_metadatas_[id];
 }
 
-const std::vector<DeoptMetadata>& CodeRuntime::deoptMetadatas() const {
+const FrozenList<DeoptMetadata>& CodeRuntime::deoptMetadatas() const {
   return deopt_metadatas_;
 }
 
@@ -185,7 +188,11 @@ std::optional<uintptr_t> CodeRuntime::getCallsiteDeoptExit(
 void CodeRuntime::addCallsiteDeoptExit(
     uintptr_t return_addr,
     uintptr_t deopt_exit_addr) {
-  callsite_deopt_exits_[return_addr] = deopt_exit_addr;
+  auto [it, inserted] =
+      callsite_deopt_exits_.emplace(return_addr, deopt_exit_addr);
+  if (!inserted) {
+    it->second = deopt_exit_addr;
+  }
 }
 
 void CodeRuntime::setReifier([[maybe_unused]] Ref<>&& reifier) {

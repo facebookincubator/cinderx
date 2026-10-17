@@ -5855,7 +5855,7 @@ void LIRGenerator::updateDeoptIndex(
         meta.frame_meta[idx].setCauseInstrIdx(f->instrOffset());
         idx--;
       }
-      auto deopt_id = env_->code_rt->addRawDeoptMetadata(std::move(meta));
+      auto deopt_id = env_->addRawDeoptMetadata(std::move(meta));
       storeActiveDeoptIndex(bbb, deopt_id);
       last_deopt_line = decref_line;
     }

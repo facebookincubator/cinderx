@@ -2,7 +2,9 @@
 
 #pragma once
 
+#include "cinderx/Common/frozen_list.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/sorted_vec_map.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/deopt.h"
@@ -11,8 +13,8 @@
 #include <deque>
 #include <limits>
 #include <optional>
-#include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 namespace cinderx::jit {
 
@@ -83,17 +85,15 @@ class alignas(16) CodeRuntime {
   // Store meta-data about generator yield point.
   GenYieldPoint* addGenYieldPoint(GenYieldPoint&& gen_yield_point);
 
-  // Add raw deopt metadata that was constructed without a DeoptBase, such as
-  // callsite live-value metadata for helper calls. This bypasses the
-  // instruction-based dedup cache.
-  std::size_t addRawDeoptMetadata(DeoptMetadata&& deopt_meta);
+  // Initialize the deopt metadata collected during LIR generation.
+  void setDeoptMetadatas(std::vector<DeoptMetadata>&& deopt_metadatas);
 
   // Get a reference to the DeoptMetadata with the given ID.
   DeoptMetadata& getDeoptMetadata(std::size_t id);
   const DeoptMetadata& getDeoptMetadata(std::size_t id) const;
 
   // Get all deopt metadatas for the given CodeRuntime.
-  const std::vector<DeoptMetadata>& deoptMetadatas() const;
+  const FrozenList<DeoptMetadata>& deoptMetadatas() const;
 
   // Check if this is a generator/coroutine/async generator.
   bool isGen() const;
@@ -152,9 +152,8 @@ class alignas(16) CodeRuntime {
   // Metadata about yield points. Deque so we can have raw pointers to content.
   std::deque<GenYieldPoint> gen_yield_points_;
 
-  // Metadata about deopt points.  Safe to use a vector as these are always
-  // accessed by index.
-  std::vector<DeoptMetadata> deopt_metadatas_;
+  // Metadata about deopt points, accessed by index.
+  FrozenList<DeoptMetadata> deopt_metadatas_;
 
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   Ref<> reifier_;
@@ -166,7 +165,7 @@ class alignas(16) CodeRuntime {
 
   // Map from call return addresses to post-call guard deopt exits.
   // Built during codegen, used by deoptAllJitFramesOnStack().
-  std::unordered_map<uintptr_t, uintptr_t> callsite_deopt_exits_;
+  SortedVecMap<uintptr_t, uintptr_t> callsite_deopt_exits_;
 
   // Backpointer to the CompiledFunction that owns this CodeRuntime.
   // Set after CompiledFunction::create() in makeCompiledFunction().
