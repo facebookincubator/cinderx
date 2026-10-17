@@ -153,9 +153,9 @@ arch::Gp getReg(const lir::Operand* operand) {
 
 // Returns an arch::Mem for a given memory operand (stack, mem, or indirect),
 // with size set according to the instruction's OperandSizeType property.
-arch::Mem getMem(const Instruction* instr, const lir::Operand* operand) {
+arch::Mem getMem(const lir::Operand* operand) {
 #if defined(CINDER_X86_64)
-  int size = getOperandSizeInBytes(instr, operand);
+  size_t size = operand->sizeInBytes();
   asmjit::x86::Mem memptr;
   if (operand->isStack()) {
     memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot().loc);
@@ -167,7 +167,7 @@ arch::Mem getMem(const Instruction* instr, const lir::Operand* operand) {
   } else {
     JIT_ABORT("Unsupported operand type for getMem.");
   }
-  memptr.setSize(size);
+  memptr.setSize(static_cast<uint32_t>(size));
   return memptr;
 #elif defined(CINDER_AARCH64)
   if (!operand->isStack()) {
@@ -2779,7 +2779,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       if (input->isLabel()) {
         translateLeaLabel(env, instr);
       } else {
-        env->as->lea(getReg(output), getMem(instr, input));
+        env->as->lea(getReg(output), getMem(input));
       }
       return;
     }
@@ -2803,7 +2803,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         if (input->isReg()) {
           env->as->mov(output_reg, getReg(input));
         } else {
-          env->as->mov(output_reg, getMem(instr, input));
+          env->as->mov(output_reg, getMem(input));
         }
         return;
       }
@@ -2811,7 +2811,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       if (input->isReg()) {
         env->as->movzx(getReg(output), getReg(input));
       } else {
-        env->as->movzx(getReg(output), getMem(instr, input));
+        env->as->movzx(getReg(output), getMem(input));
       }
       return;
     }
@@ -2831,7 +2831,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         if (input->isReg()) {
           env->as->movsxd(getReg(output), getReg(input));
         } else {
-          env->as->movsxd(getReg(output), getMem(instr, input));
+          env->as->movsxd(getReg(output), getMem(input));
         }
         return;
       }
@@ -2839,7 +2839,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       if (input->isReg()) {
         env->as->movsx(getReg(output), getReg(input));
       } else {
-        env->as->movsx(getReg(output), getMem(instr, input));
+        env->as->movsx(getReg(output), getMem(input));
       }
       return;
     }
@@ -2857,13 +2857,13 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         if (in2->isReg()) {
           env->as->idiv(getReg(in0), getReg(in1), getReg(in2));
         } else {
-          env->as->idiv(getReg(in0), getReg(in1), getMem(instr, in2));
+          env->as->idiv(getReg(in0), getReg(in1), getMem(in2));
         }
       } else {
         if (in1->isReg()) {
           env->as->idiv(getReg(in0), getReg(in1));
         } else {
-          env->as->idiv(getReg(in0), getMem(instr, in1));
+          env->as->idiv(getReg(in0), getMem(in1));
         }
       }
       return;
@@ -2879,13 +2879,13 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         if (in2->isReg()) {
           env->as->div(getReg(in0), getReg(in1), getReg(in2));
         } else {
-          env->as->div(getReg(in0), getReg(in1), getMem(instr, in2));
+          env->as->div(getReg(in0), getReg(in1), getMem(in2));
         }
       } else {
         if (in1->isReg()) {
           env->as->div(getReg(in0), getReg(in1));
         } else {
-          env->as->div(getReg(in0), getMem(instr, in1));
+          env->as->div(getReg(in0), getMem(in1));
         }
       }
       return;
@@ -2898,7 +2898,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       } else if (input->isImm()) {
         env->as->push(getImm(input));
       } else {
-        env->as->push(getMem(instr, input));
+        env->as->push(getMem(input));
       }
       return;
     }
@@ -2908,7 +2908,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       if (output->isReg()) {
         env->as->pop(getReg(output));
       } else {
-        env->as->pop(getMem(instr, output));
+        env->as->pop(getMem(output));
       }
       return;
     }
@@ -2955,7 +2955,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       auto* input = instr->getInput(0);
 
       if (input->isStack()) {
-        env->as->inc(getMem(instr, input));
+        env->as->inc(getMem(input));
       } else {
         env->as->inc(getReg(input));
       }
@@ -2965,7 +2965,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       auto* input = instr->getInput(0);
 
       if (input->isStack()) {
-        env->as->dec(getMem(instr, input));
+        env->as->dec(getMem(input));
       } else {
         env->as->dec(getReg(input));
       }
@@ -3079,7 +3079,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
           env->as->mov(getReg(output), asmjit::Imm(-input->getConstant()));
         } else {
           if (input->isStack()) {
-            env->as->mov(getReg(output), getMem(instr, input));
+            env->as->mov(getReg(output), getMem(input));
           } else {
             env->as->mov(getReg(output), getReg(input));
           }
@@ -3096,7 +3096,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         env->as->mov(getReg(output), asmjit::Imm(~input->getConstant()));
       } else {
         if (input->isStack()) {
-          env->as->mov(getReg(output), getMem(instr, input));
+          env->as->mov(getReg(output), getMem(input));
         } else {
           env->as->mov(getReg(output), getReg(input));
         }
@@ -3145,7 +3145,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         if (in1->isImm()) {
           emitOp(getReg(output), getImm(in1));
         } else if (in1->isStack()) {
-          emitOp(getReg(output), getMem(instr, in1));
+          emitOp(getReg(output), getMem(in1));
         } else {
           emitOp(getReg(output), getReg(in1));
         }
@@ -3156,7 +3156,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         if (in1->isImm()) {
           emitOp(getReg(in0), getImm(in1));
         } else if (in1->isStack()) {
-          emitOp(getReg(in0), getMem(instr, in1));
+          emitOp(getReg(in0), getMem(in1));
         } else {
           emitOp(getReg(in0), getReg(in1));
         }
@@ -3178,7 +3178,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       if (input->isReg()) {
         env->as->cvtsi2sd(getVecD(instr->output()), getReg(input));
       } else {
-        env->as->cvtsi2sd(getVecD(instr->output()), getMem(instr, input));
+        env->as->cvtsi2sd(getVecD(instr->output()), getMem(input));
       }
       return;
     }
@@ -3190,7 +3190,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       } else if (input->isLabel()) {
         env->as->call(getLabel(env, input));
       } else if (input->isStack()) {
-        env->as->call(getMem(instr, input));
+        env->as->call(getMem(input));
       } else {
         env->as->call(getReg(input));
       }
@@ -3276,9 +3276,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
 
       if (output->isVecD()) {
-        env->as->movsd(getVecD(output), getMem(instr, input));
+        env->as->movsd(getVecD(output), getMem(input));
       } else {
-        env->as->mov(getReg(output), getMem(instr, input));
+        env->as->mov(getReg(output), getMem(input));
       }
 
       return;
@@ -3311,11 +3311,11 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
 
       if (input->isReg() && input->isVecD()) {
-        env->as->movsd(getMem(instr, output), getVecD(input));
+        env->as->movsd(getMem(output), getVecD(input));
       } else if (input->isReg()) {
-        env->as->mov(getMem(instr, output), getReg(input));
+        env->as->mov(getMem(output), getReg(input));
       } else if (input->isImm()) {
-        env->as->mov(getMem(instr, output), getImm(input));
+        env->as->mov(getMem(output), getImm(input));
       } else {
         JIT_THROW("Store input must be Reg or Imm, have '{}'", *instr);
       }

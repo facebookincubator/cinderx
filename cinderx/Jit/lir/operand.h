@@ -127,6 +127,7 @@ class Operand {
 #undef OPERAND_DATA_TYPE_DEFINES
 
   size_t sizeInBits() const;
+  size_t sizeInBytes() const;
 
   // Get the instruction using this operand.
   Instruction* instr();

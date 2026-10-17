@@ -151,6 +151,10 @@ size_t Operand::sizeInBits() const {
   return bitSize(dataType());
 }
 
+size_t Operand::sizeInBytes() const {
+  return sizeInBits() / 8;
+}
+
 Instruction* Operand::instr() {
   return parent_instr_;
 }
