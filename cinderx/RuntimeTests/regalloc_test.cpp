@@ -636,11 +636,11 @@ TEST_F(LinearScanAllocatorTest, CallWithSideEffectTest) {
 
   auto epilogue = lirfunc->allocateBasicBlock();
   bb->addSuccessor(epilogue);
-  ASSERT_TRUE(a->opcode() == Opcode::kCall);
-  ASSERT_TRUE(a->output()->type() == lir::Operand::kVreg);
+  ASSERT_EQ(a->opcode(), Opcode::kCall);
+  ASSERT_EQ(a->output()->type(), lir::Operand::kVreg);
   runAllocator(lirfunc.get());
-  ASSERT_TRUE(a->opcode() == Opcode::kCall);
-  ASSERT_TRUE(a->output()->type() == lir::Operand::kNone);
+  ASSERT_EQ(a->opcode(), Opcode::kCall);
+  ASSERT_EQ(a->output()->type(), lir::Operand::kNone);
 }
 
 } // namespace cinderx::jit::lir

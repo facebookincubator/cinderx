@@ -22,7 +22,7 @@ TEST_F(FrameStateCreationTest, InitialInstrOffset) {
 
 #define EXPECT_HIR_EQ(irfunc, expected)                                     \
   {                                                                         \
-    ASSERT_TRUE(irfunc != nullptr);                                         \
+    ASSERT_NE(irfunc, nullptr);                                             \
     EXPECT_EQ(                                                              \
         HIRPrinter{}.setFullSnapshots(true).toString(*(irfunc)), expected); \
   }

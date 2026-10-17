@@ -131,7 +131,7 @@ TEST(IntrusiveListTest, IsForwardIterable) {
   ++it;
   ASSERT_EQ(it->value, 300);
   it++;
-  ASSERT_TRUE(it == entries.end());
+  ASSERT_EQ(it, entries.end());
 }
 
 TEST(IntrusiveListTest, IsReverseIterable) {
@@ -150,7 +150,7 @@ TEST(IntrusiveListTest, IsReverseIterable) {
   ++it;
   ASSERT_EQ(it->value, 100);
   it++;
-  ASSERT_TRUE(it == entries.rend());
+  ASSERT_EQ(it, entries.rend());
 }
 
 TEST(IntrusiveListTest, IsDecrementable) {
@@ -169,7 +169,7 @@ TEST(IntrusiveListTest, IsDecrementable) {
   ASSERT_EQ(it->value, 200);
   it--;
   ASSERT_EQ(it->value, 100);
-  ASSERT_TRUE(it == entries.begin());
+  ASSERT_EQ(it, entries.begin());
 }
 
 TEST(InstrusiveListTest, CanBeUsedInRangeExpressions) {

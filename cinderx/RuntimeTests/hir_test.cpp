@@ -62,7 +62,7 @@ TEST(BasicBlockTest, CanIterateInstrs) {
   it++;
   ASSERT_TRUE(it->isReturn());
   it++;
-  ASSERT_TRUE(it == block.end());
+  ASSERT_EQ(it, block.end());
 }
 
 TEST(BasicBlockTest, SplitAfterSplitsBlockAfterInstruction) {
@@ -1925,10 +1925,10 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   FrameState* dup_fs = dup->frameState();
   // Should not be pointer equal, but have equal contents
   EXPECT_NE(orig_fs, dup_fs);
-  EXPECT_TRUE(*orig_fs == *dup_fs);
+  EXPECT_EQ(*orig_fs, *dup_fs);
 
   // Should have equal contents
-  EXPECT_TRUE(orig->liveRegs() == dup->liveRegs());
+  EXPECT_EQ(orig->liveRegs(), dup->liveRegs());
 }
 
 TEST_F(HIRBuildTest, MatchMapping) {

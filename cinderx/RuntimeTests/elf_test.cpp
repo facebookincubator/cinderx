@@ -70,7 +70,7 @@ def func(x):
   return x + 1
 )";
   Ref<PyObject> func_obj{compileAndGet(source, "func")};
-  ASSERT_TRUE(func_obj != nullptr);
+  ASSERT_NE(func_obj, nullptr);
 
   BorrowedRef<PyFunctionObject> func{func_obj};
   BorrowedRef<PyCodeObject> code{func->func_code};

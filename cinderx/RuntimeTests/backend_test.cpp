@@ -275,9 +275,9 @@ class BackendTest : public RuntimeTest {
 
     auto test_noerror = [&](PyObject* a_in, PyTypeObject* b_in) -> void {
       auto ret_test = func(a_in, b_in);
-      ASSERT_TRUE(PyErr_Occurred() == nullptr);
+      ASSERT_EQ(PyErr_Occurred(), nullptr);
       auto ret_jitrt = rt::cast(a_in, b_in);
-      ASSERT_TRUE(PyErr_Occurred() == nullptr);
+      ASSERT_EQ(PyErr_Occurred(), nullptr);
       ASSERT_EQ(ret_test, ret_jitrt);
     };
 
@@ -390,7 +390,7 @@ class Ctx:
   ASSERT_NE(ctx.get(), nullptr) << "Couldn't create Ctx instance";
 
   LoadMethodResult enter = rt::loadSpecial(ctx, SPECIAL___ENTER__);
-  ASSERT_TRUE(PyErr_Occurred() == nullptr);
+  ASSERT_EQ(PyErr_Occurred(), nullptr);
   ASSERT_NE(enter.callable, nullptr);
   // __enter__ is returned unbound with the instance as explicit receiver.
   ASSERT_EQ(enter.self_or_null, ctx.get());

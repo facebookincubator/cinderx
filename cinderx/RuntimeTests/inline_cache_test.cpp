@@ -2443,7 +2443,7 @@ d.x = 2
   const LoadAttrProfile* load_attr = profile.find<LoadAttrProfile>(location);
   ASSERT_NE(load_attr, nullptr);
   EXPECT_TRUE(load_attr->polymorphic);
-  EXPECT_TRUE(load_attr->receiver_type == nullptr);
+  EXPECT_EQ(load_attr->receiver_type, nullptr);
   EXPECT_FALSE(load_attr->kind.has_value());
 }
 
@@ -2790,7 +2790,7 @@ d = D()
   const LoadAttrProfile* load_method = profile.find<LoadAttrProfile>(location);
   ASSERT_NE(load_method, nullptr);
   EXPECT_TRUE(load_method->polymorphic);
-  EXPECT_TRUE(load_method->receiver_type == nullptr);
+  EXPECT_EQ(load_method->receiver_type, nullptr);
 }
 
 TEST_F(InlineCacheTest, LoadMethodProfileEmptyCache) {
