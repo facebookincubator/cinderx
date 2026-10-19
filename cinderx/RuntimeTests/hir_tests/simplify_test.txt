@@ -14532,6 +14532,347 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
+PrimitiveCompareLessThanWithConstantInputsEmitsLoadConst
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<CInt32[-5]>
+    v1 = LoadConst<CInt32[3]>
+    v2 = PrimitiveCompare<LessThan> v0 v1
+    v3 = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt32[-5] = LoadConst<CInt32[-5]>
+    v1:CInt32[3] = LoadConst<CInt32[3]>
+    UseType<CInt32[-5]> v0
+    UseType<CInt32[3]> v1
+    v4:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v4
+    v5:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt32[-5] = LoadConst<CInt32[-5]>
+    v1:CInt32[3] = LoadConst<CInt32[3]>
+    UseType<CInt32[-5]> v0
+    UseType<CInt32[3]> v1
+    v4:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v4
+    v5:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt32[-5] = LoadConst<CInt32[-5]>
+    v1:CInt32[3] = LoadConst<CInt32[3]>
+    UseType<CInt32[-5]> v0
+    UseType<CInt32[3]> v1
+    v4:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v4
+    v5:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt32[-5] = LoadConst<CInt32[-5]>
+    v1:CInt32[3] = LoadConst<CInt32[3]>
+    UseType<CInt32[-5]> v0
+    UseType<CInt32[3]> v1
+    v4:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v4
+    v5:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt32[-5] = LoadConst<CInt32[-5]>
+    v1:CInt32[3] = LoadConst<CInt32[3]>
+    UseType<CInt32[-5]> v0
+    UseType<CInt32[3]> v1
+    v4:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v4
+    v5:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v5
+  }
+}
+--- Test Name ---
+PrimitiveCompareUnsignedWithNegativeConstantEmitsLoadConst
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<CInt64[-1]>
+    v1 = LoadConst<CInt64[10]>
+    v2 = PrimitiveCompare<LessThanUnsigned> v0 v1
+    v3 = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[-1] = LoadConst<CInt64[-1]>
+    v1:CInt64[10] = LoadConst<CInt64[10]>
+    UseType<CInt64[-1]> v0
+    UseType<CInt64[10]> v1
+    v4:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v4
+    v5:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[-1] = LoadConst<CInt64[-1]>
+    v1:CInt64[10] = LoadConst<CInt64[10]>
+    UseType<CInt64[-1]> v0
+    UseType<CInt64[10]> v1
+    v4:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v4
+    v5:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[-1] = LoadConst<CInt64[-1]>
+    v1:CInt64[10] = LoadConst<CInt64[10]>
+    UseType<CInt64[-1]> v0
+    UseType<CInt64[10]> v1
+    v4:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v4
+    v5:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[-1] = LoadConst<CInt64[-1]>
+    v1:CInt64[10] = LoadConst<CInt64[10]>
+    UseType<CInt64[-1]> v0
+    UseType<CInt64[10]> v1
+    v4:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v4
+    v5:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[-1] = LoadConst<CInt64[-1]>
+    v1:CInt64[10] = LoadConst<CInt64[10]>
+    UseType<CInt64[-1]> v0
+    UseType<CInt64[10]> v1
+    v4:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v4
+    v5:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v5
+  }
+}
+--- Test Name ---
+PrimitiveCompareSignedWithUnsignedConstantsDoesNotSimplify
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<CUInt8[200]>
+    v1 = LoadConst<CUInt8[1]>
+    v2 = PrimitiveCompare<GreaterThan> v0 v1
+    v3 = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt8[200] = LoadConst<CUInt8[200]>
+    v1:CUInt8[1] = LoadConst<CUInt8[1]>
+    v2:CBool = PrimitiveCompare<GreaterThan> v0 v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt8[200] = LoadConst<CUInt8[200]>
+    v1:CUInt8[1] = LoadConst<CUInt8[1]>
+    v2:CBool = PrimitiveCompare<GreaterThan> v0 v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt8[200] = LoadConst<CUInt8[200]>
+    v1:CUInt8[1] = LoadConst<CUInt8[1]>
+    v2:CBool = PrimitiveCompare<GreaterThan> v0 v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt8[200] = LoadConst<CUInt8[200]>
+    v1:CUInt8[1] = LoadConst<CUInt8[1]>
+    v2:CBool = PrimitiveCompare<GreaterThan> v0 v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt8[200] = LoadConst<CUInt8[200]>
+    v1:CUInt8[1] = LoadConst<CUInt8[1]>
+    v2:CBool = PrimitiveCompare<GreaterThan> v0 v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Test Name ---
+LongCompareOfTwoConstantsIsConstantFolded
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<LongExact[3]>
+    v1 = LoadConst<LongExact[5]>
+    v2 = LongCompare<LessThan> v0 v1
+    Return v2
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v1:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    UseType<ImmortalLongExact[3]> v0
+    v12:CBool[true] = LoadConst<CBool[true]>
+    UseType<ImmortalLongExact[5]> v1
+    v13:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v12
+    v6:ImmortalLongCompact[3] = RefineType<LongCompact> v0
+    v14:CInt64[3] = LoadConst<CInt64[3]>
+    v8:ImmortalLongCompact[5] = RefineType<LongCompact> v1
+    v15:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[3]> v14
+    UseType<CInt64[5]> v15
+    v16:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v16
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v17
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v1:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    UseType<ImmortalLongExact[3]> v0
+    v12:CBool[true] = LoadConst<CBool[true]>
+    UseType<ImmortalLongExact[5]> v1
+    v13:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v12
+    v6:ImmortalLongCompact[3] = RefineType<LongCompact> v0
+    v14:CInt64[3] = LoadConst<CInt64[3]>
+    v8:ImmortalLongCompact[5] = RefineType<LongCompact> v1
+    v15:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[3]> v14
+    UseType<CInt64[5]> v15
+    v16:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v16
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v17
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v1:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    UseType<ImmortalLongExact[3]> v0
+    v12:CBool[true] = LoadConst<CBool[true]>
+    UseType<ImmortalLongExact[5]> v1
+    v13:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v12
+    v6:ImmortalLongCompact[3] = RefineType<LongCompact> v0
+    v14:CInt64[3] = LoadConst<CInt64[3]>
+    v8:ImmortalLongCompact[5] = RefineType<LongCompact> v1
+    v15:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[3]> v14
+    UseType<CInt64[5]> v15
+    v16:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v16
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v17
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v1:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    UseType<ImmortalLongExact[3]> v0
+    v12:CBool[true] = LoadConst<CBool[true]>
+    UseType<ImmortalLongExact[5]> v1
+    v13:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v12
+    v6:ImmortalLongCompact[3] = RefineType<LongCompact> v0
+    v14:CInt64[3] = LoadConst<CInt64[3]>
+    v8:ImmortalLongCompact[5] = RefineType<LongCompact> v1
+    v15:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[3]> v14
+    UseType<CInt64[5]> v15
+    v16:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v16
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v17
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v1:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    UseType<ImmortalLongExact[3]> v0
+    v12:CBool[true] = LoadConst<CBool[true]>
+    UseType<ImmortalLongExact[5]> v1
+    v13:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v12
+    v6:ImmortalLongCompact[3] = RefineType<LongCompact> v0
+    v14:CInt64[3] = LoadConst<CInt64[3]>
+    v8:ImmortalLongCompact[5] = RefineType<LongCompact> v1
+    v15:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[3]> v14
+    UseType<CInt64[5]> v15
+    v16:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v16
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v17
+  }
+}
+--- Test Name ---
 PrimitiveCompareEqualBool
 --- Input ---
 def test(x):

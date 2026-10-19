@@ -1523,6 +1523,43 @@ Register* simplifyIntBinaryOp(Env& env, const IntBinaryOp* instr) {
   return nullptr;
 }
 
+// Signed comparisons require signed operands to avoid reinterpreting unsigned
+// values as negative.  Sign extension preserves unsigned ordering at any width.
+std::optional<bool>
+foldOrderedIntCompare(PrimitiveCompareOp op, Type left, Type right) {
+  if (!left.hasIntSpec() || !right.hasIntSpec() ||
+      left.unspecialized() != right.unspecialized()) {
+    return std::nullopt;
+  }
+  bool is_signed = left <= TCSigned;
+  intptr_t l = left.intSpec();
+  intptr_t r = right.intSpec();
+  auto ul = static_cast<uintptr_t>(l);
+  auto ur = static_cast<uintptr_t>(r);
+  switch (op) {
+    case PrimitiveCompareOp::kEqual:
+    case PrimitiveCompareOp::kNotEqual:
+      break;
+    case PrimitiveCompareOp::kLessThan:
+      return is_signed ? std::optional{l < r} : std::nullopt;
+    case PrimitiveCompareOp::kLessThanEqual:
+      return is_signed ? std::optional{l <= r} : std::nullopt;
+    case PrimitiveCompareOp::kGreaterThan:
+      return is_signed ? std::optional{l > r} : std::nullopt;
+    case PrimitiveCompareOp::kGreaterThanEqual:
+      return is_signed ? std::optional{l >= r} : std::nullopt;
+    case PrimitiveCompareOp::kLessThanUnsigned:
+      return ul < ur;
+    case PrimitiveCompareOp::kLessThanEqualUnsigned:
+      return ul <= ur;
+    case PrimitiveCompareOp::kGreaterThanUnsigned:
+      return ul > ur;
+    case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
+      return ul >= ur;
+  }
+  return std::nullopt;
+}
+
 Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
   Register* left = instr->getOperand(0);
   Register* right = instr->getOperand(1);
@@ -1531,6 +1568,12 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
       op == PrimitiveCompareOp::kEqual || op == PrimitiveCompareOp::kNotEqual;
 
   // Constant folding.
+  if (std::optional<bool> result =
+          foldOrderedIntCompare(op, left->type(), right->type())) {
+    env.emit<UseType>(left, left->type());
+    env.emit<UseType>(right, right->type());
+    return env.emit<LoadConst>(Type::fromCBool(*result));
+  }
   if (commutative) {
     auto do_cbool = [&](bool value) {
       env.emit<UseType>(left, left->type());

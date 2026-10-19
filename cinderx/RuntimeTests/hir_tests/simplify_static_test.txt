@@ -258,22 +258,14 @@ fun jittestmodule:test {
     v14:CInt64[64] = LoadConst<CInt64[64]>
     v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
     v26:CInt64[111] = LoadConst<CInt64[111]>
-    v27:CInt64[0] = LoadConst<CInt64[0]>
-    v20:CBool = PrimitiveCompare<LessThan> v14 v26
+    v28:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[64]> v14
+    UseType<CInt64[111]> v26
+    v27:CBool[true] = LoadConst<CBool[true]>
     Snapshot
-    CondBranch<1, 2> v20
-  }
-
-  bb 1 (preds 3) {
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Return<ImmortalBool[True]> v21
-  }
-
-  bb 2 (preds 3) {
-    Snapshot
-    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return<ImmortalBool[False]> v23
   }
 }
 --- Expected 3.14 ---
@@ -304,22 +296,14 @@ fun jittestmodule:test {
     v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
     Snapshot
     v26:CInt64[111] = LoadConst<CInt64[111]>
-    v27:CInt64[0] = LoadConst<CInt64[0]>
-    v20:CBool = PrimitiveCompare<LessThan> v14 v26
+    v28:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[64]> v14
+    UseType<CInt64[111]> v26
+    v27:CBool[true] = LoadConst<CBool[true]>
     Snapshot
-    CondBranch<1, 2> v20
-  }
-
-  bb 1 (preds 3) {
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Return<Bool> v21
-  }
-
-  bb 2 (preds 3) {
-    Snapshot
-    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return<Bool> v23
   }
 }
 --- Expected 3.15 ---
@@ -350,24 +334,15 @@ fun jittestmodule:test {
     v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
     Snapshot
     v26:CInt64[111] = LoadConst<CInt64[111]>
-    v27:CInt64[0] = LoadConst<CInt64[0]>
-    v20:CBool = PrimitiveCompare<LessThan> v14 v26
+    v28:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[64]> v14
+    UseType<CInt64[111]> v26
+    v27:CBool[true] = LoadConst<CBool[true]>
     Snapshot
-    CondBranch<1, 2> v20
-  }
-
-  bb 1 (preds 3) {
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Snapshot
     Return<Bool> v21
-  }
-
-  bb 2 (preds 3) {
-    Snapshot
-    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Snapshot
-    Return<Bool> v23
   }
 }
 --- Expected 3.16 ---
@@ -398,24 +373,15 @@ fun jittestmodule:test {
     v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
     Snapshot
     v26:CInt64[111] = LoadConst<CInt64[111]>
-    v27:CInt64[0] = LoadConst<CInt64[0]>
-    v20:CBool = PrimitiveCompare<LessThan> v14 v26
+    v28:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[64]> v14
+    UseType<CInt64[111]> v26
+    v27:CBool[true] = LoadConst<CBool[true]>
     Snapshot
-    CondBranch<1, 2> v20
-  }
-
-  bb 1 (preds 3) {
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Snapshot
     Return<Bool> v21
-  }
-
-  bb 2 (preds 3) {
-    Snapshot
-    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Snapshot
-    Return<Bool> v23
   }
 }
 --- Expected 3.14t ---
@@ -447,22 +413,14 @@ fun jittestmodule:test {
     v16:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
     Snapshot
     v26:CInt64[111] = LoadConst<CInt64[111]>
-    v27:CInt64[0] = LoadConst<CInt64[0]>
-    v20:CBool = PrimitiveCompare<LessThan> v14 v26
+    v28:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[64]> v14
+    UseType<CInt64[111]> v26
+    v27:CBool[true] = LoadConst<CBool[true]>
     Snapshot
-    CondBranch<1, 2> v20
-  }
-
-  bb 1 (preds 3) {
     Snapshot
     v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     Return<Bool> v21
-  }
-
-  bb 2 (preds 3) {
-    Snapshot
-    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return<Bool> v23
   }
 }
 --- Test Name ---
