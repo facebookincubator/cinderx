@@ -4,6 +4,8 @@
 
 #if defined(CINDERX_STACK_WALK_SUSPENDS) || defined(__linux__)
 
+#include "cinderx/Common/log.h"
+
 #include <fmt/format.h>
 
 #if defined(__APPLE__)
@@ -186,9 +188,18 @@ void initSafeRead() {
   // readable by construction, so a failure here is about the mechanism.
   StackFrame probe = {};
   StackFrame out{};
-  s_safe_read_available.store(
-      safeReadUnchecked(&probe, &out), std::memory_order_release);
+  const bool available = safeReadUnchecked(&probe, &out);
+  s_safe_read_available.store(available, std::memory_order_release);
   s_safe_read_initialized.store(true, std::memory_order_release);
+
+  // Debug-only: stderr from every process would break CPython tests that
+  // compare a subprocess's stderr exactly.
+  if (!available) {
+    JIT_DLOG(
+        "StackWalk: {} is unavailable, so frame records cannot be read "
+        "without risking a fault; every walk will report no frames",
+        kSafeReadMechanism);
+  }
 }
 
 bool safeRead(const StackFrame* addr, StackFrame* out) {
@@ -714,16 +725,6 @@ StackWalk::StackWalk(
   // cannot read frames at all says so once instead of quietly returning empty
   // walks forever.
   ensureSafeReadInitialized();
-
-  if (!canReadFramesSafely()) {
-    // Not fatal - walks come back empty instead of crashing - but the symptom
-    // on its own would just look like stacks mysteriously going missing.
-    fmt::print(
-        stderr,
-        "StackWalk: {} is unavailable, so frame records cannot be read "
-        "without risking a fault; every walk will report no frames\n",
-        kSafeReadMechanism);
-  }
 }
 
 // Nothing to undo. No signal was claimed, no handler installed, and no target
@@ -886,16 +887,6 @@ StackWalk::StackWalk(int signum, std::chrono::nanoseconds park_timeout)
   // instance's cursors are built inside a signal handler, which is no place to
   // discover the probe has not been done yet.
   ensureSafeReadInitialized();
-
-  if (!canReadFramesSafely()) {
-    // Not fatal - walks come back empty instead of crashing - but the symptom
-    // on its own would just look like stacks mysteriously going missing.
-    fmt::print(
-        stderr,
-        "StackWalk: {} is unavailable, so frame records cannot be read "
-        "without risking a fault; every walk will report no frames\n",
-        kSafeReadMechanism);
-  }
 
   if (::sem_init(&frames_ready_, 0, 0)) {
     throw std::runtime_error("failed to initialize frames_ready_ semaphore");
