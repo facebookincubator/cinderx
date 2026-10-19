@@ -176,6 +176,7 @@ class SizeLimitTest(unittest.TestCase):
             x = 0
             for i in range(2000):
                 exec(f'x *= junk{i}(i)')
+            cinderx.jit.wait_for_background_compiles()
             max_bytes = cinderx.jit.get_allocator_stats()["max_bytes"]
             used_bytes = cinderx.jit.get_allocator_stats()["used_bytes"]
             print(f'max_size: {max_bytes}')
