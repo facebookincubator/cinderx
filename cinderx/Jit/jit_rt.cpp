@@ -1498,7 +1498,7 @@ PyObject* importFrom(
 
 void setCurrentAwaiter(
     [[maybe_unused]] PyObject* awaitable,
-    PyThreadState* ts) {
+    [[maybe_unused]] PyThreadState* ts) {
 #ifdef ENABLE_GENERATOR_AWAITER
 
   _PyInterpreterFrame* frame = currentFrame(ts);
