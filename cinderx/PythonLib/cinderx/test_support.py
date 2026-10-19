@@ -414,8 +414,11 @@ def can_read_cross_thread_frames() -> bool:
 
 
 # This is long because ASAN + JIT + subprocess + the Python compiler can be
-# pretty slow in CI. Also we run aarch64 tests in QEMU which is slow too.
-SUBPROCESS_TIMEOUT_SEC = 100 if (is_sanitizer_build() or is_emulated()) else 5
+# pretty slow in CI. Also we run aarch64 tests in QEMU which is slow too, and
+# Windows CI hosts are slow to start interpreters under load.
+SUBPROCESS_TIMEOUT_SEC = (
+    100 if (is_sanitizer_build() or is_emulated() or sys.platform == "win32") else 5
+)
 
 
 @contextmanager
