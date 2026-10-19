@@ -8,9 +8,30 @@
 
 namespace cinderx {
 
+using BytecodeInstructionTest = RuntimeTest;
 using BytecodeInstructionIteratorTest = RuntimeTest;
 
 using namespace cinderx::jit;
+
+// Verify that BytecodeInstruction won't crash when given an invalid offset.
+TEST_F(BytecodeInstructionTest, OutOfBoundsOffset) {
+  Ref<PyFunctionObject> func(compileStockAndGet("def f(): pass", "f"));
+
+  for (int offset : {-2, 1'000'000}) {
+    BytecodeInstruction instr{func->func_code, BCOffset{offset}};
+
+    // Returns invalid opcodes and offsets.
+    ASSERT_LT(instr.opcodeOffset(), 0);
+    ASSERT_EQ(instr.opcode(), -1);
+    ASSERT_EQ(instr.specializedOpcode(), -1);
+    ASSERT_EQ(instr.oparg(), 0);
+
+    ASSERT_FALSE(instr.isBranch());
+    ASSERT_FALSE(instr.isBackwardBranch());
+    ASSERT_FALSE(instr.isReturn());
+    ASSERT_FALSE(instr.isTerminator());
+  }
+}
 
 TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
   //  0  EXTENDED_ARG  1
@@ -64,17 +85,33 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
 
   BytecodeInstructionBlock bc_block{code};
   auto it = bc_block.begin();
+  EXPECT_FALSE(it.atEnd());
   EXPECT_EQ(it->opcode(), LOAD_CONST);
   EXPECT_EQ(it->oparg(), 0x010203);
 
   auto it2 = it++;
   EXPECT_EQ(it2->opcode(), LOAD_CONST);
   EXPECT_EQ(it2->oparg(), 0x010203);
+  EXPECT_FALSE(it.atEnd());
   EXPECT_EQ(it->opcode(), LOAD_CONST);
   EXPECT_EQ(it->oparg(), 0x0102);
 
   ++it;
   EXPECT_EQ(it, bc_block.end());
+  EXPECT_TRUE(it.atEnd());
+  EXPECT_TRUE(bc_block.end().atEnd());
+}
+
+TEST_F(BytecodeInstructionIteratorTest, EmptyBlock) {
+  Ref<PyFunctionObject> func(compileStockAndGet("def f(): pass", "f"));
+  BorrowedRef<PyCodeObject> code{func->func_code};
+
+  for (BCIndex index : {BCIndex{0}, BCIndex{countIndices(code)}}) {
+    BytecodeInstructionBlock block{code, index, index};
+    EXPECT_EQ(block.begin(), block.end());
+    EXPECT_TRUE(block.begin().atEnd());
+    EXPECT_TRUE(block.end().atEnd());
+  }
 }
 
 TEST_F(BytecodeInstructionIteratorTest, RetainsOpcodeAcrossSpecialization) {
@@ -91,15 +128,14 @@ TEST_F(BytecodeInstructionIteratorTest, RetainsOpcodeAcrossSpecialization) {
     }
     const BCIndex index = instr.opcodeIndex();
     const _Py_CODEUNIT original = codeUnit(code)[index.value()];
+    const BCOffset target = instr.getJumpTarget();
+    const BCOffset next = instr.nextInstrOffset();
     for (int opcode : {FOR_ITER, FOR_ITER_RANGE}) {
       codeUnit(code)[index.value()] =
           _Py_MAKE_CODEUNIT(opcode, _Py_OPARG(original));
       ThreadedCompileContext context;
       context.releaseGil();
       BytecodeInstruction saved{code, index};
-      EXPECT_EQ(saved.specializedOpcode(), opcode);
-      const BCOffset target = saved.getJumpTarget();
-      const BCOffset next = saved.nextInstrOffset();
       BytecodeInstruction copy = saved;
 
       const int changed_opcode = opcode == FOR_ITER ? FOR_ITER_RANGE : FOR_ITER;
@@ -112,9 +148,13 @@ TEST_F(BytecodeInstructionIteratorTest, RetainsOpcodeAcrossSpecialization) {
       EXPECT_EQ(saved.specializedOpcode(), opcode);
       EXPECT_EQ(copy.specializedOpcode(), opcode);
       EXPECT_EQ(saved.opcode(), FOR_ITER);
+      EXPECT_EQ(copy.opcode(), FOR_ITER);
       EXPECT_EQ(saved.oparg(), _Py_OPARG(original));
+      EXPECT_EQ(copy.oparg(), _Py_OPARG(original));
       EXPECT_EQ(saved.getJumpTarget(), target);
+      EXPECT_EQ(copy.getJumpTarget(), target);
       EXPECT_EQ(saved.nextInstrOffset(), next);
+      EXPECT_EQ(copy.nextInstrOffset(), next);
       EXPECT_EQ(
           (BytecodeInstruction{code, index}.specializedOpcode()),
           changed_opcode);

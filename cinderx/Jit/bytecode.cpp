@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/bytecode.h"
 
-#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <atomic>
@@ -49,6 +48,13 @@ _Py_CODEUNIT loadWord(BorrowedRef<PyCodeObject> code, BCIndex idx) {
 
 } // namespace
 
+BytecodeInstruction::BytecodeInstruction(
+    BorrowedRef<PyCodeObject> code,
+    BCOffset baseOffset)
+    : code_{code}, baseOffset_{baseOffset} {
+  decode();
+}
+
 BCOffset BytecodeInstruction::baseOffset() const {
   return baseOffset_;
 }
@@ -58,7 +64,6 @@ BCIndex BytecodeInstruction::baseIndex() const {
 }
 
 BCOffset BytecodeInstruction::opcodeOffset() const {
-  ensureDecoded();
   return opcodeIndex_;
 }
 
@@ -67,6 +72,10 @@ BCIndex BytecodeInstruction::opcodeIndex() const {
 }
 
 int BytecodeInstruction::opcode() const {
+  if (opcodeIndex_.value() < 0) {
+    return -1;
+  }
+
   int op = unspecialize(_Py_OPCODE(word()));
   if (extendedOpcode_) {
     return EXTENDED_OPCODE_FLAG | op;
@@ -74,17 +83,13 @@ int BytecodeInstruction::opcode() const {
   return op;
 }
 
-void BytecodeInstruction::ensureDecoded() const {
-  if (opcodeIndex_.value() != std::numeric_limits<int>::min()) {
+void BytecodeInstruction::decode() {
+  BCIndex end_idx{countIndices(code_)};
+  if (baseOffset_.value() < 0 || baseOffset_.value() >= BCOffset{end_idx}) {
     return;
   }
 
   opcodeIndex_ = baseOffset_;
-  BCIndex end_idx{countIndices(code_)};
-  if (opcodeIndex_.value() >= end_idx) {
-    return;
-  }
-
   word_ = loadWord(code_, opcodeIndex_);
 
   // Consume all EXTENDED_ARG opcodes until we get to something else.
@@ -118,6 +123,10 @@ void BytecodeInstruction::ensureDecoded() const {
 }
 
 int BytecodeInstruction::specializedOpcode() const {
+  if (opcodeIndex_.value() < 0) {
+    return -1;
+  }
+
   int opcode = _Py_OPCODE(word());
 
   switch (opcode) {
@@ -158,7 +167,6 @@ int BytecodeInstruction::specializedOpcode() const {
 }
 
 int BytecodeInstruction::oparg() const {
-  ensureDecoded();
   return extendedOparg_;
 }
 
@@ -268,7 +276,6 @@ bool BytecodeInstruction::isAbsoluteControlFlow() const {
 }
 
 _Py_CODEUNIT BytecodeInstruction::word() const {
-  ensureDecoded();
   int opcode = _Py_OPCODE(word_);
   int oparg = _Py_OPARG(word_);
   return _Py_MAKE_CODEUNIT(opcode, oparg);

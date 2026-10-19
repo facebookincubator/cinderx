@@ -11,20 +11,18 @@
 #include "cinderx/Jit/bytecode_offsets.h"
 
 #include <iterator>
-#include <limits>
 
 namespace cinderx::jit {
 
-// A structured, immutable representation of a CPython bytecode.
-// The opcode and argument are captured on first inspection and retained even
-// if the interpreter subsequently specializes or instruments the live bytecode.
+// A structured, immutable representation of a CPython bytecode.  The opcode and
+// argument are captured on construction and retained even if the interpreter
+// subsequently specializes or instruments the live bytecode.
 //
 // This will never directly represent an EXTENDED_ARG bytecode, see opcode() and
 // oparg() for more details.
 class BytecodeInstruction {
  public:
-  BytecodeInstruction(BorrowedRef<PyCodeObject> code, BCOffset baseOffset)
-      : code_{code}, baseOffset_{baseOffset} {}
+  BytecodeInstruction(BorrowedRef<PyCodeObject> code, BCOffset baseOffset);
 
   // Return the position of the first EXTENDED_ARG (if any) making up the full
   // instruction.
@@ -79,9 +77,9 @@ class BytecodeInstruction {
   }
 
  private:
-  // Decode all EXTENDED_ARG and EXTENDED_OPCODE instructions and cache this
+  // Decode all EXTENDED_ARG and EXTENDED_OPCODE instructions and compute this
   // instruction's true opcode, oparg, and index.
-  void ensureDecoded() const;
+  void decode();
 
   // Check if this instruction is a control-flow instruction with an absolute
   // offset as its target.
@@ -91,8 +89,9 @@ class BytecodeInstruction {
   // from any prior EXTENDED_ARGs and doesn't include the EXTENDED_OPCODE_FLAG.
   // The opcode will be uninstrumented but it can be specialized.
   //
-  // Cached after the first call, the specializing interpreter can specialize or
-  // unspecialize the opcode and this will not report the change.
+  // This is stable after the object is constructed.  The specializing
+  // interpreter can specialize or unspecialize the opcode in the code object
+  // and this will not report the change.
   _Py_CODEUNIT word() const;
 
   // Code object the bytecode instruction found in.
@@ -102,18 +101,16 @@ class BytecodeInstruction {
   // first.
   BCOffset baseOffset_;
 
-  // The following fields are computed lazily and then cached.
-
   // Index of the actual opcode, after EXTENDED_ARG and EXTENDED_OPCODE
   // instructions are decoded.
-  mutable BCIndex opcodeIndex_{std::numeric_limits<int>::min()};
+  BCIndex opcodeIndex_{-1};
   // Value of the oparg, after all EXTENDED_ARG instructions are decoded.
-  mutable int extendedOparg_{0};
+  int extendedOparg_{0};
   // The (opcode,oparg) pair at opcodeIndex_.  The opcode is uninstrumented but
   // can be specialized.
-  mutable _Py_CODEUNIT word_{};
+  _Py_CODEUNIT word_{};
   // Whether the opcode was defined with EXTENDED_OPCODE.
-  mutable bool extendedOpcode_{false};
+  bool extendedOpcode_{false};
 };
 
 // A half open block of bytecode [start, end) viewed as a sequence of
@@ -155,7 +152,7 @@ class BytecodeInstructionBlock {
         : bci_{code, idx}, end_idx_{end_idx} {}
 
     bool atEnd() const {
-      return bci_.opcodeIndex().value() >= end_idx_;
+      return bci_.baseIndex() >= end_idx_;
     }
 
     reference operator*() {
