@@ -25,7 +25,6 @@ class SubinterpreterTest(unittest.TestCase):
             # ImportError when the module is found but rejects subinterpreters,
             # ModuleNotFoundError when the extension isn't locatable at all.
             self.assertIn(
-                # pyrefly: ignore [missing-attribute]
                 exc_info.type.__name__,
                 ("ImportError", "ModuleNotFoundError"),
             )

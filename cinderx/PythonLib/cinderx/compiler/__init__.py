@@ -43,7 +43,6 @@ def make_static_instr(instr: dis.Instruction, co: object) -> dis.Instruction:
 def get_disassembly_as_string(co: object, recurse: bool = False) -> str:
     s = StringIO()
     if sys.version_info < (3, 14):
-        # pyrefly: ignore [bad-argument-type]
         dis.dis(co, file=s)
         return s.getvalue()
 

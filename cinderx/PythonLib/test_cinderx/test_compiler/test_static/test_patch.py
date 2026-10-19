@@ -535,7 +535,6 @@ class StaticPatchTests(StaticTestBase):
             C.f = 42
             a = D()
             a.f = 100
-            # pyrefly: ignore [missing-attribute]
             self.assertEqual(a.get_f(), 100)
 
     def test_patch_static_to_static(self) -> None:
@@ -586,7 +585,6 @@ class StaticPatchTests(StaticTestBase):
             ):
                 # Superclass is dynamically compiled and invisible to
                 # pyre.
-                # pyrefly: ignore [missing-attribute]
                 self.assertEqual(E().get_lower_f(), "ABC")
 
     def test_patch_method_mock(self) -> None:

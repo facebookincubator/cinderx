@@ -99,7 +99,6 @@ class PyreflyTypeInfo:
             key = LocationInfo.from_location(entry["loc"])
             if "contextual_type" in entry:
                 # pyrefly: ignore [unsupported-operation]
-                # pyrefly: ignore [bad-typed-dict-key]
                 self._locations[key] = entry["contextual_type"]
             else:
                 self._locations[key] = entry["type"]

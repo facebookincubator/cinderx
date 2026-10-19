@@ -123,7 +123,6 @@ class ClassMethodTests(StaticTestBase):
             d = D()
             # Intentionally overwriting the `foo` method from the
             # dynamically typed C class.
-            # pyrefly: ignore [missing-attribute]
             d.foo = lambda x: x + 30
             self.assertInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(d), 72)
@@ -148,7 +147,6 @@ class ClassMethodTests(StaticTestBase):
             d = D()
             # Intentionally overwriting the `foo` method from the
             # dynamically typed C class.
-            # pyrefly: ignore [missing-attribute]
             d.foo = lambda x: "abc"
             self.assertInBytecode(f, "INVOKE_METHOD")
             with self.assertRaises(StaticTypeError):
@@ -263,7 +261,6 @@ class ClassMethodTests(StaticTestBase):
                 def foo(cls) -> int:
                     return 42
 
-            # pyrefly: ignore [missing-attribute]
             self.assertInBytecode(D.bar, "INVOKE_METHOD")
             self.assertEqual(D.bar(6), 48)
 
@@ -287,7 +284,6 @@ class ClassMethodTests(StaticTestBase):
                 pass
 
             d = D()
-            # pyrefly: ignore [missing-attribute]
             asyncio.run(d.bar())
 
     def test_patch(self) -> None:
@@ -352,7 +348,6 @@ class Child(C):
                     return 42
 
             d = D()
-            # pyrefly: ignore [missing-attribute]
             asyncio.run(d.bar())
 
     def test_classmethod_dynamic_subclass_override_nondesc_async(self) -> None:
@@ -380,7 +375,6 @@ class Child(C):
                 foo = Callable()
 
             d = D()
-            # pyrefly: ignore [missing-attribute]
             asyncio.run(d.bar())
 
     def test_classmethod_dynamic_subclass_override(self) -> None:
@@ -404,7 +398,6 @@ class Child(C):
                     return 42
 
             d = D()
-            # pyrefly: ignore [missing-attribute]
             self.assertEqual(d.bar(), 42)
 
     def test_classmethod_other_dec(self) -> None:
@@ -445,7 +438,6 @@ class Child(C):
                 pass
 
             d = D()
-            # pyrefly: ignore [missing-attribute]
             self.assertEqual(asyncio.run(d.g()), 3)
 
     def test_classmethod_invoke_method_cached(self) -> None:

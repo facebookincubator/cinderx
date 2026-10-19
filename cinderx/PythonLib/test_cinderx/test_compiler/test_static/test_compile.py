@@ -4974,7 +4974,6 @@ class StaticCompilationTests(StaticTestBase):
                 async def f(self):
                     return 0
 
-            # pyrefly: ignore [missing-attribute]
             coro = D().g()
             with self.assertRaises(IndexError):
                 coro.send(None)
@@ -4996,7 +4995,6 @@ class StaticCompilationTests(StaticTestBase):
                 def f(self):
                     return loop.create_future()
 
-            # pyrefly: ignore [missing-attribute]
             coro = D().g()
             try:
                 coro.send(None)
@@ -5022,7 +5020,6 @@ class StaticCompilationTests(StaticTestBase):
                 def f(self):
                     return loop.create_future()
 
-            # pyrefly: ignore [missing-attribute]
             coro = D().g()
             with self.assertRaises(TypeError):
                 coro.send(None)
@@ -5044,7 +5041,6 @@ class StaticCompilationTests(StaticTestBase):
                 async def f(self):
                     return 0
 
-            # pyrefly: ignore [missing-attribute]
             coro = D().g()
             try:
                 coro.send(None)

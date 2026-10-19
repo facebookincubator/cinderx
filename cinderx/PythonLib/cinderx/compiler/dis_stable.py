@@ -111,10 +111,8 @@ def _disassemble_bytes(
             line_offset=line_offset,
         )
     elif sys.version_info >= (3, 12):
-        # pyrefly: ignore [missing-attribute]
         instr_bytes = _dis._get_instructions_bytes(
             code,
-            # pyrefly: ignore [unsupported-operation]
             lambda oparg: localsplusnames[oparg],
             names,
             constants,

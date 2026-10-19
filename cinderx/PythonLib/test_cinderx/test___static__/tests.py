@@ -136,7 +136,6 @@ class StaticTests(unittest.TestCase):
 
         g = G()
 
-        # pyrefly: ignore [missing-attribute]
         self.assertIs(cast(G[int], g), g)
 
     def test_cast_type_too_complex(self) -> None:

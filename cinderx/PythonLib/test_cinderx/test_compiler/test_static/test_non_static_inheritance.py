@@ -33,9 +33,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 def foobar(self, x: int) -> int:
                     return x + 2
 
-            # pyrefly: ignore [missing-attribute]
             self.assertEqual(D().f(), 2)
-            # pyrefly: ignore [missing-attribute]
             self.assertEqual(E().f(), 3)
 
     def test_multiple_inheritance_initialization(self) -> None:

@@ -7,7 +7,6 @@ from __future__ import annotations
 import operator
 from typing import cast
 
-# pyrefly: ignore [missing-module-attribute]
 from .opcodes import find_op_idx, INTRINSIC_1
 from .optimizer import PyLimits, safe_lshift, safe_mod, safe_multiply, safe_power
 

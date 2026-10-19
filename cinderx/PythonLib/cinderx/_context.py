@@ -50,7 +50,6 @@ def install() -> None:
     # Monkeypatching the stdlib method; the replacement is behaviorally
     # compatible but its unparameterized self type does not match the generic
     # method slot.
-    # pyrefly: ignore [bad-argument-type]
     @wraps(original_exit)
     def __exit__(
         # The generic arity of _GeneratorContextManager differs across Python

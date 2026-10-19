@@ -277,7 +277,6 @@ class TemplateFileProcessor:
                         ]
                         # Overwrite earlier declarations; the last one is the
                         # function definition.
-                        # pyrefly: ignore [unsupported-operation]
                         self.decls[source_file][name] = content
 
     def _generate_output(self) -> None:

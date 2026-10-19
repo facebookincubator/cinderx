@@ -75,7 +75,6 @@ if test_gc_module is not None:
             # Tests implementation details of serial collector
             def test_refcount_errors(self) -> None:
                 # necessary for tearDown to succeed
-                # pyrefly: ignore [missing-attribute]
                 self.visit = None
 
     @passUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")

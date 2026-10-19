@@ -48,8 +48,6 @@ try:
     )
     from .future import find_futures as future_find_futures
     from .misc import mangle
-
-    # pyrefly: ignore [missing-module-attribute]
     from .opcodes import find_op_idx, INTRINSIC_1, INTRINSIC_2
     from .optimizer import (
         AstOptimizer,
@@ -6292,12 +6290,10 @@ class CodeGenerator314(CodeGenerator312):
         gen.emit_noline("LOAD_CONST", tuple(attrs))
         gen.storeName("__static_attributes__")
 
-    # pyrefly: ignore [missing-attribute]
     def visitTemplateStr(self, node: ast.TemplateStr) -> None:
         last_was_interpolation = True
         stringslen = 0
         for value in node.values:
-            # pyrefly: ignore [missing-attribute]
             if isinstance(value, ast.Interpolation):
                 if last_was_interpolation:
                     self.emit("LOAD_CONST", "")
@@ -6314,14 +6310,12 @@ class CodeGenerator314(CodeGenerator312):
 
         interpolationslen = 0
         for value in node.values:
-            # pyrefly: ignore [missing-attribute]
             if isinstance(value, ast.Interpolation):
                 self.visit(value)
                 interpolationslen += 1
         self.emit("BUILD_TUPLE", interpolationslen)
         self.emit("BUILD_TEMPLATE")
 
-    # pyrefly: ignore [missing-attribute]
     def visitInterpolation(self, node: ast.Interpolation) -> None:
         self.visit(node.value)
         self.emit("LOAD_CONST", node.str)

@@ -471,7 +471,6 @@ class SetNonDataDescrAttrTests(unittest.TestCase):
         self.assertEqual(self.obj.foo, 200)
         # Pyre can't follow through setter to see this dynamic
         # attribute.
-        # pyrefly: ignore [missing-attribute]
         self.assertTrue(self.descr.invoked)
 
 
