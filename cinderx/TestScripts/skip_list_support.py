@@ -92,7 +92,13 @@ def _jit_skip_lists(version: str) -> list[str]:
 
 def _platform_skip_lists() -> list[str]:
     skip_list_files = []
-    if platform.processor() not in ("", platform.machine()):
+    # QEMU rewrites /proc/self/exe, but the per-thread link names the emulator.
+    # Unlike uname -p, this also works when the processor string is empty.
+    try:
+        emulated = Path("/proc/thread-self/exe").readlink().name.startswith("qemu-")
+    except OSError:
+        emulated = False
+    if emulated or platform.processor() not in ("", platform.machine()):
         skip_list_files.append(_CROSS_PLATFORM_SKIP_LIST_FILE)
     if platform.machine() in ("aarch64", "arm64"):
         skip_list_files.append(_ARM64_SKIP_LIST_FILE)

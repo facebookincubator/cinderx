@@ -52,6 +52,52 @@ class SkipListFilesTests(unittest.TestCase):
         )
 
 
+class PlatformSkipListTests(unittest.TestCase):
+    def test_qemu_with_unknown_processor_skips_stdlib_compiler_tests(self) -> None:
+        with (
+            mock.patch.object(
+                skip_list_support.platform, "machine", return_value="aarch64"
+            ),
+            mock.patch.object(skip_list_support.platform, "processor", return_value=""),
+            mock.patch.object(
+                Path, "readlink", return_value=Path("/usr/bin/qemu-aarch64")
+            ),
+        ):
+            self.assertEqual(
+                skip_list_support._platform_skip_lists(),
+                ["cross_platform_skip_tests.txt", "arm64_skip_tests.txt"],
+            )
+
+    def test_native_arm64_keeps_stdlib_compiler_tests(self) -> None:
+        with (
+            mock.patch.object(
+                skip_list_support.platform, "machine", return_value="aarch64"
+            ),
+            mock.patch.object(skip_list_support.platform, "processor", return_value=""),
+            mock.patch.object(
+                Path, "readlink", return_value=Path("/usr/bin/python3.14")
+            ),
+        ):
+            self.assertEqual(
+                skip_list_support._platform_skip_lists(), ["arm64_skip_tests.txt"]
+            )
+
+    def test_missing_proc_link_preserves_processor_detection(self) -> None:
+        with (
+            mock.patch.object(
+                skip_list_support.platform, "machine", return_value="aarch64"
+            ),
+            mock.patch.object(
+                skip_list_support.platform, "processor", return_value="x86_64"
+            ),
+            mock.patch.object(Path, "readlink", side_effect=FileNotFoundError),
+        ):
+            self.assertEqual(
+                skip_list_support._platform_skip_lists(),
+                ["cross_platform_skip_tests.txt", "arm64_skip_tests.txt"],
+            )
+
+
 class SkipModuleTests(unittest.TestCase):
     def test_matches_top_level_and_split_package_modules(self) -> None:
         self.assertTrue(
