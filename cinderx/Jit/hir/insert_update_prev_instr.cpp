@@ -16,12 +16,11 @@ namespace {
 class BytecodeIndexToLine {
  public:
   explicit BytecodeIndexToLine(PyCodeObject* co) {
-    code_ = co;
     size_t num_indices = countIndices(co);
-    indexToLine_.reserve(num_indices);
+    index_to_line_.reserve(num_indices);
     PyCodeAddressRange range;
     Cix_PyCode_InitAddressRange(co, &range);
-    int idx = 0;
+    size_t idx = 0;
     while (Cix_PyLineTable_NextAddressRange(&range)) {
       if (idx >= num_indices) {
         break;
@@ -30,9 +29,10 @@ class BytecodeIndexToLine {
           range.ar_start % sizeof(_Py_CODEUNIT) == 0,
           "offsets should be a multiple of code-units");
       JIT_DCHECK(
-          idx == range.ar_start / 2, "Index does not line up with range");
-      for (; idx < range.ar_end / 2; idx++) {
-        indexToLine_.emplace_back(range.ar_line);
+          idx == range.ar_start / sizeof(_Py_CODEUNIT),
+          "Index does not line up with range");
+      for (; idx < range.ar_end / sizeof(_Py_CODEUNIT); idx++) {
+        index_to_line_.emplace_back(range.ar_line);
       }
     }
   }
@@ -41,27 +41,21 @@ class BytecodeIndexToLine {
     if (index.value() < 0) {
       return -1;
     }
-    if (index.value() >= indexToLine_.size()) {
+    if (index.value() >= index_to_line_.size()) {
       // test.test_exceptions.PEP626Tests.test_missing_lineno_shows_as_none
       // specifically checks that things work when there isn't enough line
       // number information.
       return -1;
     } else {
-      return indexToLine_[index.value()];
+      return index_to_line_[index.value()];
     }
   }
 
-  PyCodeObject* code_;
-
  private:
-  std::vector<int> indexToLine_;
+  std::vector<int> index_to_line_;
 };
 
 struct InlineStackState {
-  InlineStackState(BasicBlock* block, BeginInlinedFunction* parent) {
-    this->block = block;
-    this->parent = parent;
-  }
   BasicBlock* block;
   BeginInlinedFunction* parent;
 };
@@ -79,7 +73,12 @@ bool InsertUpdatePrevInstr::run(Function& func) {
   std::unordered_set<BasicBlock*> enqueued;
   std::unordered_map<BeginInlinedFunction*, BeginInlinedFunction*> parents;
 
-  worklist.emplace(func.cfg.entry_block, nullptr);
+  // If we don't have a valid line table to optimize with, update after every
+  // bytecode.
+  const bool update_every_bc = func.code->co_linetable == nullptr ||
+      PyBytes_Size(func.code->co_linetable) == 0;
+
+  worklist.push({func.cfg.entry_block, nullptr});
   [[maybe_unused]] bool inited_once = false;
   size_t new_instrs = 0;
   while (!worklist.empty()) {
@@ -105,11 +104,6 @@ bool InsertUpdatePrevInstr::run(Function& func) {
             new_instrs += 1;
           }
         };
-        // If we don't have a valid line table to optimize with, update after
-        // every bytecode.
-        bool update_every_bc = func.code->co_linetable == nullptr ||
-            PyBytes_Size(func.code->co_linetable) == 0;
-
         if (update_every_bc) {
           int cur_bc_offs = instr.bytecodeOffset().value();
           if (cur_bc_offs != prev_emitted_lno_or_bc) {
@@ -170,6 +164,7 @@ bool InsertUpdatePrevInstr::run(Function& func) {
             BCIndex(target_code->_co_firsttraceable));
         update_instr->insertBefore(instr);
         last_emitted = update_instr;
+        new_instrs += 1;
 
         inited_once = true;
       }
@@ -186,7 +181,7 @@ bool InsertUpdatePrevInstr::run(Function& func) {
     for (std::size_t i = 0, n = term->numEdges(); i < n; ++i) {
       BasicBlock* succ = term->successor(i);
       if (enqueued.insert(succ).second) {
-        worklist.emplace(succ, parent);
+        worklist.push({succ, parent});
       }
     }
   }

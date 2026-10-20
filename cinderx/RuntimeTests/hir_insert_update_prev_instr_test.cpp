@@ -91,4 +91,20 @@ def test(a):
   EXPECT_GT(update_count, 0);
 }
 
+TEST_F(InsertUpdatePrevInstrTest, RunReportsInsertedInstrs) {
+  const char* src = R"(
+def test(a):
+  return len(a)
+)";
+  std::unique_ptr<Function> irfunc;
+  CompileToHIR(src, "test", irfunc);
+  ASSERT_NE(irfunc, nullptr);
+  SSAify{}.run(*irfunc);
+
+  EXPECT_TRUE(InsertUpdatePrevInstr{}.run(*irfunc));
+  EXPECT_GT(
+      countIf(*irfunc, [](const Instr& i) { return i.isUpdatePrevInstr(); }),
+      0);
+}
+
 } // namespace cinderx
