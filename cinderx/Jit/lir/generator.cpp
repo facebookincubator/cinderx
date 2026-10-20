@@ -6103,7 +6103,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 
     bbb.annotateNext("Lightweight frame: initialize frame");
     auto plan = FrameInitPlan::build(
-        [&](FrameFieldKind kind, DataType dt) -> Instruction* {
+        [&](FrameFieldKind kind, [[maybe_unused]] DataType dt) -> Instruction* {
           switch (kind) {
             case FrameFieldKind::kExecutable:
               JIT_DCHECK(
