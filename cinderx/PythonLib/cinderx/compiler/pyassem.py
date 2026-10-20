@@ -3251,6 +3251,7 @@ class PyFlowGraph314(PyFlowGraph312):
 
 class PyFlowGraph315(PyFlowGraph314):
     flow_graph_const_optimizer = FlowGraphConstOptimizer315
+    synthesized_jumps_keep_exc_handler = True
 
     END_SEND_OFFSET = 6
 
