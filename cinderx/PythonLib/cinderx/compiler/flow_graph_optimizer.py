@@ -900,7 +900,17 @@ class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
         if instr.target != target.target:
             instr.set_to_nop()
             assert block.insts[-1] == instr
-            block.append_instr(opname, 0, target=target.target, loc=target.loc)
+            block.append_instr(
+                opname,
+                0,
+                target=target.target,
+                loc=target.loc,
+                exc_handler=(
+                    target.exc_handler
+                    if self.graph.synthesized_jumps_keep_exc_handler
+                    else None
+                ),
+            )
 
         return 1
 

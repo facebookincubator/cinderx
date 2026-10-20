@@ -617,6 +617,10 @@ class PyFlowGraph(FlowGraph):
     super_init: Callable[[FlowGraph], None] = FlowGraph.__init__
     flow_graph_optimizer: type[FlowGraphOptimizer] = FlowGraphOptimizer
     opcode: Opcode = opcodes_opcode
+    # Whether jumps synthesized from an existing jump (NOT_TAKEN, backward
+    # jumps, threaded jumps) keep its exception handler (gh-130279, 3.15+).
+    # Before that they got none, which splits the exception table around them.
+    synthesized_jumps_keep_exc_handler: bool = False
 
     def __init__(
         self,
@@ -2768,8 +2772,13 @@ class PyFlowGraph314(PyFlowGraph312):
         target = last.target
         assert target is not None
         is_forward = target.bid not in seen_blocks
+        exc_handler = (
+            last.exc_handler if self.synthesized_jumps_keep_exc_handler else None
+        )
         if is_forward:
-            block.insts.append(Instruction("NOT_TAKEN", 0, 0, last.loc))
+            block.insts.append(
+                Instruction("NOT_TAKEN", 0, 0, last.loc, exc_handler=exc_handler)
+            )
             return
 
         # transform 'conditional jump T' to
@@ -2780,8 +2789,11 @@ class PyFlowGraph314(PyFlowGraph312):
         # cpython has `JUMP(target)` here, but it will always get inserted as
         # the next block in the loop and then transformed to JUMP_BACKWARD by
         # the above code, since is_forward(target) won't have changed.
-        self.fetch_current().emit(Instruction("NOT_TAKEN", 0, 0, last.loc))
+        self.fetch_current().emit(
+            Instruction("NOT_TAKEN", 0, 0, last.loc, exc_handler=exc_handler)
+        )
         self.emit_with_loc("JUMP_BACKWARD", target, last.loc)
+        backwards_jump.insts[-1].exc_handler = exc_handler
         backwards_jump.startdepth = target.startdepth
 
         last.opname = self._reversed_jumps[last.opname]
@@ -3315,6 +3327,7 @@ class PyFlowGraph315(PyFlowGraph314):
 class PyFlowGraph316(PyFlowGraph315):
     flow_graph_optimizer = FlowGraphOptimizer316
     flow_graph_const_optimizer = FlowGraphConstOptimizer316
+    synthesized_jumps_keep_exc_handler = True
 
     def convert_load_const_to_load_common_constant(self) -> None:
         convert_load_const_to_load_common_constant(
