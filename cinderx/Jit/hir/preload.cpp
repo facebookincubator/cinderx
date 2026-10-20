@@ -285,15 +285,33 @@ const FieldInfo* Preloader::fieldInfo(BorrowedRef<> descr) const {
 }
 
 const InvokeTarget& Preloader::invokeFunctionTarget(BorrowedRef<> descr) const {
-  return *(map_get(func_targets_, descr));
+  auto target_iter = func_targets_.find(descr);
+  JIT_THROW_IF(
+      target_iter == func_targets_.end(),
+      "Failed to find invoke function target {} in {}",
+      repr(descr),
+      fullname_);
+  return *target_iter->second;
 }
 
 const InvokeTarget& Preloader::invokeMethodTarget(BorrowedRef<> descr) const {
-  return *(map_get(meth_targets_, descr));
+  auto target_iter = meth_targets_.find(descr);
+  JIT_THROW_IF(
+      target_iter == meth_targets_.end(),
+      "Failed to find invoke method target {} in {}",
+      repr(descr),
+      fullname_);
+  return *target_iter->second;
 }
 
-const NativeTarget& Preloader::invokeNativeTarget(BorrowedRef<> target) const {
-  return *(map_get(native_targets_, target));
+const NativeTarget& Preloader::invokeNativeTarget(BorrowedRef<> descr) const {
+  auto target_iter = native_targets_.find(descr);
+  JIT_THROW_IF(
+      target_iter == native_targets_.end(),
+      "Failed to find invoke native target {} in {}",
+      repr(descr),
+      fullname_);
+  return *target_iter->second;
 }
 
 const DescrMap<std::unique_ptr<InvokeTarget>>&

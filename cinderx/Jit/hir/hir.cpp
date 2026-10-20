@@ -181,7 +181,12 @@ void Phi::setArgs(const std::unordered_map<BasicBlock*, Register*>& args) {
 
   std::size_t i = 0;
   for (auto& block : basic_blocks_) {
-    operandAt(i) = map_get(args, block);
+    auto args_iter = args.find(block);
+    JIT_THROW_IF(
+        args_iter == args.end(),
+        "Setting args for phi, block {} not found in input map",
+        block->id);
+    operandAt(i) = args_iter->second;
     i++;
   }
 }

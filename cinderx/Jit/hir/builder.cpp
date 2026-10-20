@@ -868,8 +868,14 @@ void HIRBuilder::translate(
       continue;
     }
 
-    // Translate remaining instructions into HIR
-    auto& bc_block = map_get(block_map_.bc_blocks, tc.block);
+    // Translate remaining instructions into HIR.
+    auto blocks_iter = block_map_.bc_blocks.find(tc.block);
+    JIT_THROW_IF(
+        blocks_iter == block_map_.bc_blocks.end(),
+        "Failed to find basic block {} in {}",
+        tc.block->id,
+        irfunc.fullname);
+    auto& bc_block = blocks_iter->second;
 
     auto is_in_async_for_header_block = [&tc, &bc_instrs]() {
       if (tc.frame.block_stack.isEmpty()) {

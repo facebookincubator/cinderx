@@ -116,7 +116,7 @@ class Preloader {
 
   const InvokeTarget& invokeFunctionTarget(BorrowedRef<> descr) const;
   const InvokeTarget& invokeMethodTarget(BorrowedRef<> descr) const;
-  const NativeTarget& invokeNativeTarget(BorrowedRef<> target) const;
+  const NativeTarget& invokeNativeTarget(BorrowedRef<> descr) const;
 
   // All functions (not methods) invoked by the code object.
   const DescrMap<std::unique_ptr<InvokeTarget>>& invokeFunctionTargets() const;
