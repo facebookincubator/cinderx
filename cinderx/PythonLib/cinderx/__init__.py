@@ -451,6 +451,9 @@ except ImportError as e:
     def clear_classloader_caches() -> None:
         pass
 
+    def delay_adaptive(delay: bool) -> None:
+        pass
+
     def disable_parallel_gc() -> None:
         pass
 
@@ -461,6 +464,9 @@ except ImportError as e:
 
     def freeze_type(ty: object) -> object:
         return ty
+
+    def get_adaptive_delay() -> int:
+        return -1
 
     def get_parallel_gc_settings() -> dict[str, int] | None:
         return None
@@ -489,6 +495,9 @@ except ImportError as e:
         return False
 
     def remove_frame_evaluator() -> None:
+        pass
+
+    def set_adaptive_delay(delay: int) -> None:
         pass
 
     def strict_module_patch(mod: object, name: str, value: object) -> None:
