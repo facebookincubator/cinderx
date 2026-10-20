@@ -425,44 +425,4 @@ bool inputsLiveAcross(Opcode opcode) {
   return false;
 }
 
-OperandSizeType operandSizeType(Opcode opcode) {
-  switch (opcode) {
-    case Opcode::kCall:
-    case Opcode::kCVarArgCall:
-    case Opcode::kExchange:
-    case Opcode::kFadd:
-    case Opcode::kFdiv:
-    case Opcode::kFmul:
-    case Opcode::kFsub:
-    case Opcode::kInt64ToDouble:
-    case Opcode::kLea:
-    case Opcode::kLoadArg:
-    case Opcode::kMulAdd:
-    case Opcode::kReserveStack:
-    case Opcode::kVectorCall:
-    case Opcode::kVectorCallTstate:
-      return OperandSizeType::kAlways64;
-    case Opcode::kAdd:
-    case Opcode::kAnd:
-    case Opcode::kCmp:
-    case Opcode::kInvert:
-    case Opcode::kLoad:
-    case Opcode::kLShift:
-    case Opcode::kMovConstPool:
-    case Opcode::kMove:
-    case Opcode::kMul:
-    case Opcode::kNegate:
-    case Opcode::kOr:
-    case Opcode::kRShift:
-    case Opcode::kRShiftUn:
-    case Opcode::kStore:
-    case Opcode::kSub:
-    case Opcode::kXor:
-      return OperandSizeType::kOut;
-    default:
-      break;
-  }
-  return OperandSizeType::kDefault;
-}
-
 } // namespace cinderx::jit::lir

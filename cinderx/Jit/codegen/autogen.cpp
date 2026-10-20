@@ -91,34 +91,7 @@ arch::Mem AsmIndirectOperandBuilder(const lir::Operand* operand) {
 #endif
 }
 
-// Resolves the operand size in bits, respecting the instruction's
-// OperandSizeType property.
-int getOperandSize(const Instruction* instr, const lir::Operand* operand) {
-  switch (operandSizeType(instr->opcode())) {
-    case OperandSizeType::kAlways64:
-      return 64;
-    case OperandSizeType::kOut: {
-      // Match LIROperandMapper<0> behavior: use the output if present,
-      // otherwise use input 0 (which post-alloc rewrites may have resized).
-      if (instr->getNumOutputs() > 0) {
-        return static_cast<int>(instr->output()->sizeInBits());
-      }
-      return static_cast<int>(instr->getInput(0)->sizeInBits());
-    }
-    case OperandSizeType::kDefault:
-    default:
-      return static_cast<int>(operand->sizeInBits());
-  }
-}
-
-int getOperandSizeInBytes(
-    const Instruction* instr,
-    const lir::Operand* operand) {
-  return getOperandSize(instr, operand) / 8;
-}
-
-// Returns the appropriately-sized Gp register for a given operand, respecting
-// the instruction's OperandSizeType property.
+// Returns the appropriately-sized Gp register for a given operand.
 arch::Gp getReg(const lir::Operand* operand) {
   JIT_THROW_IF(
       !operand->isReg(), "getReg: Expected a register, got '{}'", *operand);
@@ -151,8 +124,7 @@ arch::Gp getReg(const lir::Operand* operand) {
   JIT_ABORT("Unexpected operand size {}", size);
 }
 
-// Returns an arch::Mem for a given memory operand (stack, mem, or indirect),
-// with size set according to the instruction's OperandSizeType property.
+// Returns an arch::Mem for a given memory operand (stack, mem, or indirect).
 arch::Mem getMem(const lir::Operand* operand) {
 #if defined(CINDER_X86_64)
   size_t size = operand->sizeInBytes();
@@ -3264,7 +3236,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
 
       // TSAN and relaxed memory order handling.
       if constexpr (kCinderJitTsanEnabled) {
-        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+        int access_size_in_bytes = output->sizeInBytes();
         if (mem_order == lir::MemoryOrder::kRelaxed) {
           if (tryEmitTsanRelaxedAtomicRead(
                   *env, output, input, access_size_in_bytes)) {
@@ -3299,7 +3271,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
 
       // TSAN handling and relaxed memory order handling.
       if constexpr (kCinderJitTsanEnabled) {
-        int access_size_in_bytes = getOperandSizeInBytes(instr, output);
+        int access_size_in_bytes = output->sizeInBytes();
         if (mem_order == lir::MemoryOrder::kRelaxed) {
           if (tryEmitTsanRelaxedAtomicWrite(
                   *env, output, input, access_size_in_bytes)) {

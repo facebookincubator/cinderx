@@ -224,19 +224,6 @@ std::string_view compareName(Condition cond);
 std::string_view loadName(MemoryOrder order);
 std::string_view storeName(MemoryOrder order);
 
-// Describes how an LIR instruction's operand sizes are determined.
-enum class OperandSizeType {
-  // Every operand uses the size determined by its DataType.
-  kDefault,
-
-  // Every operand is 64 bits.
-  kAlways64,
-
-  // Every operand is the same size as the output, or the first input (when
-  // there is no output).
-  kOut,
-};
-
 // Get the string name of an opcode.  This is a null-terminated literal value.
 std::string_view opname(Opcode opcode);
 
@@ -288,8 +275,5 @@ bool inputMustBeRegister(Opcode opcode, size_t idx);
 // When true, following instructions can continue to read the same input
 // locations.
 bool inputsLiveAcross(Opcode opcode);
-
-// See OperandSizeType for details.
-OperandSizeType operandSizeType(Opcode opcode);
 
 } // namespace cinderx::jit::lir
