@@ -1386,8 +1386,7 @@ def f() -> float:
   EXPECT_LIR(Query(*lir_func).opcode(Opcode::kFadd));
 }
 
-// disabled due to unstable Guard instruction
-TEST_F(LIRGeneratorTest, DISABLED_Fallthrough) {
+TEST_F(LIRGeneratorTest, Fallthrough) {
   const char* src = R"(
 def func2(x):
   y = 0
@@ -1399,47 +1398,31 @@ def func2(x):
   Ref<PyObject> pyfunc(compileAndGet(src, "func2"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
+  auto lir_func = getLIRFunction(pyfunc.get());
+  auto is_true = reinterpret_cast<uintptr_t>(PyObject_IsTrue);
 
-  auto lir_expected = fmt::format(
-      R"(Function:
-BB %0
-              %1 = Bind RDI
-              %2 = Bind RSI
-              %3 = Bind RDX
-              %4 = Bind R9
-              %5 = Bind R10
-              %6 = Bind R11
+  // `if x` calls PyObject_IsTrue, deopts if it fails, and branches on the
+  // result.
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kGuard).inDefAddr(2, 0, is_true));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Opcode::kCondBranch).inDefAddr(0, 0, is_true));
 
-BB %7 - preds: %0
-              %8 = Load %2, 0(0x0)
-              %9 = Load %5, 8(0x8)
-             %10 = Call {0}({0:#x}), %8
-                   Guard 1(0x1), 0(0x0), %10, %9, %8
-                   CondBranch %10, BB%14, BB%13
-
-BB %13 - preds: %7
-
-BB %14 - preds: %7
-             %15 = Load %5, 16(0x10)
-
-BB %16 - preds: %13 %14
-             %17 = Phi (BB%14, %15), (BB%13, %9)
-                   Call {1}({1:#x}), %17
-                   Return %17
-
-BB %20 - preds: %16
-             RDI = Move %6
-
-
-)",
-      reinterpret_cast<uint64_t>(PyObject_IsTrue),
-      reinterpret_cast<uint64_t>(Py_IncRef));
-  ASSERT_EQ(lir_str, lir_expected);
+  // The false branch is empty, so the join merges the 100 assigned in the
+  // true branch with the initial 0 that falls through.
+  auto zero = Ref<>::steal(PyLong_FromLong(0));
+  auto hundred = Ref<>::steal(PyLong_FromLong(100));
+  auto phi_of = [&](BorrowedRef<> first, BorrowedRef<> second) {
+    return Query(*lir_func)
+        .opcode(Opcode::kPhi)
+        .inDefAddr(0, 0, first.get())
+        .inDefAddr(1, 0, second.get())
+        .exists();
+  };
+  EXPECT_TRUE(phi_of(zero, hundred) || phi_of(hundred, zero))
+      << lirFuncString(*lir_func);
 }
 
-// disabled due to unstable Guard instruction
-TEST_F(LIRGeneratorTest, DISABLED_CondBranch) {
+TEST_F(LIRGeneratorTest, CondBranch) {
   const char* pycode = R"(
 def func(x):
     if x:
@@ -1450,42 +1433,20 @@ def func(x):
   Ref<PyObject> pyfunc(compileAndGet(pycode, "func"));
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
-  auto lir_str = getLIRString(pyfunc.get());
+  auto lir_func = getLIRFunction(pyfunc.get());
+  auto is_true = reinterpret_cast<uintptr_t>(PyObject_IsTrue);
 
-  auto lir_expected = fmt::format(
-      R"(Function:
-BB %0
-              %1 = Bind RDI
-              %2 = Bind RSI
-              %3 = Bind RDX
-              %4 = Bind R9
-              %5 = Bind R10
-              %6 = Bind R11
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kGuard).inDefAddr(2, 0, is_true));
+  EXPECT_LIR(
+      Query(*lir_func).opcode(Opcode::kCondBranch).inDefAddr(0, 0, is_true));
 
-BB %7 - preds: %0
-              %8 = Load %2, 0(0x0)
-              %9 = Call {0}({0:#x}), %8
-                   Guard 1(0x1), 0(0x0), %9, %8
-                   CondBranch %9, BB%16, BB%12
-
-BB %12 - preds: %7
-             %13 = Load %5, 16(0x10)
-                   Call {1}({1:#x}), %13
-                   Return %13
-
-BB %16 - preds: %7
-             %17 = Load %5, 8(0x8)
-                   Call {1}({1:#x}), %17
-                   Return %17
-
-BB %20 - preds: %12 %16
-             RDI = Move %6
-
-
-)",
-      reinterpret_cast<uint64_t>(PyObject_IsTrue),
-      reinterpret_cast<uint64_t>(Py_IncRef));
-  ASSERT_EQ(lir_str, lir_expected);
+  // Each branch loads the constant it returns.
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .inAddr(0, reinterpret_cast<uintptr_t>(Py_True)));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .inAddr(0, reinterpret_cast<uintptr_t>(Py_False)));
 }
 
 TEST_F(LIRGeneratorTest, ParserDataTypeTest) {
