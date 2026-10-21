@@ -447,11 +447,6 @@ SplitMutator::getAttr(PyObject* obj, PyObject* name, SplitMutator* split) {
       PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
   JIT_DCHECK(split->val_offset != -1, "Should have value offset");
 
-  if (dict == nullptr) {
-    return PyObject_GetAttr(obj, name);
-  }
-  JIT_DCHECK(
-      PyDict_Check(dict), "Expected dict, got {}", Py_TYPE(dict)->tp_name);
   if (dict->ma_keys != split->keys) {
     return getAttrSlowPath(obj, name, dict);
   }
@@ -1226,13 +1221,9 @@ void AttributeCache::typeChanged(PyTypeObject* tp) {
         // For descriptors the same descriptor can be shared multiple times
         // per a type. So check if we have any descriptors remaining and only
         // unwatch when they're all clear.
-        bool found = false;
-        for (auto& other : entries()) {
-          if (other.watchedDescrType() == descr_tp) {
-            found = true;
-            break;
-          }
-        }
+        bool found = std::ranges::any_of(entries(), [&](auto& other) {
+          return other.watchedDescrType() == descr_tp;
+        });
         if (!found) {
           // there are no other entries watching this descriptor.
           ac_descr_watcher.unwatch(descr_tp, this);
