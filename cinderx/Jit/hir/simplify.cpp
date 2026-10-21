@@ -735,6 +735,12 @@ Register* simplifyCondBranch(Env& env, const CondBranch* instr) {
       return env.emit<CondBranch>(src, instr->true_bb(), instr->false_bb());
     }
   }
+  // CIntToCBool only normalizes a non-zero integer to 1, which CondBranch
+  // doesn't need.
+  if (cond->instr()->isCIntToCBool()) {
+    return env.emit<CondBranch>(
+        cond->instr()->getOperand(0), instr->true_bb(), instr->false_bb());
+  }
   if (cond->instr()->isPrimitiveUnaryOp()) {
     auto unary = static_cast<PrimitiveUnaryOp*>(cond->instr());
     auto unary_op = unary->op();

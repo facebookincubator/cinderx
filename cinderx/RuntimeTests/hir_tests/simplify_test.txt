@@ -8756,7 +8756,7 @@ fun jittestmodule:test {
     UseType<ListExact> v11
     v18:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v11
     v19:CBool = CIntToCBool v18
-    CondBranch<1, 2> v19
+    CondBranch<1, 2> v18
   }
 
   bb 1 (preds 3) {
@@ -8813,7 +8813,7 @@ fun jittestmodule:test {
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v17
-    CondBranch<1, 2> v23
+    CondBranch<1, 2> v22
   }
 
   bb 1 (preds 3) {
@@ -8872,7 +8872,7 @@ fun jittestmodule:test {
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v17
-    CondBranch<1, 2> v23
+    CondBranch<1, 2> v22
   }
 
   bb 1 (preds 3) {
@@ -8931,7 +8931,7 @@ fun jittestmodule:test {
     Snapshot
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v17
-    CondBranch<1, 2> v23
+    CondBranch<1, 2> v22
   }
 
   bb 1 (preds 3) {
@@ -9081,6 +9081,381 @@ fun test {
     v6:CBool = CIntToCBool v5
     v4:ImmortalBool = PrimitiveBoxBool v6
     Return v4
+  }
+}
+--- Test Name ---
+CondBranchOfIsTruthyWithTupleExactBranchesOnSize
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v1 = LoadArg<0>
+    v2 = RefineType<TupleExact> v1
+    v3 = IsTruthy v2
+    CondBranch<1, 2> v3
+  }
+  bb 1 {
+    v4 = LoadConst<NoneType>
+    Return v4
+  }
+  bb 2 {
+    v5 = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Test Name ---
+CondBranchOfIsTruthyWithTupleExactKeepsCIntToCBoolForOtherUses
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v1 = LoadArg<0>
+    v2 = RefineType<TupleExact> v1
+    v3 = IsTruthy v2
+    v4 = PrimitiveBoxBool v3
+    CondBranch<1, 2> v3
+  }
+  bb 1 {
+    Return v4
+  }
+  bb 2 {
+    v5 = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    v4:ImmortalBool = PrimitiveBoxBool v7
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    v4:ImmortalBool = PrimitiveBoxBool v7
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    v4:ImmortalBool = PrimitiveBoxBool v7
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    v4:ImmortalBool = PrimitiveBoxBool v7
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:TupleExact = RefineType<TupleExact> v1
+    UseType<TupleExact> v2
+    v6:CInt64 = LoadField<ob_size@32, CInt64, borrowed> v2
+    v7:CBool = CIntToCBool v6
+    v4:ImmortalBool = PrimitiveBoxBool v7
+    CondBranch<1, 2> v6
+  }
+
+  bb 1 (preds 0) {
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Test Name ---
+CondBranchOfIsTruthyWithBoolDoesNotBranchOnInput
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v1 = LoadArg<0>
+    v2 = RefineType<Bool> v1
+    v3 = IsTruthy v2
+    CondBranch<1, 2> v3
+  }
+  bb 1 {
+    v4 = LoadConst<NoneType>
+    Return v4
+  }
+  bb 2 {
+    v5 = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Bool = RefineType<Bool> v1
+    UseType<Bool> v2
+    v6:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v7:CBool = PrimitiveCompare<Equal> v2 v6
+    CondBranch<1, 2> v7
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Bool = RefineType<Bool> v1
+    UseType<Bool> v2
+    v6:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v7:CBool = PrimitiveCompare<Equal> v2 v6
+    CondBranch<1, 2> v7
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Bool = RefineType<Bool> v1
+    UseType<Bool> v2
+    v6:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v7:CBool = PrimitiveCompare<Equal> v2 v6
+    CondBranch<1, 2> v7
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Bool = RefineType<Bool> v1
+    UseType<Bool> v2
+    v6:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v7:CBool = PrimitiveCompare<Equal> v2 v6
+    CondBranch<1, 2> v7
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Bool = RefineType<Bool> v1
+    UseType<Bool> v2
+    v6:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v7:CBool = PrimitiveCompare<Equal> v2 v6
+    CondBranch<1, 2> v7
+  }
+
+  bb 1 (preds 0) {
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+
+  bb 2 (preds 0) {
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
   }
 }
 --- Test Name ---
