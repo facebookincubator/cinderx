@@ -23,6 +23,7 @@
 #include <fmt/ostream.h>
 
 #include <optional>
+#include <type_traits>
 
 namespace cinderx::jit::hir {
 
@@ -313,14 +314,18 @@ Register* simplifyGuardType(Env& env, const GuardType* instr) {
   Type type = instr->target();
   if (input->isA(type)) {
     // We don't need a UseType: If an instruction cares about the type of this
-    // GuardType's output, it will express that through its operand type
-    // constraints. Once this GuardType is removed, those constraints will
-    // apply to input's instruction rather than this GuardType, and any
+    // guard's output, it will express that through its operand type
+    // constraints. Once this guard is removed, those constraints will
+    // apply to input's instruction rather than this guard, and any
     // downstream instructions will still be satisfied.
     return input;
   }
   if (type == TNoneType) {
-    return env.emit<GuardIs>(Py_None, input);
+    auto replacement = env.emitInstr<GuardIs>(Py_None, input);
+    if (std::optional<BCIndex> cause = instr->profileCause()) {
+      replacement->setProfileCause(*cause);
+    }
+    return replacement->output();
   }
   return nullptr;
 }

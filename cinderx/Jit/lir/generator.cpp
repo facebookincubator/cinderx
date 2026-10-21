@@ -4086,8 +4086,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           // Keep the guard target object alive for the lifetime of the compiled
           // code.  Without this, the object can be freed and its
           // memory reused.
-          const auto& guard_is = instr.as<hir::GuardIs>();
-          if (BorrowedRef<> target_obj = guard_is.target()) {
+          BorrowedRef<> target_obj = instr.as<hir::GuardIs>().target();
+          if (target_obj) {
             env_->addReference(target_obj);
           }
         }
@@ -4107,7 +4107,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         break;
       }
       case hir::Opcode::kGuardType: {
-        const auto& instr = i.as<hir::GuardType>();
+        const auto& instr = i.as<DeoptBase>();
+        Type target = i.as<hir::GuardType>().target();
         // Keep the guard target type alive for the lifetime of the compiled
         // code.  The machine code embeds a raw PyTypeObject* for the type
         // comparison, with no other owner.
@@ -4124,15 +4125,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 
         // Don't guard the type if it's already known to be a long exact and
         // we're guarding compactness.
-        if (!(instr.target() <= TLongCompact) ||
+        if (!(target <= TLongCompact) ||
             !(instr.getOperand(0)->type() <= TLongExact)) {
-          if (BorrowedRef<PyTypeObject> type_obj =
-                  instr.target().uniquePyType()) {
+          if (BorrowedRef<PyTypeObject> type_obj = target.uniquePyType()) {
             env_->addReference(type_obj.getObj());
           }
           appendGuard(bbb, InstrGuardKind::kHasType, instr, value);
         }
-        if (instr.target() <= TLongCompact) {
+        if (target <= TLongCompact) {
           // Load lv_tag from PyLongObject and check < (2 << 3) i.e. < 16.
           int32_t lv_tag_offset =
               static_cast<int32_t>(offsetof(PyLongObject, long_value.lv_tag));

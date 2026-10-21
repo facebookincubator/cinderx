@@ -403,7 +403,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Add a function to be called when deoptimization occurs due to guard
   // failure. Intended to be used for testing/debugging only.
   void setGuardFailureCallback(GuardFailureCallback cb);
-  void guardFailed(const DeoptMetadata& deopt_meta);
+  void guardFailed(CodeRuntime* code_runtime, const DeoptMetadata& deopt_meta);
   void clearGuardFailureCallback();
 
   // Release any references this Context holds to Python objects.

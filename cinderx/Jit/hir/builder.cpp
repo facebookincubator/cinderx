@@ -2113,8 +2113,11 @@ bool HIRBuilder::emitBinaryOpProfileGuards(
   if (binop == nullptr) {
     return false;
   }
-  tc.emit<GuardType>(left, binop->left_type, left, tc.frame);
-  tc.emit<GuardType>(right, binop->right_type, right, tc.frame);
+  auto left_guard = tc.emit<GuardType>(left, binop->left_type, left, tc.frame);
+  left_guard->setProfileCause(location.bytecode_offset);
+  auto right_guard =
+      tc.emit<GuardType>(right, binop->right_type, right, tc.frame);
+  right_guard->setProfileCause(location.bytecode_offset);
   tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*binop});
   return true;
 }
@@ -2961,13 +2964,15 @@ bool HIRBuilder::emitLoadAttrProfileGuards(
 #endif
   if (exact != nullptr) {
     env_->addReference(exact);
-    tc.emit<GuardIs>(receiver, exact.get(), receiver);
+    auto guard = tc.emit<GuardIs>(receiver, exact.get(), receiver);
+    guard->setProfileCause(location.bytecode_offset);
   } else {
-    tc.emit<GuardType>(
+    auto guard = tc.emit<GuardType>(
         receiver,
         Type::fromTypeExact(load_attr->receiver_type.get()),
         receiver,
         tc.frame);
+    guard->setProfileCause(location.bytecode_offset);
   }
   tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*load_attr});
   return true;
@@ -2987,11 +2992,12 @@ bool HIRBuilder::emitLoadMethodProfileGuards(
       profile->receiver_type == nullptr) {
     return false;
   }
-  tc.emit<GuardType>(
+  auto guard = tc.emit<GuardType>(
       receiver,
       Type::fromTypeExact(profile->receiver_type.get()),
       receiver,
       tc.frame);
+  guard->setProfileCause(location.bytecode_offset);
   tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*profile});
   return true;
 }
@@ -4089,11 +4095,12 @@ bool HIRBuilder::emitStoreAttrProfileGuards(
       profile->receiver_type == nullptr) {
     return false;
   }
-  tc.emit<GuardType>(
+  auto guard = tc.emit<GuardType>(
       receiver,
       Type::fromTypeExact(profile->receiver_type.get()),
       receiver,
       tc.frame);
+  guard->setProfileCause(location.bytecode_offset);
   tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*profile});
   return true;
 }

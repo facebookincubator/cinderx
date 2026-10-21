@@ -15,6 +15,7 @@
 #include <fmt/ranges.h>
 
 #include <cstdint>
+#include <optional>
 #include <unordered_set>
 
 namespace cinderx::jit {
@@ -164,15 +165,32 @@ struct DeoptFrameMetadata {
     next_instr_idx_ = idx;
   }
 
+  // The profile cause for this frame, if its guard was emitted
+  // from a profile. If the guard deopts, the profile entry that produced it
+  // is stale and dropped.
+  std::optional<BCIndex> profile_cause() const {
+    if ((tagged_code_ & kHasProfileCause) == 0) {
+      return std::nullopt;
+    }
+    return profile_cause_idx_;
+  }
+  void set_profile_cause(BCIndex cause) {
+    tagged_code_ |= kHasProfileCause;
+    profile_cause_idx_ = cause;
+  }
+
  private:
-  // Tag bit stolen from the code pointer, whose alignment leaves the low bit
-  // clear.
-  static constexpr uintptr_t kLazyFrame = 1;
-  static constexpr uintptr_t kTagMask = kLazyFrame;
+  // Tag bits stolen from the code pointer, whose alignment leaves the low 2
+  // bits clear. cause_instr_idx_ and profile_cause_idx_ are adjacent 4-byte
+  // indices trailing tagged_code_ so they pack without padding.
+  static constexpr uintptr_t kHasProfileCause = 1;
+  static constexpr uintptr_t kLazyFrame = 2;
+  static constexpr uintptr_t kTagMask = kHasProfileCause | kLazyFrame;
 
   uintptr_t tagged_code_{0};
   BCIndex cause_instr_idx_{0};
   BCIndex next_instr_idx_{0};
+  BCIndex profile_cause_idx_{0};
 };
 
 // DeoptMetadata captures all the information necessary to reconstruct a

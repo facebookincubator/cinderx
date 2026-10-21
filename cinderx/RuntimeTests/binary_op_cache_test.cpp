@@ -232,6 +232,90 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileMergesDuplicateCarriedUses) {
   EXPECT_EQ(profile.find<BinaryOpProfile>(disagreeing_location), nullptr);
 }
 
+TEST_F(BinaryOpCacheCodegenTest, ProfileCollectorRemovesEntries) {
+  // Removing a location whose profile guard deopted drops both its live
+  // caches and its carried uses; other locations are unaffected.
+  PerCompilationStableStorage storage;
+  ProfileCollector collector;
+
+  const BCOffset stale_offset{8};
+  BinaryOpCache* stale_cache =
+      storage.allocateBinaryOpCache(BinaryOpKind::kAdd);
+  collector.add(nullptr, stale_offset, stale_cache);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  Ref<> stale_result = Ref<>::steal(BinaryOpCache::add(one, two, stale_cache));
+  ASSERT_NE(stale_result, nullptr);
+  const ProfileLocation stale_location{nullptr, stale_offset};
+  collector.add(
+      stale_location, ProfileEntry{BinaryOpProfile{TLong, TLong, TLong}});
+
+  const BCOffset fresh_offset{16};
+  BinaryOpCache* fresh_cache =
+      storage.allocateBinaryOpCache(BinaryOpKind::kAdd);
+  collector.add(nullptr, fresh_offset, fresh_cache);
+  Ref<> fresh_result = Ref<>::steal(BinaryOpCache::add(one, two, fresh_cache));
+  ASSERT_NE(fresh_result, nullptr);
+
+  collector.remove(stale_location);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  EXPECT_EQ(profile.find<BinaryOpProfile>(stale_location), nullptr);
+  EXPECT_NE(profile.find<BinaryOpProfile>(nullptr, fresh_offset), nullptr);
+
+  // Unknown locations are ignored.
+  collector.remove(ProfileLocation{nullptr, BCOffset{24}});
+}
+
+TEST_F(BinaryOpCacheCodegenTest, ProfileDeoptedLocationsSuppressFindAndMerge) {
+  // A removed location stays dead: re-adding it (live caches repopulating,
+  // carried uses, or a callee profile merged back in) must not resurrect it
+  // via find().
+  PerCompilationStableStorage storage;
+  ProfileCollector collector;
+
+  const BCOffset stale_offset{8};
+  BinaryOpCache* stale_cache =
+      storage.allocateBinaryOpCache(BinaryOpKind::kAdd);
+  collector.add(nullptr, stale_offset, stale_cache);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  Ref<> stale_result = Ref<>::steal(BinaryOpCache::add(one, two, stale_cache));
+  ASSERT_NE(stale_result, nullptr);
+  const ProfileLocation stale_location{nullptr, stale_offset};
+  collector.add(
+      stale_location, ProfileEntry{BinaryOpProfile{TLong, TLong, TLong}});
+
+  collector.remove(stale_location);
+
+  Profile profile = collector.snapshot();
+  EXPECT_TRUE(profile.isDeopted(stale_location));
+  EXPECT_EQ(profile.find<BinaryOpProfile>(stale_location), nullptr);
+
+  // Re-adding the same location after the deopt stays suppressed.
+  collector.add(
+      stale_location, ProfileEntry{BinaryOpProfile{TLong, TLong, TLong}});
+  Profile resnapshot = collector.snapshot();
+  EXPECT_TRUE(resnapshot.isDeopted(stale_location));
+  EXPECT_EQ(resnapshot.find<BinaryOpProfile>(stale_location), nullptr);
+  EXPECT_TRUE(
+      resnapshot.entries().find(stale_location) == resnapshot.entries().end());
+
+  // Merging a callee profile that still holds the stale entry must not
+  // resurrect it either (inlined-guard case).
+  ProfileCollector callee;
+  callee.add(
+      stale_location, ProfileEntry{BinaryOpProfile{TLong, TLong, TLong}});
+  Profile callee_profile = callee.snapshot();
+  ASSERT_NE(callee_profile.find<BinaryOpProfile>(stale_location), nullptr);
+  profile.merge(std::move(callee_profile));
+  EXPECT_TRUE(profile.isDeopted(stale_location));
+  EXPECT_EQ(profile.find<BinaryOpProfile>(stale_location), nullptr);
+  EXPECT_TRUE(
+      profile.entries().find(stale_location) == profile.entries().end());
+}
+
 TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesComparesByLocation) {
   ProfileCollector collector;
   const BCOffset long_offset{24};
@@ -648,6 +732,48 @@ def test(a, b):
       reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
   ASSERT_NE(rerecompiled_result, nullptr);
   EXPECT_EQ(rerecompiled_result.get(), Py_False);
+}
+
+TEST_F(BinaryOpCacheCodegenTest, ProfileDropsEntryOnGuardFailure) {
+  const char* src = R"(
+def test(a, b):
+  return a + b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto lhs = Ref<>::steal(PyLong_FromLong(1));
+  auto rhs = Ref<>::steal(PyLong_FromLong(2));
+  PyObject* args[] = {lhs, rhs};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(PyLong_AsLong(result), 3);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+
+  // Contradicting types fail the profile guards and deopt back to the
+  // interpreter. The recompiled code is never installed, so the deopt
+  // attributes the stale entry to the installed compilation and drops it
+  // from that collector.
+  auto left_float = Ref<>::steal(PyFloat_FromDouble(1.5));
+  auto right_float = Ref<>::steal(PyFloat_FromDouble(2.5));
+  PyObject* float_args[] = {left_float.get(), right_float.get()};
+  auto float_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), float_args, 2, nullptr));
+  ASSERT_NE(float_result, nullptr);
+  EXPECT_EQ(PyFloat_AsDouble(float_result), 4.0);
+
+  Profile after = first->snapshotProfile();
+  EXPECT_TRUE(after.entries().empty());
 }
 
 TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesInlinedBinaryOp) {

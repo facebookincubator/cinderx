@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <compare>
+#include <mutex>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -130,8 +131,11 @@ struct Profile {
 
   explicit Profile(
       std::unordered_map<ProfileLocation, ProfileEntry>&& entries,
-      std::unordered_set<Ref<>>&& owned_refs = {})
-      : entries_(std::move(entries)), owned_refs_(std::move(owned_refs)) {
+      std::unordered_set<Ref<>>&& owned_refs = {},
+      std::unordered_set<ProfileLocation>&& deopted = {})
+      : entries_(std::move(entries)),
+        owned_refs_(std::move(owned_refs)),
+        deopted_(std::move(deopted)) {
     for (const auto& entry : entries_) {
       codes_.insert(entry.first.code);
     }
@@ -139,6 +143,9 @@ struct Profile {
 
   template <typename T>
   const T* find(const ProfileLocation& location) const {
+    if (deopted_.contains(location)) {
+      return nullptr;
+    }
     auto code_entries = entries_.find(location);
     if (code_entries == entries_.end()) {
       return nullptr;
@@ -166,12 +173,27 @@ struct Profile {
   // while the other is only a stand-in for a location that compilation never
   // saw.
   void merge(Profile&& other) {
+    deopted_.insert(other.deopted_.begin(), other.deopted_.end());
     entries_.merge(other.entries_);
     owned_refs_.merge(other.owned_refs_);
     // Union rather than only the moved-in entries: a key that stayed behind
     // collided with one of ours, which by definition names a code object we
     // already have.
     codes_.insert(other.codes_.begin(), other.codes_.end());
+    // A location deopted on either side stays dead: merging a callee profile
+    // must not resurrect an entry the outer deopt already invalidated, and
+    // vice versa.
+    for (const auto& location : deopted_) {
+      entries_.erase(location);
+    }
+  }
+
+  bool isDeopted(const ProfileLocation& location) const {
+    return deopted_.contains(location);
+  }
+
+  const std::unordered_set<ProfileLocation>& deoptedLocations() const {
+    return deopted_;
   }
 
  private:
@@ -181,6 +203,10 @@ struct Profile {
   // this set keeps the referents alive until the recompilation consumes the
   // profile.
   std::unordered_set<Ref<>> owned_refs_;
+  // Locations whose profile guards deopted. find() returns nullptr for these
+  // even if `entries_` still holds them (e.g. re-merged from a callee
+  // profile), forcing the site to re-profile instead of re-specializing.
+  std::unordered_set<ProfileLocation> deopted_;
   // Code objects appearing in `entries_`, so the inliner can ask whether a
   // callee is covered without walking every location.  Borrowed, like the
   // references in the keys they come from.
@@ -207,6 +233,7 @@ class ProfileCollector {
   template <typename CacheT>
   void add(BorrowedRef<PyCodeObject> code, BCOffset offset, CacheT* cache) {
 #ifndef ENABLE_PREFORK_MODEL
+    std::lock_guard<std::mutex> guard(mutex_);
     entries_[ProfileLocation(code, offset)].emplace_back(cache);
 #endif
   }
@@ -217,6 +244,12 @@ class ProfileCollector {
   // held: profiling attribute/method caches takes strong references to the
   // observed receiver types.
   Profile snapshot() const;
+  // Drop all state for a location whose profile guard deopted: the profile
+  // entry that produced the guard is stale. Erases from both live and
+  // carried entries and records the location in the deopted set, so later
+  // snapshots suppress it via Profile::find even if a callee profile
+  // re-merges it; unknown locations are still recorded.
+  void remove(const ProfileLocation& location);
 
  private:
 #ifndef ENABLE_PREFORK_MODEL
@@ -228,6 +261,12 @@ class ProfileCollector {
   // as live caches.
   std::unordered_map<ProfileLocation, std::vector<ProfileEntry>>
       secondary_entries_;
+  // Locations invalidated by guard failures. Copied into each snapshot so
+  // Profile::find suppresses them.
+  std::unordered_set<ProfileLocation> deopted_locations_;
+  // Serializes snapshot() against remove(): a guard can deopt on one thread
+  // while another snapshots for a recompile.
+  mutable std::mutex mutex_;
 #endif
 };
 

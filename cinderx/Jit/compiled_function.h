@@ -262,6 +262,9 @@ class CompiledFunction {
   const std::vector<InlineCacheSite>& inlineCacheSites() const;
 #endif
   Profile snapshotProfile() const;
+  // Drop the profile state for a location whose profile guard deopted.
+  // Silently ignores missing collectors: deopt must never fail.
+  void removeProfileEntry(const ProfileLocation& location);
 
   // Associate a function with this CompiledFunction and set its vectorcall
   // entry point, the function will keep the compiled code alive.

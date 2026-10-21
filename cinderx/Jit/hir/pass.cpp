@@ -913,8 +913,8 @@ bool removeUnreachableInstructions(Function& func) {
       } while (it != block->begin());
 
       if (it != block->begin() && std::prev(it)->isGuardType()) {
-        // Everything after this GuardType is unreachable, but only as long as
-        // the GuardType fails at runtime. Indicate that the guard is required
+        // Everything after this type guard is unreachable, but only as long
+        // as the guard fails at runtime. Indicate that the guard is required
         // for correctness with a UseType. This prevents GuardTypeElimination
         // from removing it.
         Instr& guard_type = *std::prev(it);

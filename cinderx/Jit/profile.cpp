@@ -145,7 +145,17 @@ void collectOwnedRefs(
 
 void ProfileCollector::add(ProfileLocation location, ProfileEntry payload) {
 #ifndef ENABLE_PREFORK_MODEL
+  std::lock_guard<std::mutex> guard(mutex_);
   secondary_entries_[std::move(location)].emplace_back(std::move(payload));
+#endif
+}
+
+void ProfileCollector::remove(const ProfileLocation& location) {
+#ifndef ENABLE_PREFORK_MODEL
+  std::lock_guard<std::mutex> guard(mutex_);
+  entries_.erase(location);
+  secondary_entries_.erase(location);
+  deopted_locations_.insert(location);
 #endif
 }
 
@@ -153,9 +163,13 @@ Profile ProfileCollector::snapshot() const {
 #ifdef ENABLE_PREFORK_MODEL
   return Profile{};
 #else
+  std::lock_guard<std::mutex> guard(mutex_);
   std::unordered_map<ProfileLocation, ProfileEntry> entries;
   // Populate the uses first; live caches below overwrite them.
   for (const auto& [location, sources] : secondary_entries_) {
+    if (deopted_locations_.contains(location)) {
+      continue;
+    }
     std::vector<ProfileEntry> observed;
     observed.reserve(sources.size());
     for (const auto& source : sources) {
@@ -168,6 +182,9 @@ Profile ProfileCollector::snapshot() const {
     // nothing, so the next compile stays generic.
   }
   for (const auto& [location, sources] : entries_) {
+    if (deopted_locations_.contains(location)) {
+      continue;
+    }
     std::vector<ProfileEntry> observed;
     for (const auto& source : sources) {
       if (auto payload = cachePayload(source)) {
@@ -190,7 +207,10 @@ Profile ProfileCollector::snapshot() const {
   for (const auto& [location, entry] : entries) {
     collectOwnedRefs(entry, owned_refs);
   }
-  return Profile(std::move(entries), std::move(owned_refs));
+  return Profile(
+      std::move(entries),
+      std::move(owned_refs),
+      std::unordered_set<ProfileLocation>(deopted_locations_));
 #endif
 }
 

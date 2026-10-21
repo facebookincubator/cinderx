@@ -3603,7 +3603,10 @@ DEFINE_SIMPLE_INSTR(
     DeoptBase);
 
 // A guard that verifies that its src is the same object as the target, or
-// deopts if not.
+// deopts if not. Guards emitted from profile feedback additionally record
+// the profile entry that produced them: guard frame states are rebound to
+// dominating snapshots by later passes, so if the guard deopts, the recorded
+// cause identifies the stale profile entry to drop.
 class INSTR_CLASS(GuardIs, (TOptObject), HasOutput, Operands<1>, DeoptBase) {
  public:
   GuardIs(Register* dst, PyObject* target, Register* src)
@@ -3613,12 +3616,21 @@ class INSTR_CLASS(GuardIs, (TOptObject), HasOutput, Operands<1>, DeoptBase) {
     return target_;
   }
 
+  std::optional<BCIndex> profileCause() const {
+    return profile_cause_;
+  }
+  void setProfileCause(BCIndex cause) {
+    profile_cause_ = cause;
+  }
+
  private:
   PyObject* target_;
+  std::optional<BCIndex> profile_cause_;
 };
 
 // Return a copy of the input with a refined Type. The output Type is the
-// intersection of the source's type with the target Type.
+// intersection of the source's type with the target Type. Records the
+// profile cause as GuardIs does when emitted from profile feedback.
 class INSTR_CLASS(GuardType, (TObject), HasOutput, Operands<1>, DeoptBase) {
  public:
   GuardType(Register* dst, Type target, Register* src)
@@ -3631,8 +3643,16 @@ class INSTR_CLASS(GuardType, (TObject), HasOutput, Operands<1>, DeoptBase) {
     return target_;
   }
 
+  std::optional<BCIndex> profileCause() const {
+    return profile_cause_;
+  }
+  void setProfileCause(BCIndex cause) {
+    profile_cause_ = cause;
+  }
+
  private:
   Type target_;
+  std::optional<BCIndex> profile_cause_;
 };
 
 using ProfiledTypes = std::vector<std::vector<Type>>;

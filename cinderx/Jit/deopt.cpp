@@ -621,6 +621,15 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   }
 
   meta.nonce = instr.nonce();
+  std::optional<BCIndex> profile_cause;
+  if (instr.isGuardIs()) {
+    profile_cause = instr.as<hir::GuardIs>().profileCause();
+  } else if (instr.isGuardType()) {
+    profile_cause = instr.as<hir::GuardType>().profileCause();
+  }
+  if (profile_cause.has_value()) {
+    meta.frame_meta.at(meta.inline_depth()).set_profile_cause(*profile_cause);
+  }
   meta.reason = getDeoptReason(instr);
   JIT_CHECK(
       meta.reason != DeoptReason::kUnhandledNullField ||

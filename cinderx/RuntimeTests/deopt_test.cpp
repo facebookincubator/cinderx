@@ -890,4 +890,33 @@ TEST_F(DeoptTest, ValueKind) {
   EXPECT_EQ(deoptValueKind(TNullptr), ValueKind::kObject);
 }
 
+TEST_F(DeoptTest, FrameMetadataTagBits) {
+  const char* src = "def test():\n  return 1\n";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  BorrowedRef<PyCodeObject> code = PyFunction_GetCode(func);
+
+  // Default state carries no code, flags, or cause.
+  DeoptFrameMetadata meta;
+  EXPECT_EQ(meta.code(), nullptr);
+  EXPECT_FALSE(meta.lazyFrame());
+  EXPECT_FALSE(meta.profile_cause().has_value());
+
+  // Flags survive code updates in any order, and the code pointer round-trips
+  // exactly: tag bits never leak into it.
+  meta.setLazyFrame(true);
+  meta.set_profile_cause(BCIndex{4});
+  meta.setCode(code);
+  EXPECT_EQ(meta.code(), code.get());
+  EXPECT_TRUE(meta.lazyFrame());
+  ASSERT_TRUE(meta.profile_cause().has_value());
+  EXPECT_EQ(*meta.profile_cause(), BCIndex{4});
+
+  meta.setCode(code);
+  meta.setLazyFrame(false);
+  EXPECT_EQ(meta.code(), code.get());
+  EXPECT_FALSE(meta.lazyFrame());
+  EXPECT_TRUE(meta.profile_cause().has_value());
+}
+
 } // namespace cinderx

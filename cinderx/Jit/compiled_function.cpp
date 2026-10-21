@@ -270,6 +270,13 @@ Profile CompiledFunction::snapshotProfile() const {
   return data_->profile_collector->snapshot();
 }
 
+void CompiledFunction::removeProfileEntry(const ProfileLocation& location) {
+  if (data_ == nullptr || data_->profile_collector == nullptr) {
+    return;
+  }
+  data_->profile_collector->remove(location);
+}
+
 void CompiledFunction::setOwner(CompiledFunctionOwner* owner) {
   owner_ = owner;
 }

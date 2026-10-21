@@ -216,15 +216,14 @@ class LIRGenerator {
         std::forward<TOperand>(guard_var));
 
     if (hir_instr.isGuardIs()) {
-      const auto& guard = static_cast<const hir::GuardIs&>(hir_instr);
-      env_->addReference(guard.target());
-      instr->addOperands(MemImm{guard.target()});
+      PyObject* target = static_cast<const hir::GuardIs&>(hir_instr).target();
+      env_->addReference(target);
+      instr->addOperands(MemImm{target});
     } else if (hir_instr.isGuardType()) {
-      const auto& guard = static_cast<const hir::GuardType&>(hir_instr);
+      hir::Type target = static_cast<const hir::GuardType&>(hir_instr).target();
       // TASK(T101999851): Handle non-Exact types
-      JIT_CHECK(
-          guard.target().isExact(), "Only exact type guards are supported");
-      PyTypeObject* guard_type = guard.target().uniquePyType();
+      JIT_CHECK(target.isExact(), "Only exact type guards are supported");
+      PyTypeObject* guard_type = target.uniquePyType();
       JIT_CHECK(guard_type != nullptr, "Ensure unique representation exists");
       env_->addReference(reinterpret_cast<PyObject*>(guard_type));
       instr->addOperands(MemImm{guard_type});

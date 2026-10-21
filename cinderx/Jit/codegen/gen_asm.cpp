@@ -350,7 +350,7 @@ uintptr_t prepareForDeopt(
     auto reason = deopt_meta.reason;
     switch (reason) {
       case DeoptReason::kGuardFailure: {
-        ctx->guardFailed(deopt_meta);
+        ctx->guardFailed(code_runtime, deopt_meta);
         break;
       }
       case DeoptReason::kRaise:

@@ -793,6 +793,7 @@ static std::string format_immediates(
           }
         }
         os << ">";
+
       } else {
         const auto& store_attr = std::get<StoreAttrProfile>(payload);
         os << "storeattr<";

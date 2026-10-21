@@ -456,10 +456,26 @@ void Context::setGuardFailureCallback(Context::GuardFailureCallback cb) {
   guard_failure_callback_ = cb;
 }
 
-void Context::guardFailed(const DeoptMetadata& deopt_meta) {
+void Context::guardFailed(
+    CodeRuntime* code_runtime,
+    const DeoptMetadata& deopt_meta) {
   if (guard_failure_callback_) {
     guard_failure_callback_(deopt_meta);
   }
+  const DeoptFrameMetadata& frame_meta = deopt_meta.innermostFrame();
+  std::optional<BCIndex> profile_cause = frame_meta.profile_cause();
+  if (!profile_cause.has_value()) {
+    return;
+  }
+  // The guard was emitted from profile feedback; the entry that
+  // produced it is stale, so drop it and force the site to re-profile.
+  BorrowedRef<CompiledFunction> compiled = lookupCode(
+      code_runtime->code(), code_runtime->builtins(), code_runtime->globals());
+  if (compiled == nullptr) {
+    return;
+  }
+  compiled->removeProfileEntry(
+      ProfileLocation{frame_meta.code(), *profile_cause});
 }
 
 void Context::clearGuardFailureCallback() {
