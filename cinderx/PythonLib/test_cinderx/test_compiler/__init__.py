@@ -1,8 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # flake8: noqa
 
-import sys
-
 from .test_api import ApiTests
 
 # _TEST_CINDER_COMMON_EXCLUDE keeps these two out of the test-cinder targets --
@@ -27,7 +25,3 @@ from .test_pysourceloader import PySourceLoaderTest
 from .test_symbols import SymbolVisitorTests
 from .test_unparse import UnparseTests
 from .test_visitor import VisitorTests
-
-if "cinder" in sys.version:
-    from .test_static import *
-    from .test_strict import *

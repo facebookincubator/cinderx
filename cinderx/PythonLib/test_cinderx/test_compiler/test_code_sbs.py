@@ -342,9 +342,7 @@ class CodeTests(CompilerTest):
 def add_test(modname: str, fname: str) -> None:
     version = sys.version_info[:2]
     # glob_test() normalizes fname to use "/" on every platform.
-    if "/cinder/" in fname and "cinder" not in sys.version:
-        return
-    elif "/3.12/" in fname and version != (3, 12):
+    if "/3.12/" in fname and version != (3, 12):
         return
     elif "/3.14/" in fname and version != (3, 14):
         return
