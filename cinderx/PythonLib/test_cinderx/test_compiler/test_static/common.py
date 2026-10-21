@@ -622,10 +622,11 @@ __slot_types__ = {slot_types!r}
         # ensure clean classloader/vtable slate for all tests
         cinderx.clear_classloader_caches()
 
-        # Ensure our async tests don't leave a new event loop registered at the end of
-        # the test, which can lead to the test framework complaining about environment
-        # changes.
-        self.addCleanup(lambda: asyncio.set_event_loop(None))
+        # Clearing the loop can initialize a previously unset global policy.
+        if hasattr(asyncio.events, "_event_loop_policy"):
+            policy = asyncio.events._event_loop_policy
+            self.addCleanup(setattr, asyncio.events, "_event_loop_policy", policy)
+        self.addCleanup(asyncio.set_event_loop, None)
 
     # pyrefly: ignore [bad-override]
     def subTest(
