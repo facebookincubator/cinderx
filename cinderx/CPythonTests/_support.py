@@ -8,6 +8,8 @@ import atexit
 import contextlib
 import functools
 import importlib
+import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -22,9 +24,29 @@ from cinderx.TestScripts.skip_list_support import (
     parse_skip_lists,
 )
 from cpython_tests.skipped_tests import SKIPPED_TESTS
-from test.support import os_helper
+from test.support import os_helper, script_helper
 
 _temp_cwd: contextlib.ExitStack | None = None
+
+
+def export_runtime_env() -> None:
+    """Let `sys.executable` subprocesses find the bundled stdlib.
+
+    The PAR launcher drops PYTHONHOME once its main starts, after the startup
+    functions run, so a child falls back to the binary's compiled-in prefix: the
+    host's platform Python, which has no `test` package. Re-export it where
+    `script_helper` decides whether a child needs the environment. With
+    PYTHONHOME set, `assert_python_*` stops passing -I/-E and the child
+    inherits it.
+    """
+    home = os.path.abspath(sys.prefix)
+    requires_environment = script_helper.interpreter_requires_environment
+
+    def requires_environment_with_home() -> bool:
+        os.environ["PYTHONHOME"] = home
+        return requires_environment()
+
+    script_helper.interpreter_requires_environment = requires_environment_with_home
 
 
 def use_temp_cwd() -> None:

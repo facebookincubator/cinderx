@@ -15,8 +15,11 @@ Not every entry has been triaged individually. Check removals against:
 SKIPPED_TESTS: frozenset[str] = frozenset(
     {
         # -- subprocess --
-        #   Re-invoke sys.executable, which under a PAR is the test binary rather
-        #   than a bare interpreter; children fail with ModuleNotFoundError: 'test'.
+        #   Re-invoke sys.executable, the PAR's launcher binary, in ways that
+        #   `export_runtime_env` cannot cover: with -E or -I passed explicitly (so
+        #   the child misses the bundled stdlib and fails with
+        #   ModuleNotFoundError: 'test'), from a copy of the binary that cannot
+        #   find its shared libraries, or while asserting on its name.
         "test.test_argparse.TestProgName.test_directory",
         "test.test_argparse.TestProgName.test_directory_compiled",
         "test.test_argparse.TestProgName.test_directory_in_zipfile",
@@ -56,47 +59,11 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_audit.AuditTest.test_time_fail",
         "test.test_audit.AuditTest.test_unraisablehook",
         "test.test_class.TestInlineValues.test_detach_materialized_dict_no_memory",
-        "test.test_cmd_line.CmdLineTest.test_relativedir_bug46421",
-        "test.test_cmd_line_script.CmdLineTest.test_basic_script",
-        "test.test_cmd_line_script.CmdLineTest.test_directory",
-        "test.test_cmd_line_script.CmdLineTest.test_directory_compiled",
-        "test.test_cmd_line_script.CmdLineTest.test_issue8202",
-        "test.test_cmd_line_script.CmdLineTest.test_issue8202_dash_m_file_ignored",
-        "test.test_cmd_line_script.CmdLineTest.test_module_in_package",
-        "test.test_cmd_line_script.CmdLineTest.test_module_in_package_in_zipfile",
-        "test.test_cmd_line_script.CmdLineTest.test_module_in_subpackage_in_zipfile",
-        "test.test_cmd_line_script.CmdLineTest.test_package",
-        "test.test_cmd_line_script.CmdLineTest.test_package_compiled",
-        "test.test_cmd_line_script.CmdLineTest.test_script_compiled",
-        "test.test_cmd_line_script.CmdLineTest.test_zipfile",
-        "test.test_cmd_line_script.CmdLineTest.test_zipfile_compiled_checked_hash",
-        "test.test_cmd_line_script.CmdLineTest.test_zipfile_compiled_timestamp",
-        "test.test_cmd_line_script.CmdLineTest.test_zipfile_compiled_unchecked_hash",
         "test.test_eintr.EINTRTests.test_all",
-        "test.test_exceptions.ExceptionTests.test_exec_set_nomemory_hang",
-        "test.test_exceptions.ExceptionTests.test_memory_error_in_PyErr_PrintEx",
-        "test.test_exceptions.ExceptionTests.test_recursion_normalizing_with_no_memory",
         "test.test_external_inspection.TestGetStackTrace.test_async_global_awaited_by",
         "test.test_gc.GCTests.test_garbage_at_shutdown",
-        "test.test_gc.PythonFinalizationTests.test_ast_fini",
-        "test.test_module.ModuleTests.test_module_finalization_at_shutdown",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_basic_script",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_basic_script_no_suffix",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_directory",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_directory_compiled",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_ipython_workaround",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_module_in_package",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_module_in_package_in_zipfile",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_module_in_subpackage_in_zipfile",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_package",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_package_compiled",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_script_compiled",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_zipfile",
-        "test.test_multiprocessing_main_handling.SpawnCmdLineTest.test_zipfile_compiled",
         "test.test_os.EnvironTests.test_putenv_unsetenv",
-        "test.test_os.ForkTests.test_fork",
         "test.test_os.PseudoterminalTests.test_pipe_spawnl",
-        "test.test_posix.TestPosixSpawnP.test_posix_spawnp",
         "test.test_site.HelperFunctionsTests.test_s_option",
         "test.test_subprocess.ProcessTestCase.test_empty_env",
         "test.test_subprocess.ProcessTestCaseNoPoll.test_empty_env",
@@ -105,7 +72,6 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_sysconfig.TestSysConfig.test_makefile_overwrites_config_vars",
         "test.test_sysconfig.TestSysConfig.test_paths_depend_on_site_initialization",
         "test.test_tempfile.TestMkstempInner.test_noinherit",
-        "test.test_tracemalloc.TestCAPI.test_late_untrack",
         "test.test_unicode.UnicodeTest.test_check_encoding_errors",
         "test.test_venv.BasicTest.test_multiprocessing_recursion",
         "test.test_venv.BasicTest.test_special_chars_bash",
@@ -114,6 +80,19 @@ SKIPPED_TESTS: frozenset[str] = frozenset(
         "test.test_venv.BasicTest.test_zippath_from_non_installed_posix",
         "test.test_zipimport.CompressedZipImportTestCase",
         "test.test_zipimport.UncompressedZipImportTestCase",
+        # -- runtime env --
+        #   Exercise the -I/-E detection that `export_runtime_env` overrides, or
+        #   need a child started with -E/-I, which cannot find the bundled stdlib
+        #   (upstream skips these once PYTHONHOME is required).
+        "test.test_cmd_line.CmdLineTest.test_isolatedmode",
+        "test.test_cmd_line.CmdLineTest.test_xoptions",
+        "test.test_cmd_line.IgnoreEnvironmentTest.test_ignore_PYTHONHASHSEED",
+        "test.test_cmd_line.IgnoreEnvironmentTest.test_ignore_PYTHONPATH",
+        "test.test_cmd_line.IgnoreEnvironmentTest.test_sys_flags_not_set",
+        "test.test_script_helper.TestScriptHelperEnvironment.test_interpreter_requires_environment_details",
+        "test.test_script_helper.TestScriptHelperEnvironment.test_interpreter_requires_environment_false",
+        "test.test_script_helper.TestScriptHelperEnvironment.test_interpreter_requires_environment_true",
+        "test.test_tracemalloc.TestCommandLine.test_env_var_ignored_with_E",
         # -- permissions --
         #   Need privileges the test sandbox does not grant (Operation not permitted).
         "test.test_asyncio.test_events.EPollEventLoopTests.test_write_named_fifo_unread_data",
