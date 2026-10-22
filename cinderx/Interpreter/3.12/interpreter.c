@@ -5,6 +5,7 @@
 #define CINDERX_INTERPRETER
 
 #include "cinderx/Common/code.h"
+#include "cinderx/Interpreter/interpreter_macros.h"
 
 // Must come after pycore_opcode, we want to get the exported ones.
 #define NEED_OPCODE_NAMES
@@ -413,6 +414,7 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
 #define CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE \
     PyCodeObject* code = frame->f_code; \
     CodeExtra *extra = codeExtra(code); \
+    code_extra = extra; \
     adaptive_enabled = extra != NULL && is_adaptive_enabled(extra);
 
 PyObject* _Py_HOT_FUNCTION
@@ -478,6 +480,12 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 
     /* support for generator.throw() */
     bool adaptive_enabled = false;
+    // The current frame's CodeExtra, kept in step with `frame` so backward
+    // jumps can count interpreted bytecodes for the JIT's hotness check.
+    CodeExtra *code_extra = NULL;
+#ifdef ENABLE_PREFORK_MODEL
+    (void)code_extra;
+#endif
     if (throwflag) {
         if (_Py_EnterRecursivePy(tstate)) {
             goto exit_unwind;
@@ -508,6 +516,7 @@ start_frame:
     {
         PyCodeObject* code = frame->f_code;
         CodeExtra *extra = codeExtra(code);
+        code_extra = extra;
         if (extra != NULL) {
             Ci_code_extra_incr_calls(extra);
             adaptive_enabled = is_adaptive_enabled(extra);
@@ -787,6 +796,7 @@ exit_unwind:
     }
 
 resume_with_error:
+    code_extra = codeExtra(frame->f_code);
     SET_LOCALS_FROM_FRAME();
     goto error;
 

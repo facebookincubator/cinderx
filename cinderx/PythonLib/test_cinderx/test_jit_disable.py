@@ -22,7 +22,7 @@ from cinderx.jit import (
     lazy_compile,
     pause as pause_jit,
 )
-from cinderx.test_support import passIf, passUnless, subprocess_env
+from cinderx.test_support import passUnless, skip_if_prefork, subprocess_env
 
 
 @passUnless(is_jit_enabled(), "Tests functionality on the JIT")
@@ -430,10 +430,7 @@ class DisableEnableTests(unittest.TestCase):
                 },
             )
 
-    @passIf(
-        sys.version_info < (3, 14),
-        "Interpreted bytecode accounting requires the 3.14 custom loop",
-    )
+    @skip_if_prefork("Prefork builds don't count interpreted bytecodes")
     def test_auto_interpreted_bytecodes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             code = textwrap.dedent("""
@@ -456,6 +453,40 @@ class DisableEnableTests(unittest.TestCase):
             assert loop() == 199_990_000
             assert cinderx.jit.is_jit_compiled(loop)
             assert cinderx.jit.count_interpreted_calls(loop) == 1
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
+            )
+
+    @skip_if_prefork("Prefork builds don't count interpreted bytecodes")
+    def test_interpreted_bytecodes_yield_from(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import dis
+            import cinderx.jit
+
+            cinderx.jit.compile_after_n_calls(1000)
+            cinderx.jit.compile_after_n_bytecodes(1_000_000)
+
+            def delegate():
+                yield from range(10)
+
+            jump = next(
+                instruction for instruction in dis.get_instructions(delegate)
+                if instruction.opname == "JUMP_BACKWARD_NO_INTERRUPT"
+            )
+            assert cinderx.jit.count_interpreted_bytecodes(delegate) == 0
+            assert list(delegate()) == list(range(10))
+            assert (
+                cinderx.jit.count_interpreted_bytecodes(delegate) == jump.arg * 10
+            )
+            assert not cinderx.jit.is_jit_compiled(delegate)
             """)
 
             test_file = Path(tmp_dir) / "mod.py"
@@ -550,10 +581,7 @@ class DisableEnableTests(unittest.TestCase):
                 env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
 
-    @unittest.skipIf(
-        sys.version_info < (3, 14),
-        "Interpreted bytecode accounting requires the 3.14 custom loop",
-    )
+    @skip_if_prefork("Prefork builds don't count interpreted bytecodes")
     def test_compile_after_n_bytecodes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             code = textwrap.dedent("""
@@ -624,10 +652,7 @@ class DisableEnableTests(unittest.TestCase):
                 env={"CINDERX_JIT_BACKGROUND_COMPILE": "0", **subprocess_env()},
             )
 
-    @unittest.skipIf(
-        sys.version_info < (3, 14),
-        "Interpreted bytecode accounting requires the 3.14 custom loop",
-    )
+    @skip_if_prefork("Prefork builds don't count interpreted bytecodes")
     def test_compile_after_n_bytecodes_from_env(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             code = textwrap.dedent("""

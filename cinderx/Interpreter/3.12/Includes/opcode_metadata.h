@@ -247,8 +247,6 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 1;
         case JUMP_FORWARD:
             return 0;
-        case JUMP_BACKWARD:
-            return 0;
         case POP_JUMP_IF_FALSE:
             return 1;
         case POP_JUMP_IF_TRUE:
@@ -257,8 +255,6 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 1;
         case POP_JUMP_IF_NONE:
             return 1;
-        case JUMP_BACKWARD_NO_INTERRUPT:
-            return 0;
         case GET_LEN:
             return 1;
         case MATCH_CLASS:
@@ -379,6 +375,10 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 2;
         case WITH_EXCEPT_START:
             return 4;
+        case JUMP_BACKWARD:
+            return 0;
+        case JUMP_BACKWARD_NO_INTERRUPT:
+            return 0;
         case EXTENDED_ARG:
             return 0;
         case MAP_ADD:
@@ -731,8 +731,6 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 2;
         case JUMP_FORWARD:
             return 0;
-        case JUMP_BACKWARD:
-            return 0;
         case POP_JUMP_IF_FALSE:
             return 0;
         case POP_JUMP_IF_TRUE:
@@ -740,8 +738,6 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
         case POP_JUMP_IF_NOT_NONE:
             return 0;
         case POP_JUMP_IF_NONE:
-            return 0;
-        case JUMP_BACKWARD_NO_INTERRUPT:
             return 0;
         case GET_LEN:
             return 2;
@@ -863,6 +859,10 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 2;
         case WITH_EXCEPT_START:
             return 5;
+        case JUMP_BACKWARD:
+            return 0;
+        case JUMP_BACKWARD_NO_INTERRUPT:
+            return 0;
         case EXTENDED_ARG:
             return 0;
         case MAP_ADD:
@@ -1102,12 +1102,10 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [IMPORT_NAME] = { true, INSTR_FMT_IB },
     [IMPORT_FROM] = { true, INSTR_FMT_IB },
     [JUMP_FORWARD] = { true, INSTR_FMT_IB },
-    [JUMP_BACKWARD] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_FALSE] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_TRUE] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_NOT_NONE] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_NONE] = { true, INSTR_FMT_IB },
-    [JUMP_BACKWARD_NO_INTERRUPT] = { true, INSTR_FMT_IB },
     [GET_LEN] = { true, INSTR_FMT_IX },
     [MATCH_CLASS] = { true, INSTR_FMT_IB },
     [MATCH_MAPPING] = { true, INSTR_FMT_IX },
@@ -1168,6 +1166,8 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [GET_YIELD_FROM_ITER] = { true, INSTR_FMT_IX },
     [SEND_GEN] = { true, INSTR_FMT_IBC },
     [WITH_EXCEPT_START] = { true, INSTR_FMT_IX },
+    [JUMP_BACKWARD] = { true, INSTR_FMT_IB },
+    [JUMP_BACKWARD_NO_INTERRUPT] = { true, INSTR_FMT_IB },
     [EXTENDED_ARG] = { true, INSTR_FMT_IB },
     [MAP_ADD] = { true, INSTR_FMT_IB },
     [LIST_APPEND] = { true, INSTR_FMT_IB },

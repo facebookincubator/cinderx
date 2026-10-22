@@ -296,6 +296,19 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
+        override inst(JUMP_BACKWARD, (--)) {
+            assert(oparg < INSTR_OFFSET());
+            CI_UPDATE_INTERPRETED_BYTECODES(code_extra, oparg)
+            JUMPBY(-oparg);
+            CHECK_EVAL_BREAKER();
+        }
+
+        override inst(JUMP_BACKWARD_NO_INTERRUPT, (--)) {
+            assert(oparg <= INSTR_OFFSET());
+            CI_UPDATE_INTERPRETED_BYTECODES(code_extra, oparg)
+            JUMPBY(-oparg);
+        }
+
         override inst(EXTENDED_ARG, ( -- )) {
             opcode = next_instr->op.code;
             oparg = oparg << 8 | next_instr->op.arg;
