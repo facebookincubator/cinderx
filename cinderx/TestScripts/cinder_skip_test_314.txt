@@ -19,6 +19,3 @@ test.test_gc.GCTests.test_heap_size
 # CinderX's loaded extensions raise the platform's minimum thread stack above
 # the smaller POSIX values this CPython test expects to accept.
 test.test_thread.ThreadRunningTests.test_nt_and_posix_stack_size
-
-# AI thinks this is broken upstream but fixed in 3.15+
-test.test_zipimport.CompressedZipImportTestCase.testPackageExplicitDirectories
