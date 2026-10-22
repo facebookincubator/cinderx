@@ -334,12 +334,6 @@ static int future_cancel_impl(FutureObj* fut, PyObject* msg) {
   return 0;
 }
 
-#define _AsyncLazyValue_CheckExact(obj) \
-  (Py_TYPE(obj) == (PyTypeObject*)get_state()->asyncLazyValueType())
-
-#define _AsyncLazyValueCompute_CheckExact(obj) \
-  (Py_TYPE(obj) == (PyTypeObject*)get_state()->asyncLazyValueComputeType())
-
 static PyObject* FutureObj_get_traceback(PyObject* fut) {
   auto traceback = get_state()->futureSourceTraceback();
   if (traceback == nullptr) {
@@ -574,31 +568,10 @@ static PyObject* future_new(PyObject* loop) {
 static PyObject* AsyncLazyValue_new_future(
     AsyncLazyValueObj* self,
     PyObject* loop) {
-  FutureObj* fut;
-  // if cinder is not present - stack walking is not available so create regular
-  // future also create regular future if we have exactly AsyncLazyValue (not a
-  // subtype that might add dedicated frame to identify running ALVs)
-#if 0
-  if (cinder_get_arg0_from_pyframe == nullptr ||
-      _AsyncLazyValue_CheckExact(self)) {
-#endif
-  fut = future_new(loop);
+  FutureObj* fut = future_new(loop);
   if (fut == nullptr) {
     return nullptr;
   }
-#if 0
-  } else {
-    // for subclasses of _AsyncLazyValue_Type - create dedicated future type
-    _ALVResultFutureObj* f = (_ALVResultFutureObj*)PyType_GenericNew(
-        get_state()->alvResultFutureObj(), nullptr, nullptr);
-    if (f == nullptr) {
-      return nullptr;
-    }
-    f->alvrf_blocked_by_this = nullptr;
-    f->alvrf_cycle_boundary = 0;
-    fut = (FutureObj*)f;
-  }
-#endif
   if (self->alv_futures == nullptr) {
     self->alv_futures = PyList_New(0);
     if (self->alv_futures == nullptr) {
