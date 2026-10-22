@@ -915,7 +915,8 @@ static std::string format_immediates(
 
 void HIRPrinter::print(std::ostream& os, const Instr& instr) {
   indented(os);
-  if (Register* dst = instr.output()) {
+  if (instr.numOutputs() > 0) {
+    Register* dst = instr.output();
     os << *dst;
     if (dst->type() != TTop) {
       os << ":" << dst->type();

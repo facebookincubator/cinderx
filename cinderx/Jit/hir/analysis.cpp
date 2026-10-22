@@ -219,8 +219,8 @@ static void analyzeInstrLiveness(
     const Instr& instr,
     OutputFunc define_output,
     UseFunc use) {
-  if (auto output = instr.output()) {
-    define_output(output);
+  if (instr.numOutputs() > 0) {
+    define_output(instr.output());
   }
 
   if (instr.isPhi()) {
@@ -319,8 +319,8 @@ void AssignmentAnalysis::computeGenKill(
     RegisterSet& /* kill */) {
   gen = args_;
   for (const auto& instr : *block) {
-    auto output = instr.output();
-    if (output != nullptr) {
+    if (instr.numOutputs() > 0) {
+      auto output = instr.output();
       gen.insert(output);
     }
   }

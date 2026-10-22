@@ -614,11 +614,11 @@ void reflowTypes(Function& func, BasicBlock* start) {
               func.cfg);
         }
 
-        auto dst = instr.output();
-        if (dst == nullptr) {
+        if (instr.numOutputs() == 0) {
           continue;
         }
 
+        auto dst = instr.output();
         auto new_ty = outputType(instr);
         if (new_ty == dst->type()) {
           continue;
@@ -888,7 +888,7 @@ bool removeUnreachableInstructions(Function& func) {
     while (it != block->end()) {
       Instr& instr = *it;
       ++it;
-      if ((instr.output() == nullptr || !instr.output()->isA(TBottom)) &&
+      if ((instr.numOutputs() == 0 || !instr.output()->isA(TBottom)) &&
           !instr.isUnreachable()) {
         continue;
       }

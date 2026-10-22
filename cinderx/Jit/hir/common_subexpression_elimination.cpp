@@ -223,7 +223,7 @@ std::optional<ValueKey> valueKeyImpl(const Instr& instr) {
 // silently skipping a misclassified opcode turns it into a missed
 // optimization rather than a miscompile.
 std::optional<ValueKey> valueKey(const Instr& instr) {
-  if (instr.output() == nullptr) {
+  if (instr.numOutputs() == 0) {
     return std::nullopt;
   }
   std::optional<ValueKey> key = valueKeyImpl(instr);

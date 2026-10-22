@@ -208,11 +208,14 @@ class Instr : public IntrusiveListNode<Instr> {
   // Replace uses of orig with replacement.
   void replaceUsesOf(Register* orig, Register* replacement);
 
-  // If this instruction produces a value, return where it will be stored
+  // If this instruction produces a value, return where it will be stored.
   Register* output() const;
 
   // Set where the output from this instruction will be stored
   void setOutput(Register* dst);
+
+  // Get the number of values defined by this instruction.
+  std::size_t numOutputs() const;
 
   // Basic blocks must be terminated with control flow ops
   bool isTerminator() const;

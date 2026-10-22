@@ -167,7 +167,8 @@ void checkRegisters(CheckEnv& env) {
     }
   }
 
-  if (auto output = env.instr->output()) {
+  if (env.instr->numOutputs() > 0) {
+    Register* output = env.instr->output();
     if (output->instr() != env.instr) {
       fmt::print(
           env.err,
@@ -345,7 +346,9 @@ void SSAConstructor::computeLiveness() {
         }
         return true;
       });
-      if (Register* out = instr.output()) {
+
+      if (instr.numOutputs() > 0) {
+        Register* out = instr.output();
         block_kill.insert(out);
       }
     }
@@ -375,7 +378,8 @@ void SSAConstructor::collectDefSites() {
   for (BasicBlock* block : dom_.reversePostorder()) {
     for (Instr& instr : *block) {
       JIT_CHECK(!instr.isPhi(), "SSAify does not support Phis in its input");
-      if (Register* out = instr.output()) {
+      if (instr.numOutputs() > 0) {
+        Register* out = instr.output();
         def_sites_[out].insert(block);
       }
     }
@@ -471,7 +475,8 @@ void SSAConstructor::renameBlock(
       reg = readVar(reg);
       return true;
     });
-    if (Register* var = instr.output()) {
+    if (instr.numOutputs() > 0) {
+      Register* var = instr.output();
       Register* new_reg = env_.allocateRegister();
       instr.setOutput(new_reg);
       def_stack_[var].push_back(new_reg);

@@ -320,7 +320,7 @@ Instr::Instr(Opcode opcode) : opcode_{opcode} {}
 Instr::Instr(const Instr& other)
     : opcode_(other.opcode()),
       bytecode_offset_{other.bytecodeOffset()},
-      output_{other.output()} {}
+      output_{other.output_} {}
 
 std::string_view Instr::opname() const {
   return hirOpcodeName(opcode());
@@ -379,6 +379,8 @@ void Instr::replaceUsesOf(Register* orig, Register* replacement) {
 }
 
 Register* Instr::output() const {
+  JIT_THROW_IF(
+      numOutputs() == 0, "Can't load output of {} instruction", opname());
   return output_;
 }
 
@@ -390,6 +392,12 @@ void Instr::setOutput(Register* dst) {
     dst->setInstr(this);
   }
   output_ = dst;
+}
+
+std::size_t Instr::numOutputs() const {
+  // Second outputs are currently implicit, and materialized with
+  // GetSecondOutput.
+  return std::min(hir::numOutputs(opcode()), size_t{1});
 }
 
 bool Instr::isTerminator() const {

@@ -43,7 +43,10 @@ bool guardNeeded(const RegUses& uses, Register* guard_out, Type relaxed_type) {
         if (instr->getOperand(i) != reg) {
           continue;
         }
-        Register* output = instr->output();
+        Register* output = nullptr;
+        if (instr->numOutputs() > 0) {
+          output = instr->output();
+        }
         if (output != nullptr && (instr->isPhi() || isPassthrough(*instr))) {
           Type passthrough_type = outputTypeWithOperand(*instr, i, reg_type);
           if (seen_state[output].insert(passthrough_type).second) {

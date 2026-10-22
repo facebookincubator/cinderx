@@ -1029,10 +1029,11 @@ void stealInputs(
 
 // Track the output of the given instruction.
 void processOutput(Env& env, const Instr& instr, const MemoryEffects& effects) {
-  auto output = instr.output();
-  if (output == nullptr) {
+  if (instr.numOutputs() == 0) {
     return;
   }
+
+  Register* output = instr.output();
 
   // Even though GuardIs is a passthrough, it verifies that a runtime value is a
   // specific object, breaking the dependency on the instruction that produced

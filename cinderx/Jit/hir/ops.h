@@ -205,4 +205,7 @@ constexpr std::string_view hirOpcodeName(Opcode op) {
 
 std::optional<Opcode> opcodeFromName(std::string_view name);
 
+// Get the number of values defined by an instruction with this opcode.
+size_t numOutputs(Opcode op);
+
 } // namespace cinderx::jit::hir

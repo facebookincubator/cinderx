@@ -98,7 +98,8 @@ struct Env {
   // output, a new Register* will be created and returned.
   template <typename T, typename... Args>
   Register* emit(Args&&... args) {
-    return emitInstr<T>(std::forward<Args>(args)...)->output();
+    Instr* instr = emitInstr<T>(std::forward<Args>(args)...);
+    return instr->numOutputs() > 0 ? instr->output() : nullptr;
   }
 
   // Similar to emit(), but returns the instruction itself. Useful for
@@ -126,7 +127,8 @@ struct Env {
                  std::forward<Args>(args)...)
           ->output();
     } else {
-      return emitRawInstr<T>(arity, std::forward<Args>(args)...)->output();
+      emitRawInstr<T>(arity, std::forward<Args>(args)...);
+      return nullptr;
     }
   }
 
@@ -139,7 +141,7 @@ struct Env {
     instr->setBytecodeOffset(bc_off);
     block->insert(instr, cursor);
 
-    if constexpr (T::has_output) {
+    if (instr->numOutputs() > 0) {
       Register* output = instr->output();
       switch (instr->opcode()) {
         case Opcode::kVectorCall:
@@ -2902,7 +2904,7 @@ bool Simplify::run(Function& irfunc) {
 
         changed = true;
         JIT_CHECK(
-            (new_output == nullptr) == (instr.output() == nullptr),
+            (new_output == nullptr) == (instr.numOutputs() == 0),
             "Simplify function should return a new output if and only if the "
             "existing instruction has an output");
         if (new_output != nullptr) {

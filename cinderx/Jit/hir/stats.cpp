@@ -8,7 +8,8 @@ bool HIRStats::run(Function& irfunc) {
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
       stats_.instrs[std::string(instr.opname())]++;
-      if (Register* output = instr.output()) {
+      if (instr.numOutputs() > 0) {
+        Register* output = instr.output();
         Type output_type = output->type();
         std::string output_type_str = ThreadedCompileContext::compileRunning()
             ? output_type.toStringSafe()

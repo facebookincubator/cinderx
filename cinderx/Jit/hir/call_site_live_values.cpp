@@ -46,7 +46,8 @@ void addUsesForLiveness(const Instr& instr, RegisterSet& live) {
 
 RegisterSet liveBeforeInstr(const Instr& instr, const RegisterSet& live_after) {
   RegisterSet live = live_after;
-  if (Register* output = instr.output()) {
+  if (instr.numOutputs() > 0) {
+    Register* output = instr.output();
     live.erase(output);
   }
   addUsesForLiveness(instr, live);

@@ -1609,7 +1609,7 @@ void LIRGenerator::analyzeCopies() {
     for (auto& instr : block) {
       // Cast doesn't have to be a special case once it deopts and always
       // returns its input.
-      if (instr.output() != nullptr && !instr.isCast() &&
+      if (instr.numOutputs() > 0 && !instr.isCast() &&
           hir::isPassthrough(instr)) {
         env_->copy_propagation_map.emplace(instr.output(), instr.getOperand(0));
       }

@@ -68,7 +68,7 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
       }
     }
     v1 = LoadGlobal<0>
-    CheckExc v1 {
+    v2 = CheckExc v1 {
       FrameState {
         CurInstrOffset 2
         Stack<1> v1
@@ -90,7 +90,7 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
         CurInstrOffset -2
       }
     }
-    CheckExc v1 {
+    v2:Object = CheckExc v1 {
       LiveValues<1> o:v1
       FrameState {
         CurInstrOffset 2
@@ -122,7 +122,7 @@ fun __main__:test {
       BlockStack {
       }
     }
-    CheckVar<"foo"> v0 {
+    v4 = CheckVar<"foo"> v0 {
       FrameState {
         CurInstrOffset 6
         Stack<0>
@@ -130,7 +130,7 @@ fun __main__:test {
     }
     v1 = LoadConst<NoneType>
     v2 = LoadGlobal<0>
-    CheckExc v2 {
+    v5 = CheckExc v2 {
       FrameState {
         CurInstrOffset 6
         Stack<0>
@@ -142,7 +142,7 @@ fun __main__:test {
     }
     Guard v2
     v3 = VectorCall<2> v0 v1 v2
-    CheckExc v3 {
+    v6 = CheckExc v3 {
       FrameState {
         CurInstrOffset 8
         Stack<0>
@@ -159,7 +159,7 @@ fun __main__:test {
   const char* expected = R"(fun __main__:test {
   bb 0 {
     v0:Object = LoadArg<0>
-    CheckVar<"foo"> v0 {
+    v4:Object = CheckVar<"foo"> v0 {
       LiveValues<1> b:v0
       FrameState {
         CurInstrOffset 6
@@ -172,7 +172,7 @@ fun __main__:test {
         CurInstrOffset -2
       }
     }
-    CheckExc v2 {
+    v5:Object = CheckExc v2 {
       LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
         CurInstrOffset 6
@@ -192,7 +192,7 @@ fun __main__:test {
       }
     }
     Decref v2
-    CheckExc v3 {
+    v6:Object = CheckExc v3 {
       LiveValues<1> o:v3
       FrameState {
         CurInstrOffset 8

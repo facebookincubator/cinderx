@@ -461,7 +461,7 @@ fun test {
   }
 
   bb 2 {
-    CheckVar<"a"> v0 {
+    v2 = CheckVar<"a"> v0 {
     }
     Branch<3>
   }
@@ -471,7 +471,7 @@ fun test {
   }
 
   bb 4 {
-    CheckVar<"a"> v0 {
+    v3 = CheckVar<"a"> v0 {
     }
     Branch<3>
   }
@@ -483,17 +483,17 @@ fun test {
 )";
   const char* expected = R"(fun test {
   bb 0 {
-    v2:Object = LoadArg<0>
-    v3:NoneType = LoadConst<NoneType>
+    v4:Object = LoadArg<0>
+    v5:NoneType = LoadConst<NoneType>
     Branch<1>
   }
 
   bb 1 (preds 0, 3) {
-    CondBranch<2, 5> v3
+    CondBranch<2, 5> v5
   }
 
   bb 2 (preds 1) {
-    CheckVar<"a"> v2 {
+    v6:Object = CheckVar<"a"> v4 {
       FrameState {
         CurInstrOffset -2
       }
@@ -502,11 +502,11 @@ fun test {
   }
 
   bb 3 (preds 2, 4) {
-    CondBranch<4, 1> v3
+    CondBranch<4, 1> v5
   }
 
   bb 4 (preds 3) {
-    CheckVar<"a"> v2 {
+    v7:Object = CheckVar<"a"> v4 {
       FrameState {
         CurInstrOffset -2
       }
@@ -515,7 +515,7 @@ fun test {
   }
 
   bb 5 (preds 1) {
-    Return v2
+    Return v4
   }
 }
 )";
@@ -539,7 +539,7 @@ fun test {
   }
 
   bb 1 {
-    CheckVar<"a"> v0
+    v2 = CheckVar<"a"> v0
     v0 = LoadConst<NoneType>
     Branch<4>
   }
@@ -549,7 +549,7 @@ fun test {
   }
 
   bb 3 {
-    CheckVar<"a"> v0
+    v3 = CheckVar<"a"> v0
     Branch<2>
   }
 
@@ -560,27 +560,27 @@ fun test {
 )";
   const char* expected = R"(fun test {
   bb 0 {
-    v2:Object = LoadArg<0>
-    v3:NoneType = LoadConst<NoneType>
-    CondBranch<1, 2> v3
+    v4:Object = LoadArg<0>
+    v5:NoneType = LoadConst<NoneType>
+    CondBranch<1, 2> v5
   }
 
   bb 2 (preds 0, 3) {
-    CondBranch<1, 3> v2
+    CondBranch<1, 3> v4
   }
 
   bb 1 (preds 0, 2) {
-    CheckVar<"a"> v2 {
+    v6:Object = CheckVar<"a"> v4 {
       FrameState {
         CurInstrOffset -2
       }
     }
-    v4:NoneType = LoadConst<NoneType>
-    Return v4
+    v7:NoneType = LoadConst<NoneType>
+    Return v7
   }
 
   bb 3 (preds 2) {
-    CheckVar<"a"> v2 {
+    v8:Object = CheckVar<"a"> v4 {
       FrameState {
         CurInstrOffset -2
       }
@@ -611,7 +611,7 @@ fun test {
   }
 
   bb 2 {
-    CheckVar<"a"> v0 {
+    v3 = CheckVar<"a"> v0 {
     }
     Branch<3>
   }
@@ -636,17 +636,17 @@ fun test {
 )";
   const char* expected = R"(fun test {
   bb 0 {
-    v3:Object = LoadArg<0>
-    v4:NoneType = LoadConst<NoneType>
+    v4:Object = LoadArg<0>
+    v5:NoneType = LoadConst<NoneType>
     Branch<1>
   }
 
   bb 1 (preds 0, 5) {
-    CondBranch<2, 5> v4
+    CondBranch<2, 5> v5
   }
 
   bb 2 (preds 1) {
-    CheckVar<"a"> v3 {
+    v6:Object = CheckVar<"a"> v4 {
       FrameState {
         CurInstrOffset -2
       }
@@ -655,20 +655,20 @@ fun test {
   }
 
   bb 3 (preds 2, 3) {
-    CondBranch<4, 3> v4
+    CondBranch<4, 3> v5
   }
 
   bb 4 (preds 3) {
-    Return v3
+    Return v4
   }
 
   bb 5 (preds 1) {
-    CondBranch<6, 1> v4
+    CondBranch<6, 1> v5
   }
 
   bb 6 (preds 5) {
-    v5:NoneType = LoadConst<NoneType>
-    Return v5
+    v7:NoneType = LoadConst<NoneType>
+    Return v7
   }
 }
 )";
