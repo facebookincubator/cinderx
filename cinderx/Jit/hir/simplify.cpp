@@ -26,6 +26,7 @@
 #include <array>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 namespace cinderx::jit::hir {
 
@@ -95,6 +96,20 @@ struct Env {
 
   // Number of new basic blocks added by the simplifier.
   size_t new_blocks{0};
+
+  // When simplifying an instruction with multiple outputs, simplify functions
+  // return the replacement for the primary output and store the replacements
+  // for the remaining outputs here, in order.
+  std::vector<Register*> extra_outputs;
+
+  // Give instr a new output Register after its existing ones, returning it.
+  Register* addOutput(Instr* instr) {
+    std::size_t idx = instr->numOutputs();
+    Register* output = func.env.allocateRegister();
+    instr->setOutput(idx, output);
+    output->setType(outputType(*instr, idx));
+    return output;
+  }
 
   // Create and insert the specified instruction. If the instruction has an
   // output, a new Register* will be created and returned.
@@ -168,6 +183,17 @@ struct Env {
   // - do_bb2 should do the same for the second successor.
   template <typename BranchFn, typename Bb1Fn, typename Bb2Fn>
   Register* emitCond(BranchFn do_branch, Bb1Fn do_bb1, Bb2Fn do_bb2) {
+    return emitCondMulti(
+        do_branch,
+        [&] { return std::vector<Register*>{do_bb1()}; },
+        [&] { return std::vector<Register*>{do_bb2()}; })[0];
+  }
+
+  // Like emitCond(), but do_bb1 and do_bb2 each return a vector of values, of
+  // the same length.  Returns one Phi output per value.
+  template <typename BranchFn, typename Bb1Fn, typename Bb2Fn>
+  std::vector<Register*>
+  emitCondMulti(BranchFn do_branch, Bb1Fn do_bb1, Bb2Fn do_bb2) {
     // bb1, bb2, and the new tail block that's split from the original.
     new_blocks += 3;
 
@@ -181,24 +207,33 @@ struct Env {
 
     block = bb1;
     cursor = bb1->end();
-    Register* bb1_reg = do_bb1();
+    std::vector<Register*> bb1_regs = do_bb1();
     // do_bb1() might have created more blocks, use the final one.
     BasicBlock* bb1_end = block;
     emit<Branch>(tail);
 
     block = bb2;
     cursor = bb2->end();
-    Register* bb2_reg = do_bb2();
+    std::vector<Register*> bb2_regs = do_bb2();
     BasicBlock* bb2_end = block;
     emit<Branch>(tail);
 
+    JIT_CHECK(
+        bb1_regs.size() == bb2_regs.size(),
+        "Conditional paths produce {} and {} values",
+        bb1_regs.size(),
+        bb2_regs.size());
     block = tail;
     cursor = tail->begin();
-    std::unordered_map<BasicBlock*, Register*> phi_srcs{
-        {bb1_end, bb1_reg},
-        {bb2_end, bb2_reg},
-    };
-    return emit<Phi>(phi_srcs);
+    std::vector<Register*> phis;
+    for (std::size_t i = 0; i < bb1_regs.size(); ++i) {
+      std::unordered_map<BasicBlock*, Register*> phi_srcs{
+          {bb1_end, bb1_regs[i]},
+          {bb2_end, bb2_regs[i]},
+      };
+      phis.push_back(emit<Phi>(phi_srcs));
+    }
+    return phis;
   }
 
   // Create and return a conditional value that could go through a slow path if
@@ -917,13 +952,36 @@ Register* simplifyLoadVarObjectSize(Env& env, const LoadVarObjectSize* instr) {
   return nullptr;
 }
 
+// Give replacement as many outputs as load_meth has, returning all of them.
+std::vector<Register*> matchLoadMethodOutputs(
+    Env& env,
+    const LoadMethod* load_meth,
+    Instr* replacement) {
+  while (replacement->numOutputs() < load_meth->numOutputs()) {
+    env.addOutput(replacement);
+  }
+  auto outputs = replacement->outputs();
+  return {outputs.begin(), outputs.end()};
+}
+
+// Return the replacement for load_meth's primary output, recording the
+// replacements for its other outputs in env.extra_outputs.
+Register* replaceLoadMethodOutputs(
+    Env& env,
+    const std::vector<Register*>& outputs) {
+  env.extra_outputs.assign(outputs.begin() + 1, outputs.end());
+  return outputs[0];
+}
+
 Register* simplifyLoadModuleMethodCached(
     Env& env,
     const LoadMethod* load_meth) {
   Register* receiver = load_meth->getOperand(0);
   int name_idx = load_meth->nameIdx();
-  return env.emit<LoadModuleMethodCached>(
+  auto load = env.emitInstr<LoadModuleMethodCached>(
       receiver, name_idx, *load_meth->frameState());
+  return replaceLoadMethodOutputs(
+      env, matchLoadMethodOutputs(env, load_meth, load));
 }
 
 Register* simplifyLoadTypeMethodCached(Env& env, const LoadMethod* load_meth) {
@@ -933,18 +991,22 @@ Register* simplifyLoadTypeMethodCached(Env& env, const LoadMethod* load_meth) {
   Register* guard = env.emit<LoadTypeMethodCacheEntryType>(cache_id);
   Register* type_matches =
       env.emit<PrimitiveCompare>(PrimitiveCompareOp::kEqual, guard, receiver);
-  return env.emitCond(
+  std::vector<Register*> outputs = env.emitCondMulti(
       [&](BasicBlock* fast_path, BasicBlock* slow_path) {
         env.emit<CondBranch>(type_matches, fast_path, slow_path);
       },
       [&] { // Fast path
-        return env.emit<LoadTypeMethodCacheEntryValue>(cache_id, receiver);
+        auto load =
+            env.emitInstr<LoadTypeMethodCacheEntryValue>(cache_id, receiver);
+        return matchLoadMethodOutputs(env, load_meth, load);
       },
       [&] { // Slow path
         int name_idx = load_meth->nameIdx();
-        return env.emit<FillTypeMethodCache>(
+        auto fill = env.emitInstr<FillTypeMethodCache>(
             receiver, name_idx, cache_id, *load_meth->frameState());
+        return matchLoadMethodOutputs(env, load_meth, fill);
       });
+  return replaceLoadMethodOutputs(env, outputs);
 }
 
 Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
@@ -2864,6 +2926,27 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
   }
 }
 
+// Assign the replacements in env.extra_outputs to the non-primary outputs of
+// instr.
+void replaceExtraOutputs(Env& env, const Instr& instr) {
+  JIT_CHECK(
+      env.extra_outputs.size() + 1 == instr.numOutputs(),
+      "Simplify function replaced {} of the {} outputs of {}",
+      env.extra_outputs.size() + 1,
+      instr.numOutputs(),
+      instr);
+  for (std::size_t i = 1; i < instr.numOutputs(); ++i) {
+    Register* new_output = env.extra_outputs[i - 1];
+    Register* old_output = instr.output(i);
+    JIT_CHECK(
+        new_output->type() <= old_output->type(),
+        "New output type {} isn't compatible with old output type {}",
+        new_output->type(),
+        old_output->type());
+    env.emitRawInstr<Assign>(old_output, new_output);
+  }
+}
+
 } // namespace
 
 bool Simplify::run(Function& irfunc) {
@@ -2892,6 +2975,7 @@ bool Simplify::run(Function& irfunc) {
         ++blk_it;
 
         env.optimized = false;
+        env.extra_outputs.clear();
         env.cursor = block.iterator_to(instr);
         env.bc_off = instr.bytecodeOffset();
         Register* new_output = simplifyInstr(env, &instr);
@@ -2916,6 +3000,11 @@ bool Simplify::run(Function& irfunc) {
               new_output->type(),
               instr.output()->type());
           env.emitRawInstr<Assign>(instr.output(), new_output);
+          replaceExtraOutputs(env, instr);
+        } else {
+          JIT_CHECK(
+              env.extra_outputs.empty(),
+              "Extra outputs replaced without replacing the primary output");
         }
 
         if (instr.isCondBranch() || instr.isCondBranchIterNotDone() ||

@@ -1626,14 +1626,13 @@ fun jittestmodule:test {
         Locals<1> v11
       }
     }
-    v15:Object = LoadMethod<0; "append"> v13 {
+    v15:Object, v16:OptObject = LoadMethod<0; "append"> v13 {
       LiveValues<1> o:v13
       FrameState {
         CurInstrOffset 8
         Locals<1> v13
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v18:Object = CallMethod<3> v15 v16 v17 {
       LiveValues<4> o:v13 o:v15 o:v16 unc:v17
@@ -1676,14 +1675,13 @@ fun jittestmodule:test {
         Locals<1> v11
       }
     }
-    v15:Object = LoadMethod<0; "append"> v13 {
+    v15:Object, v16:OptObject = LoadMethod<0; "append"> v13 {
       LiveValues<1> o:v13
       FrameState {
         CurInstrOffset 8
         Locals<1> v13
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v18:Object = CallMethod<3> v15 v16 v17 {
       LiveValues<4> o:v13 o:v15 o:v16 unc:v17
@@ -1727,14 +1725,13 @@ fun jittestmodule:test {
       }
     }
     UpdatePrevInstr<idx:5 line_no:3: no parent>
-    v15:Object = LoadMethod<0; "append"> v13 {
+    v15:Object, v16:OptObject = LoadMethod<0; "append"> v13 {
       LiveValues<1> o:v13
       FrameState {
         CurInstrOffset 10
         Locals<1> v13
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v18:Object = CallMethod<3> v15 v16 v17 {
       LiveValues<4> o:v13 o:v15 o:v16 unc:v17
@@ -1778,14 +1775,13 @@ fun jittestmodule:test {
       }
     }
     UpdatePrevInstr<idx:5 line_no:3: no parent>
-    v15:Object = LoadMethod<0; "append"> v13 {
+    v15:Object, v16:OptObject = LoadMethod<0; "append"> v13 {
       LiveValues<1> o:v13
       FrameState {
         CurInstrOffset 10
         Locals<1> v13
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v18:Object = CallMethod<3> v15 v16 v17 {
       LiveValues<4> o:v13 o:v15 o:v16 unc:v17
@@ -1829,14 +1825,13 @@ fun jittestmodule:test {
         Locals<1> v11
       }
     }
-    v15:Object = LoadMethod<0; "append"> v13 {
+    v15:Object, v16:OptObject = LoadMethod<0; "append"> v13 {
       LiveValues<1> o:v13
       FrameState {
         CurInstrOffset 8
         Locals<1> v13
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v18:Object = CallMethod<3> v15 v16 v17 {
       LiveValues<4> o:v13 o:v15 o:v16 unc:v17
@@ -1936,7 +1931,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 2, 9) {
     v34:Object = Phi<2, 9> v38 v31
-    v35:Object = Send v28 v34 {
+    v35:Object, v36:CInt64 = Send v28 v34 {
       LiveValues<3> unc:v22 o:v28 b:v34
       FrameState {
         CurInstrOffset 44
@@ -1944,7 +1939,6 @@ fun jittestmodule:test {
         Stack<1> v28
       }
     }
-    v36:CInt64 = GetSecondOutput<CInt64> v35
     CondBranch<3, 2> v36
   }
 
@@ -2046,7 +2040,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 2, 9) {
     v34:Object = Phi<2, 9> v38 v31
-    v35:Object = Send v28 v34 {
+    v35:Object, v36:CInt64 = Send v28 v34 {
       LiveValues<3> unc:v22 o:v28 b:v34
       FrameState {
         CurInstrOffset 44
@@ -2054,7 +2048,6 @@ fun jittestmodule:test {
         Stack<1> v28
       }
     }
-    v36:CInt64 = GetSecondOutput<CInt64> v35
     CondBranch<3, 2> v36
   }
 
@@ -2160,7 +2153,7 @@ fun jittestmodule:test {
   bb 1 (preds 2, 9) {
     v38:Object = Phi<2, 9> v42 v34
     UpdatePrevInstr<idx:24 line_no:3: no parent>
-    v39:Object = Send v30 v38 {
+    v39:Object, v40:CInt64 = Send v30 v38 {
       LiveValues<4> unc:v21 unc:v24 o:v30 b:v38
       FrameState {
         CurInstrOffset 48
@@ -2168,7 +2161,6 @@ fun jittestmodule:test {
         Stack<2> v30 v21
       }
     }
-    v40:CInt64 = GetSecondOutput<CInt64> v39
     CondBranch<3, 2> v40
   }
 
@@ -2276,7 +2268,7 @@ fun jittestmodule:test {
   bb 1 (preds 2, 9) {
     v38:Object = Phi<2, 9> v42 v34
     UpdatePrevInstr<idx:24 line_no:3: no parent>
-    v39:Object = Send v30 v38 {
+    v39:Object, v40:CInt64 = Send v30 v38 {
       LiveValues<4> unc:v21 unc:v24 o:v30 b:v38
       FrameState {
         CurInstrOffset 48
@@ -2284,7 +2276,6 @@ fun jittestmodule:test {
         Stack<2> v30 v21
       }
     }
-    v40:CInt64 = GetSecondOutput<CInt64> v39
     CondBranch<3, 2> v40
   }
 
@@ -2391,7 +2382,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 2, 9) {
     v34:Object = Phi<2, 9> v38 v31
-    v35:Object = Send v28 v34 {
+    v35:Object, v36:CInt64 = Send v28 v34 {
       LiveValues<3> unc:v22 o:v28 b:v34
       FrameState {
         CurInstrOffset 44
@@ -2399,7 +2390,6 @@ fun jittestmodule:test {
         Stack<1> v28
       }
     }
-    v36:CInt64 = GetSecondOutput<CInt64> v35
     CondBranch<3, 2> v36
   }
 

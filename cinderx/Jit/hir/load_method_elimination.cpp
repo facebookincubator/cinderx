@@ -9,7 +9,6 @@
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
-#include "cinderx/module_state.h"
 
 namespace cinderx::jit::hir {
 
@@ -17,7 +16,6 @@ namespace {
 
 struct MethodInvoke {
   LoadMethodBase* load_method{nullptr};
-  GetSecondOutput* get_instance{nullptr};
   CallMethod* call_method{nullptr};
 };
 
@@ -234,11 +232,9 @@ void addInstanceDictGuard(
   replacement.push_back(check_values);
   append_guard(is_values, "dict values check");
 #endif
-
-  invoke.load_method->expandInto(replacement);
 }
 
-// Returns true if LoadMethod/CallMethod/GetSecondOutput were removed.
+// Returns true if LoadMethod/CallMethod were removed.
 // Returns false if they could not be removed.
 bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   PyCodeObject* code = invoke.load_method->frameState()->code;
@@ -304,14 +300,13 @@ bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   replacement.push_back(load_const);
   if (target.needs_instance_dict_guard) {
     addInstanceDictGuard(irfunc, invoke, receiver, replacement);
-  } else {
-    invoke.load_method->expandInto(replacement);
   }
-  invoke.get_instance->replaceWith(
-      *Assign::create(invoke.get_instance->output(), receiver));
+  // The LoadMethod's second output, the instance, is now just the receiver.
+  replacement.push_back(
+      Assign::create(invoke.load_method->output(1), receiver));
+  invoke.load_method->expandInto(replacement);
   invoke.call_method->replaceWith(*call_static);
   delete invoke.load_method;
-  delete invoke.get_instance;
   delete invoke.call_method;
   return true;
 }
@@ -345,12 +340,11 @@ bool LoadMethodElimination::run(Function& irfunc) {
       auto lm = static_cast<LoadMethodBase*>(func_instr);
 
       JIT_DCHECK(
-          cm->self()->instr()->isGetSecondOutput(),
-          "GetSecondOutput/CallMethod should be paired but got "
-          "{}/CallMethod",
+          lm->numOutputs() == 2 && cm->self() == lm->output(1),
+          "LoadMethod/CallMethod should be paired but CallMethod's self is "
+          "defined by {}",
           cm->self()->instr()->opname());
-      auto glmi = static_cast<GetSecondOutput*>(cm->self()->instr());
-      auto result = invokes.emplace(lm, MethodInvoke{lm, glmi, cm});
+      auto result = invokes.emplace(lm, MethodInvoke{lm, cm});
       if (!result.second) {
         // This pass currently only handles 1:1 LoadMethod/CallMethod
         // combinations. If there are multiple CallMethod for a given

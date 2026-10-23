@@ -1838,6 +1838,17 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::translateFunction() {
   return function;
 }
 
+void LIRGenerator::appendMoveFromSecondReturnReg(
+    BasicBlockBuilder& bbb,
+    hir::Register* dst) {
+  bbb.appendInstr(
+      dst,
+      Opcode::kMove,
+      PhyReg{
+          codegen::arch::reg_general_auxilary_return_loc,
+          hirTypeToDataType(dst->type())});
+}
+
 void LIRGenerator::appendGuardAlwaysFail(
     BasicBlockBuilder& bbb,
     const hir::DeoptBase& hir_instr) {
@@ -3504,7 +3515,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         }
         appendCall2RetValues(
             bbb,
-            instr->output(),
+            *instr,
             LoadTypeMethodCache::lookupHelper,
             cache_entry,
             instr->receiver(),
@@ -3533,7 +3544,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             load_type_method_caches_.at(instr->cacheId());
         appendCall2RetValues(
             bbb,
-            instr->output(),
+            *instr,
             LoadTypeMethodCache::getValueHelper,
             cache,
             instr->receiver());
@@ -3541,7 +3552,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case hir::Opcode::kLoadMethod: {
         auto instr = &i.as<LoadMethod>();
-        hir::Register* dst = instr->output();
         hir::Register* base = instr->receiver();
         Instruction* name = getNameFromIdx(bbb, instr);
         if (getConfig().attr_caches) {
@@ -3556,9 +3566,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                 PyUnicode_AsUTF8(code->co_name));
           }
           appendCall2RetValues(
-              bbb, dst, LoadMethodCache::lookupHelper, cache, base, name);
+              bbb, *instr, LoadMethodCache::lookupHelper, cache, base, name);
         } else {
-          appendCall2RetValues(bbb, dst, rt::getMethod, base, name);
+          appendCall2RetValues(bbb, *instr, rt::getMethod, base, name);
         }
         break;
       }
@@ -3588,16 +3598,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             instr->bytecodeOffset());
         appendCall2RetValues(
             bbb,
-            instr->output(),
+            *instr,
             LoadModuleMethodCache::lookupHelper,
             cache_entry,
             instr->receiver(),
             name);
-        break;
-      }
-      case hir::Opcode::kGetSecondOutput: {
-        bbb.appendInstr(
-            i.output(), Opcode::kLoadSecondCallResult, i.getOperand(0));
         break;
       }
       case hir::Opcode::kLoadMethodSuper: {
@@ -3605,7 +3610,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         appendCall2RetValues(
             bbb,
-            instr->output(),
+            *instr,
             rt::getMethodFromSuper,
             instr->globalSuper(),
             instr->type(),
@@ -4312,6 +4317,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case hir::Opcode::kCallInd: {
         auto& hir_instr = i.as<CallInd>();
+        // A primitive return value's error flag comes back in the second
+        // return register, so it can't also hold a second output.
+        JIT_CHECK(
+            !hir_instr.returnsTwoValues() ||
+                !(hir_instr.retType() <= TPrimitive),
+            "CallInd<{}> returns both a two-word struct and a primitive",
+            hir_instr.name());
         // Non-null only for a two-word struct return on Windows, which is the
         // one case not returned in registers.
         Instruction* ret_struct = nullptr;
@@ -4320,10 +4332,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           // The Microsoft x64 ABI returns such a struct through a hidden
           // buffer whose pointer is passed ahead of the declared arguments,
           // rather than in a second register.
-          JIT_CHECK(
-              !(hir_instr.retType() <= TPrimitive),
-              "CallInd<{}> returns both a two-word struct and a primitive",
-              hir_instr.name());
           ret_struct = bbb.appendInstr(
               OutVReg{},
               Opcode::kLea,
@@ -4347,9 +4355,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           bbb.appendInstr(
               hir_instr.output(), Opcode::kLoad, Ind{ret_struct, 0});
           bbb.appendInstr(
-              OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
-              Opcode::kLoad,
-              Ind{ret_struct, 8});
+              hir_instr.output(1), Opcode::kLoad, Ind{ret_struct, 8});
+        } else if (hir_instr.returnsTwoValues()) {
+          appendMoveFromSecondReturnReg(bbb, hir_instr.output(1));
         }
         auto kind = InstrGuardKind::kNotZero;
         Type ret_type = hir_instr.retType();
@@ -5687,7 +5695,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                 : rt::genSend);
         appendCall2RetValues(
             bbb,
-            hir_instr.output(),
+            hir_instr,
             Imm{func},
             hir_instr.getOperand(0),
             hir_instr.getOperand(1),
@@ -5724,7 +5732,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         auto& load_special = i.as<LoadSpecial>();
         appendCall2RetValues(
             bbb,
-            load_special.output(),
+            load_special,
             rt::loadSpecial,
             load_special.getOperand(0),
             load_special.specialIdx());

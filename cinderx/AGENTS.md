@@ -105,6 +105,10 @@ The JIT uses a High-level Intermediate Representation (HIR) defined in
 
 7. **Jit/hir/pass.cpp** - Add to `outputType()` to specify the instruction's
    output type. Instructions with no output go in the "no destination" list.
+   An instruction can define a second output (e.g. the second word of a
+   two-word struct returned by a helper) with `setOutput(1, reg)`; such
+   opcodes must be listed in `numOutputs()` in **Jit/hir/ops.cpp** and
+   give the extra output a type in `outputType(instr, output_idx)`.
 
 8. **Jit/hir/parser.cpp** - Add parsing support in `parseInstr()` if the
    instruction needs to be parsed from text HIR (used in tests).

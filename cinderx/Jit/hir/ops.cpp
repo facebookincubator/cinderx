@@ -99,7 +99,6 @@ size_t numOutputs(Opcode op) {
     case Opcode::kGetANext:
     case Opcode::kGetIter:
     case Opcode::kGetLength:
-    case Opcode::kGetSecondOutput:
     case Opcode::kGetTuple:
     case Opcode::kGuardIs:
     case Opcode::kGuardType:

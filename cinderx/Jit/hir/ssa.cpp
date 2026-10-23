@@ -167,8 +167,7 @@ void checkRegisters(CheckEnv& env) {
     }
   }
 
-  if (env.instr->numOutputs() > 0) {
-    Register* output = env.instr->output();
+  for (Register* output : env.instr->outputs()) {
     if (output->instr() != env.instr) {
       fmt::print(
           env.err,
@@ -347,8 +346,7 @@ void SSAConstructor::computeLiveness() {
         return true;
       });
 
-      if (instr.numOutputs() > 0) {
-        Register* out = instr.output();
+      for (Register* out : instr.outputs()) {
         block_kill.insert(out);
       }
     }
@@ -378,8 +376,7 @@ void SSAConstructor::collectDefSites() {
   for (BasicBlock* block : dom_.reversePostorder()) {
     for (Instr& instr : *block) {
       JIT_CHECK(!instr.isPhi(), "SSAify does not support Phis in its input");
-      if (instr.numOutputs() > 0) {
-        Register* out = instr.output();
+      for (Register* out : instr.outputs()) {
         def_sites_[out].insert(block);
       }
     }
@@ -475,10 +472,10 @@ void SSAConstructor::renameBlock(
       reg = readVar(reg);
       return true;
     });
-    if (instr.numOutputs() > 0) {
-      Register* var = instr.output();
+    for (std::size_t i = 0, n = instr.numOutputs(); i < n; ++i) {
+      Register* var = instr.output(i);
       Register* new_reg = env_.allocateRegister();
-      instr.setOutput(new_reg);
+      instr.setOutput(i, new_reg);
       def_stack_[var].push_back(new_reg);
       pushed.push_back(var);
     }

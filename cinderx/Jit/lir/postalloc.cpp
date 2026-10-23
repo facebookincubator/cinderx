@@ -1565,7 +1565,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kLoad:
     case Opcode::kLoadArg:
     case Opcode::kLoadPair:
-    case Opcode::kLoadSecondCallResult:
     case Opcode::kLoadThreadState:
     case Opcode::kMovConstPool:
     case Opcode::kMove:

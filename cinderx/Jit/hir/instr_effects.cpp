@@ -40,7 +40,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:
     case Opcode::kDoubleBinaryOp:
-    case Opcode::kGetSecondOutput:
     case Opcode::kHintType:
     case Opcode::kIndexUnbox:
     case Opcode::kIntBinaryOp:
@@ -513,7 +512,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kDoubleBinaryOp:
     case Opcode::kEndGeneratorFrame:
     case Opcode::kEndInlinedFunction:
-    case Opcode::kGetSecondOutput:
     case Opcode::kGuardIs:
     case Opcode::kHintType:
     case Opcode::kIncref:

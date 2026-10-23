@@ -275,10 +275,6 @@ Type outputType(
     case Opcode::kSwapCellItem:
       return TOptObject;
 
-    case Opcode::kGetSecondOutput: {
-      return static_cast<const GetSecondOutput&>(instr).type();
-    }
-
     case Opcode::kFormatValue:
     case Opcode::kFormatWithSpec:
       return TUnicode;
@@ -585,6 +581,31 @@ Type outputType(const Instr& instr) {
       instr, [&](std::size_t ind) { return instr.getOperand(ind)->type(); });
 }
 
+Type outputType(const Instr& instr, std::size_t output_idx) {
+  if (output_idx == 0) {
+    return outputType(instr);
+  }
+  JIT_THROW_IF(output_idx != 1, "'{}' has no output {}", instr, output_idx);
+  switch (instr.opcode()) {
+    // The method's receiver ("self"), or null for an unbound callable.
+    case Opcode::kFillTypeMethodCache:
+    case Opcode::kLoadMethod:
+    case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadModuleMethodCached:
+    case Opcode::kLoadSpecial:
+    case Opcode::kLoadTypeMethodCacheEntryValue:
+      return TOptObject;
+    // Whether the generator is done.
+    case Opcode::kSend:
+      return TCInt64;
+    // The second word of a struct return, e.g. a native entry point.
+    case Opcode::kCallInd:
+      return TCPtr;
+    default:
+      JIT_THROW("'{}' has no second output", instr);
+  }
+}
+
 void reflowTypes(Function& func) {
   reflowTypes(func, func.cfg.entry_block);
 }
@@ -614,18 +635,14 @@ void reflowTypes(Function& func, BasicBlock* start) {
               func.cfg);
         }
 
-        if (instr.numOutputs() == 0) {
-          continue;
+        for (std::size_t idx = 0, n = instr.numOutputs(); idx < n; ++idx) {
+          Register* dst = instr.output(idx);
+          Type new_ty = outputType(instr, idx);
+          if (new_ty != dst->type()) {
+            dst->setType(new_ty);
+            changed = true;
+          }
         }
-
-        auto dst = instr.output();
-        auto new_ty = outputType(instr);
-        if (new_ty == dst->type()) {
-          continue;
-        }
-
-        dst->setType(new_ty);
-        changed = true;
       }
     }
   }

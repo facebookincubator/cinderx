@@ -3904,7 +3904,7 @@ fun jittestmodule:test {
       }
     }
     Incref v21
-    v22:Object = LoadMethod<0; "foo"> v21 {
+    v22:Object, v23:OptObject = LoadMethod<0; "foo"> v21 {
       LiveValues<3> unc:v16 o:v17 o:v21
       FrameState {
         CurInstrOffset 6
@@ -3912,7 +3912,6 @@ fun jittestmodule:test {
       }
     }
     Decref v21
-    v23:OptObject = GetSecondOutput<OptObject> v22
     v24:Object = CallMethod<2> v22 v23 {
       LiveValues<4> unc:v16 o:v17 o:v22 o:v23
       FrameState {
@@ -3986,7 +3985,7 @@ fun jittestmodule:test {
       }
     }
     Incref v21
-    v22:Object = LoadMethod<0; "foo"> v21 {
+    v22:Object, v23:OptObject = LoadMethod<0; "foo"> v21 {
       LiveValues<3> unc:v16 o:v17 o:v21
       FrameState {
         CurInstrOffset 6
@@ -3994,7 +3993,6 @@ fun jittestmodule:test {
       }
     }
     Decref v21
-    v23:OptObject = GetSecondOutput<OptObject> v22
     v24:Object = CallMethod<2> v22 v23 {
       LiveValues<4> unc:v16 o:v17 o:v22 o:v23
       FrameState {
@@ -4068,7 +4066,7 @@ fun jittestmodule:test {
       }
     }
     Incref v21
-    v22:Object = LoadMethod<0; "foo"> v21 {
+    v22:Object, v23:OptObject = LoadMethod<0; "foo"> v21 {
       LiveValues<3> unc:v16 o:v17 o:v21
       FrameState {
         CurInstrOffset 8
@@ -4076,7 +4074,6 @@ fun jittestmodule:test {
       }
     }
     Decref v21
-    v23:OptObject = GetSecondOutput<OptObject> v22
     v24:Object = CallMethod<2> v22 v23 {
       LiveValues<4> unc:v16 o:v17 o:v22 o:v23
       FrameState {
@@ -4150,7 +4147,7 @@ fun jittestmodule:test {
       }
     }
     Incref v21
-    v22:Object = LoadMethod<0; "foo"> v21 {
+    v22:Object, v23:OptObject = LoadMethod<0; "foo"> v21 {
       LiveValues<3> unc:v16 o:v17 o:v21
       FrameState {
         CurInstrOffset 8
@@ -4158,7 +4155,6 @@ fun jittestmodule:test {
       }
     }
     Decref v21
-    v23:OptObject = GetSecondOutput<OptObject> v22
     v24:Object = CallMethod<2> v22 v23 {
       LiveValues<4> unc:v16 o:v17 o:v22 o:v23
       FrameState {
@@ -4233,7 +4229,7 @@ fun jittestmodule:test {
         Locals<2> v19 v18
       }
     }
-    v24:Object = LoadMethod<0; "foo"> v23 {
+    v24:Object, v25:OptObject = LoadMethod<0; "foo"> v23 {
       LiveValues<3> unc:v18 o:v19 o:v23
       FrameState {
         CurInstrOffset 6
@@ -4241,7 +4237,6 @@ fun jittestmodule:test {
       }
     }
     Decref v23
-    v25:OptObject = GetSecondOutput<OptObject> v24
     v26:Object = CallMethod<2> v24 v25 {
       LiveValues<4> unc:v18 o:v19 o:v24 o:v25
       FrameState {

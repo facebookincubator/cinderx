@@ -57,6 +57,11 @@ RegUses collectDirectRegUses(Function& func);
 // current type of its output Register.
 Type outputType(const Instr& instr);
 
+// Compute and return the type of the output at index `output_idx` of the given
+// instruction.  Index 0 is the primary output, as returned by
+// outputType(instr).
+Type outputType(const Instr& instr, std::size_t output_idx);
+
 // Compute and return the output type of the given instruction, ignoring the
 // current type of its output Register. Uses the `get_op_type` function to get
 // the type of its operands - useful for examining possible output types of

@@ -1510,13 +1510,12 @@ def test(f, a):
       CurInstrOffset 2
       Locals<2> v3 v4
     }
-    v7 = LoadMethod<0; "bar"> v3 {
+    v7, v8 = LoadMethod<0; "bar"> v3 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v3 v4
       }
     }
-    v8 = GetSecondOutput<OptObject> v7
     Snapshot {
       CurInstrOffset 24
       Locals<2> v3 v4
@@ -1571,13 +1570,12 @@ def test(f, a):
       CurInstrOffset 4
       Locals<2> v0 v1
     }
-    v5 = LoadMethod<0; "bar"> v0 {
+    v5, v6 = LoadMethod<0; "bar"> v0 {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
       }
     }
-    v6 = GetSecondOutput<OptObject> v5
     Snapshot {
       CurInstrOffset 26
       Locals<2> v0 v1
@@ -1632,13 +1630,12 @@ def test(f, a):
       CurInstrOffset 2
       Locals<2> v0 v1
     }
-    v5 = LoadMethod<0; "bar"> v0 {
+    v5, v6 = LoadMethod<0; "bar"> v0 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v0 v1
       }
     }
-    v6 = GetSecondOutput<OptObject> v5
     Snapshot {
       CurInstrOffset 24
       Locals<2> v0 v1

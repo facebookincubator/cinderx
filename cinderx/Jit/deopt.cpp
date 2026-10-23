@@ -490,8 +490,7 @@ void releaseGeneratorOwnedRefs(const DeoptMetadata& meta, const void* base) {
 
 LiveValue::Source getLiveValueSource(jit::hir::Register* reg) {
   reg = hir::modelReg(reg);
-  auto instr = reg->instr();
-  if (isAnyLoadMethod(*instr)) {
+  if (isAnyLoadMethod(*reg)) {
     return LiveValue::Source::kLoadMethod;
   }
   return LiveValue::Source::kUnknown;
@@ -575,7 +574,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
     int stack_idx = 0;
 
     for (auto& reg : fs->stack) {
-      if (isAnyLoadMethod(*reg->instr())) {
+      if (isAnyLoadMethod(*reg)) {
         // Our logic for reconstructing the Python stack assumes that if a
         // value on the stack was produced by a LoadMethod instruction, it
         // corresponds to the output of a LOAD_METHOD opcode and will

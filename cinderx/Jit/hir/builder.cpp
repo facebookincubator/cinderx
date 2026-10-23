@@ -2623,15 +2623,14 @@ void HIRBuilder::emitLoadMethodStatic(
   auto call = tc.emit<CallInd>(
       3, func_obj, "vte_load", TOptObject, vtable_load, func_obj, self);
   call->setFrameState(tc.frame);
-  // loadmethodfunc returns StaticMethodInfo, two words wide.
-  call->setReturnsTwoValues(true);
+  // loadmethodfunc returns StaticMethodInfo, two words wide.  The second word
+  // is the native entry point.
+  call->setOutput(1, entry_func);
 
   if (target.is_statically_typed) {
     // the entry func isn't used by the interpreter and can't be de-opted but
     // we can have a LOAD_METHOD_STATIC that has another LOAD_METHOD_STATIC
     // before we get to the invokes.
-    tc.emit<GetSecondOutput>(entry_func, TCPtr, func_obj);
-
     static_method_stack_.push(entry_func);
   }
 
@@ -3010,8 +3009,8 @@ void HIRBuilder::emitLoadMethod(
   emitLoadMethodProfileGuards(tc, bc_instr, receiver);
   Register* result = allocateTemp();
   Register* method_instance = allocateTemp();
-  tc.emit<LoadMethod>(result, receiver, name_idx, tc.frame);
-  tc.emit<GetSecondOutput>(method_instance, TOptObject, result);
+  tc.emit<LoadMethod>(result, receiver, name_idx, tc.frame)
+      ->setOutput(1, method_instance);
   tc.frame.stack.push(result);
   tc.frame.stack.push(method_instance);
 }
@@ -3056,7 +3055,7 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
   }
 
   Register* method_instance = allocateTemp();
-  tc.emit<LoadMethodSuper>(
+  auto load_super = tc.emit<LoadMethodSuper>(
       result,
       global_super,
       type,
@@ -3064,7 +3063,7 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
       name_idx,
       no_args_in_super_call,
       tc.frame);
-  tc.emit<GetSecondOutput>(method_instance, TOptObject, result);
+  load_super->setOutput(1, method_instance);
   tc.frame.stack.push(result);
   tc.frame.stack.push(method_instance);
 }
@@ -4858,14 +4857,14 @@ void HIRBuilder::emitYieldFrom(
   // Reuse send_value as the output so SSAify creates a proper Phi at this
   // merge point (send_value is defined on both the initial and back-edge
   // paths).
-  send_tc.emit<Send>(
+  auto send = send_tc.emit<Send>(
       iter_reg,
       send_value,
       send_value,
       send_tc.frame,
       handle_stop_async_iteration);
   auto is_done = allocateTemp();
-  send_tc.emit<GetSecondOutput>(is_done, TCInt64, send_value);
+  send->setOutput(1, is_done);
   send_tc.frame.stack.push(send_value);
   send_tc.emit<CondBranch>(is_done, done_bb, yield_bb);
 
@@ -5233,9 +5232,8 @@ void HIRBuilder::emitSend(
     iter = stack.top();
   }
   Register* value_in = allocateTemp();
-  tc.emit<Send>(iter, value_out, value_in, tc.frame);
   Register* is_done = allocateTemp();
-  tc.emit<GetSecondOutput>(is_done, TCInt64, value_in);
+  tc.emit<Send>(iter, value_out, value_in, tc.frame)->setOutput(1, is_done);
   stack.push(value_in);
   BasicBlock* done_block = getBlockAtOff(bc_instr.getJumpTarget());
   BasicBlock* continue_block = getBlockAtOff(bc_instr.nextInstrOffset());
@@ -5328,8 +5326,8 @@ void HIRBuilder::emitLoadSpecial(
   Register* self = stack.pop();
   Register* method = allocateTemp();
   Register* null_or_self = allocateTemp();
-  tc.emit<LoadSpecial>(method, self, bc_instr.oparg(), tc.frame);
-  tc.emit<GetSecondOutput>(null_or_self, TOptObject, method);
+  tc.emit<LoadSpecial>(method, self, bc_instr.oparg(), tc.frame)
+      ->setOutput(1, null_or_self);
   stack.push(method);
   stack.push(null_or_self);
 }

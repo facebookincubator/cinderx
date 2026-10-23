@@ -18,6 +18,7 @@ extern "C" {
 #include <algorithm>
 #include <ostream>
 #include <sstream>
+#include <string_view>
 #include <vector>
 
 namespace cinderx::jit::hir {
@@ -646,10 +647,6 @@ static std::string format_immediates(
       const auto& make = static_cast<const MakeTuple&>(instr);
       return fmt::format("{}", make.nvalues());
     }
-    case Opcode::kGetSecondOutput: {
-      return fmt::format(
-          "{}", static_cast<const GetSecondOutput&>(instr).type());
-    }
     case Opcode::kLoadTupleItem: {
       const auto& loaditem = static_cast<const LoadTupleItem&>(instr);
       return fmt::format("{}", loaditem.idx());
@@ -916,10 +913,13 @@ static std::string format_immediates(
 void HIRPrinter::print(std::ostream& os, const Instr& instr) {
   indented(os);
   if (instr.numOutputs() > 0) {
-    Register* dst = instr.output();
-    os << *dst;
-    if (dst->type() != TTop) {
-      os << ":" << dst->type();
+    std::string_view sep;
+    for (Register* dst : instr.outputs()) {
+      os << sep << *dst;
+      if (dst->type() != TTop) {
+        os << ":" << dst->type();
+      }
+      sep = ", ";
     }
     os << " = ";
   }

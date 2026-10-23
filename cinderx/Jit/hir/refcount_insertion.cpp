@@ -1027,14 +1027,12 @@ void stealInputs(
   }
 }
 
-// Track the output of the given instruction.
-void processOutput(Env& env, const Instr& instr, const MemoryEffects& effects) {
-  if (instr.numOutputs() == 0) {
-    return;
-  }
-
-  Register* output = instr.output();
-
+// Track one output of the given instruction.
+void processOutput(
+    Env& env,
+    const Instr& instr,
+    Register* output,
+    const MemoryEffects& effects) {
   // Even though GuardIs is a passthrough, it verifies that a runtime value is a
   // specific object, breaking the dependency on the instruction that produced
   // the runtime value
@@ -1128,7 +1126,9 @@ void processInstr(Env& env, Instr& instr) {
     return;
   }
 
-  processOutput(env, instr, effects);
+  for (Register* output : instr.outputs()) {
+    processOutput(env, instr, output, effects);
+  }
 
   auto& next_instr = *std::next(instr.block()->iterator_to(instr));
   killRegisters(env, {dying_regs.begin(), dying_regs.end()}, next_instr);

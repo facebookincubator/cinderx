@@ -220,7 +220,6 @@ bool writesFlags(Opcode opcode) {
     case Opcode::kLoad:
     case Opcode::kLoadArg:
     case Opcode::kLoadPair:
-    case Opcode::kLoadSecondCallResult:
     case Opcode::kMovConstPool:
     case Opcode::kMove:
     case Opcode::kMulAdd:
@@ -277,7 +276,6 @@ bool isEssential(Opcode opcode) {
     case Opcode::kLShift:
     case Opcode::kLea:
     case Opcode::kLoadArg:
-    case Opcode::kLoadSecondCallResult:
     case Opcode::kLoadThreadState:
     case Opcode::kMovConstPool:
     case Opcode::kMove:
@@ -324,7 +322,6 @@ bool outputMustBeRegister(Opcode opcode) {
     case Opcode::kDeoptPatchpoint:
     case Opcode::kEpilogueEnd:
     case Opcode::kLeave:
-    case Opcode::kLoadSecondCallResult:
     case Opcode::kLoadThreadState:
     case Opcode::kPop:
     case Opcode::kPrologue:

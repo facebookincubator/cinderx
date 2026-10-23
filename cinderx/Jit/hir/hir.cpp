@@ -320,7 +320,7 @@ Instr::Instr(Opcode opcode) : opcode_{opcode} {}
 Instr::Instr(const Instr& other)
     : opcode_(other.opcode()),
       bytecode_offset_{other.bytecodeOffset()},
-      output_{other.output_} {}
+      outputs_{other.outputs_} {}
 
 std::string_view Instr::opname() const {
   return hirOpcodeName(opcode());
@@ -378,26 +378,63 @@ void Instr::replaceUsesOf(Register* orig, Register* replacement) {
   });
 }
 
-Register* Instr::output() const {
+Register* Instr::output(std::size_t i) const {
+  size_t total_outputs = hir::numOutputs(opcode());
   JIT_THROW_IF(
-      numOutputs() == 0, "Can't load output of {} instruction", opname());
-  return output_;
+      i >= total_outputs,
+      "{} cannot get output {} (total: {})",
+      opname(),
+      i,
+      total_outputs);
+  return outputs_[i];
 }
 
 void Instr::setOutput(Register* dst) {
-  if (output_ != nullptr) {
-    output_->setInstr(nullptr);
+  setOutput(0, dst);
+}
+
+std::size_t Instr::numOutputs() const {
+  return std::ranges::count_if(
+      outputs_, [](const Register* reg) { return reg != nullptr; });
+}
+
+void Instr::setOutput(std::size_t i, Register* dst) {
+  size_t total_outputs = hir::numOutputs(opcode());
+  JIT_THROW_IF(
+      i >= total_outputs,
+      "{} cannot set output {} (total: {})",
+      opname(),
+      i,
+      total_outputs);
+  JIT_THROW_IF(
+      i > 0 && dst != nullptr && outputs_[i - 1] == nullptr,
+      "Output {} of {} set before output {}",
+      i,
+      opname(),
+      i - 1);
+  JIT_THROW_IF(
+      dst == nullptr && i + 1 < total_outputs && outputs_[i + 1] != nullptr,
+      "Cannot clear output {} of {} while output {} is set",
+      i,
+      opname(),
+      i + 1);
+
+  Register*& slot = outputs_[i];
+  if (slot != nullptr) {
+    slot->setInstr(nullptr);
   }
   if (dst != nullptr) {
     dst->setInstr(this);
   }
-  output_ = dst;
+  slot = dst;
 }
 
-std::size_t Instr::numOutputs() const {
-  // Second outputs are currently implicit, and materialized with
-  // GetSecondOutput.
-  return std::min(hir::numOutputs(opcode()), size_t{1});
+std::span<Register*> Instr::outputs() {
+  return {outputs_.data(), numOutputs()};
+}
+
+std::span<Register* const> Instr::outputs() const {
+  return const_cast<Instr*>(this)->outputs();
 }
 
 bool Instr::isTerminator() const {
@@ -467,7 +504,6 @@ bool Instr::isReplayable() const {
     case Opcode::kDoubleBinaryOp:
     case Opcode::kFormatValue:
     case Opcode::kFormatWithSpec:
-    case Opcode::kGetSecondOutput:
     case Opcode::kGuard:
     case Opcode::kGuardIs:
     case Opcode::kGuardType:
@@ -758,15 +794,27 @@ bool isLoadMethodBase(const Instr& instr) {
   return dynamic_cast<const LoadMethodBase*>(&instr) != nullptr;
 }
 
-bool isAnyLoadMethod(const Instr& instr) {
-  if (isLoadMethodBase(instr)) {
-    return true;
-  }
-  if (!instr.isPhi() || instr.numOperands() != 2) {
+bool isAnyLoadMethod(const Register& reg) {
+  // The instruction defining reg, if reg is its primary output.
+  auto primary_def = [](const Register* r) -> const Instr* {
+    const Instr* def = r->instr();
+    return def != nullptr && def->output() == r ? def : nullptr;
+  };
+  const Instr* instr = primary_def(&reg);
+  if (instr == nullptr) {
     return false;
   }
-  const Instr* arg1 = instr.getOperand(0)->instr();
-  const Instr* arg2 = instr.getOperand(1)->instr();
+  if (isLoadMethodBase(*instr)) {
+    return true;
+  }
+  if (!instr->isPhi() || instr->numOperands() != 2) {
+    return false;
+  }
+  const Instr* arg1 = primary_def(instr->getOperand(0));
+  const Instr* arg2 = primary_def(instr->getOperand(1));
+  if (arg1 == nullptr || arg2 == nullptr) {
+    return false;
+  }
   return (arg1->isLoadTypeMethodCacheEntryValue() &&
           arg2->isFillTypeMethodCache()) ||
       (arg2->isLoadTypeMethodCacheEntryValue() &&
@@ -828,7 +876,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kGetANext:
     case Opcode::kGetIter:
     case Opcode::kGetLength:
-    case Opcode::kGetSecondOutput:
     case Opcode::kGetTuple:
     case Opcode::kImportFrom:
     case Opcode::kImportName:

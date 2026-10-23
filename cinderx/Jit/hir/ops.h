@@ -64,7 +64,6 @@ namespace cinderx::jit::hir {
   V(GetANext)                      \
   V(GetIter)                       \
   V(GetLength)                     \
-  V(GetSecondOutput)               \
   V(GetTuple)                      \
   V(Guard)                         \
   V(GuardIs)                       \

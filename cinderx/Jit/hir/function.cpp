@@ -16,7 +16,7 @@ namespace cinderx::jit::hir {
 static_assert(kOS == OS::kWindows || sizeof(Function) == 56 * kPointerSize);
 static_assert(kOS == OS::kWindows || sizeof(CFG) == 5 * kPointerSize);
 static_assert(kOS == OS::kWindows || sizeof(BasicBlock) == 20 * kPointerSize);
-static_assert(kOS == OS::kWindows || sizeof(Instr) == 6 * kPointerSize);
+static_assert(kOS == OS::kWindows || sizeof(Instr) == 7 * kPointerSize);
 #endif
 
 Function::Function() {}

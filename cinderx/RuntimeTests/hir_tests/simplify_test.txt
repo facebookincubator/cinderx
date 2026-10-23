@@ -16866,12 +16866,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 12
       }
@@ -16880,12 +16880,12 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 36
       }
@@ -16928,12 +16928,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 12
       }
@@ -16942,14 +16942,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 36
       }
@@ -16992,12 +16992,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 14
       }
@@ -17006,14 +17006,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 38
       }
@@ -17056,12 +17056,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 14
       }
@@ -17070,14 +17070,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 38
       }
@@ -17114,12 +17114,11 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: Foo'
     }
     Snapshot
-    v13:Object = LoadMethod<1; "regular_meth"> v12 {
+    v13:Object, v14:OptObject = LoadMethod<1; "regular_meth"> v12 {
       FrameState {
         CurInstrOffset 12
       }
     }
-    v14:OptObject = GetSecondOutput<OptObject> v13
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
@@ -17178,12 +17177,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 12
       }
@@ -17192,12 +17191,12 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 36
       }
@@ -17240,12 +17239,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 12
       }
@@ -17254,14 +17253,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 36
       }
@@ -17304,12 +17303,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 14
       }
@@ -17318,14 +17317,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 38
       }
@@ -17368,12 +17367,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 14
       }
@@ -17382,14 +17381,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 38
       }
@@ -17426,12 +17425,11 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: Foo'
     }
     Snapshot
-    v13:Object = LoadMethod<1; "meth"> v12 {
+    v13:Object, v14:OptObject = LoadMethod<1; "meth"> v12 {
       FrameState {
         CurInstrOffset 12
       }
     }
-    v14:OptObject = GetSecondOutput<OptObject> v13
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
@@ -17490,12 +17488,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 12
       }
@@ -17504,12 +17502,12 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 36
       }
@@ -17552,12 +17550,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 12
       }
@@ -17566,14 +17564,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 36
       }
@@ -17616,12 +17614,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 14
       }
@@ -17630,14 +17628,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 38
       }
@@ -17680,12 +17678,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 14
       }
@@ -17694,14 +17692,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 38
       }
@@ -17738,12 +17736,11 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: Foo'
     }
     Snapshot
-    v13:Object = LoadMethod<1; "meth"> v12 {
+    v13:Object, v14:OptObject = LoadMethod<1; "meth"> v12 {
       FrameState {
         CurInstrOffset 12
       }
     }
-    v14:OptObject = GetSecondOutput<OptObject> v13
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
@@ -17797,12 +17794,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 12
       }
@@ -17811,12 +17808,12 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 36
       }
@@ -17859,12 +17856,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 12
       }
@@ -17873,14 +17870,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 36
       }
@@ -17923,12 +17920,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 14
       }
@@ -17937,14 +17934,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 38
       }
@@ -17987,12 +17984,12 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    v21:Object = LoadTypeMethodCacheEntryValue<0> v12
+    v21:Object, v22:OptObject = LoadTypeMethodCacheEntryValue<0> v12
     Branch<5>
   }
 
   bb 4 (preds 1) {
-    v22:Object = FillTypeMethodCache<0, 1> v12 {
+    v23:Object, v24:OptObject = FillTypeMethodCache<0, 1> v12 {
       FrameState {
         CurInstrOffset 14
       }
@@ -18001,14 +17998,14 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 3, 4) {
-    v23:Object = Phi<3, 4> v21 v22
-    v14:OptObject = GetSecondOutput<OptObject> v23
+    v25:Object = Phi<3, 4> v21 v23
+    v26:OptObject = Phi<3, 4> v22 v24
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     Snapshot
-    v17:Object = CallMethod<4> v23 v14 v15 v16 {
+    v17:Object = CallMethod<4> v25 v26 v15 v16 {
       FrameState {
         CurInstrOffset 38
       }
@@ -18045,12 +18042,11 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: int'
     }
     Snapshot
-    v13:Object = LoadMethod<1; "__add__"> v12 {
+    v13:Object, v14:OptObject = LoadMethod<1; "__add__"> v12 {
       FrameState {
         CurInstrOffset 12
       }
     }
-    v14:OptObject = GetSecondOutput<OptObject> v13
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
@@ -18344,12 +18340,11 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v15:Object = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 20
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
     v17:Object = CallMethod<2> v15 v16 {
       FrameState {
@@ -18394,12 +18389,11 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v15:Object = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 20
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
     v17:Object = CallMethod<2> v15 v16 {
       FrameState {
@@ -18444,12 +18438,11 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v15:Object = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 22
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
     v17:Object = CallMethod<2> v15 v16 {
       FrameState {
@@ -18494,12 +18487,11 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v15:Object = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 22
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
     v17:Object = CallMethod<2> v15 v16 {
       FrameState {
@@ -18545,12 +18537,11 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v15:Object = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
       FrameState {
         CurInstrOffset 20
       }
     }
-    v16:OptObject = GetSecondOutput<OptObject> v15
     Snapshot
     v17:Object = CallMethod<2> v15 v16 {
       FrameState {

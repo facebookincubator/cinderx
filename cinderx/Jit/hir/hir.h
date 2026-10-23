@@ -208,14 +208,25 @@ class Instr : public IntrusiveListNode<Instr> {
   // Replace uses of orig with replacement.
   void replaceUsesOf(Register* orig, Register* replacement);
 
-  // If this instruction produces a value, return where it will be stored.
-  Register* output() const;
+  // The most outputs any instruction can define.  Only opcodes for which
+  // hasMultipleOutputs() is true may define more than one.
+  static constexpr std::size_t kMaxOutputs = 2;
+
+  // Return the number of outputs that this instruction defines.  Outputs are
+  // always defined contiguously, starting at index 0.
+  std::size_t numOutputs() const;
+
+  // If this instruction produces a value(s), return where it will be stored.
+  Register* output(std::size_t i = 0) const;
 
   // Set where the output from this instruction will be stored
   void setOutput(Register* dst);
+  // Set the i-th output.  Output i-1 must already be set.
+  void setOutput(std::size_t i, Register* dst);
 
-  // Get the number of values defined by this instruction.
-  std::size_t numOutputs() const;
+  // Get all outputs defined by this instruction.
+  std::span<Register*> outputs();
+  std::span<Register* const> outputs() const;
 
   // Basic blocks must be terminated with control flow ops
   bool isTerminator() const;
@@ -328,7 +339,7 @@ class Instr : public IntrusiveListNode<Instr> {
  protected:
   Opcode opcode_;
   BCOffset bytecode_offset_{-1};
-  Register* output_{nullptr};
+  std::array<Register*, kMaxOutputs> outputs_{};
   BasicBlock* block_{nullptr};
 };
 
@@ -1113,19 +1124,14 @@ class INSTR_CLASS(CallInd, (TTop), HasOutput, Operands<>, DeoptBase) {
   }
 
   // Whether the callee returns a two-word struct by value, the second word
-  // being read with GetSecondOutput.
+  // being defined as this instruction's second output.
   bool returnsTwoValues() const {
-    return returns_two_values_;
-  }
-
-  void setReturnsTwoValues(bool returns_two_values) {
-    returns_two_values_ = returns_two_values;
+    return numOutputs() > 1;
   }
 
  private:
   const char* name_;
   Type ret_type_;
-  bool returns_two_values_{false};
 };
 
 class INSTR_CLASS(
@@ -1402,19 +1408,6 @@ DEFINE_SIMPLE_INSTR(
 // Check if an exception has occurred as indicated by a negative
 // return code.
 DEFINE_SIMPLE_INSTR(CheckNeg, (TCInt), HasOutput, Operands<1>, CheckBase);
-
-class INSTR_CLASS(GetSecondOutput, (TTop), HasOutput, Operands<1>) {
- public:
-  GetSecondOutput(Register* dst, Type type, Register* src)
-      : InstrT(dst, src), type_(type) {}
-
-  Type type() const {
-    return type_;
-  }
-
- private:
-  Type type_;
-};
 
 class CheckBaseWithName : public CheckBase {
  protected:
@@ -2679,9 +2672,11 @@ DEFINE_SIMPLE_INSTR(
 // Return true if the instruction is an instance of LoadMethodBase.
 bool isLoadMethodBase(const Instr& instr);
 
-// Return true if the given instruction represents a subclass of LoadMethodBase
-// or a Phi composed of a FillTypeMethodCache and LoadTypeMethodCacheEntryValue.
-bool isAnyLoadMethod(const Instr& instr);
+// Return true if the given register holds the callable loaded by a subclass of
+// LoadMethodBase, or by a Phi joining the callables loaded by a
+// FillTypeMethodCache and a LoadTypeMethodCacheEntryValue.  Only the primary
+// output of those instructions holds the callable.
+bool isAnyLoadMethod(const Register& reg);
 
 class LoadSuperBase : public DeoptBaseWithNameIdx {
  protected:

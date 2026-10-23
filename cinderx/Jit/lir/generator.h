@@ -130,20 +130,22 @@ class LIRGenerator {
 #endif
 
   // Emit a call to a C++ function that returns a two-field struct (e.g.
-  // LoadMethodResult, rt::GenSendRes).  On SysV x64 the two fields come
-  // back in RAX:RDX.  On Windows x64 the caller provides a hidden first
-  // pointer argument; the callee writes the struct there.
+  // LoadMethodResult, rt::GenSendRes), defining the outputs of the HIR
+  // instruction `instr`.  The first field defines its primary output, and the
+  // second field defines its second output, if it has one.  On SysV x64 the two
+  // fields come back in RAX:RDX.  On Windows x64 the caller provides a hidden
+  // first pointer argument; the callee writes the struct there.
   //
   // On Windows the struct buffer LEA is emitted first, then the call with
   // the buffer pointer as the first arg.  Post-call loads extract both
-  // fields.  A Load of the second field into the auxiliary return register
-  // (RDX) ensures LoadSecondCallResult / GetSecondOutput works unchanged.
+  // fields.
   template <typename Func, typename... Args>
   void appendCall2RetValues(
       BasicBlockBuilder& bbb,
-      hir::Register* dst,
+      const hir::Instr& instr,
       Func func,
       Args&&... args) {
+    hir::Register* second = instr.numOutputs() > 1 ? instr.output(1) : nullptr;
 #if defined(CINDER_X86_64) && defined(_WIN32)
     Instruction* ret_struct = bbb.appendInstr(
         OutVReg{}, Opcode::kLea, Stk{PhyLocation(env_->win_struct_ret_offset)});
@@ -153,15 +155,24 @@ class LIRGenerator {
         func,
         VReg{ret_struct},
         std::forward<Args>(args)...);
-    bbb.appendInstr(dst, Opcode::kLoad, Ind{ret_struct, 0});
-    bbb.appendInstr(
-        OutPhyReg{codegen::arch::reg_general_auxilary_return_loc},
-        Opcode::kLoad,
-        Ind{ret_struct, 8});
+    bbb.appendInstr(instr.output(), Opcode::kLoad, Ind{ret_struct, 0});
+    if (second != nullptr) {
+      bbb.appendInstr(second, Opcode::kLoad, Ind{ret_struct, 8});
+    }
 #else
-    bbb.appendInstr(dst, Opcode::kCall, func, std::forward<Args>(args)...);
+    bbb.appendInstr(
+        instr.output(), Opcode::kCall, func, std::forward<Args>(args)...);
+    if (second != nullptr) {
+      appendMoveFromSecondReturnReg(bbb, second);
+    }
 #endif
   }
+
+  // Define `dst` as the second word returned by the immediately preceding
+  // call, which is left in the auxiliary return register.
+  void appendMoveFromSecondReturnReg(
+      BasicBlockBuilder& bbb,
+      hir::Register* dst);
 
   // Overload for call sites that don't use HIR registers (e.g. emitLoadFrame).
   template <typename Func, typename... Args>

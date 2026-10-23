@@ -2057,6 +2057,33 @@ def func(o):
          "enabled";
 }
 
+// Expect the second word returned by the call to `func` to be read from the
+// second return register right after the call.
+static void expectSecondCallResultMove(
+    const Function& func,
+    [[maybe_unused]] uint64_t addr) {
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  // The Windows ABI returns the struct through a buffer passed as the hidden
+  // first argument, and both words are loaded from it after the call.
+  EXPECT_LIR_SEQUENCE(
+      func,
+      Query(func)
+          .opcode(Opcode::kCall)
+          .inAddr(0, addr)
+          .inDefOpcode(1, Opcode::kLea),
+      Query(func).opcode(Opcode::kLoad),
+      Query(func).opcode(Opcode::kLoad));
+#else
+  EXPECT_TRUE(hasLIRSequence(
+      func,
+      {Query(func).opcode(Opcode::kCall).inAddr(0, addr),
+       Query(func)
+           .opcode(Opcode::kMove)
+           .inPhyReg(0, codegen::arch::reg_general_auxilary_return_loc)}))
+      << lirFuncString(func);
+#endif
+}
+
 TEST_F(LIRGeneratorTest, LoadMethodCacheOff) {
   getMutableConfig().attr_caches = false;
 
@@ -2081,7 +2108,8 @@ def func(o):
           .inAddr(0, reinterpret_cast<uint64_t>(LoadMethodCache::lookupHelper)))
       << "Should not call LoadMethodCache::lookupHelper when inline caches are "
          "disabled";
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kLoadSecondCallResult));
+  expectSecondCallResultMove(
+      *lir_func, reinterpret_cast<uint64_t>(rt::getMethod));
 }
 
 TEST_F(LIRGeneratorTest, LoadMethodCacheOn) {
@@ -2113,7 +2141,8 @@ def func(o):
                     .opcode(Opcode::kCall)
                     .inAddr(0, reinterpret_cast<uint64_t>(rt::getMethod)))
       << "Should not call rt::getMethod when inline caches are enabled";
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kLoadSecondCallResult));
+  expectSecondCallResultMove(
+      *lir_func, reinterpret_cast<uint64_t>(LoadMethodCache::lookupHelper));
 }
 
 TEST_F(LIRGeneratorTest, LoadEvalBreakerUsesRelaxedLoad) {

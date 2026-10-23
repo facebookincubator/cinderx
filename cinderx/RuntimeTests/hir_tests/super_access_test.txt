@@ -404,14 +404,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+    v8, v9 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v0
         Cells<1> v1
       }
     }
-    v9 = GetSecondOutput<OptObject> v8
     Snapshot
     v10 = LoadConst<ImmortalLongExact[1]>
     v11 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
@@ -483,14 +482,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+    v8, v9 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v0
         Cells<1> v1
       }
     }
-    v9 = GetSecondOutput<OptObject> v8
     Snapshot
     v10 = LoadConst<ImmortalLongExact[1]>
     Snapshot
@@ -562,14 +560,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+    v8, v9 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
         Cells<1> v1
       }
     }
-    v9 = GetSecondOutput<OptObject> v8
     Snapshot
     v10 = LoadConst<ImmortalLongExact[1]>
     Snapshot
@@ -642,14 +639,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+    v8, v9 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
         Cells<1> v1
       }
     }
-    v9 = GetSecondOutput<OptObject> v8
     Snapshot
     v10 = LoadConst<ImmortalLongExact[1]>
     Snapshot
@@ -724,14 +720,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v8 = RefineType<Type> v8
-    v9 = LoadMethodSuper<1; "f", true> v7 v8 v3 {
+    v9, v10 = LoadMethodSuper<1; "f", true> v7 v8 v3 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v3
         Cells<1> v1
       }
     }
-    v10 = GetSecondOutput<OptObject> v9
     Snapshot
     v11 = LoadConst<ImmortalLongExact[1]>
     Snapshot
@@ -810,14 +805,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+    v8, v9 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v0
         Cells<1> v1
       }
     }
-    v9 = GetSecondOutput<OptObject> v8
     Snapshot
     v10 = CallMethod<2> v8 v9 {
       FrameState {
@@ -887,14 +881,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+    v8, v9 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v0
         Cells<1> v1
       }
     }
-    v9 = GetSecondOutput<OptObject> v8
     Snapshot
     v10 = CallMethod<2> v8 v9 {
       FrameState {
@@ -963,14 +956,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+    v8, v9 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
         Cells<1> v1
       }
     }
-    v9 = GetSecondOutput<OptObject> v8
     Snapshot
     v10 = CallMethod<2> v8 v9 {
       FrameState {
@@ -1040,14 +1032,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
+    v8, v9 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
         Cells<1> v1
       }
     }
-    v9 = GetSecondOutput<OptObject> v8
     Snapshot
     v10 = CallMethod<2> v8 v9 {
       FrameState {
@@ -1119,14 +1110,13 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v8 = RefineType<Type> v8
-    v9 = LoadMethodSuper<1; "f", true> v7 v8 v3 {
+    v9, v10 = LoadMethodSuper<1; "f", true> v7 v8 v3 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v3
         Cells<1> v1
       }
     }
-    v10 = GetSecondOutput<OptObject> v9
     Snapshot
     v11 = CallMethod<2> v9 v10 {
       FrameState {

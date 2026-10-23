@@ -15,6 +15,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace cinderx::jit::hir {
 
@@ -735,14 +736,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = newInstr<GetIter>(dst, iterable);
       break;
     }
-    case Opcode::kGetSecondOutput: {
-      expect("<");
-      Type ty = parseType(getNextToken());
-      expect(">");
-      Register* value = parseRegister();
-      NEW_INSTR(GetSecondOutput, dst, ty, value);
-      break;
-    }
     case Opcode::kLoadTypeAttrCacheEntryType: {
       expect("<");
       int cache_id = getNextInteger();
@@ -1182,13 +1175,26 @@ BasicBlock* HIRParser::parseBasicBlock(CFG& cfg) {
   expect("{");
 
   while (peekNextToken() != "}") {
-    Register* dst = nullptr;
-    if (peekNextToken(1) == "=") {
-      dst = parseRegister();
+    // Outputs are a comma-separated list of registers followed by "=".
+    std::vector<Register*> outputs;
+    if (peekNextToken(1) == "=" || peekNextToken(1) == ",") {
+      outputs.push_back(parseRegister());
+      while (peekNextToken() == ",") {
+        expect(",");
+        outputs.push_back(parseRegister());
+      }
       expect("=");
     }
+    Register* dst = outputs.empty() ? nullptr : outputs[0];
     std::string_view token = getNextToken();
     auto* instr = parseInstr(token, dst, id);
+    if (outputs.size() > 1) {
+      JIT_CHECK(
+          instr != nullptr, "Cannot parse multiple outputs for {}", token);
+      for (std::size_t i = 1; i < outputs.size(); i++) {
+        instr->setOutput(i, outputs[i]);
+      }
+    }
     if (instr != nullptr) {
       bb->append(instr);
     }
