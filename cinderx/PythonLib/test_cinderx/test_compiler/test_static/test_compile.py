@@ -505,6 +505,10 @@ class StaticCompilationTests(StaticTestBase):
             lambda type_env: type_env.ellipsis.instance,
         )
         assert_expr_binds_to(
+            "NotImplemented",
+            lambda type_env: type_env.not_implemented.instance,
+        )
+        assert_expr_binds_to(
             "f''",
             lambda type_env: type_env.str.exact_type().instance,
         )

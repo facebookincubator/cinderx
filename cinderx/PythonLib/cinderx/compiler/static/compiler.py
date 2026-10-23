@@ -138,7 +138,7 @@ class Compiler:
             "NameError": self.type_env.name_error,
             "None": self.type_env.none.instance,
             "NotADirectoryError": self.type_env.not_a_directory_error,
-            "NotImplemented": self.type_env.not_implemented,
+            "NotImplemented": self.type_env.not_implemented.instance,
             "NotImplementedError": self.type_env.not_implemented_error,
             "OSError": self.type_env.os_error,
             "OverflowError": self.type_env.overflow_error,
