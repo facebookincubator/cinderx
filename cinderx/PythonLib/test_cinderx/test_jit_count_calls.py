@@ -72,3 +72,26 @@ class CountCallsTest(unittest.TestCase):
                 # immediately.
                 self.assertEqual(count_interpreted_calls(func), 0)
                 func()
+
+    @passUnless(JIT_ENABLED, "Testing calls counted while the JIT is disabled")
+    def test_count_calls_while_jit_disabled(self) -> None:
+        @cinderx.jit.jit_suppress
+        def func() -> int:
+            return 15
+
+        func()
+        before = count_interpreted_calls(func)
+        if before == 0:
+            self.skipTest("The interpreter isn't counting calls")
+        cinderx.jit.disable()
+        try:
+            for _ in range(10):
+                func()
+            during = count_interpreted_calls(func)
+        finally:
+            cinderx.jit.enable()
+        # Prefork builds stop counting while the JIT is disabled, so forked
+        # children don't write to code objects shared with the parent.
+        self.assertEqual(during, before if cinderx.is_prefork_build() else before + 10)
+        func()
+        self.assertEqual(count_interpreted_calls(func), during + 1)

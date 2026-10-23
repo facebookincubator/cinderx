@@ -275,6 +275,13 @@ void Ci_SetAdaptiveThreshold(uint64_t threshold) {
   cinderx::jit::getMutableConfig().adaptive_threshold = threshold;
 }
 
+#ifdef ENABLE_PREFORK_MODEL
+#ifdef Py_GIL_DISABLED
+#error "Prefork builds need the GIL: Ci_code_counters_frozen is a plain bool"
+#endif
+bool Ci_code_counters_frozen = false;
+#endif
+
 PyTypeObject* Ci_GetAwaitableWrapperType(void) {
   auto state = cinderx::getModuleState();
   return state != nullptr ? state->awaitable_wrapper_type.get() : nullptr;

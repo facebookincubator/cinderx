@@ -411,9 +411,25 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
     return oparg >> 1;
 }
 
+#ifdef ENABLE_PREFORK_MODEL
+// Once the JIT is disabled (before forking), only read existing code extras
+// and stop counting calls; see Ci_code_counters_frozen.
+#define CI_CALL_CODE_EXTRA(code) \
+    (Ci_code_counters_frozen ? codeExtraIfPresent(code) : codeExtra(code))
+#define CI_INCR_CALLS(extra) \
+    do { \
+        if (!Ci_code_counters_frozen) { \
+            Ci_code_extra_incr_calls(extra); \
+        } \
+    } while (0)
+#else
+#define CI_CALL_CODE_EXTRA(code) codeExtra(code)
+#define CI_INCR_CALLS(extra) Ci_code_extra_incr_calls(extra)
+#endif
+
 #define CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE \
     PyCodeObject* code = frame->f_code; \
-    CodeExtra *extra = codeExtra(code); \
+    CodeExtra *extra = CI_CALL_CODE_EXTRA(code); \
     code_extra = extra; \
     adaptive_enabled = extra != NULL && is_adaptive_enabled(extra);
 
@@ -515,10 +531,10 @@ start_frame:
     // Update call count.
     {
         PyCodeObject* code = frame->f_code;
-        CodeExtra *extra = codeExtra(code);
+        CodeExtra *extra = CI_CALL_CODE_EXTRA(code);
         code_extra = extra;
         if (extra != NULL) {
-            Ci_code_extra_incr_calls(extra);
+            CI_INCR_CALLS(extra);
             adaptive_enabled = is_adaptive_enabled(extra);
         } else {
             adaptive_enabled = false;
@@ -796,7 +812,7 @@ exit_unwind:
     }
 
 resume_with_error:
-    code_extra = codeExtra(frame->f_code);
+    code_extra = CI_CALL_CODE_EXTRA(frame->f_code);
     SET_LOCALS_FROM_FRAME();
     goto error;
 

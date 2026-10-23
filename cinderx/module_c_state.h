@@ -118,6 +118,12 @@ bool Ci_GetDelayAdaptiveCode(void);
 void Ci_SetDelayAdaptiveCode(bool delay);
 uint64_t Ci_GetAdaptiveThreshold(void);
 void Ci_SetAdaptiveThreshold(uint64_t threshold);
+#ifdef ENABLE_PREFORK_MODEL
+// Set while the JIT is disabled. Prefork servers disable it before forking,
+// and the interpreter then stops counting calls so children don't write to
+// code objects shared with the parent.
+extern bool Ci_code_counters_frozen;
+#endif
 
 // Awaitable wrapper type.
 PyTypeObject* Ci_GetAwaitableWrapperType(void);

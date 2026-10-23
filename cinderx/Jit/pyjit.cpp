@@ -50,6 +50,7 @@
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/Jit/threaded_compile_queue.h"
+#include "cinderx/module_c_state.h"
 #include "cinderx/module_state.h"
 
 #ifndef WIN32
@@ -1919,6 +1920,9 @@ void disable_jit_impl(bool deopt_all) {
 
   if (isJitUsable()) {
     getMutableConfig().state = State::kPaused;
+#ifdef ENABLE_PREFORK_MODEL
+    Ci_code_counters_frozen = true;
+#endif
     JIT_DLOG("Disabled the JIT");
   }
 }
@@ -1981,6 +1985,9 @@ bool enable_jit_impl() {
       jitCtx()->deoptedFuncs().size());
 
   getMutableConfig().state = State::kRunning;
+#ifdef ENABLE_PREFORK_MODEL
+  Ci_code_counters_frozen = false;
+#endif
 
   JIT_DLOG("Re-enabled the JIT and re-optimized {} functions", count);
 
@@ -4777,6 +4784,9 @@ int initialize() {
   }
 
   getMutableConfig().state = State::kRunning;
+#ifdef ENABLE_PREFORK_MODEL
+  Ci_code_counters_frozen = false;
+#endif
 
   mod_state->jit_list = std::move(jit_list);
 
