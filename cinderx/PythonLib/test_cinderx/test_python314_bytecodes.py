@@ -151,9 +151,11 @@ class Python314Bytecodes(cinder_support.CinderXTestCase):
         @cinder_support.fail_if_deopt
         @cinder_support.failUnlessJITCompiled
         def x():
-            return [i for i in [1, 2]]  # noqa: C416
+            # Store the loaded value so it needs a strong reference: since 3.16
+            # a borrowable LOAD_FAST is not fused into STORE_FAST_LOAD_FAST.
+            return [(j := i) + j for i in [1, 2]]
 
-        self.assertEqual(sum(x()), 3)
+        self.assertEqual(sum(x()), 6)
         self.assertBytecodeContains(x, "STORE_FAST_LOAD_FAST")
 
     def test_STORE_FAST_STORE_FAST(self):

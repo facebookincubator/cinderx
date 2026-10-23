@@ -621,6 +621,10 @@ class PyFlowGraph(FlowGraph):
     # jumps, threaded jumps) keep its exception handler (gh-130279, 3.15+).
     # Before that they got none, which splits the exception table around them.
     synthesized_jumps_keep_exc_handler: bool = False
+    # Superinstructions are formed after optimize_load_fast(), so a borrowable
+    # LOAD_FAST becomes LOAD_FAST_BORROW instead of being fused into
+    # STORE_FAST_LOAD_FAST (gh-159493, 3.16+).
+    superinstructions_after_load_fast: bool = False
 
     def __init__(
         self,
@@ -2737,6 +2741,12 @@ class PyFlowGraph314(PyFlowGraph312):
 
         self.optimize_load_fast()
 
+        if self.superinstructions_after_load_fast:
+            self.insert_superinstructions()
+            optimizer = self.flow_graph_optimizer(self)
+            for block in self.ordered_blocks:
+                optimizer.clean_basic_block(block, -1)
+
         self.flatten_graph()
         assert self.stage == FLAT, self.stage
         # see assemble.c :: _PyAssemble_MakeCodeObject()
@@ -3153,6 +3163,11 @@ class PyFlowGraph314(PyFlowGraph312):
                         self.make_super_instruction(
                             instr, next_instr, "LOAD_FAST_LOAD_FAST"
                         )
+                elif instr.opname == "LOAD_FAST_BORROW":
+                    if next_instr.opname == "LOAD_FAST_BORROW":
+                        self.make_super_instruction(
+                            instr, next_instr, "LOAD_FAST_BORROW_LOAD_FAST_BORROW"
+                        )
                 elif instr.opname == "STORE_FAST":
                     if next_instr.opname == "LOAD_FAST":
                         self.make_super_instruction(
@@ -3242,7 +3257,8 @@ class PyFlowGraph314(PyFlowGraph312):
 
         self.remove_unused_consts()
         self.add_checks_for_loads_of_uninitialized_variables()
-        self.insert_superinstructions()
+        if not self.superinstructions_after_load_fast:
+            self.insert_superinstructions()
         self.push_cold_blocks_to_end(None, optimizer)
         self.propagate_line_numbers()
 
@@ -3329,6 +3345,7 @@ class PyFlowGraph316(PyFlowGraph315):
     flow_graph_optimizer = FlowGraphOptimizer316
     flow_graph_const_optimizer = FlowGraphConstOptimizer316
     synthesized_jumps_keep_exc_handler = True
+    superinstructions_after_load_fast = True
 
     def convert_load_const_to_load_common_constant(self) -> None:
         convert_load_const_to_load_common_constant(

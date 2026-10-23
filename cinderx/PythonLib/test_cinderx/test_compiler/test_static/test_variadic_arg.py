@@ -308,7 +308,13 @@ class VariadicArgTests(StaticTestBase):
         """
         y = self.find_code(self.compile(codestr, modname="foo"), name="y")
         self.assertInBytecode(y, "STORE_FAST", "_pystatic_.0._tmp__d")
-        if sys.version_info >= (3, 14):
+        if sys.version_info >= (3, 16):
+            self.assertInBytecode(
+                y,
+                "LOAD_FAST_BORROW_LOAD_FAST_BORROW",
+                ("_pystatic_.0._tmp__d", "_pystatic_.0._tmp__e"),
+            )
+        elif sys.version_info >= (3, 14):
             self.assertInBytecode(
                 y,
                 "STORE_FAST_LOAD_FAST",
@@ -353,7 +359,13 @@ class VariadicArgTests(StaticTestBase):
         """
         y = self.find_code(self.compile(codestr, modname="foo"), name="y")
         self.assertInBytecode(y, "STORE_FAST", "_pystatic_.0._tmp__d")
-        if sys.version_info >= (3, 14):
+        if sys.version_info >= (3, 16):
+            self.assertInBytecode(
+                y,
+                "LOAD_FAST_BORROW_LOAD_FAST_BORROW",
+                ("_pystatic_.0._tmp__d", "_pystatic_.0._tmp__e"),
+            )
+        elif sys.version_info >= (3, 14):
             self.assertInBytecode(
                 y,
                 "STORE_FAST_LOAD_FAST",
