@@ -58,6 +58,38 @@ def func():
   ASSERT_EQ(PyLong_AsLong(res), 314159);
 }
 
+#if PY_VERSION_HEX >= 0x030F0000
+TEST_F(ASMGeneratorTest, LastProfiledFrameUpdatedOnJitCall) {
+  const char* pycode = R"(
+def func():
+  a = 314159
+  return a
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(pycode, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto compiled = GenerateCode(pyfunc);
+  ASSERT_NE(compiled, nullptr);
+
+  PyThreadState* tstate = PyThreadState_Get();
+  ASSERT_NE(tstate, nullptr);
+  uintptr_t seq_before = tstate->last_profiled_frame_seq;
+  _PyInterpreterFrame* current_before = tstate->current_frame;
+
+  PyObject* args[] = {};
+  auto res = Ref<>::steal(compiled->invoke(pyfunc, args, 0));
+  ASSERT_NE(res, nullptr);
+  ASSERT_EQ(PyLong_AsLong(res), 314159);
+
+  // Push and pop each bump the sequence once.
+  EXPECT_EQ(tstate->last_profiled_frame_seq, seq_before + 2);
+  // Profiled frame is restored to the caller frame alongside current_frame.
+  EXPECT_EQ(tstate->current_frame, current_before);
+  EXPECT_EQ(tstate->last_profiled_frame, current_before);
+}
+#endif
+
 TEST_F(ASMGeneratorTest, NativeModuleCallObservesMethodMutation) {
   PyCFunction original = [](PyObject* self, PyObject*) {
     return Py_NewRef(self);

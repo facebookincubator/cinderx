@@ -107,6 +107,10 @@ inline _PyInterpreterFrame* currentFrame(PyThreadState* tstate) {
 inline void setCurrentFrame(PyThreadState* tstate, _PyInterpreterFrame* frame) {
 #if PY_VERSION_HEX >= 0x030D0000
   tstate->current_frame = frame;
+#if PY_VERSION_HEX >= 0x030F0000
+  tstate->last_profiled_frame = frame;
+  tstate->last_profiled_frame_seq++;
+#endif
 #else
   tstate->cframe->current_frame = frame;
 #endif

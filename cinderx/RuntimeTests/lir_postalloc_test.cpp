@@ -1078,6 +1078,38 @@ TEST_F(LIRPostAllocRewriteTest, LoadPairSkippedWhenDestinationIsBase) {
   EXPECT_FALSE(instrs[1]->isLoadPair());
 }
 
+// Mirrors the profiled-frame update CurrentFrameAccessor::store emits: the
+// seq store (higher address) comes first, then the frame store. The pair
+// still forms with the lower address first.
+TEST_F(LIRPostAllocRewriteTest, AdjacentIndirectStoresBecomeStorePair) {
+  Function func;
+  auto* bb = func.allocateBasicBlock();
+
+  bb->allocateInstr(
+      Opcode::kStore,
+      nullptr,
+      OutInd{X19, 0x60, DataType::k64bit},
+      PhyReg{X0, DataType::k64bit});
+  bb->allocateInstr(
+      Opcode::kStore,
+      nullptr,
+      OutInd{X19, 0x58, DataType::k64bit},
+      PhyReg{X1, DataType::k64bit});
+
+  jit::codegen::Environ env;
+  PostRegAllocRewrite rewrite(&func, &env);
+  rewrite.run();
+  runPostRegAllocPeephole(&func);
+
+  auto instrs = collectInstrs(*bb);
+  ASSERT_EQ(instrs.size(), 1);
+  ASSERT_TRUE(instrs[0]->isStorePair());
+  EXPECT_EQ(static_cast<int32_t>(instrs[0]->getInput(0)->getConstant()), 0x58);
+  EXPECT_EQ(instrs[0]->getInput(1)->getPhyRegister(), X19);
+  EXPECT_EQ(instrs[0]->getInput(2)->getPhyRegister(), X1);
+  EXPECT_EQ(instrs[0]->getInput(3)->getPhyRegister(), X0);
+}
+
 #endif // CINDER_AARCH64
 
 } // namespace cinderx::jit::lir

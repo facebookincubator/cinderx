@@ -2926,7 +2926,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kInc: {
       auto* input = instr->getInput(0);
 
-      if (input->isStack()) {
+      if (isMemoryMoveOperand(input)) {
         env->as->inc(getMem(input));
       } else {
         env->as->inc(getReg(input));
@@ -2936,7 +2936,7 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kDec: {
       auto* input = instr->getInput(0);
 
-      if (input->isStack()) {
+      if (isMemoryMoveOperand(input)) {
         env->as->dec(getMem(input));
       } else {
         env->as->dec(getReg(input));

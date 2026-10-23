@@ -1449,6 +1449,95 @@ def func(x):
                  .inAddr(0, reinterpret_cast<uintptr_t>(Py_False)));
 }
 
+#if PY_VERSION_HEX >= 0x030F0000
+TEST_F(LIRGeneratorTest, ProfiledFrameUpdateEmitsEfficientLIR) {
+  const char* pycode = R"(
+def func():
+  a = 314159
+  return a
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(pycode, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+  ASSERT_NE(lir_func, nullptr);
+
+  constexpr int32_t kProfiledFrameOff =
+      static_cast<int32_t>(offsetof(PyThreadState, last_profiled_frame));
+  constexpr int32_t kProfiledSeqOff =
+      static_cast<int32_t>(offsetof(PyThreadState, last_profiled_frame_seq));
+
+  int stores_to_profiled = 0;
+  int incs_of_seq_mem = 0;
+  int loads_of_seq = 0;
+  [[maybe_unused]] int incs_of_seq_reg = 0;
+  [[maybe_unused]] int stores_to_seq = 0;
+
+  for (BasicBlock* block : lir_func->basicBlocks()) {
+    for (const auto& instr_uptr : block->instructions()) {
+      const Instruction* instr = instr_uptr.get();
+      if (instr->opcode() == Opcode::kStore && instr->output()->isInd() &&
+          instr->output()->getMemoryIndirect()->getOffset() ==
+              kProfiledFrameOff) {
+        stores_to_profiled++;
+      } else if (
+          instr->opcode() == Opcode::kStore && instr->output()->isInd() &&
+          instr->output()->getMemoryIndirect()->getOffset() ==
+              kProfiledSeqOff) {
+        stores_to_seq++;
+      } else if (
+          instr->opcode() == Opcode::kInc && instr->getNumInputs() == 1 &&
+          instr->getInput(0)->isInd() &&
+          instr->getInput(0)->getMemoryIndirect()->getOffset() ==
+              kProfiledSeqOff) {
+        incs_of_seq_mem++;
+      } else if (
+          instr->opcode() == Opcode::kLoad && instr->getNumInputs() == 1 &&
+          instr->getInput(0)->isInd() &&
+          instr->getInput(0)->getMemoryIndirect()->getOffset() ==
+              kProfiledSeqOff) {
+        loads_of_seq++;
+      } else if (
+          instr->opcode() == Opcode::kInc && instr->getNumInputs() == 1 &&
+          instr->getInput(0)->isLinked()) {
+        // ARM path increments the loaded seq in a register; count separately
+        // and validate below that the input is defined by a seq load.
+        const Operand* def = instr->getInput(0)->getDefine();
+        if (def != nullptr && def->instr() != nullptr &&
+            def->instr()->opcode() == Opcode::kLoad &&
+            def->instr()->getNumInputs() == 1 &&
+            def->instr()->getInput(0)->isInd() &&
+            def->instr()->getInput(0)->getMemoryIndirect()->getOffset() ==
+                kProfiledSeqOff) {
+          incs_of_seq_reg++;
+        }
+      }
+    }
+  }
+
+#if defined(CINDER_X86_64)
+  // x64: inc [seq] + mov [profiled], frame (two instructions per push/pop).
+  // One push in setup plus one pop in teardown.
+  EXPECT_EQ(incs_of_seq_mem, 2) << lirFuncString(*lir_func);
+  EXPECT_EQ(stores_to_profiled, 2) << lirFuncString(*lir_func);
+  EXPECT_EQ(loads_of_seq, 0) << lirFuncString(*lir_func);
+#elif defined(CINDER_AARCH64)
+  // ARM: load seq + inc + store seq + store frame. The two adjacent stores
+  // are fused into one stp by the post-regalloc peephole, so this still
+  // executes as three instructions per push/pop (see the postalloc test).
+  EXPECT_EQ(loads_of_seq, 2) << lirFuncString(*lir_func);
+  EXPECT_EQ(incs_of_seq_reg, 2) << lirFuncString(*lir_func);
+  EXPECT_EQ(stores_to_seq, 2) << lirFuncString(*lir_func);
+  EXPECT_EQ(stores_to_profiled, 2) << lirFuncString(*lir_func);
+  EXPECT_EQ(incs_of_seq_mem, 0) << lirFuncString(*lir_func);
+#else
+  // Generic fallback uses separate stores.
+  EXPECT_GE(stores_to_profiled, 2) << lirFuncString(*lir_func);
+#endif
+}
+#endif
+
 TEST_F(LIRGeneratorTest, ParserDataTypeTest) {
   std::string lir_str = fmt::format(
       R"(Function:

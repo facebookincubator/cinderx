@@ -5998,6 +5998,51 @@ void CurrentFrameAccessor::store(Instruction* frame) {
       OutInd{tstate_, offsetof(PyThreadState, current_frame)},
       Opcode::kStore,
       frame);
+#if PY_VERSION_HEX >= 0x030F0000
+  static_assert(
+      offsetof(PyThreadState, last_profiled_frame_seq) ==
+          offsetof(PyThreadState, last_profiled_frame) + kPointerSize,
+      "last_profiled_frame and seq must be adjacent");
+#if defined(CINDER_X86_64)
+  bbb_.appendInstr(
+      Opcode::kInc,
+      Ind{tstate_,
+          static_cast<int32_t>(
+              offsetof(PyThreadState, last_profiled_frame_seq)),
+          DataType::k64bit});
+  bbb_.appendInstr(
+      OutInd{
+          tstate_,
+          static_cast<int32_t>(offsetof(PyThreadState, last_profiled_frame))},
+      Opcode::kStore,
+      frame);
+#else
+  // The two stores below are fused into a single stp by the post-regalloc
+  // peephole on AArch64, yielding load/inc/stp overall.
+  Instruction* seq = bbb_.appendInstr(
+      OutVReg{DataType::k64bit},
+      Opcode::kLoad,
+      Ind{tstate_,
+          static_cast<int32_t>(
+              offsetof(PyThreadState, last_profiled_frame_seq)),
+          DataType::k64bit});
+  bbb_.appendInstr(Opcode::kInc, seq);
+  bbb_.appendInstr(
+      OutInd{
+          tstate_,
+          static_cast<int32_t>(
+              offsetof(PyThreadState, last_profiled_frame_seq)),
+          DataType::k64bit},
+      Opcode::kStore,
+      seq);
+  bbb_.appendInstr(
+      OutInd{
+          tstate_,
+          static_cast<int32_t>(offsetof(PyThreadState, last_profiled_frame))},
+      Opcode::kStore,
+      frame);
+#endif
+#endif
 #else
   bbb_.appendInstr(
       OutInd{loadCFrame(), offsetof(_PyCFrame, current_frame)},
