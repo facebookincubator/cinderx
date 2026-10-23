@@ -9,10 +9,12 @@ namespace cinderx::jit::hir {
 bool CleanCFG::run(Function& irfunc) {
   constexpr size_t kRunLimit = 10;
   size_t run = 0;
+  bool removed_instrs = false;
   bool changed = false;
 
   for (; run < kRunLimit; ++run) {
-    removeUnreachableInstructions(irfunc);
+    // This reflows types itself, so it doesn't need the reflow below.
+    removed_instrs |= removeUnreachableInstructions(irfunc);
 
     bool modified = mergeLinearBlocks(irfunc);
     modified |= removeUnreachableBlocks(irfunc);
@@ -34,7 +36,7 @@ bool CleanCFG::run(Function& irfunc) {
     reflowTypes(irfunc);
   }
 
-  return changed;
+  return changed || removed_instrs;
 }
 
 } // namespace cinderx::jit::hir

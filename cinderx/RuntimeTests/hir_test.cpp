@@ -10,6 +10,7 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
+#include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/dominance.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/inliner.h"
@@ -624,6 +625,61 @@ fun foo {
   EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
 }
 
+TEST(MergeLinearBlocksTest, ReportsFoldedRedundantCondBranch) {
+  // Block 3 has two predecessors, so folding the CondBranch in block 1 doesn't
+  // let any blocks merge, but it still changes the CFG.
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 {
+    v1 = LoadConst<NoneType>
+    CondBranch<3, 3> v1
+  }
+
+  bb 2 {
+    v2 = LoadConst<NoneType>
+    Branch<3>
+  }
+
+  bb 3 {
+    Return v0
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+
+  EXPECT_TRUE(mergeLinearBlocks(*func));
+
+  const char* expected = R"(fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1 = LoadConst<NoneType>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v2 = LoadConst<NoneType>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Return v0
+  }
+}
+)";
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
+}
+
 TEST(RemoveUnreachableBlocks, RemovesTransitivelyUnreachableBlocks) {
   const char* hir = R"(
 fun foo {
@@ -726,6 +782,67 @@ fun foo {
   bb 3 (preds 0, 1) {
     v3 = Phi<0, 1> v0 v1
     Return v3
+  }
+}
+)";
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
+}
+
+// Named apart from the CleanCFGTest suite that hir_tests/clean_cfg_test.txt
+// registers, which uses its own fixture.
+TEST(CleanCFGRunTest, ReportsRemovedUnreachableInstructions) {
+  // Replacing the instructions with Unreachable leaves a single block, so
+  // there are no blocks to merge or remove.
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<Bottom>
+    Return v0
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+  reflowTypes(*func);
+
+  EXPECT_TRUE(CleanCFG{}.run(*func));
+
+  const char* expected = R"(fun foo {
+  bb 0 {
+    Unreachable
+  }
+}
+)";
+  EXPECT_EQ(HIRPrinter{}.toString(*func), expected);
+}
+
+// Named apart from the PhiEliminationTest suite that
+// hir_tests/phi_elimination_test.txt registers, which uses its own fixture.
+TEST(PhiEliminationRunTest, ReportsMergedBlocks) {
+  // There are no Phis to eliminate, but the pass still merges the two blocks.
+  const char* hir = R"(
+fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    Branch<1>
+  }
+
+  bb 1 {
+    Return v0
+  }
+}
+)";
+
+  std::unique_ptr<Function> func = HIRParser{}.parseHIR(hir);
+  ASSERT_NE(func, nullptr);
+
+  EXPECT_TRUE(PhiElimination{}.run(*func));
+
+  const char* expected = R"(fun foo {
+  bb 0 {
+    v0 = LoadConst<NoneType>
+    Return v0
   }
 }
 )";

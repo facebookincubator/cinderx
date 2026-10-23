@@ -38,9 +38,9 @@ bool PhiElimination::run(Function& func) {
   } while (deleted != prev_deleted);
 
   // Consider having a separate run of CleanCFG between passes clean this up.
-  mergeLinearBlocks(func);
+  bool merged = mergeLinearBlocks(func);
 
-  return deleted > 0;
+  return deleted > 0 || merged;
 }
 
 } // namespace cinderx::jit::hir

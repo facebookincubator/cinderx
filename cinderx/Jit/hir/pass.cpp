@@ -742,15 +742,16 @@ bool spliceTrampoline(Function& func, BasicBlock& block) {
 }
 
 // Replace a conditional branch where both sides go to the same block with a
-// direct branch.  Do nothing for other instructions.
-void simplifyRedundantCondBranch(Instr* instr) {
+// direct branch.  Do nothing for other instructions.  Return true if the branch
+// was replaced.
+bool simplifyRedundantCondBranch(Instr* instr) {
   // Only optimize branches with two identical successors.
   if (instr->numEdges() != 2) {
-    return;
+    return false;
   }
   BasicBlock* succ0 = instr->successor(0);
   if (succ0 != instr->successor(1)) {
-    return;
+    return false;
   }
 
   // Verify the instruction is known to be safe to replace.
@@ -760,7 +761,7 @@ void simplifyRedundantCondBranch(Instr* instr) {
     case Opcode::kCondBranchCheckType:
       break;
     default:
-      return;
+      return false;
   }
 
   // Replace with an unconditional branch.
@@ -768,10 +769,11 @@ void simplifyRedundantCondBranch(Instr* instr) {
   block->remove(*instr);
   std::unique_ptr<Instr> deleter{instr};
   block->appendWithOff<Branch>(instr->bytecodeOffset(), succ0);
+  return true;
 }
 
 // Run a single merge pass over every block in the CFG, returning true if any
-// blocks were removed.
+// blocks were removed or any branches were simplified.
 bool mergeLinearBlocksOnce(Function& func) {
   bool changed = false;
   for (auto it = func.cfg.blocks.begin(); it != func.cfg.blocks.end();) {
@@ -786,7 +788,7 @@ bool mergeLinearBlocksOnce(Function& func) {
 
     // Fold conditional branch first to try to linearize the current block with
     // a single successor.
-    simplifyRedundantCondBranch(block.getTerminator());
+    changed |= simplifyRedundantCondBranch(block.getTerminator());
 
     // Keep absorbing successors, chains of them collapse into a single block.
     // This only ever unlinks the successor, never `block`, so the iterator
