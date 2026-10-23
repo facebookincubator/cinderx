@@ -22,6 +22,8 @@
 
 #include <fmt/ostream.h>
 
+#include <algorithm>
+#include <array>
 #include <optional>
 #include <type_traits>
 
@@ -776,7 +778,7 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
   PyObject* obj = ty.asObject();
   if (obj != nullptr) {
     // Should only consider immutable Objects
-    static const std::unordered_set<PyTypeObject*> kTrustedTypes{
+    static const std::array kTrustedTypes{
         &PyBool_Type,
         &PyFloat_Type,
         &PyLong_Type,
@@ -786,7 +788,7 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
         &PyUnicode_Type,
         Py_TYPE(Py_None),
     };
-    if (kTrustedTypes.contains(Py_TYPE(obj))) {
+    if (std::ranges::find(kTrustedTypes, Py_TYPE(obj)) != kTrustedTypes.end()) {
       int res = PyObject_IsTrue(obj);
       JIT_CHECK(res >= 0, "PyObject_IsTrue failed on trusted type");
       // Since we no longer use instr->getOperand(0), we need to make sure that
