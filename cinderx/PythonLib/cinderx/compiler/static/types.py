@@ -9930,8 +9930,12 @@ class CDoubleInstance(CInstance["CDoubleType"]):
     def emit_unbox(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node)
         node_ty = code_gen.get_type(node)
-        if self.klass.type_env.float.can_assign_from(node_ty.klass):
-            code_gen.emit("REFINE_TYPE", node_ty.klass.type_descr)
+        self.emit_unbox_from_stack(node_ty.klass, code_gen)
+
+    def emit_unbox_from_stack(self, src: Class, code_gen: StaticCodeGenBase) -> None:
+        """Unbox the value on top of the stack as a primitive double."""
+        if self.klass.type_env.float.can_assign_from(src):
+            code_gen.emit("REFINE_TYPE", src.type_descr)
         else:
             code_gen.emit("CAST", self.klass.type_env.float.type_descr)
         code_gen.emit("PRIMITIVE_UNBOX", self.as_oparg())
@@ -9942,6 +9946,9 @@ class CDoubleInstance(CInstance["CDoubleType"]):
 
 
 class CDoubleType(CType):
+    # pyrefly: ignore [bad-override]
+    instance: CDoubleInstance
+
     def __init__(self, type_env: TypeEnvironment) -> None:
         super().__init__(
             TypeName("__static__", "double"),
@@ -9956,6 +9963,12 @@ class CDoubleType(CType):
     @property
     def boxed(self) -> Class:
         return self.type_env.float
+
+    def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
+        if isinstance(src, CDoubleType):
+            assert self.can_assign_from(src)
+            return
+        self.instance.emit_unbox_from_stack(src, code_gen)
 
     def bind_call(
         self, node: ast.Call, visitor: TypeBinder, type_ctx: Class | None

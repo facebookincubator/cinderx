@@ -689,6 +689,42 @@ class DoubleTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("foo")
 
+    def test_double_return_dynamic(self) -> None:
+        codestr = """
+            from __static__ import double
+
+            def f(x) -> double:
+                return x
+        """
+        with self.in_module(codestr) as mod:
+            self.assertInBytecode(mod.f, "CAST")
+            self.assertInBytecode(mod.f, "PRIMITIVE_UNBOX")
+            self.assertEqual(mod.f(2.13), 2.13)
+            f1 = mod.f(1)
+            self.assertIs(type(f1), float)
+            self.assertEqual(f1, 1.0)
+            with self.assertRaises(TypeError):
+                mod.f("foo")
+
+    def test_double_arg_from_kwargs(self) -> None:
+        codestr = """
+            from __static__ import box, double
+
+            def g(x: double):
+                return box(x)
+
+            def f(kwargs):
+                return g(**kwargs)
+        """
+        with self.in_module(codestr) as mod:
+            self.assertInBytecode(mod.f, "CAST")
+            self.assertInBytecode(mod.f, "PRIMITIVE_UNBOX")
+            result = mod.f({"x": 1})
+            self.assertIs(type(result), float)
+            self.assertEqual(result, 1.0)
+            with self.assertRaises(TypeError):
+                mod.f({"x": "foo"})
+
     def test_unbox_double_from_int(self) -> None:
         codestr = """
             from __static__ import double
