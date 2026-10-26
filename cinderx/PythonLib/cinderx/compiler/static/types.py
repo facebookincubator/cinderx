@@ -3825,6 +3825,9 @@ class InlinedCall:
 # generate virtual invokes against them, and therefore their signatures
 # also don't have any requirements to be compatible.
 NON_VIRTUAL_METHODS = {"__init__", "__new__", "__init_subclass__"}
+RICH_COMPARISON_METHODS = frozenset(
+    {"__eq__", "__ne__", "__lt__", "__le__", "__gt__", "__ge__"}
+)
 
 
 class Function(Callable[Class], FunctionContainer):
@@ -3883,6 +3886,18 @@ class Function(Callable[Class], FunctionContainer):
     def finish_bind(
         self, module: ModuleTable, klass: Class | None
     ) -> Function | DecoratedMethod | UnknownDecoratedMethod | None:
+        if (
+            klass is not None
+            and isinstance(self.node, FunctionDef)
+            and self.func_name in RICH_COMPARISON_METHODS
+            and self.return_type.resolved() is klass.type_env.bool
+        ):
+            self.return_type = ResolvedTypeRef(
+                klass.type_env.get_union(
+                    (klass.type_env.bool, klass.type_env.not_implemented)
+                )
+            )
+
         res: Function | DecoratedMethod = self
         for decorator in reversed(self.node.decorator_list):
             decorator_type = (

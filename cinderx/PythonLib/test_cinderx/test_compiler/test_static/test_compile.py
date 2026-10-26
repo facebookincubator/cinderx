@@ -4227,6 +4227,64 @@ class StaticCompilationTests(StaticTestBase):
             y = C("foo")
             self.assertTrue(x == y)
 
+    def test_rich_comparison_can_return_not_implemented(self) -> None:
+        codestr = """
+            class C:
+                def __eq__(self, other: object) -> bool:
+                    return NotImplemented
+
+                def __ne__(self, other: object) -> bool:
+                    return NotImplemented
+
+                def __lt__(self, other: object) -> bool:
+                    return NotImplemented
+
+                def __le__(self, other: object) -> bool:
+                    return NotImplemented
+
+                def __gt__(self, other: object) -> bool:
+                    return NotImplemented
+
+                def __ge__(self, other: object) -> bool:
+                    return NotImplemented
+
+            def call_eq(instance: C) -> object:
+                return instance.__eq__(object())
+
+            def compare(instance: C) -> bool:
+                return instance == object()
+        """
+        with self.in_module(codestr) as mod:
+            instance = mod.C()
+            for name in ("__eq__", "__ne__", "__lt__", "__le__", "__gt__", "__ge__"):
+                with self.subTest(name=name):
+                    method = getattr(instance, name)
+                    self.assertIs(method(object()), NotImplemented)
+                    self.assertNotInBytecode(method, "CAST")
+            self.assertIs(mod.call_eq(instance), NotImplemented)
+            self.assertFalse(mod.compare(instance))
+
+    def test_not_implemented_rejected_as_bool_return(self) -> None:
+        cases = {
+            "not_a_method": """
+                def __eq__(other: object) -> bool:
+                    return NotImplemented
+            """,
+            "not_a_rich_comparison": """
+                class C:
+                    def f(self) -> bool:
+                        return NotImplemented
+            """,
+        }
+        for name, codestr in cases.items():
+            with self.subTest(name=name):
+                with self.assertRaisesRegex(
+                    TypedSyntaxError,
+                    "mismatched types: expected bool because of return type, "
+                    "found NotImplementedType instead",
+                ):
+                    self.compile(codestr)
+
     def test_unknown_issubclass_bool_ret(self) -> None:
         codestr = """
             from typing import Any
