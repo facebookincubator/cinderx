@@ -107,9 +107,7 @@ TEST(SlabArenaTest, RunsDestructors) {
 TEST(SlabArenaTest, Iterate) {
   SlabArena<int, ObjectSizeTrait<int>, 1> arena;
 
-  for (UNUSED int value : arena) {
-    FAIL() << "Arena should be empty";
-  }
+  ASSERT_EQ(arena.begin(), arena.end()) << "Arena should be empty";
 
   // Create at least two slabs full of ints full of arbitrary data.
   const int kFactor = 3;
