@@ -7238,6 +7238,10 @@ free_work_item(uintptr_t ptr, delayed_dealloc_cb cb, void *state)
             return;
         }
         assert(_PyInterpreterState_GET()->stoptheworld.world_stopped);
+        if (_Py_IsImmortal(obj)) {
+            // The object may have become immortal after it was queued.
+            return;
+        }
         Py_ssize_t refcount = _Py_ExplicitMergeRefcount(obj, -1);
         if (refcount == 0) {
             cb(obj, state);
@@ -7313,9 +7317,11 @@ free_delayed(uintptr_t ptr, size_t size)
         _PyEval_StopTheWorld(tstate->base.interp);
         if (work_item_should_decref(ptr)) {
             PyObject *obj = (PyObject *)(ptr - 1);
-            Py_ssize_t refcount = _Py_ExplicitMergeRefcount(obj, -1);
-            if (refcount == 0) {
-                to_dealloc = obj;
+            if (!_Py_IsImmortal(obj)) {
+                Py_ssize_t refcount = _Py_ExplicitMergeRefcount(obj, -1);
+                if (refcount == 0) {
+                    to_dealloc = obj;
+                }
             }
         }
         else {
