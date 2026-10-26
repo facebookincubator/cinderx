@@ -294,8 +294,6 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
       break;
     }
   }
-
-  return suite;
 }
 
 void setEnvVar(const std::string& key, const std::string& value) {
