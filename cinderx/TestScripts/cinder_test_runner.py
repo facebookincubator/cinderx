@@ -391,6 +391,7 @@ class MultiWorkerCinderRegrtest:
         if sys.version_info >= (3, 16):
             extra_opts["single_process_per_case"] = False
             extra_opts["case_groups"] = None
+            extra_opts["final_run"] = no_retry_on_test_errors
 
         self._runtests_config = libregrtest_runtests.RunTests(
             tests=tuple(tests),
@@ -589,6 +590,7 @@ class MultiWorkerCinderRegrtest:
                 fail_fast=False,
                 match_tests_dict=rerun_match_tests_dict,
                 output_on_failure=False,
+                **({"final_run": True} if sys.version_info >= (3, 16) else {}),
             )
             self._logger.set_tests(self._runtests_config)
             self._run_tests_with_n_workers(
