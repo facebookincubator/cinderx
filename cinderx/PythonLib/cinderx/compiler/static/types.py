@@ -714,7 +714,7 @@ CMPOP_SIGILS: Mapping[type[cmpop], str] = {
     ast.LtE: "<=",
     ast.GtE: ">=",
     ast.Is: "is",
-    ast.IsNot: "is",
+    ast.IsNot: "is not",
     ast.In: "in",
     ast.NotIn: "not in",
 }
