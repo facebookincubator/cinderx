@@ -124,16 +124,13 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         c = alv.__await__()
         c1 = alv.__await__()
         c.send(None)
-        try:
+        with self.assertRaises(StopIteration) as ctx:
             c.throw(Exc)
-        except StopIteration as e:
-            self.assertEqual(e.args[0], 10)
+        self.assertEqual(ctx.exception.value, 10)
 
-        try:
+        with self.assertRaises(StopIteration) as ctx:
             next(c1)
-            self.fail("StopIteration expected")
-        except StopIteration as e:
-            self.assertEqual(e.args[0], 10)
+        self.assertEqual(ctx.exception.value, 10)
 
     @async_test
     async def test_throw_unhandled_in_subgen(self) -> None:
@@ -150,15 +147,13 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         c = alv.__await__()
         c1 = alv.__await__()
         c.send(None)
-        try:
+        with self.assertRaises(IndexError) as ctx:
             c.throw(Exc)
-            self.fail("IndexError expected")
-        except IndexError as e:
-            self.assertTrue(type(e.__context__) is Exc)
-        try:
+        self.assertIs(type(ctx.exception.__context__), Exc)
+
+        with self.assertRaises(IndexError) as ctx:
             next(c1)
-        except IndexError as e:
-            self.assertTrue(type(e.__context__) is Exc)
+        self.assertIs(type(ctx.exception.__context__), Exc)
 
     def test_coro_target_is_bound_method(self) -> None:
         class X:
