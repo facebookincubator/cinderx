@@ -3339,6 +3339,17 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
+    def test_none_not_in_compare_reverse(self) -> None:
+        codestr = """
+            def f(x: int, values: list[int] | None) -> bool:
+                return x not in values
+        """
+        with self.assertRaisesRegex(
+            TypedSyntaxError,
+            r"'not in' not supported between 'int' and 'Optional\[list\]'",
+        ):
+            self.compile(codestr)
+
     def test_global_int(self) -> None:
         codestr = """
             X: int =  60 * 60 * 24
