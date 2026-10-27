@@ -29,12 +29,6 @@ race:_PyDictValues_AddToInsertionOrder
 
 # CinderX JIT compilation tracking: parallel-hashmap races between JIT
 # compilation threads and main-thread lookups in jit::Context maps.
-race:jit::Context::addCompiledFunc
-race:jit::Context::didCompile
-race:jit::Context::finalizeFunc
-race:jit::Context::lookupCode
-race:jit::Context::lookupFunc
-race:jit::Context::makeCompiledFunction
 race:jit::funcDestroyed
 race:jit::scheduleJitCompile
 race:jit::FreeThreadedJITEntrypointGuard
