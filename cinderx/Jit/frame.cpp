@@ -65,8 +65,15 @@ int reifyRunningFrame(
 #endif
 
 bool isJitFrame(_PyInterpreterFrame* frame) {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-
+#if CINDER_FRAME_HAS_JIT_MARKER
+  switch (frame->owner) {
+    case FRAME_OWNED_BY_THREAD:
+    case FRAME_OWNED_BY_GENERATOR:
+      return frameJITMarker(frame);
+    default:
+      return false;
+  }
+#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
 #if PY_VERSION_HEX >= 0x030E0000
   PyObject* code = PyStackRef_AsPyObjectBorrow(frame->f_executable);
   return PyUnstable_JITExecutable_Check(code) &&
@@ -730,17 +737,16 @@ void jitFrameClearExceptCode(
 }
 
 // If the frame is JITed returns the function object. Returns null otherwise.
-// On the OSS build we can't distinguish between JITed and non-JITed frames
-// because we don't have the reifier so always returns the function object.
+// Older builds without lightweight frames cannot distinguish JIT frames and
+// conservatively return the function object for every frame.
 BorrowedRef<PyFunctionObject> getFrameFunctionIfJitted(
     _PyInterpreterFrame* frame) {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
   if (isJitFrame(frame)) {
     return jitFrameGetFunction(frame);
   }
   return nullptr;
 #else
-  // In the OSS build we can't distinguish between JITed and non-JITed frames
   return frameFunction(frame);
 #endif
 }
