@@ -2,6 +2,8 @@
 
 #include "cinderx/Common/watchers.h"
 
+#include "cinderx/Common/define.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 
 namespace cinderx {
@@ -89,6 +91,15 @@ int WatcherState::unwatchDict(BorrowedRef<PyDictObject> dict) {
 }
 
 int WatcherState::watchType(BorrowedRef<PyTypeObject> type) {
+  // PyType_Watch() stores the watcher bit even when it's already set, copying
+  // a type object a pre-fork child shares with its parent. It's a no-op once
+  // the type has the bit and a valid version tag.
+  if constexpr (kPreforkModel) {
+    if (type_watcher_id_ >= 0 && (type->tp_watched & (1 << type_watcher_id_)) &&
+        Ci_Type_HasValidVersionTag(type)) {
+      return 0;
+    }
+  }
   return PyType_Watch(type_watcher_id_, type.getObj());
 }
 
