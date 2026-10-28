@@ -211,25 +211,38 @@ BB %0
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesComparisonOutputToMin32Bit) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:64bit = Move 1
-  %2:64bit = Move 2
-  %3:8bit = Equal %1, %2
-  Return %3
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* left = block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      Imm{1, DataType::k64bit});
+  Instruction* right = block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      Imm{2, DataType::k64bit});
+  Instruction* comparison = block->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kEqual,
+      OutVReg{DataType::k8bit},
+      VReg{left},
+      VReg{right});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{comparison});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kCompare)
                  .condition(Condition::kEqual)
-                 .outVreg(3)
+                 .outVreg(comparison->id())
                  .outType(DataType::k32bit));
-  EXPECT_NO_LIR(Query(*lir_func)
+  EXPECT_NO_LIR(Query(function)
                     .opcode(Opcode::kCompare)
                     .condition(Condition::kEqual)
-                    .outVreg(3)
+                    .outVreg(comparison->id())
                     .outType(DataType::k8bit));
 }
 
