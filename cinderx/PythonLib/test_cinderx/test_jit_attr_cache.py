@@ -1799,6 +1799,94 @@ class StoreAttrCacheTests(unittest.TestCase):
         self.assertEqual(obj1.foo, 300)
 
 
+def make_frozen_keys_type():
+    """Create a type whose shared keys stop growing after two keys, and
+    instances of it: frozen[0] has an attribute that's not in the shared keys,
+    the rest still use the shared keys."""
+
+    class Frozen:
+        def __init__(self):
+            self.a = 1
+
+    # Each new instance shrinks the room left in the shared keys.
+    objs = [Frozen() for _ in range(40)]
+    # This takes the last free slot, so "c" never makes it into the shared keys.
+    objs[0].b = 2
+    objs[0].c = 3
+    return Frozen, objs
+
+
+class FrozenSharedKeysTests(unittest.TestCase):
+    """Attributes that can't be added to a type's shared keys, even though the
+    shared keys aren't full."""
+
+    def test_load(self):
+        _, objs = make_frozen_keys_type()
+
+        @cinder_support.failUnlessJITCompiled
+        def get_c(o):
+            return o.c
+
+        for _ in range(3):
+            self.assertEqual(get_c(objs[0]), 3)
+            with self.assertRaises(AttributeError):
+                get_c(objs[1])
+        objs[1].c = 5
+        self.assertEqual(get_c(objs[1]), 5)
+        self.assertEqual(get_c(objs[0]), 3)
+
+    def test_store(self):
+        _, objs = make_frozen_keys_type()
+
+        @cinder_support.failUnlessJITCompiled
+        def set_c(o, val):
+            o.c = val
+
+        for i in range(3):
+            set_c(objs[0], i)
+            set_c(objs[1], i + 10)
+            self.assertEqual(objs[0].c, i)
+            self.assertEqual(objs[1].c, i + 10)
+            self.assertEqual(vars(objs[1])["c"], i + 10)
+        self.assertEqual(objs[1].a, 1)
+
+    def test_delete_then_load(self):
+        _, objs = make_frozen_keys_type()
+
+        @cinder_support.failUnlessJITCompiled
+        def get_c(o):
+            return o.c
+
+        self.assertEqual(get_c(objs[0]), 3)
+        self.assertEqual(get_c(objs[0]), 3)
+        del objs[0].c
+        with self.assertRaises(AttributeError):
+            get_c(objs[0])
+
+    def test_type_attr_added_after_caching(self):
+        Frozen, objs = make_frozen_keys_type()
+
+        @cinder_support.failUnlessJITCompiled
+        def get_c(o):
+            return o.c
+
+        @cinder_support.failUnlessJITCompiled
+        def set_c(o, val):
+            o.c = val
+
+        self.assertEqual(get_c(objs[0]), 3)
+        set_c(objs[0], 4)
+        self.assertEqual(get_c(objs[0]), 4)
+
+        descr = DataDescr(300)
+        Frozen.c = descr
+        self.assertEqual(get_c(objs[0]), 300)
+        set_c(objs[0], 5)
+        self.assertTrue(descr.invoked)
+        self.assertEqual(get_c(objs[0]), 300)
+        self.assertEqual(vars(objs[0])["c"], 4)
+
+
 class MetaclassGetAttrCacheTests(unittest.TestCase):
     """Tests for inline cache behavior with metaclass __getattr__.
 

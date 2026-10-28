@@ -66,6 +66,18 @@ static inline Py_ssize_t getDictKeysIndex(
   return -1;
 }
 
+// Check whether a type's shared (split) dict keys can still grow.  CPython
+// shrinks dk_usable by one for each key it adds and, until it reaches 1, for
+// each instance it creates with inline values.  So the keys usually stop
+// growing well before they hold SHARED_KEYS_MAX_SIZE entries.
+static inline bool sharedKeysAreFrozen(PyDictKeysObject* keys) {
+#ifdef Py_GIL_DISABLED
+  return _Py_atomic_load_ssize_relaxed(&keys->dk_usable) <= 0;
+#else
+  return keys->dk_usable <= 0;
+#endif
+}
+
 // We can't borrow this from CPython because it exists but is not
 // exported, and therefore borrowing it duplicates the symbol.
 static inline uint32_t dictGetKeysVersion(

@@ -23,6 +23,8 @@ covered:
 * ``combined`` -- managed-dict instance whose dict was detached and unshared.
 * ``exhausted`` -- the type's shared keys are full, so instances carry a real
   dict and the attribute name is absent from the shared keys.
+* ``frozen`` -- like ``exhausted``, but the shared keys stopped growing long
+  before they filled up, which is the more common way to get there.
 * ``dictoffset`` -- non-managed heap type with a positive ``tp_dictoffset``.
 * ``slots`` / ``slotsdict`` -- member descriptors, with and without a dict.
 * ``varsize`` -- managed dict on a variable-sized type.  On 3.14+ such types
@@ -106,6 +108,10 @@ STORE_VALUE: int = 7
 # SHARED_KEYS_MAX_SIZE (30) in all three CPython versions.
 SHARED_KEY_FILLER: int = 64
 
+# Enough instances to use up the free slots in a fresh type's shared keys, which
+# stop growing long before SHARED_KEYS_MAX_SIZE.
+FROZEN_KEYS_INSTANCES: int = 40
+
 # Py_TPFLAGS bits that determine where instance attributes live.  INLINE_VALUES
 # only exists from 3.14 on.
 TPFLAGS_INLINE_VALUES: int = 1 << 2
@@ -166,6 +172,19 @@ def _build_exhausted() -> list[object]:
     for i in range(SHARED_KEY_FILLER):
         setattr(filler, f"f{i}", i)
     objs: list[object] = [cls() for _ in range(RECEIVERS)]
+    _set_names(objs)
+    return objs
+
+
+def _build_frozen() -> list[object]:
+    cls = _new_class("FrozenKeys")
+    # Each new instance with inline values shrinks the room left in the shared
+    # keys, down to a single free slot.
+    objs: list[object] = [cls() for _ in range(FROZEN_KEYS_INSTANCES)]
+    # This takes the last free slot, so none of NAMES make it into the keys.
+    # pyrefly: ignore [missing-attribute]
+    objs[0].f0 = 0
+    objs = objs[:RECEIVERS]
     _set_names(objs)
     return objs
 
@@ -382,6 +401,10 @@ LAYOUTS: dict[str, Layout] = {
     "exhausted": Layout(
         "shared keys full, attribute lives in a real dict",
         _build_exhausted,
+    ),
+    "frozen": Layout(
+        "shared keys frozen before full, attribute lives in a real dict",
+        _build_frozen,
     ),
     "dictoffset": Layout(
         "non-managed heap type with a fixed tp_dictoffset",

@@ -1616,9 +1616,9 @@ AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
         }
       }
 
-      if (keys->dk_nentries == SHARED_KEYS_MAX_SIZE) {
-        // The shared dict is full, fallback to dict access via managed
-        // dict APIs.
+      if (sharedKeysAreFrozen(keys)) {
+        // The attribute can never be added to the shared keys, so fall back
+        // to dict access via the managed dict APIs.
         mut->setDict(type);
         ac_watcher.watch(type, this);
         return mut;
