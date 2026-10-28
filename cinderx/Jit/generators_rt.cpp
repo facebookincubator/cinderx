@@ -936,6 +936,10 @@ void deopt_jit_gen_object_only(
     footer = gen->genDataFooter();
   }
 
+#if CINDER_FRAME_HAS_JIT_MARKER
+  setFrameJITMarker(generatorFrame(gen), false);
+#endif
+
   PyTypeObject* old_type = Py_TYPE(gen);
 
   if (state == nullptr) {

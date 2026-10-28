@@ -193,6 +193,9 @@ _PyInterpreterFrame* materializeDeoptFrame(
   if (code != nullptr && (code->co_flags & kCoFlagsAnyGenerator)) {
     jitFramePopulateFrame(src);
     jitFrameRemoveReifier(src);
+#if CINDER_FRAME_HAS_JIT_MARKER
+    setFrameJITMarker(src, false);
+#endif
     return src;
   }
   if (frame_meta.lazyFrame()) {
@@ -204,6 +207,9 @@ _PyInterpreterFrame* materializeDeoptFrame(
     BorrowedRef<PyFunctionObject> func{frameFunction(src)};
     jitFrameInit(
         tstate, new_frame, func, code, 0, FRAME_OWNED_BY_THREAD, nullptr);
+#if CINDER_FRAME_HAS_JIT_MARKER
+    setFrameJITMarker(new_frame, false);
+#endif
     return new_frame;
   }
   return convertInterpreterFrameFromStackToSlab(tstate, src);

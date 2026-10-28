@@ -614,6 +614,9 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
   jitFrameRemoveReifier(frame);
 
   memcpy(new_frame, frame, code->co_framesize * sizeof(PyObject*));
+#if CINDER_FRAME_HAS_JIT_MARKER
+  setFrameJITMarker(new_frame, false);
+#endif
 
   if (new_frame->frame_obj != nullptr) {
     new_frame->frame_obj->f_frame = new_frame;

@@ -5,6 +5,7 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
@@ -96,7 +97,16 @@ TEST_F(FrameIPTest, ReifyingRunningJitGeneratorReportsLineBeingExecuted) {
 
   Ref<> gen = call("generator");
   ASSERT_NE(gen, nullptr);
+#if CINDER_FRAME_HAS_JIT_MARKER
+  auto* frame = generatorFrame(reinterpret_cast<PyGenObject*>(gen.get()));
+  EXPECT_TRUE(frameJITMarker(frame));
+#endif
   EXPECT_TRUE(isIntEquals(Ref<>::steal(PyIter_Next(gen)), 1));
+#if CINDER_FRAME_HAS_JIT_MARKER
+  EXPECT_TRUE(frameJITMarker(frame));
+  ASSERT_TRUE(deopt_jit_gen(gen.get()));
+  EXPECT_FALSE(frameJITMarker(frame));
+#endif
 }
 
 // A resumed generator runs with the frame pointer aimed at its heap-allocated

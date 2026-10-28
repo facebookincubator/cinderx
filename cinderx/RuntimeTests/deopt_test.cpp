@@ -423,6 +423,10 @@ class DeoptStressTest : public RuntimeTest {
     auto guards = insertDeopts(*irfunc);
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
     auto delete_one_deopt = [&](const DeoptMetadata& deopt_meta) {
+#if CINDER_FRAME_HAS_JIT_MARKER
+      // The guard callback runs after the frame is handed to the interpreter.
+      EXPECT_FALSE(frameJITMarker(currentFrame(PyThreadState_Get())));
+#endif
       auto it = guards.find(deopt_meta.nonce);
       JIT_CHECK(it != guards.end(), "No guard for nonce {}", deopt_meta.nonce);
       it->second->unlink();
