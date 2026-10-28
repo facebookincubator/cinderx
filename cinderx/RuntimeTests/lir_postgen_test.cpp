@@ -7,23 +7,11 @@
 #include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
 namespace cinderx::jit::lir {
 
 class LIRPostGenerationRewriteTest : public RuntimeTest {};
-
-static std::unique_ptr<Function> runPostGenRewrite(const char* lir_input_str) {
-  auto func = Parser().parse(lir_input_str);
-  codegen::Environ env;
-  PostGenerationRewrite(func.get(), &env).run();
-  return func;
-}
-static std::string runPostGenRewriteStr(const char* lir_input_str) {
-  auto func = runPostGenRewrite(lir_input_str);
-  return lirFuncString(*func);
-}
 
 TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
 #if !defined(Py_GIL_DISABLED) || defined(CINDER_AARCH64)
