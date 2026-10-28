@@ -307,6 +307,7 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
     if (FRAME_STATE_FINISHED(jit_gen->gi_frame_state)) {
       jit_gen->gi_frame_state = FRAME_CLEARED;
       jitFrameClearExceptCode(frame);
+      _PyErr_ClearExcState(&jit_gen->gi_exc_state);
     } else {
 #if PY_VERSION_HEX >= 0x030E0000
       jit_gen->gi_frame_state = gen_footer->yieldPoint->isYieldFrom()

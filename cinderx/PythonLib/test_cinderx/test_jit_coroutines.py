@@ -3,6 +3,8 @@
 # pyre-unsafe
 
 import asyncio
+import ctypes
+import gc
 import unittest
 
 import cinderx.jit
@@ -181,3 +183,92 @@ class CoroutinesTest(unittest.TestCase):
         self.assert_already_awaited(runner())
         self.assertTrue(executed_except_block)
         self.assertTrue(executed_finally_block)
+
+
+class _ExcStateMarker(Exception):
+    pass
+
+
+_LEAK_MAP = {"key": "value"}
+
+
+def _cython_style_get(mapping, key, default=None):
+    """Simulate Cython's try/except exception save/reset (thrift Map.get).
+
+    Cython's ExceptionSave reads the topmost handled exception
+    (PyErr_GetExcInfo) and ExceptionReset writes it back into the current
+    _PyErr_StackItem (PyErr_SetExcInfo). When the current item is a JIT
+    coroutine's gi_exc_state, the saved exception (owned by an enclosing
+    except block) is copied into the coroutine's exception state.
+    """
+    exc_type = ctypes.c_void_p()
+    exc_value = ctypes.c_void_p()
+    exc_tb = ctypes.c_void_p()
+    ctypes.pythonapi.PyErr_GetExcInfo(
+        ctypes.byref(exc_type), ctypes.byref(exc_value), ctypes.byref(exc_tb)
+    )
+    try:
+        return mapping[key]
+    except KeyError:
+        return default
+    finally:
+        # PyErr_SetExcInfo steals a reference to each argument.
+        ctypes.pythonapi.PyErr_SetExcInfo(exc_type, exc_value, exc_tb)
+
+
+def _count_alive_markers() -> int:
+    gc.collect()
+    return sum(1 for obj in gc.get_objects() if isinstance(obj, _ExcStateMarker))
+
+
+class ExcStateLeakTest(unittest.TestCase):
+    """Regression test: a finished JIT coroutine/generator must not retain
+    an exception in gi_exc_state.exc_value (see send_core in
+    Jit/generators_rt.cpp). Retaining it leaks the exception, its
+    traceback, and every frame local reachable from the traceback.
+    """
+
+    def tearDown(self):
+        asyncio.set_event_loop(None)
+
+    @failUnlessJITCompiled
+    async def _callee(self):
+        return _cython_style_get(_LEAK_MAP, "key")
+
+    @failUnlessJITCompiled
+    async def _handler(self):
+        try:
+            raise _ExcStateMarker()
+        except _ExcStateMarker:
+            return await self._callee()
+
+    def test_coro_exc_state_cleared_on_finish(self):
+        async def run() -> int:
+            # Warm up (JIT compilation) before measuring.
+            for _ in range(5):
+                self.assertEqual(await self._handler(), "value")
+            before = _count_alive_markers()
+            for _ in range(50):
+                self.assertEqual(await self._handler(), "value")
+            return _count_alive_markers() - before
+
+        self.assertEqual(asyncio.run(run()), 0)
+
+    @failUnlessJITCompiled
+    def _gen_callee(self):
+        yield _cython_style_get(_LEAK_MAP, "key")
+
+    @failUnlessJITCompiled
+    def _gen_handler(self):
+        try:
+            raise _ExcStateMarker()
+        except _ExcStateMarker:
+            yield from self._gen_callee()
+
+    def test_gen_exc_state_cleared_on_finish(self):
+        for _ in range(5):
+            self.assertEqual(list(self._gen_handler()), ["value"])
+        before = _count_alive_markers()
+        for _ in range(50):
+            self.assertEqual(list(self._gen_handler()), ["value"])
+        self.assertEqual(_count_alive_markers() - before, 0)
