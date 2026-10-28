@@ -255,7 +255,7 @@ class SpecializationTests(CinderXTestCase):
             ("!=", operator.ne, lambda a, b: a != b),
         ]
         for opname, ref, f in entries:
-            specialize(f, lambda: f(1.5, 2.5))
+            specialize(f, lambda f=f: f(1.5, 2.5))
             self.assertIn("COMPARE_OP_FLOAT", opnames(f), opname)
             for a, b in cases:
                 self.assertEqual(f(a, b), ref(a, b), f"{a} {opname} {b}")
@@ -287,7 +287,7 @@ class SpecializationTests(CinderXTestCase):
             ("!=", operator.ne, lambda a, b: True if a != b else False),
         ]
         for opname, ref, f in entries:
-            specialize(f, lambda: f(1.5, 2.5))
+            specialize(f, lambda f=f: f(1.5, 2.5))
             self.assertIn("COMPARE_OP_FLOAT", opnames(f), opname)
             # Testing COMPARE_OP -> POP_JUMP_IF_FALSE control flow.
             self.assertIn("POP_JUMP_IF_FALSE", opnames(f), opname)
