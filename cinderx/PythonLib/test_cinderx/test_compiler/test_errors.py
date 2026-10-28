@@ -2,7 +2,6 @@
 
 # pyre-unsafe
 import inspect
-import sys
 import unittest
 
 from .common import CompilerTest
@@ -36,21 +35,11 @@ class ErrorTests(CompilerTest):
             )
 
     def test_yield_from_outside_func(self) -> None:
-        with self.assertRaisesRegex(
-            SyntaxError,
-            "'yield from' outside function"
-            if sys.version_info >= (3, 12, 8)
-            else "'yield' outside function",
-        ):
+        with self.assertRaisesRegex(SyntaxError, "'yield from' outside function"):
             self.compile("yield from [1,2]")
 
     def test_yield_from_outside_func_class(self) -> None:
-        with self.assertRaisesRegex(
-            SyntaxError,
-            "'yield from' outside function"
-            if sys.version_info >= (3, 12, 8)
-            else "'yield' outside function",
-        ):
+        with self.assertRaisesRegex(SyntaxError, "'yield from' outside function"):
             self.compile("class C: yield from [1,2]")
 
     def test_return_outside_func(self) -> None:
