@@ -94,6 +94,16 @@ inline _PyInterpreterFrame* generatorFrame(PyGenObject* gen) {
       ;
 }
 
+#if PY_VERSION_HEX >= 0x030E05F0
+inline bool frameJITMarker(const _PyInterpreterFrame* frame) {
+  return frame->visited;
+}
+
+inline void setFrameJITMarker(_PyInterpreterFrame* frame, bool value) {
+  frame->visited = value;
+}
+#endif
+
 // Get the current interpreter frame from a thread state.
 inline _PyInterpreterFrame* currentFrame(PyThreadState* tstate) {
 #if PY_VERSION_HEX >= 0x030D0000

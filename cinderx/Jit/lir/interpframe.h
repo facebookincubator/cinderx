@@ -35,11 +35,8 @@ enum class FrameFieldKind : uint8_t {
   // can be recovered later by walking that thread's native stack. AArch64
   // only.
   kThreadState,
-  // The debug-only byte holding the visited/stackpointer_valid/lltrace
-  // bitfields. Initialized so that stackpointer_valid=1 (others 0), matching
-  // _PyFrame_Initialize, so the interpreter's first StackPointerInvalidate on a
-  // JIT-built frame does not assert. Only emitted on Py_DEBUG 3.16+ builds.
-  kDebugFrameByte,
+  // The byte holding visited and, on debug builds, stackpointer_valid/lltrace.
+  kFrameFlagsByte,
 };
 
 constexpr const std::string_view frameFieldKindName(FrameFieldKind kind) {
@@ -68,8 +65,8 @@ constexpr const std::string_view frameFieldKindName(FrameFieldKind kind) {
       return "frame_header_func";
     case FrameFieldKind::kThreadState:
       return "tstate";
-    case FrameFieldKind::kDebugFrameByte:
-      return "debug_frame_byte";
+    case FrameFieldKind::kFrameFlagsByte:
+      return "frame_flags_byte";
   }
   return "unknown";
 }
@@ -115,6 +112,24 @@ constexpr auto kExecutableKind = FrameFieldKind::kFrameReifier;
 // is normal
 constexpr auto kFuncObjKind = FrameFieldKind::kFrameReifier;
 constexpr auto kExecutableKind = FrameFieldKind::kExecutable;
+#endif
+
+#if PY_VERSION_HEX >= 0x030E0000
+// visited is a bitfield on debug builds, so offsetof cannot be used on it.
+constexpr int32_t kFrameFlagsOffset =
+    static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner) + 1);
+
+// visited occupies bit 0.
+#if CINDER_FRAME_HAS_JIT_MARKER
+constexpr uint8_t kJitFrameMarker = 0x01;
+#else
+constexpr uint8_t kJitFrameMarker = 0x00;
+#endif
+
+// Debug builds use bit 2 for stackpointer_valid. Leave external and lltrace
+// zero.
+constexpr uint8_t kInitialFrameFlags =
+    kJitFrameMarker | (CINDER_FRAME_HAS_STACKPOINTER_VALID ? 0x04 : 0x00);
 #endif
 
 consteval FrameInitTable buildFrameInitTable() {
@@ -168,7 +183,13 @@ consteval FrameInitTable buildFrameInitTable() {
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner)),
       FrameFieldKind::kOwnerThread,
       DataType::k8bit);
-#else
+#endif
+
+#if CINDER_FRAME_HAS_JIT_MARKER
+  add(kFrameFlagsOffset, FrameFieldKind::kFrameFlagsByte, DataType::k8bit);
+#endif
+
+#ifndef ENABLE_LIGHTWEIGHT_FRAMES
   // Without ENABLE_LIGHTWEIGHT_FRAMES, eagerly-initialized frames must set
   // every field the interpreter expects. (Lazy frames skip this table: only
   // f_funcobj is stored and the deopt path materializes the rest.)
@@ -183,9 +204,9 @@ consteval FrameInitTable buildFrameInitTable() {
       DataType::kObject);
 
 // owner+1 holds visited; on 3.16+ debug it also holds stackpointer_valid,
-// which must be 1, so that config keeps the separate stores below.
-#if PY_VERSION_HEX >= 0x030E0000 && \
-    !(defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000)
+// which must be 1. Keep separate stores when either bit must be set.
+#if PY_VERSION_HEX >= 0x030E0000 && !CINDER_FRAME_HAS_JIT_MARKER && \
+    !CINDER_FRAME_HAS_STACKPOINTER_VALID
 #ifdef Py_GIL_DISABLED
   // Zero tlbc_index, return_offset, owner, and visited with one 64-bit store.
   static_assert(
@@ -222,14 +243,12 @@ consteval FrameInitTable buildFrameInitTable() {
       FrameFieldKind::kZero,
       DataType::k16bit);
 #if PY_VERSION_HEX >= 0x030E0000
-#if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
-  add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner) + 1),
-      FrameFieldKind::kDebugFrameByte,
-      DataType::k8bit);
+#if !CINDER_FRAME_HAS_JIT_MARKER
+#if CINDER_FRAME_HAS_STACKPOINTER_VALID
+  add(kFrameFlagsOffset, FrameFieldKind::kFrameFlagsByte, DataType::k8bit);
 #else
-  add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, owner) + 1),
-      FrameFieldKind::kZero,
-      DataType::k8bit);
+  add(kFrameFlagsOffset, FrameFieldKind::kZero, DataType::k8bit);
+#endif
 #endif
 #else
   add(static_cast<int32_t>(offsetof(_PyInterpreterFrame, stacktop)),

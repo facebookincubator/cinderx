@@ -5280,8 +5280,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                 case FrameFieldKind::kZero:
                 case FrameFieldKind::kOwnerThread:
                   return nullptr;
-                case FrameFieldKind::kDebugFrameByte: {
-#if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
+                case FrameFieldKind::kFrameFlagsByte: {
+#if CINDER_FRAME_HAS_JIT_MARKER
+                  return bbb.appendInstr(
+                      OutVReg{dt}, Opcode::kMove, Imm{kInitialFrameFlags, dt});
+#elif CINDER_FRAME_HAS_STACKPOINTER_VALID
                   // See the top-level frame path: set stackpointer_valid=1 in
                   // the visited/stackpointer_valid/lltrace bitfield byte.
                   _PyInterpreterFrame tmp;
@@ -5292,8 +5295,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                   return bbb.appendInstr(
                       OutVReg{dt}, Opcode::kMove, Imm{*byte, dt});
 #else
-                  JIT_ABORT(
-                      "kDebugFrameByte only valid on Py_DEBUG 3.16+ builds");
+                  JIT_ABORT("kFrameFlagsByte is unsupported on this build");
 #endif
                 }
               }
@@ -6242,8 +6244,11 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
                   FRAME_OWNED_BY_THREAD == 0,
                   "FRAME_OWNED_BY_THREAD has changed");
               return nullptr;
-            case FrameFieldKind::kDebugFrameByte: {
-#if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
+            case FrameFieldKind::kFrameFlagsByte: {
+#if CINDER_FRAME_HAS_JIT_MARKER
+              return bbb.appendInstr(
+                  OutVReg{dt}, Opcode::kMove, Imm{kInitialFrameFlags, dt});
+#elif CINDER_FRAME_HAS_STACKPOINTER_VALID
               // Compute the visited/stackpointer_valid/lltrace bitfield byte
               // with stackpointer_valid=1 and the rest 0, without assuming the
               // compiler's bitfield bit order.
@@ -6255,7 +6260,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
               return bbb.appendInstr(
                   OutVReg{dt}, Opcode::kMove, Imm{*byte, dt});
 #else
-              JIT_ABORT("kDebugFrameByte only valid on Py_DEBUG 3.16+ builds");
+              JIT_ABORT("kFrameFlagsByte is unsupported on this build");
 #endif
             }
           }

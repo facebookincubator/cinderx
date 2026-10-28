@@ -11,6 +11,7 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/lir/generator.h"
+#include "cinderx/Jit/lir/interpframe.h"
 #include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/postalloc.h"
 #include "cinderx/Jit/lir/spill_alloc.h"
@@ -35,6 +36,48 @@ namespace cinderx {
 using namespace asmjit;
 using namespace cinderx::jit;
 using namespace cinderx::jit::lir;
+
+#if PY_VERSION_HEX >= 0x030E0000
+TEST(LIRFrameInitTest, FlagsByteMatchesCPythonLayout) {
+  _PyInterpreterFrame frame{};
+  frame.owner = FRAME_OWNED_BY_GENERATOR;
+  reinterpret_cast<uint8_t*>(&frame)[kFrameFlagsOffset] = kInitialFrameFlags;
+
+  EXPECT_EQ(frame.owner, FRAME_OWNED_BY_GENERATOR);
+  EXPECT_EQ(
+      static_cast<uint8_t>(frame.visited),
+      PY_VERSION_HEX >= 0x030E05F0 ? 1 : 0);
+#ifdef Py_DEBUG
+  EXPECT_EQ(static_cast<uint8_t>(frame.lltrace), 0);
+#if CINDER_FRAME_HAS_STACKPOINTER_VALID
+  EXPECT_EQ(static_cast<uint8_t>(frame.stackpointer_valid), 1);
+#endif
+#endif
+}
+#endif
+
+#if CINDER_FRAME_HAS_JIT_MARKER
+TEST(LIRFrameInitTest, JitMarkerPreservesOtherFlags) {
+  _PyInterpreterFrame frame{};
+  auto* flags = reinterpret_cast<uint8_t*>(&frame) + kFrameFlagsOffset;
+  *flags = kInitialFrameFlags & ~kJitFrameMarker;
+#if PY_VERSION_HEX >= 0x03100000
+  frame.external = 1;
+#endif
+#ifdef Py_DEBUG
+  frame.lltrace = 3;
+#endif
+  uint8_t other_flags = *flags;
+
+  EXPECT_FALSE(frameJITMarker(&frame));
+  setFrameJITMarker(&frame, true);
+  EXPECT_TRUE(frameJITMarker(&frame));
+  EXPECT_EQ(*flags, other_flags | kJitFrameMarker);
+  setFrameJITMarker(&frame, false);
+  EXPECT_FALSE(frameJITMarker(&frame));
+  EXPECT_EQ(*flags, other_flags);
+}
+#endif
 
 TEST(LIRTypeTest, DataTypeByteShift) {
   EXPECT_EQ(byteShift(DataType::k8bit), 0);
@@ -1259,6 +1302,52 @@ def func(x) -> int:
                     .opcode(Opcode::kCall)
                     .inAddr(0, reinterpret_cast<uint64_t>(rt::cast)));
 }
+
+#if CINDER_FRAME_HAS_JIT_MARKER
+TEST_F(LIRGeneratorTest, TopLevelAndInlinedFramesSetJitMarker) {
+  const char* pycode = R"(
+import sys
+
+def callee(x):
+  sys._getframe()
+  return x + 1
+
+def caller(x):
+  return callee(x)
+)";
+  Ref<PyFunctionObject> caller(compileAndGet(pycode, "caller"));
+  ASSERT_NE(caller, nullptr);
+  auto lir_func = getLIRFunction(caller, PassConfig::kAll);
+  ASSERT_NE(lir_func, nullptr);
+
+  Query flags_store{*lir_func};
+  flags_store.opcode(Opcode::kStore)
+      .outType(DataType::k8bit)
+      .outIndOffset(kFrameFlagsOffset)
+      .inDefOpcode(0, Opcode::kMove);
+  size_t count = 0;
+  for (const BasicBlock* block : lir_func->basicBlocks()) {
+    for (const auto& instr : block->instructions()) {
+      if (!flags_store.matches(*instr)) {
+        continue;
+      }
+      const Instruction* value = instr->getInput(0)->getLinkedInstr();
+      _PyInterpreterFrame frame{};
+      reinterpret_cast<uint8_t*>(&frame)[kFrameFlagsOffset] =
+          value->getInput(0)->getConstant();
+      EXPECT_TRUE(frameJITMarker(&frame));
+#ifdef Py_DEBUG
+      EXPECT_EQ(static_cast<uint8_t>(frame.lltrace), 0);
+#if CINDER_FRAME_HAS_STACKPOINTER_VALID
+      EXPECT_EQ(static_cast<uint8_t>(frame.stackpointer_valid), 1);
+#endif
+#endif
+      count++;
+    }
+  }
+  EXPECT_EQ(count, 2) << lirFuncString(*lir_func);
+}
+#endif
 
 TEST_F(LIRGeneratorTest, InlinedFrameTeardownUsesSnapshottedCodeFlags) {
   const char* pycode = R"(

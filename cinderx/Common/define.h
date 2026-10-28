@@ -10,6 +10,21 @@
 
 #include "cinderx/python.h"
 
+// JIT frames use the visited bit on CPython 3.14.5+.
+#define CINDER_FRAME_HAS_JIT_MARKER (PY_VERSION_HEX >= 0x030E05F0)
+
+#if CINDER_FRAME_HAS_JIT_MARKER || defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#define CINDER_CAN_IDENTIFY_JIT_FRAMES 1
+#else
+#define CINDER_CAN_IDENTIFY_JIT_FRAMES 0
+#endif
+
+#if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x03100000
+#define CINDER_FRAME_HAS_STACKPOINTER_VALID 1
+#else
+#define CINDER_FRAME_HAS_STACKPOINTER_VALID 0
+#endif
+
 #if defined(__has_feature)
 #define CINDER_HAS_FEATURE(x) __has_feature(x)
 #else

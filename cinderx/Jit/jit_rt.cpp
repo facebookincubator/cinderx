@@ -19,6 +19,7 @@
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
+#include "cinderx/Jit/lir/interpframe.h"
 // NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/Immortalize/immortalize.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -739,6 +740,10 @@ static void init_generator_interpreter_frame(
       0,
       FRAME_OWNED_BY_GENERATOR,
       nullptr);
+#endif
+#if CINDER_FRAME_HAS_JIT_MARKER
+  reinterpret_cast<uint8_t*>(frame)[lir::kFrameFlagsOffset] =
+      lir::kInitialFrameFlags;
 #endif
 }
 
