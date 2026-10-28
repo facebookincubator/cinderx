@@ -84,7 +84,7 @@ The JIT uses a High-level Intermediate Representation (HIR) defined in
 2. **Jit/hir/hir.h** - Define the instruction class. Simple instructions
    with no special behavior can use `DEFINE_SIMPLE_INSTR`. More complex
    instructions use `INSTR_CLASS` and inherit from `InstrT` with appropriate
-   template parameters (`HasOutput`, `Operands<N>`, `DeoptBase`, etc.).
+   template parameters (`Operands<N>`, `DeoptBase`, etc.).
 
 3. **Jit/lir/generator.cpp** - Add a case in `TranslateOneBasicBlock()` to
    lower the HIR instruction to LIR/machine code. This typically involves
@@ -107,7 +107,7 @@ The JIT uses a High-level Intermediate Representation (HIR) defined in
    output type. Instructions with no output go in the "no destination" list.
    An instruction can define a second output (e.g. the second word of a
    two-word struct returned by a helper) with `setOutput(1, reg)`; such
-   opcodes must be listed in `numOutputs()` in **Jit/hir/ops.cpp** and
+   opcodes must be listed in `numOutputs()` in **Jit/hir/ops.h** and
    give the extra output a type in `outputType(instr, output_idx)`.
 
 8. **Jit/hir/parser.cpp** - Add parsing support in `parseInstr()` if the

@@ -4851,15 +4851,12 @@ void HIRBuilder::emitYieldFrom(
   TranslationContext send_tc{send_bb, tc.frame};
   auto send_value = send_tc.frame.stack.pop();
   auto iter_reg = send_tc.frame.stack.top();
-  // Due to the mixin order (Operands<2>, HasOutput, DeoptBase), the Send
-  // constructor maps: arg1→operand[0], arg2→operand[1], arg3→output.
-  // So we pass (iter, send_value, result) to match emitSend's convention.
   // Reuse send_value as the output so SSAify creates a proper Phi at this
   // merge point (send_value is defined on both the initial and back-edge
   // paths).
   auto send = send_tc.emit<Send>(
-      iter_reg,
       send_value,
+      iter_reg,
       send_value,
       send_tc.frame,
       handle_stop_async_iteration);
@@ -5233,7 +5230,7 @@ void HIRBuilder::emitSend(
   }
   Register* value_in = allocateTemp();
   Register* is_done = allocateTemp();
-  tc.emit<Send>(iter, value_out, value_in, tc.frame)->setOutput(1, is_done);
+  tc.emit<Send>(value_in, iter, value_out, tc.frame)->setOutput(1, is_done);
   stack.push(value_in);
   BasicBlock* done_block = getBlockAtOff(bc_instr.getJumpTarget());
   BasicBlock* continue_block = getBlockAtOff(bc_instr.nextInstrOffset());
@@ -5270,7 +5267,7 @@ void HIRBuilder::emitBuildTemplate(TranslationContext& tc) {
   Register* interpolations = stack.pop();
   Register* strings = stack.pop();
   Register* out = allocateTemp();
-  tc.emit<BuildTemplate>(strings, interpolations, out, tc.frame);
+  tc.emit<BuildTemplate>(out, strings, interpolations, tc.frame);
   stack.push(out);
 }
 

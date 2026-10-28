@@ -124,7 +124,7 @@ struct Env {
   // after creation.
   template <typename T, typename... Args>
   T* emitInstr(Args&&... args) {
-    if constexpr (T::has_output) {
+    if constexpr (hir::numOutputs(T::kOpcode) > 0) {
       return emitRawInstr<T>(
           func.env.allocateRegister(), std::forward<Args>(args)...);
     } else {
@@ -137,7 +137,7 @@ struct Env {
   // output, a new Register* will be created and returned.
   template <typename T, typename... Args>
   Register* emitVariadic(std::size_t arity, Args&&... args) {
-    if constexpr (T::has_output) {
+    if constexpr (hir::numOutputs(T::kOpcode) > 0) {
       return emitRawInstr<T>(
                  arity,
                  func.env.allocateRegister(),
