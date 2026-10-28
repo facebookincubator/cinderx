@@ -62,8 +62,7 @@ PyTypeObject _PyType_VTableType = {
     sizeof(_PyType_VTable) - sizeof(_PyType_VTableEntry),
     sizeof(_PyType_VTableEntry),
     .tp_dealloc = (destructor)vtabledealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
-        Py_TPFLAGS_TUPLE_SUBCLASS, /* tp_flags */
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
     .tp_traverse = (traverseproc)vtabletraverse,
     .tp_clear = (inquiry)vtableclear,
 };

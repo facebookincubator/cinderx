@@ -30,8 +30,7 @@ PyTypeObject _PyTypedArgsInfo_Type = {
     sizeof(_PyTypedArgsInfo),
     sizeof(_PyTypedArgsInfo),
     .tp_dealloc = (destructor)typedargsinfodealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
-        Py_TPFLAGS_TUPLE_SUBCLASS, /* tp_flags */
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
     .tp_traverse = (traverseproc)typedargsinfotraverse,
     .tp_clear = (inquiry)typedargsinfoclear,
 };
