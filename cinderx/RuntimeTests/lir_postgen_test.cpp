@@ -157,21 +157,24 @@ TEST_F(LIRPostGenerationRewriteTest, LoadAbsoluteAddressUsesObjectDataType) {
 #ifdef Py_GIL_DISABLED
   SKIP("Doesn't have expected LIR for deferred-refcount tag stripping yet");
 #else
-  const char* lir_input_str = R"(Function:
-BB %0
-  %10:Object = Load [0x12345]
-  Return %10
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* load = block->allocateInstr(
+      Opcode::kLoad,
+      nullptr,
+      OutVReg{DataType::kObject},
+      MemImm{reinterpret_cast<void*>(0x12345), DataType::kObject});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{load});
 
-  const char* expected_lir_str = R"(Function:
-BB %0
-      %12:Object = Move 74565(0x12345):Object
-      %10:Object = Load [%12:Object]:Object
-                   Return %10:Object
+  codegen::Environ env;
+  PostGenerationRewrite(&function, &env).run();
 
-)";
-
-  EXPECT_EQ(runPostGenRewriteStr(lir_input_str), expected_lir_str);
+  EXPECT_LIR(Query(function)
+                 .opcode(Opcode::kMove)
+                 .outType(DataType::kObject)
+                 .inImm(0, 0x12345)
+                 .inType(0, DataType::kObject));
+  EXPECT_TRUE(load->getInput(0)->isInd());
 #endif
 }
 
