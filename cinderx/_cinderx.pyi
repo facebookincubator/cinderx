@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
 
 from collections.abc import Awaitable, Callable, Generator
 from types import ModuleType

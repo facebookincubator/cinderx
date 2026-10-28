@@ -1,7 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# pyre-strict
-
 from contextlib import contextmanager
 from typing import Any, AsyncGenerator, Callable, Coroutine, Generator, TypeVar
 from warnings import catch_warnings, simplefilter, warn
