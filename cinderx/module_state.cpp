@@ -58,6 +58,11 @@ int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(indexerr);
   Py_VISIT(builtin_next);
   Py_VISIT(object_getattribute);
+  Py_VISIT(sys_clear_caches);
+  Py_VISIT(orig_sys_monitoring_register_callback);
+  Py_VISIT(orig_sys_monitoring_free_tool_id);
+  Py_VISIT(orig_sys_setprofile);
+  Py_VISIT(orig_sys_settrace);
   return 0;
 }
 
