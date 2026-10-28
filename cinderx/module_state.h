@@ -72,6 +72,7 @@ struct ModuleState {
 
   // CinderX's own coroutine and generator types used by the JIT.
   Ref<PyTypeObject> coro_type;
+  Ref<PyTypeObject> coro_wrapper_type;
   Ref<PyTypeObject> gen_type;
 
   // Type for the custom awaitable returned by CinderX's anext() replacement.

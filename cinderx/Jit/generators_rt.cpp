@@ -8,7 +8,6 @@
 #include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
@@ -600,7 +599,9 @@ struct JitCoroWrapper {
 void jitcoro_wrapper_dealloc(JitCoroWrapper* cw) {
   untrack(reinterpret_cast<PyObject*>(cw));
   Py_CLEAR(cw->cw_coroutine);
+  PyTypeObject* tp = Py_TYPE(cw);
   PyObject_GC_Del(cw);
+  Py_DECREF(tp);
 }
 
 PyObject* jitcoro_wrapper_iternext(JitCoroWrapper* cw) {
@@ -623,6 +624,7 @@ PyObject* jitcoro_wrapper_close(JitCoroWrapper* cw, PyObject* args) {
 }
 
 int jitcoro_wrapper_traverse(JitCoroWrapper* cw, visitproc visit, void* arg) {
+  Py_VISIT(Py_TYPE(cw));
   Py_VISIT(cw->cw_coroutine);
   return 0;
 }
@@ -655,7 +657,7 @@ static Ci_AsyncMethodsWithExtra jitcorowrapper_as_async = {
         reinterpret_cast<setawaiterfunc>(jitocorowrapper_set_awaiter),
 };
 
-static PyAsyncMethods* jitcorowrapper_async_methods =
+[[maybe_unused]] PyAsyncMethods* jitcorowrapper_async_methods =
     &jitcorowrapper_as_async.ame_async_methods;
 
 #else
@@ -665,67 +667,51 @@ static PyAsyncMethods* jitcorowrapper_async_methods =
 #endif
 #define Ci_TPFLAGS_HAVE_AM_EXTRA 0
 
-static PyAsyncMethods* jitcorowrapper_async_methods = nullptr;
+[[maybe_unused]] PyAsyncMethods* jitcorowrapper_async_methods = nullptr;
 
 #endif
 } // namespace
 
-PyTypeObject _JitCoroWrapper_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "coroutine_wrapper",
-    sizeof(JitCoroWrapper), /* tp_basicsize */
-    0, /* tp_itemsize */
-    reinterpret_cast<destructor>(
-        jitcoro_wrapper_dealloc), /* destructor tp_dealloc */
-    0, /* tp_vectorcall_offset */
-    nullptr, /* tp_getattr */
-    nullptr, /* tp_setattr */
-    jitcorowrapper_async_methods, /* tp_as_async */
-    nullptr, /* tp_repr */
-    nullptr, /* tp_as_number */
-    nullptr, /* tp_as_sequence */
-    nullptr, /* tp_as_mapping */
-    nullptr, /* tp_hash */
-    nullptr, /* tp_call */
-    nullptr, /* tp_str */
-    PyObject_GenericGetAttr, /* tp_getattro */
-    nullptr, /* tp_setattro */
-    nullptr, /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
-        Ci_TPFLAGS_HAVE_AM_EXTRA, /* tp_flags */
-    "A wrapper object implementing __await__ for coroutines.",
-    reinterpret_cast<traverseproc>(jitcoro_wrapper_traverse), /* tp_traverse */
-    nullptr, /* tp_clear */
-    nullptr, /* tp_richcompare */
-    0, /* tp_weaklistoffset */
-    PyObject_SelfIter, /* tp_iter */
-    reinterpret_cast<iternextfunc>(jitcoro_wrapper_iternext), /* tp_iternext */
-    jitcoro_wrapper_methods, /* tp_methods */
-    nullptr, /* tp_members */
-    nullptr, /* tp_getset */
-    nullptr, /* tp_base */
-    nullptr, /* tp_dict */
-    nullptr, /* tp_descr_get */
-    nullptr, /* tp_descr_set */
-    0, /* tp_dictoffset */
-    nullptr, /* tp_init */
-    nullptr, /* tp_alloc */
-    nullptr, /* tp_new */
-    nullptr, /* tp_free */
-    nullptr, /* tp_is_gc */
-    nullptr, /* tp_bases */
-    nullptr, /* tp_mro */
-    nullptr, /* tp_cache */
-    nullptr, /* tp_subclasses */
-    nullptr, /* tp_weaklist */
-    nullptr, /* tp_del */
-    0, /* tp_version_tag */
-    nullptr, /* tp_finalize */
+PyType_Slot JitCoroWrapper_slots[] = {
+    {Py_tp_dealloc, reinterpret_cast<void*>(jitcoro_wrapper_dealloc)},
+    {Py_tp_traverse, reinterpret_cast<void*>(jitcoro_wrapper_traverse)},
+    {Py_tp_methods, jitcoro_wrapper_methods},
+    {Py_tp_iter, reinterpret_cast<void*>(PyObject_SelfIter)},
+    {Py_tp_iternext, reinterpret_cast<void*>(jitcoro_wrapper_iternext)},
+    {Py_tp_getattro, reinterpret_cast<void*>(PyObject_GenericGetAttr)},
+    {Py_tp_doc,
+     (void*)"A wrapper object implementing __await__ for coroutines."},
+    {0, nullptr},
+};
+
+PyType_Spec JitCoroWrapper_Spec = {
+    .name = "_cinderx.coroutine_wrapper",
+    .basicsize = sizeof(JitCoroWrapper),
+    .itemsize = 0,
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+        Ci_TPFLAGS_HAVE_AM_EXTRA | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = JitCoroWrapper_slots,
 };
 
 namespace {
 
 PyObject* jitcoro_await(PyCoroObject* coro) {
-  JitCoroWrapper* cw = PyObject_GC_New(JitCoroWrapper, &_JitCoroWrapper_Type);
+  auto state = cinderx::getModuleState();
+  if (state == nullptr) {
+    PyErr_SetString(
+        PyExc_RuntimeError,
+        "Can't await JIT'd coroutine, CinderX module state doesn't exist");
+    return nullptr;
+  }
+  if (state->coro_wrapper_type == nullptr) {
+    PyErr_SetString(
+        PyExc_RuntimeError,
+        "Can't await JIT'd coroutine, JIT coroutine wrapper type is null");
+    return nullptr;
+  }
+
+  JitCoroWrapper* cw =
+      PyObject_GC_New(JitCoroWrapper, state->coro_wrapper_type.get());
   if (cw == nullptr) {
     return nullptr;
   }
@@ -1031,9 +1017,16 @@ bool deopt_jit_gen(PyObject* obj) {
 // Cache/copy features of PyGen_Type so we don't need to reimplement them.
 void init_jit_genobject_type() {
   using namespace std::literals;
-  // Copy base type functions
-  BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->gen_type;
-  BorrowedRef<PyTypeObject> coro_type = cinderx::getModuleState()->coro_type;
+
+  auto state = cinderx::getModuleState();
+  JIT_THROW_IF(
+      state == nullptr,
+      "Cannot initialize JIT generator types, CinderX module state doesn't "
+      "exist");
+
+  // Copy base type functions.
+  BorrowedRef<PyTypeObject> gen_type = state->gen_type;
+  BorrowedRef<PyTypeObject> coro_type = state->coro_type;
 
   gen_type->tp_repr = PyGen_Type.tp_repr;
 
@@ -1126,10 +1119,9 @@ void init_jit_genobject_type() {
   copy_methods(PyCoro_Type.tp_methods, coro_type->tp_methods);
 
   if constexpr (kFreeThreadedBuild) {
-    cinderx::getModuleState()->jit_gen_free_list.reset(
-        new JITGenFreeThreadedFreeList());
+    state->jit_gen_free_list.reset(new JITGenFreeThreadedFreeList());
   } else {
-    cinderx::getModuleState()->jit_gen_free_list.reset(new JitGenFreeList());
+    state->jit_gen_free_list.reset(new JitGenFreeList());
   }
 
   // Override dealloc so we can use a "free-list" for our objects.
@@ -1147,6 +1139,14 @@ void init_jit_genobject_type() {
   auto coro_ame =
       reinterpret_cast<Ci_AsyncMethodsWithExtra*>(PyCoro_Type.tp_as_async);
   jitcoro_as_async.ame_setawaiter = coro_ame->ame_setawaiter;
+  if (state->coro_wrapper_type != nullptr) {
+    state->coro_wrapper_type->tp_as_async =
+        reinterpret_cast<PyAsyncMethods*>(&jitcorowrapper_as_async);
+  }
+#else
+  if (state->coro_wrapper_type != nullptr) {
+    state->coro_wrapper_type->tp_as_async = jitcorowrapper_async_methods;
+  }
 #endif
 }
 

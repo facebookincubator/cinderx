@@ -19,7 +19,7 @@ namespace cinderx::jit {
 struct GenDataFooter;
 extern PyType_Spec JitGen_Spec;
 extern PyType_Spec JitCoro_Spec;
-extern PyTypeObject _JitCoroWrapper_Type;
+extern PyType_Spec JitCoroWrapper_Spec;
 
 template <typename PyObjectT>
 int JitGen_CheckAny(PyObjectT* op) {

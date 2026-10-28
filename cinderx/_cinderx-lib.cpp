@@ -1195,6 +1195,14 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
+  state->coro_wrapper_type =
+      Ref<PyTypeObject>::steal(PyType_FromSpec(&jit::JitCoroWrapper_Spec));
+  if (state->coro_wrapper_type == nullptr) {
+    return -1;
+  }
+  state->coro_wrapper_type->tp_name = "coroutine_wrapper";
+  // tp_as_async fixup for extra slot is done in init_jit_genobject_type()
+
   PyTypeObject* anext_awaitable_type =
       (PyTypeObject*)PyType_FromSpec(&jit::JitAnextAwaitable_Spec);
   if (anext_awaitable_type == nullptr) {
@@ -1263,9 +1271,6 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
   if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
-    return -1;
-  }
-  if (PyType_Ready(&jit::_JitCoroWrapper_Type) < 0) {
     return -1;
   }
 
