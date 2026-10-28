@@ -414,22 +414,28 @@ InlineCacheStats Context::getAndClearInlineCacheStats(
     InlineCacheSite::Kind kind) {
   JITCompilationLock lock;
   InlineCacheStats stats;
+  std::unordered_set<const CompiledFunctionData*> visited;
+  auto collect = [&](const CompiledFunctionData* data) {
+    if (visited.insert(data).second) {
+      collectAndClearInlineCacheStats(
+          stats, data->stable_storage->inlineCacheSites(), kind);
+    }
+  };
   for (auto& [_, compiled] : compiled_codes_) {
     if (compiled->runtime() == nullptr || compiled->runtime()->isCleared()) {
       continue;
     }
-    collectAndClearInlineCacheStats(stats, compiled->inlineCacheSites(), kind);
+    collect(compiled->data());
   }
   for (auto& compiled : orphaned_compiled_codes_) {
     if (compiled->runtime() == nullptr || compiled->runtime()->isCleared()) {
       continue;
     }
-    collectAndClearInlineCacheStats(stats, compiled->inlineCacheSites(), kind);
+    collect(compiled->data());
   }
   withLock(deferred_compile_data_mutex_, [&]() {
     for (auto& entry : deferred_compiled_data_) {
-      collectAndClearInlineCacheStats(
-          stats, entry.second->stable_storage->inlineCacheSites(), kind);
+      collect(entry.second.get());
     }
   });
   return stats;
@@ -1242,18 +1248,20 @@ void Context::deferCompiledData(
 }
 
 void Context::processDeferredCleanup() {
-  // Move the deferred map into a local.  retainActiveDeferredData walks
-  // all thread stacks (using jitFrameGetFunction for correct JIT frame
-  // access) and moves entries that are still executing back into the
-  // member map.  When the local destructs the remaining entries are freed.
+  // Keep stack inspection and destruction outside the registry mutex: stack
+  // inspection can pause threads, and finalizers can reenter deferred cleanup.
+  decltype(deferred_compiled_data_) pending;
+  decltype(deferred_compiled_data_) still_active;
   withLock(deferred_compile_data_mutex_, [&]() {
-    if (deferred_compiled_data_.empty()) {
-      return;
-    }
+    pending.swap(deferred_compiled_data_);
+  });
+  if (pending.empty()) {
+    return;
+  }
 
-    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>> pending =
-        std::move(deferred_compiled_data_);
-    retainActiveDeferredData(pending, deferred_compiled_data_);
+  retainActiveDeferredData(pending, still_active);
+  withLock(deferred_compile_data_mutex_, [&]() {
+    deferred_compiled_data_.merge(still_active);
   });
 }
 

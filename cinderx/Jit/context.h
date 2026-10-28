@@ -714,7 +714,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   UnorderedMap<BorrowedRef<PyCodeObject>, std::unique_ptr<NestedCompileData>>
       nested_compile_data_;
 
-  std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>
+  std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>
       deferred_compiled_data_;
 };
 
@@ -736,8 +736,9 @@ class CompilerContext : public Context {
 // identify JIT frames across all Python versions.  Defined in frame.cpp
 // because it needs access to frame internals that context.cpp cannot include.
 void retainActiveDeferredData(
-    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>& pending,
-    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>&
+    std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>&
+        pending,
+    std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>&
         still_active);
 
 /*

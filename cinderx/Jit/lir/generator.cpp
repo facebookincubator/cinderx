@@ -4252,6 +4252,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           Instruction* vectorcall_ptr = bbb.appendInstr(
               OutVReg{Operand::k64bit},
               Opcode::kLoad,
+              kFreeThreadedBuild ? MemoryOrder::kRelaxed : MemoryOrder::kNone,
               Ind{callee,
                   static_cast<int32_t>(offsetof(PyFunctionObject, vectorcall)),
                   Operand::k64bit});

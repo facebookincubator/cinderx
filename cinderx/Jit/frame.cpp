@@ -752,8 +752,9 @@ BorrowedRef<PyFunctionObject> getFrameFunctionIfJitted(
 }
 
 void retainActiveDeferredData(
-    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>& pending,
-    std::unordered_map<OwnedCompilationKey, Ref<CompiledFunctionData>>&
+    std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>&
+        pending,
+    std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>&
         still_active) {
   PyInterpreterState* interp = PyInterpreterState_Get();
 
@@ -783,8 +784,10 @@ void retainActiveDeferredData(
       // alive.
       if (func != nullptr && func != Py_None) {
         OwnedCompilationKey key{func};
-        if (auto it = pending.find(key); it != pending.end()) {
-          still_active.insert(pending.extract(it));
+        auto [it, end] = pending.equal_range(key);
+        while (it != end) {
+          auto active = it++;
+          still_active.insert(pending.extract(active));
         }
       }
       frame = frame->previous;

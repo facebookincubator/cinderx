@@ -41,6 +41,28 @@ struct InlineCacheLifetime {
   int& live_count;
 };
 
+struct DeferredCleanupReentry {
+  DeferredCleanupReentry(
+      Context* context,
+      BorrowedRef<PyFunctionObject> func,
+      int& live_count)
+      : context{context}, func{func}, live_count{live_count} {}
+
+  ~DeferredCleanupReentry() {
+    CompiledFunctionData data;
+    data.stable_storage = std::make_unique<PerCompilationStableStorage>();
+    data.runtime = data.stable_storage->allocateCodeRuntime(func);
+    data.stable_storage->allocateForTesting<InlineCacheLifetime>(live_count);
+    Ref<CompiledFunction> compiled =
+        CompiledFunction::create(std::move(data), false);
+    compiled->setOwner(context);
+  }
+
+  Context* context;
+  BorrowedRef<PyFunctionObject> func;
+  int& live_count;
+};
+
 } // namespace
 
 TEST_F(InlineCacheTest, CompiledDataOwnsAndReclaimsDiscoverableInlineCaches) {
@@ -104,6 +126,46 @@ TEST_F(InlineCacheTest, GCClearReleasesRetiredCodeRuntimeReferences) {
 
   ASSERT_EQ(Py_TYPE(compiled.get())->tp_clear(compiled.getObj()), 0);
   EXPECT_EQ(Py_REFCNT(func.get()), initial_refcount);
+}
+
+TEST_F(InlineCacheTest, DeferredCleanupPreservesEntriesQueuedByDestructors) {
+  Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
+  int live_count = 0;
+  {
+    CompiledFunctionData data;
+    data.stable_storage = std::make_unique<PerCompilationStableStorage>();
+    data.runtime = data.stable_storage->allocateCodeRuntime(func);
+    data.stable_storage->allocateForTesting<DeferredCleanupReentry>(
+        getContext(), func, live_count);
+    Ref<CompiledFunction> compiled =
+        CompiledFunction::create(std::move(data), false);
+    compiled->setOwner(getContext());
+  }
+
+  getContext()->processDeferredCleanup();
+  EXPECT_EQ(live_count, 1);
+  getContext()->processDeferredCleanup();
+  EXPECT_EQ(live_count, 0);
+}
+
+TEST_F(InlineCacheTest, DeferredGenerationsContributeSeparateInlineCacheStats) {
+  Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
+  for (const char* name : {"first", "second"}) {
+    CompiledFunctionData data;
+    data.stable_storage = std::make_unique<PerCompilationStableStorage>();
+    data.runtime = data.stable_storage->allocateCodeRuntime(func);
+    LoadMethodCache* cache =
+        data.stable_storage->allocateLoadMethodCache(BCOffset{24});
+    cache->initCacheStats("deferred.py", name);
+    Ref<CompiledFunction> compiled =
+        CompiledFunction::create(std::move(data), false);
+    ASSERT_NE(compiled, nullptr);
+    compiled->setOwner(getContext());
+  }
+
+  InlineCacheStats stats = getContext()->getAndClearLoadMethodCacheStats();
+  ASSERT_EQ(stats.size(), 2);
+  EXPECT_NE(stats[0].method_name, stats[1].method_name);
 }
 
 TEST_F(InlineCacheTest, DeferredCompiledDataContributesInlineCacheStats) {
