@@ -31,6 +31,8 @@ covered:
   never get inline values; on 3.12 they do.
 * ``afteritems`` -- ``__slots__`` on a ``tuple`` subclass, whose member offsets
   are only known at runtime.  3.15+ only; skipped elsewhere.
+* ``shadowed`` -- instance attributes shadowing class-level defaults, kept
+  inline without materializing a dict.
 
 plus the lookup kinds that bypass instance storage entirely: ``classvar``,
 ``property``, ``descriptor``, ``getset``, ``method``, ``typeattr``, ``module``,
@@ -234,6 +236,14 @@ def _build_classvar() -> list[object]:
     return [cls() for _ in range(RECEIVERS)]
 
 
+def _build_shadowed_classvar() -> list[object]:
+    # Class-level defaults shadowed by per-instance values stored inline.
+    cls = _new_class("ShadowedClassVar", {name: -1 for name in NAMES})
+    objs: list[object] = [cls() for _ in range(RECEIVERS)]
+    _set_names(objs)
+    return objs
+
+
 def _property_source() -> str:
     """Source for a class whose attributes are all properties backed by slots."""
     lines = [
@@ -430,6 +440,10 @@ LAYOUTS: dict[str, Layout] = {
         "plain class variable, no instance attribute",
         _build_classvar,
         store=False,
+    ),
+    "shadowed": Layout(
+        "instance attributes shadowing class-level defaults, kept inline",
+        _build_shadowed_classvar,
     ),
     "property": Layout(
         "property, i.e. a Python data descriptor",

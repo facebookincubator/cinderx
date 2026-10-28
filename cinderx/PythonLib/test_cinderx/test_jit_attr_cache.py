@@ -1684,6 +1684,22 @@ class InlineValuesTests(unittest.TestCase):
         self.assertFalse(has_materialized_dict(shadowed))
         self.assertFalse(has_materialized_dict(plain))
 
+    def test_store_attr_class_var(self):
+        class Defaults:
+            foo = 0
+
+            def __init__(self):
+                self.value = 1
+                self.foo = 1
+
+        objs = [Defaults() for _ in range(3)]
+        for i, obj in enumerate(objs):
+            set_foo(obj, i + 10)
+        for i, obj in enumerate(objs):
+            self.assertEqual(obj.foo, i + 10)
+            self.assertFalse(has_materialized_dict(obj))
+        self.assertEqual(Defaults.foo, 0)
+
 
 @cinder_support.failUnlessJITCompiled
 @failUnlessHasOpcodes("STORE_ATTR")
@@ -1729,6 +1745,62 @@ class StoreAttrCacheTests(unittest.TestCase):
         set_foo(obj, 400)
         self.assertEqual(obj.foo, 300)
         self.assertTrue(descr.invoked)
+
+    def test_class_var(self):
+        class Base:
+            foo = 0
+
+            def __init__(self, x):
+                self.foo = x
+
+        obj = Base(100)
+        for i in range(3):
+            set_foo(obj, i)
+            self.assertEqual(obj.foo, i)
+        self.assertEqual(Base.foo, 0)
+
+        # Replacing the class variable with a data descriptor should invalidate
+        # the cache.
+        descr = DataDescr(300)
+        Base.foo = descr
+        set_foo(obj, 400)
+        self.assertTrue(descr.invoked)
+        self.assertEqual(obj.foo, 300)
+
+    def test_non_data_descr(self):
+        class Base:
+            def foo(self):
+                return "method"
+
+        obj = Base()
+        for i in range(3):
+            set_foo(obj, i)
+            self.assertEqual(obj.foo, i)
+        self.assertEqual(Base().foo(), "method")
+
+    def test_class_var_type_gains_set(self):
+        class Marker:
+            pass
+
+        class Base:
+            foo = Marker()
+
+            def __init__(self, x):
+                self.foo = x
+
+        obj = Base(100)
+        set_foo(obj, 200)
+        set_foo(obj, 300)
+        self.assertEqual(obj.foo, 300)
+
+        # The class variable becomes a data descriptor without Base itself
+        # being modified.
+        stored = []
+        Marker.__get__ = lambda self, obj, typ: "get"
+        Marker.__set__ = lambda self, obj, val: stored.append(val)
+        set_foo(obj, 400)
+        self.assertEqual(stored, [400])
+        self.assertEqual(obj.foo, "get")
 
     def test_swap_split_dict_with_combined(self):
         class Base:  # noqa: B903

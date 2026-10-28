@@ -1393,6 +1393,20 @@ bool canCacheType(PyTypeObject* type) {
       PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE);
 }
 
+// Check whether a store to instances of `type` goes straight to the instance
+// even though the type has an attribute of the same name, `descr`.  That's the
+// case for anything other than a data descriptor, such as a dataclass field
+// default.  Like CPython's STORE_ATTR specialization, this requires the
+// descriptor's type to be immutable, as a mutable type could gain a __set__
+// method without `type` being modified.
+static bool isInstanceStore(
+    BorrowedRef<PyTypeObject> type,
+    BorrowedRef<> descr) {
+  BorrowedRef<PyTypeObject> descr_type{Py_TYPE(descr)};
+  return PyType_HasFeature(descr_type, Py_TPFLAGS_IMMUTABLETYPE) &&
+      descr_type->tp_descr_set == nullptr && canCacheType(type);
+}
+
 bool canCacheAttribute(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name,
@@ -1545,6 +1559,14 @@ AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
   // types this lookup would be wasted, and these types never populate the
   // cache so they reach this slow path on every access.
   BorrowedRef<> descr = _PyType_Lookup(type, name);
+
+  if (is_set && descr != nullptr && isInstanceStore(type, descr)) {
+    // Cache it like any other instance attribute.  Caching it as a class
+    // variable would send it through _PyObject_GetDictPtr(), which
+    // materializes the instance dict for objects that otherwise keep their
+    // attributes inline.
+    descr = nullptr;
+  }
 
   if (descr != nullptr) {
     // Resolve the type's __getattr__ once, for the descriptor kinds to pick the
