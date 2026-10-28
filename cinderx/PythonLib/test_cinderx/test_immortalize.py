@@ -9,8 +9,10 @@ import unittest
 # pyrefly: ignore [missing-import]
 # this must be in globals for JIT to see
 from re._constants import BIGCHARSET
+from typing import Any
 
 import cinderx
+import cinderx.jit
 from cinderx.test_support import passIf, passUnless, run_in_fork, skip_if_ft
 
 _PY_DEBUG_BUILD = hasattr(sys, "gettotalrefcount")
@@ -362,3 +364,49 @@ class ImmortalizeTests(unittest.TestCase):
         self.assertTrue(cinderx.is_immortal(defaults))
         self.assertTrue(cinderx.is_immortal(default_key))
         self.assertTrue(cinderx.is_immortal(default_value))
+
+
+TYPE_CACHE_CODE: str = """
+class Base:
+    attr = 10
+
+    def method(self):
+        return 1
+
+
+class Derived(Base):
+    pass
+
+
+def call_method(obj):
+    return obj.method()
+
+
+def class_attr():
+    return Base.attr
+"""
+
+
+@skip_if_ft("T251571267: Free threading doesn't support heap immortalization")
+@passUnless(cinderx.jit.is_enabled(), "Tests JIT inline caches")
+class ImmortalizeTypeCacheTests(unittest.TestCase):
+    @run_in_fork
+    def test_type_caches_invalidate_after_immortalize(self) -> None:
+        d: dict[str, Any] = {}
+        exec(TYPE_CACHE_CODE, d, d)
+        base = d["Base"]
+        call_method = d["call_method"]
+        class_attr = d["class_attr"]
+        obj = d["Derived"]()
+
+        cinderx.immortalize_heap()
+
+        self.assertTrue(cinderx.jit.force_compile(call_method))
+        self.assertTrue(cinderx.jit.force_compile(class_attr))
+        self.assertEqual(call_method(obj), 1)
+        self.assertEqual(class_attr(), 10)
+        for value in (2, 3):
+            base.method = lambda self, value=value: value
+            base.attr = value * 10
+            self.assertEqual(call_method(obj), value)
+            self.assertEqual(class_attr(), value * 10)

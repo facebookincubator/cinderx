@@ -278,6 +278,33 @@ PyObject* cinder_get_threshold(PyObject* mod, PyObject*) {
 }
 #endif
 
+// Children skip watching a type that's already watched, so watch every mutable
+// type before fork rather than have each child store the watcher bit.
+void watchTypeForFork(BorrowedRef<PyTypeObject> type) {
+  if (!PyType_HasFeature(type, Py_TPFLAGS_IMMUTABLETYPE) &&
+      getModuleState()->watcher_state.watchType(type) < 0) {
+    PyErr_Clear();
+  }
+}
+
+[[maybe_unused]] int watchTypesForForkVisitor(PyObject* obj, void* /* arg */) {
+  if (PyType_Check(obj)) {
+    // Static base types aren't GC objects, so reach them through the MRO.
+    BorrowedRef<PyTypeObject> type{obj};
+    BorrowedRef<> mro = type->tp_mro;
+    if (mro != nullptr && PyTuple_Check(mro)) {
+      for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(mro.get()); i++) {
+        watchTypeForFork(
+            reinterpret_cast<PyTypeObject*>(PyTuple_GET_ITEM(mro.get(), i)));
+      }
+    } else {
+      watchTypeForFork(type);
+    }
+  }
+  watchTypeForFork(Py_TYPE(obj));
+  return 1;
+}
+
 PyDoc_STRVAR(
     cinder_immortalize_heap_doc,
     "immortalize_heap($module, /)\n"
@@ -285,7 +312,13 @@ PyDoc_STRVAR(
     "\n"
     "Immortalize all instances accessible through the GC roots.");
 PyObject* cinder_immortalize_heap(PyObject* mod, PyObject* /* args */) {
-  return immortalize_heap(mod);
+  PyObject* result = immortalize_heap(mod);
+  if constexpr (kPreforkModel) {
+    if (result != nullptr) {
+      PyUnstable_GC_VisitObjects(watchTypesForForkVisitor, nullptr);
+    }
+  }
+  return result;
 }
 
 PyDoc_STRVAR(
