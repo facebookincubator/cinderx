@@ -29,7 +29,6 @@ test.test_fork1.ForkTest.test_threaded_import_lock_fork
 test.test_gdb.PrettyPrintTests.test_frames
 test.test_generators.GeneratorTest.test_name
 test.test_inspect.TestSignatureBind.test_signature_bind_implicit_arg
-test.test_nntplib.NetworkedNNTP_SSLTests
 test.test_tracemalloc.TestTracemallocEnabled.test_get_traced_memory
 test.test_types.UnionTests.test_or_type_operator_reference_cycle
 test.test_trace.TestLineCounts.test_trace_list_comprehension
@@ -127,3 +126,23 @@ test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works_after_fork_with
 
 # Repeatedly flaky, seems to be an issue with PARs rather than CinderX.
 test.test_zipimport
+
+# Needs a C-with-UTF-8 locale, not available on Meta internal hosts.
+test.test_c_locale_coercion.LocaleConfigurationTests.*
+
+# Needs network to reach public NNTP servers (news.trigofacile.com,
+# nntp.aioe.org).
+test.test_nntplib.NetworkedNNTPTests.*
+test.test_nntplib.NetworkedNNTP_SSLTests.*
+
+# Needs network to fetch http://www.pythontest.net/.
+test.test_robotparser.NetworkTestCase.*
+
+# Verifies that the C accelerator was not imported; our builds always
+# use it, so setUpClass always raises SkipTest there.
+test.test_xml_etree_c.NoAcceleratorTest.*
+
+# Needs an OSS audio device (/dev/dsp). Doesn't use "test." because a dotted
+# entry is a per-test pattern, which gen_test_defs.sh ignores when listing
+# modules.
+test_ossaudiodev
