@@ -69,6 +69,8 @@ try:  # noqa: C901
     )
 
 except ImportError:
+    _is_available = False
+
     TDeoptGenYield = TypeVar("TDeoptGenYield")
     TDeoptGenSend = TypeVar("TDeoptGenSend")
     TDeoptGenReturn = TypeVar("TDeoptGenReturn")
@@ -239,6 +241,14 @@ except ImportError:
 
     def wait_for_background_compiles() -> None:
         return None
+
+else:
+    _is_available = True
+
+
+def is_available() -> bool:
+    """Return whether native JIT APIs are available, including while paused."""
+    return _is_available
 
 
 @contextmanager
