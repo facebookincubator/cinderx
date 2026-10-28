@@ -91,28 +91,35 @@ static std::unique_ptr<Function> runTargetSelectFunc(
 
 #if defined(CINDER_X86_64)
 TEST_F(LIRTargetSelectTest, SelectsRegInputForLargeConstantStore) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:Object = Move 1
-  [%1:Object + 0x8]:Object = Store 4294967296
-  Return %1
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* base = block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutVReg{DataType::kObject},
+      Imm{1, DataType::k64bit});
+  block->allocateInstr(
+      Opcode::kStore,
+      nullptr,
+      OutInd{base, 0x8, DataType::kObject},
+      Imm{4294967296ULL, DataType::k64bit});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{base});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
   // Should materialize large constant into a register.
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::kObject)
                  .inImm(0, 4294967296ULL));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kStore)
-                 .outInd(1, 0x8)
+                 .outInd(base->id(), 0x8)
                  .inDefOpcode(0, Opcode::kMove)
                  .inDefImm(0, 0, 4294967296ULL));
-  EXPECT_NO_LIR(Query(*lir_func)
+  EXPECT_NO_LIR(Query(function)
                     .opcode(Opcode::kStore)
-                    .outInd(1, 0x8)
+                    .outInd(base->id(), 0x8)
                     .inImm(0, 4294967296ULL));
 }
 #endif
