@@ -276,27 +276,44 @@ TEST_F(LIRTargetSelectTest, LegalizesBitwiseOutputToMin32Bit) {
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchCCForSingleUseCompare) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %2
-  %1:64bit = Move 1
-  %2:64bit = Move 2
-  %3:8bit = Equal %1, %2
-  CondBranch %3, BB%1, BB%2
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %2
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+  Instruction* left = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* right = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{2});
+  Instruction* comparison = entry->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kEqual,
+      OutVReg{DataType::k8bit},
+      VReg{left},
+      VReg{right});
+  entry->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      VReg{comparison},
+      Lbl{true_block},
+      Lbl{false_block});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{left});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{right});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
   EXPECT_LIR_SEQUENCE(
-      *lir_func,
-      Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2),
-      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
+      function,
+      Query(function)
+          .opcode(Opcode::kCmp)
+          .inVreg(0, left->id())
+          .inVreg(1, right->id()),
+      Query(function).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
   EXPECT_NO_LIR(
-      Query(*lir_func).opcode(Opcode::kCompare).condition(Condition::kEqual));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCondBranch));
+      Query(function).opcode(Opcode::kCompare).condition(Condition::kEqual));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kCondBranch));
 }
 
 TEST_F(
