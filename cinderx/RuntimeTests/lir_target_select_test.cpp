@@ -8,6 +8,7 @@
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/block.h"
+#include "cinderx/Jit/lir/dce.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/instruction.h"
@@ -17,8 +18,10 @@
 #include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
+#include <bit>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <vector>
 
 #if defined(CINDER_AARCH64)
@@ -59,6 +62,9 @@ class LIRTargetSelectTest : public RuntimeTest {
 
     LIRGenerator lir_gen(irfunc.get(), &env);
     std::unique_ptr<Function> lir_func = lir_gen.translateFunction();
+    // Mirror the pipeline in gen_asm.cpp: DCE runs between generation and
+    // target selection.
+    eliminateDeadCode(lir_func.get());
     selectTargetOpcodes(lir_func.get());
 
     lir_func->sortBasicBlocks();
@@ -870,7 +876,7 @@ BB %2 - preds: %0
       Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
 }
 
-TEST_F(LIRTargetSelectTest, SelectsBranchCCForPythonCompareBranch) {
+TEST_F(LIRTargetSelectTest, SelectsBitTestForPythonCompareBranch) {
   const char* src = R"(
 def func(x, y):
   if x in y:
@@ -883,11 +889,96 @@ def func(x, y):
 
   auto lir_func = getSelectedLIRFunction(pyfunc.get());
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCmp));
+  // The `in` result is a known bool, so the branch tests a bit that
+  // differs between the Py_True/Py_False addresses instead of comparing
+  // against the True singleton (testing another differing bit, or xoring
+  // the tested bit, when a nonzero test of the first differing bit would
+  // mean "condition false"). The bypassed compare and its True load are dead
+  // and eliminated.
+  auto true_addr = reinterpret_cast<uintptr_t>(Py_True);
+  auto false_addr = reinterpret_cast<uintptr_t>(Py_False);
+  auto mask = uintptr_t{1} << std::countr_zero(true_addr ^ false_addr);
+  bool bit_in_true = (true_addr & mask) != 0;
+  // `if x in y` compares `== True`, which holds for True, so the layout is
+  // inverted exactly when the mask bit is set in Py_False.
+  bool inverted = !bit_in_true;
+  // Mirror the generator's alternate-bit search for the inverted layout.
+  uintptr_t alt_mask = 0;
+  if (inverted) {
+    uintptr_t candidates = (true_addr ^ false_addr) & true_addr;
+    if (candidates != 0) {
+      alt_mask = uintptr_t{1} << std::countr_zero(candidates);
+    }
+  }
+  Opcode test_op = (inverted && alt_mask == 0) ? Opcode::kXor : Opcode::kAnd;
+  uintptr_t test_mask = alt_mask != 0 ? alt_mask : mask;
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kAnd).inImm(1, test_mask));
+  if (test_op == Opcode::kXor) {
+    EXPECT_LIR(Query(*lir_func).opcode(Opcode::kXor).inImm(1, mask));
+  }
   EXPECT_LIR(
-      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kEqual));
-  EXPECT_NO_LIR(
-      Query(*lir_func).opcode(Opcode::kCompare).condition(Condition::kEqual));
+      Query(*lir_func).opcode(Opcode::kCondBranch).inDefOpcode(0, test_op));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
+  EXPECT_NO_LIR(Query(*lir_func).inAddr(0, true_addr));
+}
+
+TEST_F(LIRTargetSelectTest, SelectsBitTestForBoolSingletonComparisons) {
+  // Branches on a known bool compared against a True/False singleton use a
+  // bit-test of a differing address bit, testing another differing bit (or
+  // xoring the tested bit) when a nonzero test of the first differing bit
+  // would mean "condition false"; the bypassed compare dies in DCE. (The
+  // `==`/`!=` inputs still load the singleton for the outer comparison, so
+  // only the test itself is asserted here.)
+  struct Case {
+    const char* cond;
+    // Whether the HIR compare holds for True (i.e. `== True`, `!= False`).
+    bool compare_true_for_true;
+  };
+  Case cases[] = {
+      {"(x in y) == True", true},
+      {"(x in y) != True", false},
+      {"(x in y) == False", false},
+      {"(x in y) != False", true},
+      {"(x in y) is True", true},
+      {"(x in y) is False", false},
+      {"(x in y) is not True", false},
+      {"not (x in y)", true},
+      {"bool(x)", true},
+  };
+  auto true_addr = reinterpret_cast<uintptr_t>(Py_True);
+  auto false_addr = reinterpret_cast<uintptr_t>(Py_False);
+  auto mask = uintptr_t{1} << std::countr_zero(true_addr ^ false_addr);
+  bool bit_in_true = (true_addr & mask) != 0;
+  for (auto [cond, compare_true_for_true] : cases) {
+    std::string src = "def func(x, y):\n  if " + std::string(cond) +
+        ":\n    return 1\n  return 2\n";
+    Ref<PyObject> pyfunc(compileAndGet(src.c_str(), "func"));
+    ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling " << cond;
+    auto lir_func = getSelectedLIRFunction(pyfunc.get());
+    bool inverted = (bit_in_true != compare_true_for_true);
+    // Mirror the generator's alternate-bit search for the inverted layout.
+    uintptr_t alt_mask = 0;
+    if (inverted) {
+      uintptr_t satisfying = compare_true_for_true ? true_addr : false_addr;
+      uintptr_t candidates = (true_addr ^ false_addr) & satisfying;
+      if (candidates != 0) {
+        alt_mask = uintptr_t{1} << std::countr_zero(candidates);
+      }
+    }
+    Opcode test_op = (inverted && alt_mask == 0) ? Opcode::kXor : Opcode::kAnd;
+    uintptr_t test_mask = alt_mask != 0 ? alt_mask : mask;
+    EXPECT_LIR(Query(*lir_func).opcode(Opcode::kAnd).inImm(1, test_mask))
+        << "peephole did not fire for " << cond;
+    if (test_op == Opcode::kXor) {
+      EXPECT_LIR(Query(*lir_func).opcode(Opcode::kXor).inImm(1, mask))
+          << "peephole did not fire for " << cond;
+    }
+    EXPECT_LIR(
+        Query(*lir_func).opcode(Opcode::kCondBranch).inDefOpcode(0, test_op))
+        << "branch is not on the bit-test for " << cond;
+    EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare))
+        << "bypassed compare survived for " << cond;
+  }
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchCCAcrossAddFromStaticPython) {

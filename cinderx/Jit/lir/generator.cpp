@@ -2424,6 +2424,78 @@ void LIRGenerator::makeDecref(
       xdecref);
 }
 
+// Mask selecting a bit that differs between the addresses of the immortal
+// Py_True and Py_False singletons, so testing it identifies which of the two
+// a known-bool holds.
+static uintptr_t trueFalseBitMask() {
+  auto true_addr = reinterpret_cast<uintptr_t>(Py_True);
+  auto false_addr = reinterpret_cast<uintptr_t>(Py_False);
+  return uintptr_t{1} << std::countr_zero(true_addr ^ false_addr);
+}
+
+// When a nonzero test of trueFalseBitMask() would mean "condition false",
+// look for another address bit that differs between Py_True/Py_False and is
+// set in the singleton satisfying the compare, so an And-test of it means
+// "condition true". Returns 0 when no such bit exists.
+static uintptr_t altTrueFalseBitMask(bool compare_true_for_true) {
+  auto satisfying = compare_true_for_true
+      ? reinterpret_cast<uintptr_t>(Py_True)
+      : reinterpret_cast<uintptr_t>(Py_False);
+  auto differing = reinterpret_cast<uintptr_t>(Py_True) ^
+      reinterpret_cast<uintptr_t>(Py_False);
+  auto candidates = differing & satisfying;
+  if (candidates == 0) {
+    return 0;
+  }
+  return uintptr_t{1} << std::countr_zero(candidates);
+}
+
+// If `cond` is defined by a `==`/`!=` PrimitiveCompare between a known-bool
+// value and a True/False constant, set `bool_op` to the bool operand,
+// `inverted` to whether a nonzero test of the trueFalseBitMask() bit means
+// "condition false", and `alt_mask` to a differing address bit set in the
+// singleton satisfying the compare (0 when there is none). Returns false
+// when the branch cannot be decided with a bit-test.
+static bool matchBoolCompareBranch(
+    hir::Register* cond,
+    hir::Register*& bool_op,
+    bool& inverted,
+    uintptr_t& alt_mask) {
+  hir::Instr* def = cond->instr();
+  if (!def->isPrimitiveCompare()) {
+    return false;
+  }
+  auto& cmp = def->as<PrimitiveCompare>();
+  auto op = cmp.op();
+  if (op != PrimitiveCompareOp::kEqual && op != PrimitiveCompareOp::kNotEqual) {
+    return false;
+  }
+  hir::Register* lhs = cmp.left();
+  hir::Register* rhs = cmp.right();
+  if (!lhs->isA(TBool) || !rhs->isA(TBool)) {
+    return false;
+  }
+  if (lhs->type().hasObjectSpec() && !rhs->type().hasObjectSpec()) {
+    std::swap(lhs, rhs);
+  }
+  if (!rhs->type().hasObjectSpec()) {
+    return false;
+  }
+  PyObject* c = rhs->type().asObject();
+  // The bit-test is nonzero iff the operand holds the singleton with the
+  // bit set. `==` and `!=` are complementary, so the compare is true for
+  // exactly one of the singletons and the test needs complementing exactly
+  // when "nonzero" and "compare true" disagree on `x == True`.
+  auto mask = trueFalseBitMask();
+  bool bit_in_true = (reinterpret_cast<uintptr_t>(Py_True) & mask) != 0;
+  bool compare_true_for_true =
+      (op == PrimitiveCompareOp::kEqual) == (c == Py_True);
+  inverted = (bit_in_true != compare_true_for_true);
+  alt_mask = inverted ? altTrueFalseBitMask(compare_true_for_true) : 0;
+  bool_op = lhs;
+  return true;
+}
+
 LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
     const hir::BasicBlock* hir_bb,
     [[maybe_unused]] const jit::hir::FrameState* initial_caller_fs,
@@ -3395,6 +3467,27 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               OutVReg{Operand::k64bit},
               cond,
               Imm{iter_done_addr});
+        } else {
+          // Branch on `x == True`-style compares of known bools with a
+          // bit-test of a differing True/False address bit instead of
+          // materializing the singleton.
+          hir::Register* bool_op = nullptr;
+          bool inverted = false;
+          uintptr_t alt_mask = 0;
+          if (matchBoolCompareBranch(
+                  i.getOperand(0), bool_op, inverted, alt_mask)) {
+            Instruction* bool_val = bbb.getDefInstr(bool_op);
+            uintptr_t mask =
+                (inverted && alt_mask != 0) ? alt_mask : trueFalseBitMask();
+            cond = bbb.appendInstr(
+                Opcode::kAnd, OutVReg{Operand::k64bit}, bool_val, Imm{mask});
+            if (inverted && alt_mask == 0) {
+              // No same-polarity bit exists, so complement the tested bit
+              // to restore "nonzero means true".
+              cond = bbb.appendInstr(
+                  Opcode::kXor, OutVReg{Operand::k64bit}, cond, Imm{mask});
+            }
+          }
         }
 
         bbb.appendInstr(Opcode::kCondBranch, cond);

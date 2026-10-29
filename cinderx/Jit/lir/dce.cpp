@@ -25,8 +25,14 @@ static bool isUseful(const Instruction* instruction) {
   JIT_CHECK(
       instruction->output() != nullptr || isEssential(opcode),
       "Any instruction without an output must be marked as essential.");
+  // kCompare produces a value consumed through explicit operands; it only
+  // becomes a flag-setting kCmp in target selection, which runs after DCE.
+  // Keep the writesFlags() classification (it is load-bearing for fusion
+  // legality) but don't root on it, so bypassed compares die with their
+  // inputs once unreferenced.
   return (
-      isAnyBranch(opcode) || isTerminator(opcode) || writesFlags(opcode) ||
+      isAnyBranch(opcode) || isTerminator(opcode) ||
+      (writesFlags(opcode) && opcode != Opcode::kCompare) ||
       isEssential(opcode) || operandAffectsMemory(instruction->output()));
 }
 

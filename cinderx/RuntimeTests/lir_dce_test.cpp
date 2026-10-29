@@ -90,6 +90,75 @@ TEST(LIRDeadCodeEliminationTest, TestLocalIndexForIndirectNotEliminated) {
   expectInstructions(block, {index, load, ret});
 }
 
+TEST(LIRDeadCodeEliminationTest, TestEliminateDeadCompare) {
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+
+  Instruction* live = allocateLoadImmediate(entry, 1);
+  Instruction* branch = entry->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      VReg{live},
+      Lbl{true_block},
+      Lbl{false_block});
+
+  // A compare with no uses and its dead inputs: eliminated. This is the
+  // shape left behind when a branch peephole bypasses a compare.
+  Instruction* dead_lhs = allocateLoadImmediate(entry, 2);
+  Instruction* dead_rhs = allocateLoadImmediate(entry, 3);
+  entry->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kEqual,
+      OutVReg{DataType::k8bit},
+      VReg{dead_lhs},
+      VReg{dead_rhs}); /* should be eliminated */
+
+  Instruction* ret =
+      true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{live});
+
+  eliminateDeadCode(&function);
+
+  expectInstructions(entry, {live, branch});
+  expectInstructions(true_block, {ret});
+}
+
+TEST(LIRDeadCodeEliminationTest, TestLiveCompareFeedingBranchIsKept) {
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+
+  Instruction* lhs = allocateLoadImmediate(entry, 1);
+  Instruction* rhs = allocateLoadImmediate(entry, 2);
+  Instruction* cmp = entry->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kEqual,
+      OutVReg{DataType::k8bit},
+      VReg{lhs},
+      VReg{rhs});
+  Instruction* branch = entry->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      VReg{cmp},
+      Lbl{true_block},
+      Lbl{false_block});
+  Instruction* ret =
+      true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{lhs});
+
+  eliminateDeadCode(&function);
+
+  expectInstructions(entry, {lhs, rhs, cmp, branch});
+  expectInstructions(true_block, {ret});
+}
+
 TEST(
     LIRDeadCodeEliminationTest,
     TestLocalBaseForIndirectNotEliminatedInOutput) {

@@ -10,6 +10,7 @@
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"
+#include "cinderx/Jit/hir/pass.h"
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/interpframe.h"
 #include "cinderx/Jit/lir/linear_scan.h"
@@ -23,6 +24,8 @@
 #include <math.h>
 
 #include <algorithm>
+#include <bit>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <ostream>
@@ -1090,6 +1093,121 @@ fun test {
   ASSERT_TRUE(phi->phiInput(1)->isLinked());
   EXPECT_EQ(
       phi->phiInput(0)->getLinkedInstr(), phi->phiInput(1)->getLinkedInstr());
+}
+
+TEST_F(LIRGeneratorTest, BoolCompareBranchUsesBitTest) {
+  // Branches on `==`/`!=` of a known bool against True/False test the bit
+  // that differs between the singleton addresses. Layouts where a nonzero
+  // bit-test would mean "condition false" test another differing bit set in
+  // the satisfying singleton instead (xoring the tested bit when no such
+  // bit exists), so the branch condition is nonzero exactly when the HIR
+  // condition is true and successor[0] is always the true side. (Branch
+  // behavior itself is covered by execution tests; this covers the firing
+  // and target mapping for every combination.)
+  struct Case {
+    const char* op_name;
+    const char* const_name;
+    bool is_equal;
+    bool const_is_true;
+  };
+  Case cases[] = {
+      {"Equal", "True", true, true},
+      {"Equal", "False", true, false},
+      {"NotEqual", "True", false, true},
+      {"NotEqual", "False", false, false},
+  };
+  auto true_addr = reinterpret_cast<uintptr_t>(Py_True);
+  auto false_addr = reinterpret_cast<uintptr_t>(Py_False);
+  auto mask = uintptr_t{1} << std::countr_zero(true_addr ^ false_addr);
+  bool bit_in_true = (true_addr & mask) != 0;
+  for (auto [op_name, const_name, is_equal, const_is_true] : cases) {
+    std::string hir =
+        "fun test {\n"
+        "  bb 0 {\n"
+        "    v0 = LoadArg<0>\n"
+        "    v1 = LoadArg<1>\n"
+        "    v2 = PrimitiveCompare<Equal> v0 v1\n"
+        "    v3 = PrimitiveBoxBool v2\n"
+        "    v4 = LoadConst<ImmortalBool[" +
+        std::string(const_name) +
+        "]>\n"
+        "    v5 = PrimitiveCompare<" +
+        std::string(op_name) +
+        "> v3 v4\n"
+        "    CondBranch<1, 2> v5\n"
+        "  }\n"
+        "  bb 1 {\n"
+        "    v6 = LoadConst<CInt64[1]>\n"
+        "    Branch<3>\n"
+        "  }\n"
+        "  bb 2 {\n"
+        "    v7 = LoadConst<CInt64[2]>\n"
+        "    Branch<3>\n"
+        "  }\n"
+        "  bb 3 {\n"
+        "    v8 = Phi<1, 2> v6 v7\n"
+        "    v9 = LoadConst<NoneType>\n"
+        "    Return v9\n"
+        "  }\n"
+        "}\n";
+    std::unique_ptr<hir::Function> irfunc =
+        hir::HIRParser{}.parseHIR(hir.c_str());
+    ASSERT_NE(irfunc, nullptr) << op_name << " " << const_name;
+    hir::reflowTypes(*irfunc);
+
+    codegen::Environ env;
+    env.ctx = getContext();
+    LIRGenerator lir_gen(irfunc.get(), &env);
+    auto lir_func = lir_gen.translateFunction();
+
+    bool compare_true_for_true = (is_equal == const_is_true);
+    bool inverted = (bit_in_true != compare_true_for_true);
+    // Mirror the generator's alternate-bit search for the inverted layout.
+    uintptr_t alt_mask = 0;
+    if (inverted) {
+      uintptr_t satisfying = compare_true_for_true ? true_addr : false_addr;
+      uintptr_t candidates = (true_addr ^ false_addr) & satisfying;
+      if (candidates != 0) {
+        alt_mask = uintptr_t{1} << std::countr_zero(candidates);
+      }
+    }
+    Opcode test_op = (inverted && alt_mask == 0) ? Opcode::kXor : Opcode::kAnd;
+    uintptr_t test_mask = alt_mask != 0 ? alt_mask : mask;
+    EXPECT_LIR(Query(*lir_func).opcode(Opcode::kAnd).inImm(1, test_mask))
+        << op_name << " " << const_name;
+    if (test_op == Opcode::kXor) {
+      EXPECT_LIR(Query(*lir_func).opcode(Opcode::kXor).inImm(1, mask))
+          << op_name << " " << const_name;
+    }
+
+    const Instruction* branch = nullptr;
+    for (const BasicBlock* bb : lir_func->basicBlocks()) {
+      for (const std::unique_ptr<Instruction>& instr : bb->instructions()) {
+        if (Query(*lir_func)
+                .opcode(Opcode::kCondBranch)
+                .inDefOpcode(0, test_op)
+                .matches(*instr)) {
+          branch = instr.get();
+        }
+      }
+    }
+    ASSERT_NE(branch, nullptr) << op_name << " " << const_name;
+
+    // The taken target (successor[0]) always holds the true-side marker.
+    const BasicBlock* taken = branch->basicBlock()->successors()[0];
+    bool found_marker = false;
+    for (const std::unique_ptr<Instruction>& instr : taken->instructions()) {
+      if (instr->opcode() != Opcode::kMove || instr->getNumInputs() < 1) {
+        continue;
+      }
+      const Operand* in = instr->getInput(0);
+      if (in->isImm() && in->getConstant() == 1) {
+        found_marker = true;
+      }
+    }
+    EXPECT_TRUE(found_marker) << op_name << " " << const_name << "\n"
+                              << lirFuncString(*lir_func);
+  }
 }
 
 TEST_F(LIRGeneratorTest, GeneratedPhiRejectsDuplicateHIRPredecessors) {

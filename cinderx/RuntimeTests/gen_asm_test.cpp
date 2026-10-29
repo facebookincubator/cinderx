@@ -254,6 +254,64 @@ def func2(x):
   ASSERT_EQ(PyObject_IsTrue(res2), 0);
 }
 
+TEST_F(ASMGeneratorTest, BoolCompareBranch) {
+  // Branches on a known bool compared against True/False are lowered to a
+  // bit-test of a differing singleton address bit (testing another
+  // differing bit, or xoring the tested bit, when the layout inverts the
+  // polarity). Execute both outcomes of each shape to check the compiled
+  // behavior.
+  struct Case {
+    const char* cond;
+    bool use_in;
+    int expect_true;
+    int expect_false;
+  };
+  Case cases[] = {
+      {"(x in y) == True", true, 1, 2},
+      {"(x in y) != True", true, 2, 1},
+      {"(x in y) == False", true, 2, 1},
+      {"(x in y) != False", true, 1, 2},
+      {"(x in y) is True", true, 1, 2},
+      {"(x in y) is False", true, 2, 1},
+      {"(x in y) is not True", true, 2, 1},
+      {"not (x in y)", true, 2, 1},
+      {"bool(x)", false, 1, 2},
+  };
+  for (auto [cond, use_in, expect_true, expect_false] : cases) {
+    std::string pycode = "def func(x, y):\n  if " + std::string(cond) +
+        ":\n    return 1\n  return 2\n";
+    Ref<PyObject> pyfunc(compileAndGet(pycode.c_str(), "func"));
+    ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling " << cond;
+
+    auto compiled = GenerateCode(pyfunc);
+    ASSERT_NE(compiled, nullptr) << cond;
+
+    auto member = Ref<>::steal(PyLong_FromLong(10));
+    auto non_member = Ref<>::steal(PyLong_FromLong(99));
+    auto one = Ref<>::steal(PyLong_FromLong(1));
+    auto zero = Ref<>::steal(PyLong_FromLong(0));
+    ASSERT_NE(member, nullptr);
+    ASSERT_NE(non_member, nullptr);
+    ASSERT_NE(one, nullptr);
+    ASSERT_NE(zero, nullptr);
+    auto list = Ref<>::steal(PyList_New(0));
+    ASSERT_NE(list, nullptr);
+    ASSERT_EQ(PyList_Append(list, member), 0);
+    // `in` cases vary membership; `bool(x)` varies truthiness of x.
+    PyObject* true_args[] = {use_in ? member.get() : one.get(), list.get()};
+    PyObject* false_args[] = {
+        use_in ? non_member.get() : zero.get(), list.get()};
+
+    auto res_true = Ref<>::steal(compiled->invoke(pyfunc, true_args, 2));
+    ASSERT_NE(res_true, nullptr) << cond;
+    EXPECT_TRUE(isIntEquals(res_true, expect_true)) << cond;
+
+    auto res_false = Ref<>::steal(compiled->invoke(pyfunc, false_args, 2));
+    ASSERT_NE(res_false, nullptr) << cond;
+    EXPECT_TRUE(isIntEquals(res_false, expect_false)) << cond;
+  }
+}
+
 TEST_F(ASMGeneratorTest, SimpleEnumConvertClassKeepsSimpleKeyword) {
   const char* pycode = R"(
 from enum import Enum, _simple_enum
