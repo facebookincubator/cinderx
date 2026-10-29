@@ -167,7 +167,7 @@ do { \
         DISPATCH_GOTO(); \
     }
 
-#define IS_PEP523_HOOKED(tstate) (tstate->interp->eval_frame != NULL && tstate->interp->eval_frame != Ci_EvalFrame)
+#define IS_PEP523_HOOKED(tstate) (CiInterpPre(tstate->interp)->eval_frame != NULL && CiInterpPre(tstate->interp)->eval_frame != Ci_EvalFrame)
 
 #define DISPATCH_INLINED(NEW_FRAME)                     \
     do {                                                \

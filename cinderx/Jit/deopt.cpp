@@ -228,7 +228,7 @@ void reifyFrameImpl(
   PyThreadState* tstate = _PyThreadState_GET();
   frame->instr_ptr =
       _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame)) + prev_idx + 1;
-  frame->tlbc_index = reinterpret_cast<_PyThreadStateImpl*>(tstate)->tlbc_index;
+  frame->tlbc_index = CiTstatePost(tstate)->tlbc_index;
 #else
   frame->instr_ptr = _PyCode_CODE(_PyFrame_GetCode(frame)) + prev_idx + 1;
 #endif

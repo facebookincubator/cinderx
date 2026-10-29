@@ -331,7 +331,7 @@ do_monitor_exc(PyThreadState *tstate, _PyInterpreterFrame *frame,
 static inline bool
 no_tools_for_global_event(PyThreadState *tstate, int event)
 {
-    return tstate->interp->monitors.tools[event] == 0;
+    return CiInterpPost(tstate->interp)->monitors.tools[event] == 0;
 }
 static inline bool
 no_tools_for_local_event(PyThreadState *tstate, _PyInterpreterFrame *frame, int event)

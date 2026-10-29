@@ -52,6 +52,12 @@ void Ci_SetEvalFrameFunc(_PyFrameEvalFunction eval_frame) {
   cinderx_eval_frame.store(eval_frame, std::memory_order_relaxed);
 }
 
+#if PY_VERSION_HEX >= 0x030E0000
+const struct Ci_RuntimeDeltas* Ci_GetRuntimeDeltas(void) {
+  return &cinderx::getModuleState()->runtime_deltas;
+}
+#endif
+
 PyObject* Ci_GetStaticTypeError(void) {
   auto state = cinderx::getModuleState();
   return state != nullptr ? state->static_type_error.getObj() : nullptr;

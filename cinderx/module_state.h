@@ -6,6 +6,7 @@
 
 #include "cinderx/Common/containers.h"
 #include "cinderx/Common/hugepages.h"
+#include "cinderx/Common/runtime_offsets.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/context_iface.h"
@@ -199,6 +200,15 @@ struct ModuleState {
 
   bool tstate_offset_inited{false};
   int32_t tstate_offset{-1};
+
+#if PY_VERSION_HEX >= 0x030E0000
+  // Cached runtime-correct deltas for CPython interpreter and thread-state
+  // fields. Computed once in setModuleState(), before any biased access can
+  // run. The zero-init is fail-closed: thread_known == 0 aborts at first
+  // use. Deltas are process-invariant (debug offsets plus compiled layout),
+  // so they are never recomputed, including after fork.
+  Ci_RuntimeDeltas runtime_deltas{};
+#endif
 
  private:
   std::mutex mutex_;

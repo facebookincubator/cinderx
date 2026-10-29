@@ -10,6 +10,7 @@ from typing import Callable
 import click
 from clang.cindex import CursorKind
 
+from .biased_offsets import transform_biased_offsets
 from .clang_parser import FileParser, ParsedFile
 
 VERSION_AND_TRANSFORM = r"\s*(\[.*\])?\s*(:\S+)?"
@@ -294,10 +295,14 @@ class TemplateFileProcessor:
                     # Apply custom transformation if one exists for this function
                     if transform in TRANSFORMS:
                         lines = TRANSFORMS[transform](lines)
+                    # Correct interpreter/thread-state field offsets for
+                    # runtime layout skew (no-op when layouts match).
+                    lines = transform_biased_offsets(lines)
                     out.extend(lines)
                 case CppDirective(source_file, includes):
                     parsed_file = self.file_parser.parse(source_file)
                     lines = extract_preprocessor_directives(parsed_file, includes)
+                    lines = transform_biased_offsets(lines)
                     out.extend(lines)
                 case str():
                     out.append(line)

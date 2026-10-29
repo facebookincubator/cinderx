@@ -86,10 +86,10 @@ static inline uint32_t dictGetKeysVersion(
   if (dictkeys->dk_version != 0) {
     return dictkeys->dk_version;
   }
-  if (interp->dict_state.next_keys_version == 0) {
+  if (CiInterpPost(interp)->dict_state.next_keys_version == 0) {
     return 0;
   }
-  uint32_t v = interp->dict_state.next_keys_version++;
+  uint32_t v = CiInterpPost(interp)->dict_state.next_keys_version++;
   dictkeys->dk_version = v;
   return v;
 }

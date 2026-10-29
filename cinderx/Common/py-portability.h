@@ -7,6 +7,8 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/runtime_offsets.h"
+
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_interpframe.h"
 #endif
@@ -15,7 +17,7 @@
 #include "internal/pycore_genobject.h"
 #endif
 
-#define CI_INTERP_IMPORT_FIELD(interp, field) interp->imports.field
+#define CI_INTERP_IMPORT_FIELD(interp, field) CiInterpPre(interp)->imports.field
 
 #include "internal/pycore_interp.h"
 

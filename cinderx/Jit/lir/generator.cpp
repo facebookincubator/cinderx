@@ -77,6 +77,17 @@ constexpr size_t kRefcountOffset = offsetof(PyObject, ob_refcnt);
 // platform. CPython caches the ownership token in the BRC thread state.
 constexpr size_t kBrcThreadIdOffset =
     offsetof(_PyThreadStateImpl, brc) + offsetof(_brc_thread_state, tid);
+
+// The BRC thread state sits past the mimalloc thread state, whose size
+// varies across patch releases, so the compiled offset is corrected by the
+// runtime-measured delta (verified against brc.tid when the module state
+// was created). Bails the current compile (falling back to the
+// interpreter) when the thread-state layout is unknown.
+int32_t brcThreadIdOffset() {
+  JIT_THROW_IF(
+      !Ci_ThreadLayoutKnown(), "Unknown thread-state layout for BRC check");
+  return static_cast<int32_t>(kBrcThreadIdOffset + Ci_ThreadPostDelta());
+}
 #endif
 
 bool instructionHasDeoptExit(const Instruction* instr) {
@@ -2069,7 +2080,7 @@ void LIRGenerator::makeIncrefFreeThreaded(
   Instruction* brc_thread_id = bbb.appendInstr(
       OutVReg{DataType::k64bit},
       Opcode::kLoad,
-      Ind{env_->asm_tstate, static_cast<int>(kBrcThreadIdOffset)});
+      Ind{env_->asm_tstate, brcThreadIdOffset()});
   bbb.appendInstr(Opcode::kCmp, ob_tid, brc_thread_id);
   bbb.appendBranch(Condition::kNotEqual, slow_incref);
 
@@ -2280,7 +2291,7 @@ void LIRGenerator::makeDecrefFreeThreaded(
   Instruction* brc_thread_id = bbb.appendInstr(
       OutVReg{DataType::k64bit},
       Opcode::kLoad,
-      Ind{env_->asm_tstate, static_cast<int>(kBrcThreadIdOffset)});
+      Ind{env_->asm_tstate, brcThreadIdOffset()});
   bbb.appendInstr(Opcode::kCmp, ob_tid, brc_thread_id);
   bbb.appendBranch(Condition::kNotEqual, slow_decref);
 

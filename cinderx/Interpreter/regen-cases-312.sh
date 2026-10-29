@@ -15,5 +15,9 @@ buck run fbcode//cinderx:python3.12 -- \
         3.12/cinder-bytecodes.c
 
 gen='generated'
+# Correct interpreter/thread-state field offsets for runtime layout skew
+# (no-op when layouts match); see cinderx/Common/runtime_offsets.h.
+fbpython ../UpstreamBorrow/biased_offsets.py 3.12/Includes/generated_cases.c.h
+
 sed -i "1i // @$gen" 3.12/Includes/generated_cases.c.h
 sed -i "1i // @$gen" 3.12/Includes/opcode_metadata.h

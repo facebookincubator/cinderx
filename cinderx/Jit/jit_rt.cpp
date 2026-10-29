@@ -1459,7 +1459,7 @@ PyObject* importName(
     PyObject* level) {
   DEFINE_STATIC_STRING(__import__);
   PyObject* globals = PyEval_GetGlobals();
-  PyObject* builtins = tstate->interp->builtins;
+  PyObject* builtins = CiInterpPre(tstate->interp)->builtins;
 
   auto import_func =
       Ref<>::create(PyDict_GetItemWithError(builtins, s___import__));

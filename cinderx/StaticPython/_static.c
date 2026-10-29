@@ -53,8 +53,8 @@ static int type_refcount_indicates_escape(
     Py_ssize_t index = unique_id - 1;
     _PyThreadStateImpl* tstate = (_PyThreadStateImpl*)_PyThreadState_GET();
 
-    if (index < tstate->refcounts.size) {
-      refcount += tstate->refcounts.values[index];
+    if (index < CiTstatePost(tstate)->refcounts.size) {
+      refcount += CiTstatePost(tstate)->refcounts.values[index];
     }
   }
 

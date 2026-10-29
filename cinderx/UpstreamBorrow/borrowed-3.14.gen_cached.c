@@ -190,7 +190,7 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 const PyConfig*
 _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 {
-    return &interp->config;
+    return &CiInterpPre(interp)->config;
 }
 
 #if !defined(META_PYTHON) && !defined(DK_KIND)
@@ -202,11 +202,11 @@ _PyInterpreterState_GetConfig(PyInterpreterState *interp)
 #ifdef Py_GIL_DISABLED
 #define ASSERT_DICT_LOCKED(op) ASSERT_DICT_LOCKED(_Py_CAST(PyObject*, op))
 #define ASSERT_WORLD_STOPPED_OR_DICT_LOCKED(op)                         \
-    if (!_PyInterpreterState_GET()->stoptheworld.world_stopped) {       \
+    if (!CiInterpPre(_PyInterpreterState_GET())->stoptheworld.world_stopped) {       \
         ASSERT_DICT_LOCKED(op);                                         \
     }
 #define ASSERT_WORLD_STOPPED_OR_OBJ_LOCKED(op)                         \
-    if (!_PyInterpreterState_GET()->stoptheworld.world_stopped) {      \
+    if (!CiInterpPre(_PyInterpreterState_GET())->stoptheworld.world_stopped) {      \
         _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(op);                 \
     }
 #define IS_DICT_SHARED(mp) _PyObject_GC_IS_SHARED(mp)
@@ -1059,15 +1059,15 @@ static void
 lazy_import_verbose_lock_held(PyThreadState *tstate, PyObject *value)
 {
 #ifdef Py_GIL_DISABLED
-    assert(PyMutex_IsLocked(&tstate->interp->lazy_imports_mutex));
+    assert(PyMutex_IsLocked(&CiInterpMeta(tstate->interp)->lazy_imports_mutex));
 #endif
-    PyObject *lazy_import_verbose_seen = tstate->interp->lazy_import_verbose_seen;
+    PyObject *lazy_import_verbose_seen = CiInterpMeta(tstate->interp)->lazy_import_verbose_seen;
     if (lazy_import_verbose_seen == NULL) {
         lazy_import_verbose_seen = PySet_New(NULL);
         if (lazy_import_verbose_seen == NULL) {
             return;
         }
-        tstate->interp->lazy_import_verbose_seen = lazy_import_verbose_seen;
+        CiInterpMeta(tstate->interp)->lazy_import_verbose_seen = lazy_import_verbose_seen;
     }
     PyObject *name = _PyLazyImport_GetName(value);
     if (name == NULL) {
@@ -1095,11 +1095,11 @@ lazy_import_verbose(PyObject *value)
     int verbose = _PyInterpreterState_GetConfig(tstate->interp)->verbose;
     if (verbose) {
 #ifdef Py_GIL_DISABLED
-        PyMutex_Lock(&tstate->interp->lazy_imports_mutex);
+        PyMutex_Lock(&CiInterpMeta(tstate->interp)->lazy_imports_mutex);
 #endif
         lazy_import_verbose_lock_held(tstate, value);
 #ifdef Py_GIL_DISABLED
-        PyMutex_Unlock(&tstate->interp->lazy_imports_mutex);
+        PyMutex_Unlock(&CiInterpMeta(tstate->interp)->lazy_imports_mutex);
 #endif
         PyErr_Clear();
     }
@@ -1948,17 +1948,17 @@ get_next_dict_keys_version(PyInterpreterState *interp)
     uint32_t v;
     do {
         v = _Py_atomic_load_uint32_relaxed(
-            &interp->dict_state.next_keys_version);
+            &CiInterpPost(interp)->dict_state.next_keys_version);
         if (v == 0) {
             return 0;
         }
     } while (!_Py_atomic_compare_exchange_uint32(
-        &interp->dict_state.next_keys_version, &v, v + 1));
+        &CiInterpPost(interp)->dict_state.next_keys_version, &v, v + 1));
 #else
-    if (interp->dict_state.next_keys_version == 0) {
+    if (CiInterpPost(interp)->dict_state.next_keys_version == 0) {
         return 0;
     }
-    uint32_t v = interp->dict_state.next_keys_version++;
+    uint32_t v = CiInterpPost(interp)->dict_state.next_keys_version++;
 #endif
     return v;
 }
@@ -2338,9 +2338,9 @@ error:
         (PyUnicode_CheckExact(name) &&                           \
          (PyUnicode_GET_LENGTH(name) <= MCACHE_MAX_ATTR_SIZE))
 #define NEXT_VERSION_TAG(interp) \
-    (interp)->types.next_version_tag
+    CiInterpPost(interp)->types.next_version_tag
 #ifdef Py_GIL_DISABLED
-#define TYPE_LOCK &PyInterpreterState_Get()->types.mutex
+#define TYPE_LOCK &CiInterpPost(PyInterpreterState_Get())->types.mutex
 #define BEGIN_TYPE_LOCK() Py_BEGIN_CRITICAL_SECTION_MUTEX(TYPE_LOCK)
 #define END_TYPE_LOCK() Py_END_CRITICAL_SECTION()
 #define BEGIN_TYPE_DICT_LOCK(d) \
@@ -2525,14 +2525,14 @@ managed_static_type_state_get(PyInterpreterState *interp, PyTypeObject *self)
     // It's probably a builtin type.
     size_t index = managed_static_type_index_get(self);
     managed_static_type_state *state =
-            &(interp->types.builtins.initialized[index]);
+            &(CiInterpPost(interp)->types.builtins.initialized[index]);
     if (state->type == self) {
         return state;
     }
     if (index > _Py_MAX_MANAGED_STATIC_EXT_TYPES) {
         return state;
     }
-    return &(interp->types.for_extensions.initialized[index]);
+    return &(CiInterpPost(interp)->types.for_extensions.initialized[index]);
 }
 managed_static_type_state *
 _PyStaticType_GetState(PyInterpreterState *interp, PyTypeObject *self)
@@ -2610,7 +2610,7 @@ set_version_unlocked(PyTypeObject *tp, unsigned int version)
     // lookup the old version and set to null
     if (tp->tp_version_tag != 0) {
         PyTypeObject **slot =
-            interp->types.type_version_cache
+            CiInterpPost(interp)->types.type_version_cache
             + (tp->tp_version_tag % TYPE_VERSION_CACHE_SIZE);
         *slot = NULL;
     }
@@ -2626,7 +2626,7 @@ set_version_unlocked(PyTypeObject *tp, unsigned int version)
 #ifndef Py_GIL_DISABLED
     if (version != 0) {
         PyTypeObject **slot =
-            interp->types.type_version_cache
+            CiInterpPost(interp)->types.type_version_cache
             + (version % TYPE_VERSION_CACHE_SIZE);
         *slot = tp;
     }
@@ -2994,10 +2994,10 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
         &(runtime)->atexit.mutex, \
         &(runtime)->audit_hooks.mutex, \
         &(runtime)->allocators.mutex, \
-        &(runtime)->_main_interpreter.types.mutex, \
-        &(runtime)->_main_interpreter.code_state.mutex, \
-        &(runtime)->_main_interpreter.dict_state.watcher_mutex, \
-        &(runtime)->_main_interpreter.lazy_imports_mutex, \
+        &CiInterpPost(Ci_MainInterpreter(runtime))->types.mutex, \
+        &CiInterpPost(Ci_MainInterpreter(runtime))->code_state.mutex, \
+        &CiInterpPost(Ci_MainInterpreter(runtime))->dict_state.watcher_mutex, \
+        &CiInterpMeta(Ci_MainInterpreter(runtime))->lazy_imports_mutex, \
     }
 #ifdef Py_GIL_DISABLED
 #define _Py_FOR_EACH_STW_INTERP(stw, i)                                     \
@@ -3396,17 +3396,17 @@ static const int8_t EVENT_FOR_OPCODE[256] = {
 };
 #if defined(Py_DEBUG) && defined(Py_GIL_DISABLED)
 #define ASSERT_WORLD_STOPPED_OR_LOCKED(obj)                         \
-    if (!_PyInterpreterState_GET()->stoptheworld.world_stopped) {   \
+    if (!CiInterpPre(_PyInterpreterState_GET())->stoptheworld.world_stopped) {   \
         _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(obj);             \
     }
-#define ASSERT_WORLD_STOPPED() assert(_PyInterpreterState_GET()->stoptheworld.world_stopped);
+#define ASSERT_WORLD_STOPPED() assert(CiInterpPre(_PyInterpreterState_GET())->stoptheworld.world_stopped);
 #else
 #define ASSERT_WORLD_STOPPED_OR_LOCKED(obj)
 #define ASSERT_WORLD_STOPPED()
 #endif
 #ifdef Py_GIL_DISABLED
 #define LOCK_CODE(code)                                             \
-    assert(!_PyInterpreterState_GET()->stoptheworld.world_stopped); \
+    assert(!CiInterpPre(_PyInterpreterState_GET())->stoptheworld.world_stopped); \
     Py_BEGIN_CRITICAL_SECTION(code)
 #define UNLOCK_CODE()   Py_END_CRITICAL_SECTION()
 #define MODIFY_BYTECODE(code, func, ...)                       \
@@ -3795,7 +3795,7 @@ remove_tools(PyCodeObject * code, int offset, int event, int tools)
 static bool
 tools_is_subset_for_event(PyCodeObject * code, int event, int tools)
 {
-    int global_tools = _PyInterpreterState_GET()->monitors.tools[event];
+    int global_tools = CiInterpPost(_PyInterpreterState_GET())->monitors.tools[event];
     int local_tools = code->_co_monitoring->local_monitors.tools[event];
     return tools == ((global_tools | local_tools) & tools);
 }
@@ -3913,7 +3913,7 @@ call_one_instrument(
 {
     assert(0 <= tool && tool < 8);
     assert(tstate->tracing == 0);
-    PyObject *instrument = interp->monitoring_callables[tool][event];
+    PyObject *instrument = CiInterpPost(interp)->monitoring_callables[tool][event];
     if (instrument == NULL) {
         return 0;
     }
@@ -3965,7 +3965,7 @@ instrumentation_cross_checks(PyInterpreterState *interp, PyCodeObject *code)
 {
     ASSERT_WORLD_STOPPED_OR_LOCKED(code);
     _Py_LocalMonitors expected = local_union(
-        interp->monitors,
+        CiInterpPost(interp)->monitors,
         code->_co_monitoring->local_monitors);
     return monitors_equals(code->_co_monitoring->active_monitors, expected);
 }
@@ -4000,7 +4000,7 @@ get_tools_for_instruction(PyCodeObject *code, PyInterpreterState *interp, int i,
         }
     }
     else {
-        tools = interp->monitors.tools[event];
+        tools = CiInterpPost(interp)->monitors.tools[event];
     }
     return tools;
 }
@@ -4074,7 +4074,7 @@ call_instrumentation_vector(
                               "Cannot disable %s events. Callback removed.",
                              event_names[event]);
                 /* Clear tool to prevent infinite loop */
-                Py_CLEAR(interp->monitoring_callables[tool][event]);
+                Py_CLEAR(CiInterpPost(interp)->monitoring_callables[tool][event]);
                 err = -1;
                 break;
             }
@@ -4202,7 +4202,7 @@ _Py_call_instrumentation_line(PyThreadState *tstate, _PyInterpreterFrame* frame,
 
     uint8_t tools = code->_co_monitoring->line_tools != NULL ?
         code->_co_monitoring->line_tools[i] :
-        (interp->monitors.tools[PY_MONITORING_EVENT_LINE] |
+        (CiInterpPost(interp)->monitors.tools[PY_MONITORING_EVENT_LINE] |
          code->_co_monitoring->local_monitors.tools[PY_MONITORING_EVENT_LINE]
         );
     /* Special case sys.settrace to avoid boxing the line number,
@@ -4295,7 +4295,7 @@ _Py_call_instrumentation_instruction(PyThreadState *tstate, _PyInterpreterFrame*
     PyInterpreterState *interp = tstate->interp;
     uint8_t tools = instrumentation_data->per_instruction_tools != NULL ?
         instrumentation_data->per_instruction_tools[offset] :
-        (interp->monitors.tools[PY_MONITORING_EVENT_INSTRUCTION] |
+        (CiInterpPost(interp)->monitors.tools[PY_MONITORING_EVENT_INSTRUCTION] |
          code->_co_monitoring->local_monitors.tools[PY_MONITORING_EVENT_INSTRUCTION]
         );
     int bytes_offset = offset * (int)sizeof(_Py_CODEUNIT);
@@ -4558,7 +4558,7 @@ update_instrumentation_data(PyCodeObject *code, PyInterpreterState *interp)
     // If the local monitors are out of date, clear them up
     _Py_LocalMonitors *local_monitors = &code->_co_monitoring->local_monitors;
     for (int i = 0; i < PY_MONITORING_TOOL_IDS; i++) {
-        if (code->_co_monitoring->tool_versions[i] != interp->monitoring_tool_versions[i]) {
+        if (code->_co_monitoring->tool_versions[i] != CiInterpPost(interp)->monitoring_tool_versions[i]) {
             for (int j = 0; j < _PY_MONITORING_LOCAL_EVENTS; j++) {
                 local_monitors->tools[j] &= ~(1 << i);
             }
@@ -4566,7 +4566,7 @@ update_instrumentation_data(PyCodeObject *code, PyInterpreterState *interp)
     }
 
     _Py_LocalMonitors all_events = local_union(
-        interp->monitors,
+        CiInterpPost(interp)->monitors,
         code->_co_monitoring->local_monitors);
     bool multitools = multiple_tools(&all_events);
     if (code->_co_monitoring->tools == NULL && multitools) {
@@ -4685,7 +4685,7 @@ force_instrument_lock_held(PyCodeObject *code, PyInterpreterState *interp)
         return -1;
     }
     _Py_LocalMonitors active_events = local_union(
-        interp->monitors,
+        CiInterpPost(interp)->monitors,
         code->_co_monitoring->local_monitors);
     _Py_LocalMonitors new_events;
     _Py_LocalMonitors removed_events;
@@ -5279,7 +5279,7 @@ analyze_descriptor_load(PyTypeObject *type, PyObject *name, PyObject **descr, un
         have_ga_version = true;
         PyInterpreterState *interp = _PyInterpreterState_GET();
         bool has_custom_getattribute = getattribute != NULL &&
-            getattribute != interp->callable_cache.object__getattribute__;
+            getattribute != CiInterpPost(interp)->callable_cache.object__getattribute__;
         PyObject *getattr = _PyType_Lookup(type, &_Py_ID(__getattr__));
         has_getattr = getattr != NULL;
         if (has_custom_getattribute) {
@@ -5717,7 +5717,7 @@ do_specialize_instance_load_attr(PyObject* owner, _Py_CODEUNIT* instr, PyObject*
                 return -1;
             }
             /* Don't specialize if PEP 523 is active */
-            if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
+            if ((CiInterpPre(_PyInterpreterState_GET())->eval_frame != NULL && CiInterpPre(_PyInterpreterState_GET())->eval_frame != Ci_GetEvalFrameFunc())) {
                 SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OTHER);
                 return -1;
             }
@@ -5792,7 +5792,7 @@ do_specialize_instance_load_attr(PyObject* owner, _Py_CODEUNIT* instr, PyObject*
                 return -1;
             }
             /* Don't specialize if PEP 523 is active */
-            if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
+            if ((CiInterpPre(_PyInterpreterState_GET())->eval_frame != NULL && CiInterpPre(_PyInterpreterState_GET())->eval_frame != Ci_GetEvalFrameFunc())) {
                 SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OTHER);
                 return -1;
             }
@@ -6174,7 +6174,7 @@ specialize_c_call(PyObject *callable, _Py_CODEUNIT *instr, int nargs)
             }
             /* len(o) */
             PyInterpreterState *interp = _PyInterpreterState_GET();
-            if (callable == interp->callable_cache.len && instr->op.arg == 1) {
+            if (callable == CiInterpPost(interp)->callable_cache.len && instr->op.arg == 1) {
                 specialize(instr, CALL_LEN);
                 return 0;
             }
@@ -6185,7 +6185,7 @@ specialize_c_call(PyObject *callable, _Py_CODEUNIT *instr, int nargs)
             if (nargs == 2) {
                 /* isinstance(o1, o2) */
                 PyInterpreterState *interp = _PyInterpreterState_GET();
-                if (callable == interp->callable_cache.isinstance) {
+                if (callable == CiInterpPost(interp)->callable_cache.isinstance) {
                     specialize(instr, CALL_ISINSTANCE);
                     return 0;
                 }
@@ -6210,7 +6210,7 @@ specialize_py_call(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
     PyCodeObject *code = (PyCodeObject *)func->func_code;
     int kind = function_kind(code);
     /* Don't specialize if PEP 523 is active */
-    if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
+    if ((CiInterpPre(_PyInterpreterState_GET())->eval_frame != NULL && CiInterpPre(_PyInterpreterState_GET())->eval_frame != Ci_GetEvalFrameFunc())) {
         SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_PEP_523);
         return -1;
     }
@@ -6344,7 +6344,7 @@ specialize_method_descriptor(PyMethodDescrObject *descr, _Py_CODEUNIT *instr,
                 return -1;
             }
             PyInterpreterState *interp = _PyInterpreterState_GET();
-            PyObject *list_append = interp->callable_cache.list_append;
+            PyObject *list_append = CiInterpPost(interp)->callable_cache.list_append;
             _Py_CODEUNIT next = instr[INLINE_CACHE_ENTRIES_CALL + 1];
             bool pop = (next.op.code == POP_TOP);
             int oparg = instr->op.arg;
@@ -6414,7 +6414,7 @@ specialize_py_call_kw(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
     PyCodeObject *code = (PyCodeObject *)func->func_code;
     int kind = function_kind(code);
     /* Don't specialize if PEP 523 is active */
-    if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
+    if ((CiInterpPre(_PyInterpreterState_GET())->eval_frame != NULL && CiInterpPre(_PyInterpreterState_GET())->eval_frame != Ci_GetEvalFrameFunc())) {
         SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_PEP_523);
         return -1;
     }
@@ -6692,7 +6692,7 @@ _Py_Specialize_BinaryOp(_PyStackRef lhs_st, _PyStackRef rhs_st, _Py_CODEUNIT *in
                 PyHeapTypeObject *ht = (PyHeapTypeObject *)container_type;
                 if (kind == SIMPLE_FUNCTION &&
                     fcode->co_argcount == 2 &&
-                    !(_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc()) && /* Don't specialize if PEP 523 is active */
+                    !(CiInterpPre(_PyInterpreterState_GET())->eval_frame != NULL && CiInterpPre(_PyInterpreterState_GET())->eval_frame != Ci_GetEvalFrameFunc()) && /* Don't specialize if PEP 523 is active */
                     _PyType_CacheGetItemForSpecialization(ht, descriptor, (uint32_t)tp_version))
                 {
                     specialize(instr, BINARY_OP_SUBSCR_GETITEM);
@@ -6840,7 +6840,7 @@ _Py_Specialize_ForIter(_PyStackRef iter, _Py_CODEUNIT *instr, int oparg)
             instr[oparg + INLINE_CACHE_ENTRIES_FOR_ITER + 1].op.code == INSTRUMENTED_END_FOR
         );
         /* Don't specialize if PEP 523 is active */
-        if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc()))
+        if ((CiInterpPre(_PyInterpreterState_GET())->eval_frame != NULL && CiInterpPre(_PyInterpreterState_GET())->eval_frame != Ci_GetEvalFrameFunc()))
             goto failure;
         specialize(instr, FOR_ITER_GEN);
         return;
@@ -6860,7 +6860,7 @@ _Py_Specialize_Send(_PyStackRef receiver_st, _Py_CODEUNIT *instr)
     PyTypeObject *tp = Py_TYPE(receiver);
     if (tp == &PyGen_Type || tp == &PyCoro_Type) {
         /* Don't specialize if PEP 523 is active */
-        if ((_PyInterpreterState_GET()->eval_frame != NULL && _PyInterpreterState_GET()->eval_frame != Ci_GetEvalFrameFunc())) {
+        if ((CiInterpPre(_PyInterpreterState_GET())->eval_frame != NULL && CiInterpPre(_PyInterpreterState_GET())->eval_frame != Ci_GetEvalFrameFunc())) {
             SPECIALIZATION_FAIL(SEND, SPEC_FAIL_OTHER);
             goto failure;
         }

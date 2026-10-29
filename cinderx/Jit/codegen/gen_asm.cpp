@@ -474,7 +474,13 @@ PyObject* resumeInInterpreter(
 
     setupTraceForDeoptedFrame(frame, tstate);
 
-    result = _PyEval_EvalFrame(tstate, frame, err_occurred);
+    // Biased open-coding of _PyEval_EvalFrame(): the upstream inline reads
+    // interp->eval_frame at a compiled-in offset, which is wrong when the
+    // loaded runtime's layout differs (see cinderx/Common/runtime_offsets.h).
+    _PyFrameEvalFunction eval_frame = CiInterpPre(tstate->interp)->eval_frame;
+    result = eval_frame == nullptr
+        ? _PyEval_EvalFrameDefault(tstate, frame, err_occurred)
+        : eval_frame(tstate, frame, err_occurred);
 
     // If exception occurred before RETURN_GENERATOR, the generator was never
     // returned to anyone. The JIT created the generator early, but the caller

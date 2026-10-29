@@ -269,7 +269,7 @@ PyObject* _PyClassLoader_ResolveContainer(PyObject* container_path) {
   PyObject* type_name = PyTuple_GET_ITEM(container_path, 1);
   PyObject* type = _PyClassLoader_GetModuleAttr(module, type_name);
   if (type == Py_None && PyModule_CheckExact(module) &&
-      PyModule_GetDict(module) == tstate->interp->builtins) {
+      PyModule_GetDict(module) == CiInterpPre(tstate->interp)->builtins) {
     /* special case builtins.None, it's used to represent NoneType */
     Py_DECREF(type);
     type = (PyObject*)Py_TYPE(Py_None);

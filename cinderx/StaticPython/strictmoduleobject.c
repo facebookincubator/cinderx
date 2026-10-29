@@ -41,7 +41,7 @@ static inline PyObject* Ci_StrictModuleGetDictSetter(PyObject* mod) {
 
 static PyObject* strictmodule_repr(Ci_StrictModuleObject* m) {
   PyInterpreterState* interp = _PyInterpreterState_GET();
-  PyObject* importlib = interp->imports.importlib;
+  PyObject* importlib = CiInterpPre(interp)->imports.importlib;
   return PyObject_CallMethod(importlib, "_module_repr", "O", m);
 }
 

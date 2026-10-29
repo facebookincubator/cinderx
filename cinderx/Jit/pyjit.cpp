@@ -18,6 +18,7 @@
 #include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/runtime_offsets.h"
 #include "cinderx/Common/slab_arena.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/Common/thread.h"
@@ -2017,11 +2018,12 @@ bool hasRegisteredMonitoringCallbacks() {
     // CPython's free_tool_id only clears monitoring_tool_names but leaves
     // stale entries in monitoring_callables, so we must check the tool name
     // to avoid treating orphaned callbacks as active instrumentation.
-    if (is->monitoring_tool_names[tool_id] == nullptr) {
+    if (CiInterpPost(is)->monitoring_tool_names[tool_id] == nullptr) {
       continue;
     }
     for (int event_id = 0; event_id < _PY_MONITORING_EVENTS; ++event_id) {
-      BorrowedRef<> entry = is->monitoring_callables[tool_id][event_id];
+      BorrowedRef<> entry =
+          CiInterpPost(is)->monitoring_callables[tool_id][event_id];
       if (entry != nullptr && !Py_IsNone(entry)) {
         return true;
       }
@@ -2033,7 +2035,8 @@ bool hasRegisteredMonitoringCallbacks() {
 // Check if sys.setprofile or sys.settrace have active callbacks registered.
 bool hasActiveLegacyTracing() {
   auto is = PyInterpreterState_Get();
-  return is->sys_profiling_threads > 0 || is->sys_tracing_threads > 0;
+  return CiInterpPost(is)->sys_profiling_threads > 0 ||
+      CiInterpPost(is)->sys_tracing_threads > 0;
 }
 
 bool isInstrumentationActive() {

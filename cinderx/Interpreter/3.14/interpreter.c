@@ -525,14 +525,14 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
         }
 #ifdef Py_GIL_DISABLED
         /* Load thread-local bytecode */
-        if (frame->tlbc_index != ((_PyThreadStateImpl *)tstate)->tlbc_index) {
+        if (frame->tlbc_index != CiTstatePost(tstate)->tlbc_index) {
             _Py_CODEUNIT *bytecode =
                 _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame));
             if (bytecode == NULL) {
                 goto early_exit;
             }
             ptrdiff_t off = frame->instr_ptr - _PyFrame_GetBytecode(frame);
-            frame->tlbc_index = ((_PyThreadStateImpl *)tstate)->tlbc_index;
+            frame->tlbc_index = CiTstatePost(tstate)->tlbc_index;
             frame->instr_ptr = bytecode + off;
         }
 #endif

@@ -8,7 +8,10 @@
 #include "cinderx/Common/log.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_pystate.h"
 #include "pycore_opcode_utils.h"
+
+#include <cstdio>
 #endif
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
 #include "internal/pycore_interpframe.h"
@@ -38,6 +41,56 @@ void initJITExecutableDealloc(ModuleState* state) {
       !PyUnstable_JITExecutable_Check(executable),
       "CPython's internal headers replaced CinderX's "
       "PyUnstable_JITExecutable_Check");
+}
+#endif
+
+#if PY_VERSION_HEX >= 0x030E0000
+// Compute the runtime-offset deltas once, when the module state goes live.
+// The inferred thread delta is verified eagerly against brc.tid: module
+// exec runs on a bound thread, so tid is always readable here (unlike the
+// deferred checks this replaces, no zero-tid fallback is needed). Unknown
+// signatures are stored as-is and still abort at first use.
+void initRuntimeDeltas(ModuleState* state) {
+  int64_t pre = 0, post = 0, sizediff = 0;
+  Ci_ThreadSignature(&pre, &post, &sizediff);
+  state->runtime_deltas.interp_pre = pre;
+  state->runtime_deltas.interp_post = post;
+#ifdef Py_GIL_DISABLED
+#if PY_VERSION_HEX < 0x030F0000
+  int is_py314 = 1;
+#else
+  int is_py314 = 0;
+#endif
+  int64_t delta = 0;
+  int known = Ci_ComputeThreadDelta(pre, post, sizediff, is_py314, &delta);
+  state->runtime_deltas.thread = delta;
+  state->runtime_deltas.thread_known = known;
+  if (known) {
+    PyThreadState* tstate = _PyThreadState_GET();
+    assert(tstate != nullptr);
+    size_t brc_tid_offset = offsetof(_PyThreadStateImpl, brc) +
+        offsetof(struct _brc_thread_state, tid);
+    uintptr_t tid =
+        *(const uintptr_t*)((const char*)tstate + delta + brc_tid_offset);
+    if (tid != _Py_ThreadId()) {
+      char msg[256];
+      snprintf(
+          msg,
+          sizeof(msg),
+          "CinderX: thread-state delta %lld failed runtime self-check "
+          "(pre=%lld post=%lld sizediff=%lld); refusing to read fields at "
+          "a wrong offset",
+          (long long)delta,
+          (long long)pre,
+          (long long)post,
+          (long long)sizediff);
+      Py_FatalError(msg);
+    }
+  }
+#else
+  state->runtime_deltas.thread = 0;
+  state->runtime_deltas.thread_known = 1;
+#endif
 }
 #endif
 
@@ -157,6 +210,10 @@ void setModuleState(BorrowedRef<> mod) {
   auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
   s_cinderx_state = state;
   state->cinderx_module = mod;
+
+#if PY_VERSION_HEX >= 0x030E0000
+  initRuntimeDeltas(state);
+#endif
 
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
   initJITExecutableDealloc(state);

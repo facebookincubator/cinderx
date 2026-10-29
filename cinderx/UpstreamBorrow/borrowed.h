@@ -147,6 +147,200 @@ PyObject* _PyNumber_PowerNoMod(PyObject* lhs, PyObject* rhs);
 #define _PyTuple_MaybeUntrack _CiTuple_MaybeUntrack
 #endif
 
+// Must come after the renames above: it pulls in pycore headers whose
+// declarations must see the renamed symbols, otherwise the unrenamed
+// declarations get pinned by include guards and the renamed uses fail.
+#include "cinderx/Common/runtime_offsets.h"
+
+#if PY_VERSION_HEX >= 0x030E0000
+// Upstream static inlines that read interpreter/thread-state fields at
+// compiled-in offsets break when the loaded runtime's layout differs (see
+// cinderx/Common/runtime_offsets.h). Each block below force-includes the
+// defining header first, so the upstream inline keeps its real name and the
+// helper macros stay available, then redirects callers to a biased clone.
+// This must stay after the renames above for the same include-guard reason.
+#include "internal/pycore_global_objects.h"
+#undef _Py_INTERP_CACHED_OBJECT
+#define _Py_INTERP_CACHED_OBJECT(interp, NAME) \
+  CiInterpPost(interp)->cached_objects.NAME
+#undef _Py_INTERP_STATIC_OBJECT
+#define _Py_INTERP_STATIC_OBJECT(interp, NAME) \
+  CiInterpPost(interp)->static_objects.NAME
+
+#ifdef Py_GIL_DISABLED
+// pycore_freelist.h is not C++-clean (void* to PyObject* conversion), so
+// this shim is C-only. No C++ TU calls the freelist APIs.
+#ifndef __cplusplus
+#include "internal/pycore_freelist.h"
+static inline struct _Py_freelists* _Ci_freelists_get(void) {
+  PyThreadState* tstate = _PyThreadState_GET();
+  _Py_AssertHoldsTstate();
+  return &CiTstatePost(tstate)->freelists;
+}
+#define _Py_freelists_GET _Ci_freelists_get
+#endif // !__cplusplus
+
+#include "internal/pycore_code.h"
+// Mirrors upstream _PyCode_GetTLBCFast with a biased tlbc_index read; keep
+// in sync with CPython's pycore_code.h.
+static inline _Py_CODEUNIT* _CiCode_GetTLBCFast(
+    PyThreadState* tstate,
+    PyCodeObject* co) {
+  _PyCodeArray* code = _PyCode_GetTLBCArray(co);
+  int32_t idx = CiTstatePost(tstate)->tlbc_index;
+  if (idx < code->size && code->entries[idx] != NULL) {
+    return (_Py_CODEUNIT*)code->entries[idx];
+  }
+  return NULL;
+}
+#define _PyCode_GetTLBCFast _CiCode_GetTLBCFast
+
+#include "internal/pycore_interpframe.h"
+// Mirrors upstream _PyFrame_InitializeTLBC with a biased tlbc_index read;
+// keep in sync with CPython's pycore_interpframe.h.
+static inline void _CiFrame_InitializeTLBC(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame,
+    PyCodeObject* code) {
+  _Py_CODEUNIT* tlbc = _PyCode_GetTLBCFast(tstate, code);
+  if (tlbc == NULL) {
+    // No thread-local bytecode exists for this thread yet; use the main
+    // thread's copy, deferring thread-local bytecode creation to the
+    // execution of RESUME.
+    frame->instr_ptr = _PyCode_CODE(code);
+    frame->tlbc_index = 0;
+  } else {
+    frame->instr_ptr = tlbc;
+    frame->tlbc_index = CiTstatePost(tstate)->tlbc_index;
+  }
+}
+#define _PyFrame_InitializeTLBC _CiFrame_InitializeTLBC
+
+#if PY_VERSION_HEX < 0x030F0000
+// The frame-push and executable-code inlines transitively execute the raw
+// reads above: CPython's headers define them before these renames take
+// effect, so their bodies keep calling the upstream helpers. Redirect them
+// to biased clones as well. 3.14-only: the signatures differ on other
+// versions (3.12 takes fewer arguments) and no other version currently
+// skews. Keep each body in sync with CPython 3.14's headers.
+// Mirrors _PyFrame_Initialize from pycore_interpframe.h.
+static inline void _CiFrame_Initialize(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame,
+    _PyStackRef func,
+    PyObject* locals,
+    PyCodeObject* code,
+    int null_locals_from,
+    _PyInterpreterFrame* previous) {
+  frame->previous = previous;
+  frame->f_funcobj = func;
+  frame->f_executable = PyStackRef_FromPyObjectNew(code);
+  PyFunctionObject* func_obj =
+      (PyFunctionObject*)PyStackRef_AsPyObjectBorrow(func);
+  frame->f_builtins = func_obj->func_builtins;
+  frame->f_globals = func_obj->func_globals;
+  frame->f_locals = locals;
+  frame->stackpointer = frame->localsplus + code->co_nlocalsplus;
+  frame->frame_obj = NULL;
+#ifdef Py_GIL_DISABLED
+  _CiFrame_InitializeTLBC(tstate, frame, code);
+#else
+  (void)tstate;
+  frame->instr_ptr = _PyCode_CODE(code);
+#endif
+  frame->return_offset = 0;
+  frame->owner = FRAME_OWNED_BY_THREAD;
+  frame->visited = 0;
+#ifdef Py_DEBUG
+  frame->lltrace = 0;
+#endif
+  for (int i = null_locals_from; i < code->co_nlocalsplus; i++) {
+    frame->localsplus[i] = PyStackRef_NULL;
+  }
+}
+#define _PyFrame_Initialize _CiFrame_Initialize
+
+// Mirrors _PyFrame_PushUnchecked from pycore_interpframe.h. The datastack
+// reads below target base PyThreadState fields, which never skew.
+static inline _PyInterpreterFrame* _CiFrame_PushUnchecked(
+    PyThreadState* tstate,
+    _PyStackRef func,
+    int null_locals_from,
+    _PyInterpreterFrame* previous) {
+  CALL_STAT_INC(frames_pushed);
+  PyFunctionObject* func_obj =
+      (PyFunctionObject*)PyStackRef_AsPyObjectBorrow(func);
+  PyCodeObject* code = (PyCodeObject*)func_obj->func_code;
+  _PyInterpreterFrame* new_frame = (_PyInterpreterFrame*)tstate->datastack_top;
+  tstate->datastack_top += code->co_framesize;
+  assert(tstate->datastack_top < tstate->datastack_limit);
+  _CiFrame_Initialize(
+      tstate, new_frame, func, NULL, code, null_locals_from, previous);
+  return new_frame;
+}
+#define _PyFrame_PushUnchecked _CiFrame_PushUnchecked
+
+// Mirrors _PyFrame_PushTrampolineUnchecked from pycore_interpframe.h.
+static inline _PyInterpreterFrame* _CiFrame_PushTrampolineUnchecked(
+    PyThreadState* tstate,
+    PyCodeObject* code,
+    int stackdepth,
+    _PyInterpreterFrame* previous) {
+  CALL_STAT_INC(frames_pushed);
+  _PyInterpreterFrame* frame = (_PyInterpreterFrame*)tstate->datastack_top;
+  tstate->datastack_top += code->co_framesize;
+  assert(tstate->datastack_top < tstate->datastack_limit);
+  frame->previous = previous;
+  frame->f_funcobj = PyStackRef_None;
+  frame->f_executable = PyStackRef_FromPyObjectNew(code);
+#ifdef Py_DEBUG
+  frame->f_builtins = NULL;
+  frame->f_globals = NULL;
+#endif
+  frame->f_locals = NULL;
+  assert(stackdepth <= code->co_stacksize);
+  frame->stackpointer = frame->localsplus + code->co_nlocalsplus + stackdepth;
+  frame->frame_obj = NULL;
+#ifdef Py_GIL_DISABLED
+  _CiFrame_InitializeTLBC(tstate, frame, code);
+#else
+  frame->instr_ptr = _PyCode_CODE(code);
+#endif
+  frame->owner = FRAME_OWNED_BY_THREAD;
+  frame->visited = 0;
+#ifdef Py_DEBUG
+  frame->lltrace = 0;
+#endif
+  frame->return_offset = 0;
+  return frame;
+}
+#define _PyFrame_PushTrampolineUnchecked _CiFrame_PushTrampolineUnchecked
+
+// Forward declaration: _PyCode_GetTLBC is borrowed-and-renamed above, so
+// both the upstream body below and the mirror expand it to
+// _CiCode_GetTLBC, whose prototype otherwise only appears later in this
+// file.
+#ifdef __cplusplus
+extern "C" _Py_CODEUNIT* _PyCode_GetTLBC(PyCodeObject* co);
+#else
+_Py_CODEUNIT* _PyCode_GetTLBC(PyCodeObject* co);
+#endif
+#include "internal/pycore_ceval.h"
+// Mirrors _PyEval_GetExecutableCode from pycore_ceval.h.
+static inline _Py_CODEUNIT* _CiEval_GetExecutableCode(
+    PyThreadState* tstate,
+    PyCodeObject* co) {
+  _Py_CODEUNIT* bc = _CiCode_GetTLBCFast(tstate, co);
+  if (bc != NULL) {
+    return bc;
+  }
+  return _PyCode_GetTLBC(co);
+}
+#define _PyEval_GetExecutableCode _CiEval_GetExecutableCode
+#endif // PY_VERSION_HEX < 0x030F0000
+#endif // Py_GIL_DISABLED
+#endif // PY_VERSION_HEX >= 0x030E0000
+
 #include "internal/pycore_dict.h"
 #include "internal/pycore_frame.h"
 #include "internal/pycore_typeobject.h"
