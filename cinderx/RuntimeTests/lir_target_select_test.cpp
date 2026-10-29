@@ -417,27 +417,34 @@ TEST_F(LIRTargetSelectTest, SelectsBranchCCAcrossFlagClobber) {
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesSignedSubWordInputs) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:8bit = Move 255
-  %2:16bit = Move 1
-  %3:8bit = LessThanSigned %1, %2
-  Return %3
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* left = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, Imm{255});
+  Instruction* right = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k16bit}, Imm{1});
+  Instruction* comparison = block->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kSignedLT,
+      OutVReg{DataType::k8bit},
+      VReg{left},
+      VReg{right});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{comparison});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
   EXPECT_LIR_SEQUENCE(
-      *lir_func,
-      Query(*lir_func)
+      function,
+      Query(function)
           .opcode(Opcode::kSext)
           .outType(DataType::k32bit)
-          .inVreg(0, 1),
-      Query(*lir_func)
+          .inVreg(0, left->id()),
+      Query(function)
           .opcode(Opcode::kSext)
           .outType(DataType::k32bit)
-          .inVreg(0, 2),
-      Query(*lir_func)
+          .inVreg(0, right->id()),
+      Query(function)
           .opcode(Opcode::kCompare)
           .condition(Condition::kSignedLT)
           .outType(DataType::k32bit)
