@@ -2,9 +2,8 @@
 
 #include "cinderx/Jit/bytecode.h"
 
+#include "cinderx/Common/atomic_ref.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
-
-#include <atomic>
 
 namespace cinderx::jit {
 
@@ -15,7 +14,7 @@ namespace {
 //
 // Does not do any EXTENDED_ARG or EXTENDED_OPCODE decoding.
 _Py_CODEUNIT loadWord(BorrowedRef<PyCodeObject> code, BCIndex idx) {
-  static_assert(std::atomic_ref<_Py_CODEUNIT>::is_always_lock_free);
+  static_assert(AtomicRef<_Py_CODEUNIT>::kIsAlwaysLockFree);
 
   // Reading from the bytecode stream can race with the specializing interpreter
   // changing the opcode (it will not touch the oparg though).  On free-threaded
@@ -25,8 +24,8 @@ _Py_CODEUNIT loadWord(BorrowedRef<PyCodeObject> code, BCIndex idx) {
   //
   // Ideally we would load the bytecode in the preloader where we always hold
   // the GIL, that'll be for a future change.
-  auto ref = std::atomic_ref<_Py_CODEUNIT>{codeUnit(code)[idx.value()]};
-  auto word = ref.load(std::memory_order_relaxed);
+  _Py_CODEUNIT word = AtomicRef<_Py_CODEUNIT>{codeUnit(code)[idx.value()]}.load(
+      std::memory_order_relaxed);
 
   const int opcode = _Py_OPCODE(word);
   const uint8_t base_opcode = Cix_DEINSTRUMENT(opcode);

@@ -8,10 +8,10 @@
 #include "internal/pycore_stackref.h"
 #endif
 
+#include "cinderx/Common/atomic_ref.h"
 #include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
 
-#include <atomic>
 #include <bit>
 #include <cerrno>
 #include <charconv>
@@ -418,11 +418,7 @@ class CriticalSectionGuard final {
 template <typename T>
 T* ftAtomicLoadPtrAcquire(T*& ptr) noexcept {
   if constexpr (kFreeThreadedBuild) {
-#ifdef __cpp_lib_atomic_ref
-    return std::atomic_ref<T*>(ptr).load(std::memory_order_acquire);
-#else
-    return __atomic_load_n(&ptr, __ATOMIC_ACQUIRE);
-#endif
+    return AtomicRef<T*>(ptr).load(std::memory_order_acquire);
   } else {
     return ptr;
   }
@@ -433,11 +429,7 @@ T* ftAtomicLoadPtrAcquire(T*& ptr) noexcept {
 template <typename T>
 void ftAtomicStorePtrRelaxed(T*& ptr, T* value) noexcept {
   if constexpr (kFreeThreadedBuild) {
-#ifdef __cpp_lib_atomic_ref
-    std::atomic_ref<T*>(ptr).store(value, std::memory_order_relaxed);
-#else
-    __atomic_store(&ptr, &value, __ATOMIC_RELAXED);
-#endif
+    AtomicRef<T*>(ptr).store(value, std::memory_order_relaxed);
   } else {
     ptr = value;
   }
@@ -478,15 +470,9 @@ inline void setVectorcall(
     // invalid version. But we may not deopt in the interpreter
     // loop immediately. We will eventually pick up the invalidated
     // version.
-#ifdef __cpp_lib_atomic_ref
-    std::atomic_ref<vectorcallfunc>(func->vectorcall)
+    AtomicRef<vectorcallfunc>(func->vectorcall)
         .store(entry, std::memory_order_relaxed);
-    std::atomic_ref<uint32_t>(func->func_version)
-        .store(0, std::memory_order_relaxed);
-#else
-    __atomic_store_n(&func->vectorcall, entry, __ATOMIC_RELAXED);
-    __atomic_store_n(&func->func_version, 0, __ATOMIC_RELAXED);
-#endif
+    AtomicRef<uint32_t>(func->func_version).store(0, std::memory_order_relaxed);
   } else {
     PyFunction_SetVectorcall(func, entry);
   }
@@ -495,12 +481,8 @@ inline void setVectorcall(
 // Counterpart to setVectorcall(); see the comment there for why this is
 // relaxed.
 inline vectorcallfunc getVectorcall(BorrowedRef<PyFunctionObject> func) {
-#ifdef __cpp_lib_atomic_ref
-  return std::atomic_ref<vectorcallfunc>(func->vectorcall)
+  return AtomicRef<vectorcallfunc>(func->vectorcall)
       .load(std::memory_order_relaxed);
-#else
-  return __atomic_load_n(&func->vectorcall, __ATOMIC_RELAXED);
-#endif
 }
 
 // Call visitor on every live PyFunctionObject on the GC heap.  Under

@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/code_patcher.h"
 
+#include "cinderx/Common/atomic_ref.h"
 #include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
@@ -9,7 +10,6 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cstring>
 
 namespace cinderx::jit {
@@ -131,7 +131,7 @@ void CodePatcher::swap() {
   // atomically writable size on x86.
   if constexpr (kFreeThreadedBuild && kBuildArch == Arch::kX86_64) {
     static_assert(sizeof(uint64_t) >= sizeof(data_));
-    static_assert(std::atomic_ref<uint64_t>::is_always_lock_free);
+    static_assert(AtomicRef<uint64_t>::kIsAlwaysLockFree);
     JIT_CHECK(
         reinterpret_cast<uintptr_t>(patchpoint_) % 8 == 0,
         "Not 8-byte aligned");
@@ -141,7 +141,8 @@ void CodePatcher::swap() {
     auto* qword_bytes = reinterpret_cast<uint8_t*>(&qword);
     std::swap_ranges(qword_bytes, qword_bytes + flags_.data_len, data_.data());
 
-    std::atomic_ref<uint64_t>{*reinterpret_cast<uint64_t*>(patchpoint_)}.store(
+    auto* patchpoint_qword = reinterpret_cast<uint64_t*>(patchpoint_);
+    AtomicRef<uint64_t>{*patchpoint_qword}.store(
         qword, std::memory_order_relaxed);
   } else {
     decltype(data_) temp;
@@ -171,11 +172,11 @@ CodePatcher::SwapLockGuard::SwapLockGuard(CodePatcher& patcher)
   if constexpr (!kFreeThreadedBuild) {
     return;
   }
-  std::atomic_ref<uint8_t> ref{patcher_.flags_byte_};
+  AtomicRef<uint8_t> ref{patcher_.flags_byte_};
   while (true) {
     uint8_t expected = ref.load(std::memory_order_relaxed);
     if (!(expected & lockBit()) &&
-        ref.compare_exchange_weak(
+        ref.compareExchangeWeak(
             expected,
             expected | lockBit(),
             std::memory_order_acquire,
@@ -189,7 +190,7 @@ CodePatcher::SwapLockGuard::~SwapLockGuard() {
   if constexpr (!kFreeThreadedBuild) {
     return;
   }
-  std::atomic_ref<uint8_t>{patcher_.flags_byte_}.fetch_and(
+  AtomicRef<uint8_t>{patcher_.flags_byte_}.fetchAnd(
       static_cast<uint8_t>(~lockBit()), std::memory_order_release);
 }
 
