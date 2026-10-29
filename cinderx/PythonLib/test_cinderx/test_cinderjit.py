@@ -316,6 +316,38 @@ class CallKWArgsTests(unittest.TestCase):
     def test_call_c_func(self) -> None:
         self.assertEqual(__import__("sys", globals=None), sys)
 
+    @staticmethod
+    @cinder_support.failUnlessJITCompiled
+    def _f3(a, b=2, c=3, d=4, e=5):
+        return a, b, c, d, e
+
+    def test_call_kw_order(self) -> None:
+        f = CallKWArgsTests._f3
+        for _ in range(3):
+            self.assertEqual(f(1, b=20, d=40), (1, 20, 3, 40, 5))
+            self.assertEqual(f(1, d=40, b=20), (1, 20, 3, 40, 5))
+            self.assertEqual(f(e=50, a=1, c=30), (1, 2, 30, 4, 50))
+            self.assertEqual(f(1, e=50, b=20, d=40, c=30), (1, 20, 30, 40, 50))
+
+    def test_call_kw_not_interned(self) -> None:
+        f = CallKWArgsTests._f3
+        # Keyword names built at runtime aren't interned.
+        kwargs = {"".join(["c"]): 30, "".join(["b"]): 20}
+        for _ in range(3):
+            self.assertEqual(f(1, **kwargs), (1, 20, 30, 4, 5))
+
+    def test_call_kw_errors(self) -> None:
+        f = CallKWArgsTests._f3
+        for _ in range(3):
+            with self.assertRaisesRegex(TypeError, "multiple values"):
+                f(1, 2, b=20)
+            with self.assertRaisesRegex(TypeError, "multiple values"):
+                f(1, c=30, **{"c": 31})
+            with self.assertRaisesRegex(TypeError, "unexpected keyword"):
+                f(1, c=30, z=0)
+            with self.assertRaisesRegex(TypeError, "missing"):
+                f(b=20, c=30)
+
 
 class CallExTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled

@@ -68,6 +68,13 @@ static int bindKeywords(
     Py_ssize_t argcount,
     PyCodeObject* co,
     BorrowedRef<PyObject> kwdict) {
+  PyObject* const* names = &PyTuple_GET_ITEM(co->co_localsplusnames, 0);
+  const Py_ssize_t first = co->co_posonlyargcount;
+  const auto end = static_cast<Py_ssize_t>(arg_space.size());
+  // Keyword arguments usually come in parameter order, so start looking for
+  // each one right after the previous match.
+  Py_ssize_t start = first;
+
   // Handle keyword arguments passed as two strided arrays
   for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(kwnames); i++) {
     PyObject* keyword = PyTuple_GET_ITEM(kwnames, i);
@@ -80,17 +87,20 @@ static int bindKeywords(
 
     // Speed hack: do raw pointer compares. As names are
     //    normally interned this should almost always hit.
-    for (j = co->co_posonlyargcount; j < arg_space.size(); j++) {
-      PyObject* name = getVarname(co, j);
-      if (name == keyword) {
+    for (j = start; j < end; j++) {
+      if (names[j] == keyword) {
+        goto kw_found;
+      }
+    }
+    for (j = first; j < start; j++) {
+      if (names[j] == keyword) {
         goto kw_found;
       }
     }
 
     // Slow fallback, just in case
-    for (j = co->co_posonlyargcount; j < arg_space.size(); j++) {
-      PyObject* name = getVarname(co, j);
-      int cmp = PyObject_RichCompareBool(keyword, name, Py_EQ);
+    for (j = first; j < end; j++) {
+      int cmp = PyObject_RichCompareBool(keyword, names[j], Py_EQ);
       if (cmp > 0) {
         goto kw_found;
       } else if (cmp < 0) {
@@ -108,6 +118,7 @@ static int bindKeywords(
       return 0;
     }
     arg_space[j] = value;
+    start = j + 1 < end ? j + 1 : first;
   }
   return 1;
 }
