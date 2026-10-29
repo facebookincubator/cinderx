@@ -33,11 +33,16 @@ def export_runtime_env() -> None:
     """Let `sys.executable` subprocesses find the bundled stdlib.
 
     The PAR launcher drops PYTHONHOME once its main starts, after the startup
-    functions run, so a child falls back to the binary's compiled-in prefix: the
-    host's platform Python, which has no `test` package. Re-export it where
-    `script_helper` decides whether a child needs the environment. With
-    PYTHONHOME set, `assert_python_*` stops passing -I/-E and the child
-    inherits it.
+    functions run. A child can't find the stdlib from the bundled binary's own
+    location, which sits outside the runtime tree, so it falls back to the
+    compiled-in prefix: a placeholder that doesn't exist, or on older versions
+    the host's platform Python, which isn't the runtime under test either.
+    Re-export it where `script_helper` decides whether a child needs the
+    environment, which also covers its import-time probes. With PYTHONHOME
+    set, `assert_python_*` stops passing -I/-E and the child inherits it.
+    Re-export it before every test too, for children started any other way:
+    `subprocess`, `os.spawn*`, `posix_spawn`, or an `os.environ` copy taken
+    before `script_helper` ran.
     """
     home = os.path.abspath(sys.prefix)
     requires_environment = script_helper.interpreter_requires_environment
@@ -47,6 +52,16 @@ def export_runtime_env() -> None:
         return requires_environment()
 
     script_helper.interpreter_requires_environment = requires_environment_with_home
+
+    run = unittest.TestCase.run
+
+    def run_with_home(
+        self: unittest.TestCase, result: unittest.TestResult | None = None
+    ) -> unittest.TestResult | None:
+        os.environ["PYTHONHOME"] = home
+        return run(self, result)
+
+    unittest.TestCase.run = run_with_home
 
 
 def use_temp_cwd() -> None:

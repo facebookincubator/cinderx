@@ -38,8 +38,17 @@ def subprocess_env() -> dict[str, str]:
     # library is generated on a per-version basis and ends up being thrown into cinderx
     # at build time. When we run tests with sys.path we can end up with PythonLib on the
     # path first and we can pick up the version which doesn't have it injected.
+    #
+    # PYTHONHOME is needed too: sys.executable may be an embedding binary that
+    # can't find its stdlib from its own location, which then falls back to the
+    # compiled-in prefix and warns on stderr. Supplying PYTHONPATH also opts out
+    # of the Buck runtime's patched subprocess.run, which would have set it.
+    home = sys.base_prefix
+    if sys.base_exec_prefix != sys.base_prefix:
+        home += os.path.pathsep + sys.base_exec_prefix
     return {
-        "PYTHONPATH": CINDERX_PATH + os.path.pathsep + os.path.pathsep.join(sys.path)
+        "PYTHONHOME": home,
+        "PYTHONPATH": CINDERX_PATH + os.path.pathsep + os.path.pathsep.join(sys.path),
     }
 
 
