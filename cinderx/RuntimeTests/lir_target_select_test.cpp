@@ -163,27 +163,30 @@ bool testFitsInSingleMov(uint64_t value, unsigned bits) {
 }
 
 TEST_F(LIRTargetSelectTest, SelectsMulAddForLeaLargeMultiplier) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:64bit = Move 1
-  %2:64bit = Move 2
-  %3:64bit = Lea [%1:64bit + %2:64bit * 16 + 0x8]
-  Return %3
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* base = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* index = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{2});
+  Instruction* lea =
+      block->allocateInstr(Opcode::kLea, nullptr, OutVReg{DataType::k64bit});
+  lea->allocateMemoryIndirectInput(base, index, 4, 0x8);
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{lea});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, 16));
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kMulAdd).inVreg(0, 2));
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kAdd));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function).opcode(Opcode::kMulAdd).inVreg(0, index->id()));
+  EXPECT_LIR(Query(function).opcode(Opcode::kAdd));
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
-                 .outVreg(3)
+                 .outVreg(lea->id())
                  .outType(DataType::k64bit));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kLea));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kLea));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsMulAddForLeaLargeMultiplierWithLargeOffset) {
