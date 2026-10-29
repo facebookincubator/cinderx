@@ -6,9 +6,11 @@
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/codegen/environ.h"
+#include "cinderx/Jit/codegen/tls.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <stdexcept>
 #include <vector>
 
@@ -199,6 +201,60 @@ TEST_F(CodegenTest, TakeProfileCollectorTwiceThrows) {
   ASSERT_NE(env.takeProfileCollector(), nullptr);
   EXPECT_THROW(env.takeProfileCollector(), std::runtime_error);
   EXPECT_THROW(env.profileCollector(), std::runtime_error);
+}
+
+TEST_F(CodegenTest, DecodeFramelessInitialExecTls) {
+  // mrs x8, tpidr_el0
+  // add x8, x8, #0x0, lsl #12
+  // add x8, x8, #0x980
+  // ldr x0, [x8]
+  // ret
+  const uint32_t getter[] = {
+      0xd53bd048, 0x91400108, 0x91260108, 0xf9400100, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(getter), 0x980);
+
+  // No adds: offset is zero.
+  const uint32_t bare[] = {0xd53bd048, 0xf9400100, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(bare), 0);
+
+  // Only the shifted add.
+  const uint32_t hi_only[] = {0xd53bd048, 0x91400508, 0xf9400100, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(hi_only), 0x1000);
+
+  // Only the unshifted add.
+  const uint32_t lo_only[] = {0xd53bd048, 0x91260108, 0xf9400100, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(lo_only), 0x980);
+
+  // The unshifted add must come after the shifted one.
+  const uint32_t reversed[] = {
+      0xd53bd048, 0x91260108, 0x91400108, 0xf9400100, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(reversed), -1);
+
+  // At most one add of each kind.
+  const uint32_t two_lo[] = {
+      0xd53bd048, 0x91260108, 0x91260108, 0xf9400100, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(two_lo), -1);
+
+  // ldr before the adds.
+  const uint32_t ldr_first[] = {0xd53bd048, 0xf9400100, 0x91260108, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(ldr_first), -1);
+
+  // First word isn't an mrs of tpidr_el0.
+  const uint32_t prologue[] = {
+      0xa9bf7bfd, 0x910003fd, 0xd53bd048, 0xf9400100, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(prologue), -1);
+
+  // Middle add targets a different register.
+  const uint32_t clobber[] = {0xd53bd048, 0x91260129, 0xf9400100, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(clobber), -1);
+
+  // ldr with a nonzero offset isn't the expected shape.
+  const uint32_t ldr_off[] = {0xd53bd048, 0xf9400500, 0xd65f03c0};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(ldr_off), -1);
+
+  // Missing trailing ret: could be a prefix of a longer function.
+  const uint32_t no_ret[] = {0xd53bd048, 0xf9400100, 0xd503201f};
+  EXPECT_EQ(decodeFramelessInitialExecOffset(no_ret), -1);
 }
 
 } // namespace cinderx::jit::codegen

@@ -68,6 +68,41 @@ int32_t decodeGeneralDynamicTstateOffset(const uint8_t* ts_func) {
 
 } // namespace
 
+// Decode the frameless initial-exec form of _PyThreadState_GetCurrent (see
+// tls.h). Some ARM builds omit the frame-pointer prologue, leaving just an
+// mrs/add/ldr/ret leaf.
+int32_t decodeFramelessInitialExecOffset(const uint32_t* code) {
+  if ((code[0] & ~0x1fu) != 0xd53bd040) { // mrs x?, tpidr_el0
+    return -1;
+  }
+  uint32_t reg = code[0] & 0x1f;
+  // add x?, x?, #<imm>{, lsl #12}, with the imm12 field masked off.
+  auto is_add = [reg](uint32_t insn, bool shifted) {
+    uint32_t expected =
+        0x91000000u | (shifted ? (1u << 22) : 0) | (reg << 5) | reg;
+    return (insn & ~0x3ffc00u) == expected;
+  };
+  int32_t offset = 0;
+
+  size_t index = 1;
+  if (is_add(code[index], true)) { // add x?, x?, #hi, lsl #12
+    offset += ((code[index] >> 10) & 0xfff) << 12;
+    index++;
+  }
+  if (is_add(code[index], false)) { // add x?, x?, #lo
+    offset += (code[index] >> 10) & 0xfff;
+    index++;
+  }
+
+  // The trailing ret pins the match to the whole leaf function rather than
+  // a mere prefix of a longer one.
+  if (code[index] != (0xf9400000u | (reg << 5)) || // ldr x0, [x?]
+      code[index + 1] != 0xd65f03c0) { // ret
+    return -1;
+  }
+  return offset;
+}
+
 void initThreadStateOffset() {
   auto module_state = cinderx::getModuleState();
   if (module_state->tstate_offset_inited) {
@@ -125,6 +160,22 @@ void initThreadStateOffset() {
     }
 
     module_state->tstate_offset = current_offset;
+  }
+
+  // Frameless initial-exec fallback: same TLS model as above but the getter
+  // was compiled without a frame-pointer prologue.
+  if (module_state->tstate_offset == -1) {
+    int32_t current_offset = decodeFramelessInitialExecOffset(ts_func);
+    if (current_offset != -1) {
+      // Verify the offset is correct by comparing against the actual function.
+      uintptr_t tp;
+      asm volatile("mrs %0, tpidr_el0" : "=r"(tp));
+      auto* from_offset =
+          *reinterpret_cast<PyThreadState**>(tp + current_offset);
+      if (from_offset == _PyThreadState_GetCurrent()) {
+        module_state->tstate_offset = current_offset;
+      }
+    }
   }
 
 #ifdef __linux__
