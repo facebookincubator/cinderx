@@ -4,6 +4,8 @@ from contextlib import contextmanager
 from typing import Any, AsyncGenerator, Callable, Coroutine, Generator, TypeVar
 from warnings import catch_warnings, simplefilter, warn
 
+from cinderx import get_import_error
+
 
 # The JIT compiles arbitrary Python functions.  Ideally this type would exclude native
 # functions, but that doesn't seem possible yet.
@@ -12,7 +14,9 @@ FuncAny = Callable[..., Any]
 
 
 try:  # noqa: C901
-    from cinderjit import (
+    if (import_error := get_import_error()) is not None:
+        raise import_error
+    from _cinderx import (
         _deopt_gen,
         _has_lightweight_frames,
         _would_tag_if_deferred,

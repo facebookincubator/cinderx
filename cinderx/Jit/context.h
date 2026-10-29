@@ -242,11 +242,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    */
   void addCompileTime(std::chrono::nanoseconds time);
   /*
-   * Set and hold a reference to the cinderjit Python module.
-   */
-  void setCinderJitModule(Ref<> mod);
-
-  /*
    * Clear cache of compiled code such that subsequent compilations are always
    * full rather than just re-binding pre-compiled code. Only intended to be
    * used during multithreaded_compile_test.
@@ -702,8 +697,6 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * multithreaded_compile_test.
    */
   std::vector<Ref<CompiledFunction>> orphaned_compiled_codes_;
-
-  Ref<> cinderjit_module_;
 
   std::atomic_size_t total_compile_time_ms_;
 

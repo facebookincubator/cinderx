@@ -27,7 +27,7 @@ namespace cinderx::jit {
  *
  * Returns 0 on success, -1 on error, or -2 if we just printed the JIT args.
  */
-int initialize();
+int initialize(BorrowedRef<> cinderx_module);
 
 /*
  * Clean up any resources allocated by the JIT.

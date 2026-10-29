@@ -125,7 +125,7 @@ explanation of the various options.
 When a function is first called, if it should be JIT compiled we attempt to
 compile it (see `scheduleJitCompile` and related functions in `Jit/entry.cpp`.)
 
-When `cinderjit.disable()` is called (this disables future JIT compilation,
+When `cinderx.jit.disable()` is called (this disables future JIT compilation,
 it does not disable execution of JITted functions), any functions on the JIT
 list that have been imported but have not yet been called (thus not yet
 compiled) are compiled in a batch. If multi-threaded compilation is enabled,

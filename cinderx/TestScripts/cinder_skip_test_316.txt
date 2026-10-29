@@ -8,7 +8,7 @@ test.test_capi.test_watchers.TestDictWatchers.test_clear_unassigned_watcher_id
 test.test_capi.test_watchers.TestDictWatchers.test_watch_unassigned_watcher_id
 test.test_capi.test_watchers.TestDictWatchers.test_unwatch_unassigned_watcher_id
 
-# cinderx extension modules are installed (cinderjit, xxclassloader, _static,
+# cinderx extension modules are installed (xxclassloader, _static,
 # _cinderx), so faulthandler lists them under "Extension modules:" -- this test
 # expects that line to be absent when only stdlib extensions are loaded.
 test.test_faulthandler.FaultHandlerTests.test_dump_ext_modules

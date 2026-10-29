@@ -6,6 +6,7 @@ import copy
 import dis
 import faulthandler
 import gc
+import pickle
 import subprocess
 import sys
 import tempfile
@@ -3332,6 +3333,33 @@ def _drop_cinderx_module_refs() -> None:
             if isinstance(d, dict):
                 for k in [k for k, v in d.items() if v is obj]:
                     del d[k]
+
+
+class ModuleOwnershipTests(unittest.TestCase):
+    def test_public_modules_share_native_extension(self) -> None:
+        native = sys.modules["_cinderx"]
+        self.assertIs(getattr(cinderx.freeze_type, "__self__", None), native)
+        self.assertIs(getattr(cinderx.jit.force_compile, "__self__", None), native)
+
+    def test_api_receivers_and_public_metadata(self) -> None:
+        native = sys.modules["_cinderx"]
+        for name, fn in vars(cinderx.jit).items():
+            # warn is a standard-library helper imported by the Python layer.
+            if name == "warn" or not isinstance(fn, types.BuiltinFunctionType):
+                continue
+            with self.subTest(name=name):
+                self.assertEqual(fn.__module__, "_cinderx")
+                self.assertEqual(fn.__name__, name)
+                self.assertIs(fn.__self__, native)
+                # @lint-ignore PYTHONPICKLEISBAD: Trusted builtin serialized in this test.
+                self.assertIs(pickle.loads(pickle.dumps(fn)), fn)
+                self.assertIs(copy.deepcopy(fn), fn)
+                self.assertIs(getattr(native, name), fn)
+        callback = native.after_fork_child
+        self.assertIsNone(callback.__self__)
+        self.assertEqual(callback.__module__, "_cinderx")
+        # @lint-ignore PYTHONPICKLEISBAD: Trusted builtin serialized in this test.
+        self.assertIs(pickle.loads(pickle.dumps(callback)), callback)
 
 
 class ShutdownTests(unittest.TestCase):

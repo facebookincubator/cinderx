@@ -938,10 +938,6 @@ std::chrono::milliseconds Context::totalCompileTime() const {
       total_compile_time_ms_.load(std::memory_order_relaxed)};
 }
 
-void Context::setCinderJitModule(Ref<> mod) {
-  cinderjit_module_ = std::move(mod);
-}
-
 void Context::clearForMultithreadedCompileTest() {
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   // Visit-safe: a map lookup, a field store, and an incref into a C++ vector.

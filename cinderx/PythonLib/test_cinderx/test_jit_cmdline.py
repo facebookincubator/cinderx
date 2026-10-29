@@ -398,9 +398,9 @@ class CmdLineTest(unittest.TestCase):
             f"""\
             import cinderx
 
-            import cinderjit
+            import _cinderx
 
-            assert cinderjit.is_multithreaded_compile_test_enabled()
+            assert _cinderx.is_multithreaded_compile_test_enabled()
             print({_OK!r})
             """
         )

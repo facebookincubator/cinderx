@@ -21,6 +21,8 @@ namespace cinderx {
 
 using namespace cinderx::jit;
 
+using JITModuleTest = RuntimeTest;
+
 class JITContextTest : public RuntimeTest {
  public:
   void SetUp() override {

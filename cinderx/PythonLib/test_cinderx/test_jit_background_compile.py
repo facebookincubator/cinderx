@@ -1134,7 +1134,7 @@ class BackgroundCompilePoolForkTest(unittest.TestCase):
     every live SlabArena::mutex_, ModuleState::mutex_, and
     HugePageArena::mutex_.
 
-    HugePageArena is the worst of these because cinderjit.after_fork_child
+    HugePageArena is the worst of these because _cinderx.after_fork_child
     re-takes its mutex in the child before any user code runs.  It is only
     wired up on aarch64 (ALLOCATE_HUGE_PAGES in Common/slab_arena.cpp), which
     is also where the parent's hold window is widest -- allocateChunk() does a

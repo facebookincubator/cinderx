@@ -74,9 +74,8 @@ def _is_asan_build() -> bool:
 
 
 def _jit_skip_lists(version: str) -> list[str]:
-    try:
-        importlib.import_module("cinderjit")
-    except ImportError:
+    native = sys.modules.get("_cinderx")
+    if native is None or not hasattr(native, "is_enabled"):
         return []
 
     skip_list_files = [

@@ -75,10 +75,10 @@ int compiledfunc_clear(PyObject* self) {
 // underlying function serializes normally and is re-JIT'd in the destination
 // process. Reduce it to a call that yields a harmless None placeholder.
 PyObject* compiledfunc_reduce(PyObject* /*self*/, PyObject* /*ignored*/) {
-  // The reconstructor lives in the native cinderjit module (not the cinderx
+  // The reconstructor lives in the native _cinderx module (not the cinderx
   // Python layer), keeping this a native -> native reference.  It is always
   // loaded when a CompiledFunction exists.
-  auto jit_module = Ref<>::steal(PyImport_ImportModule("cinderjit"));
+  auto jit_module = Ref<>::steal(PyImport_ImportModule("_cinderx"));
   if (jit_module == nullptr) {
     return nullptr;
   }
@@ -168,7 +168,7 @@ PyType_Slot compiled_function_data_slots[] = {
     {0, nullptr}};
 
 PyType_Spec CompiledFunction_Spec = {
-    .name = "cinderjit.CompiledFunction",
+    .name = "_cinderx.CompiledFunction",
     .basicsize = sizeof(CompiledFunction),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
         Py_TPFLAGS_DISALLOW_INSTANTIATION | Py_TPFLAGS_IMMUTABLETYPE,
@@ -176,7 +176,7 @@ PyType_Spec CompiledFunction_Spec = {
 };
 
 PyType_Spec CompiledFunctionData_Spec = {
-    .name = "cinderjit.CompiledFunctionData",
+    .name = "_cinderx.CompiledFunctionData",
     .basicsize = sizeof(CompiledFunctionData),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
         Py_TPFLAGS_DISALLOW_INSTANTIATION | Py_TPFLAGS_IMMUTABLETYPE,

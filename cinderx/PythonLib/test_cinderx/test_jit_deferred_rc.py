@@ -169,7 +169,7 @@ def run_batch_decref_tagged_builtin_scenario() -> dict[str, Any]:
     }
 
 
-@passUnless(cinderx.jit.is_enabled(), "requires cinderjit")
+@passUnless(cinderx.jit.is_enabled(), "requires the JIT")
 @passUnless(cinder_support.FREE_THREADING_BUILD, "requires free-threaded build")
 class JITDeferredRCTests(unittest.TestCase):
     def test_hir_tags_object_args(self):

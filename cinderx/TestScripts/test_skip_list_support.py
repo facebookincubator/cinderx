@@ -31,6 +31,25 @@ class SkipListFilesTests(unittest.TestCase):
         )
         is_asan_build.assert_called_once_with()
 
+    @mock.patch.object(skip_list_support, "sys")
+    def test_no_jit_skip_lists_without_native_jit_apis(self, sys) -> None:
+        for modules in ({}, {"_cinderx": mock.Mock(spec=[])}):
+            with self.subTest(modules=modules):
+                sys.modules = modules
+                self.assertEqual(skip_list_support._jit_skip_lists("314"), [])
+
+    @mock.patch.object(skip_list_support.sysconfig, "get_config_var", return_value=0)
+    @mock.patch.object(skip_list_support, "sys")
+    def test_paused_jit_still_selects_jit_skip_lists(self, sys, get_config_var) -> None:
+        native = mock.Mock(spec=["is_enabled"])
+        native.is_enabled.return_value = False
+        sys.modules = {"_cinderx": native}
+        self.assertEqual(
+            skip_list_support._jit_skip_lists("314"),
+            ["cinder_jit_ignore_tests.txt", "cinder_jit_ignore_tests_314.txt"],
+        )
+        native.is_enabled.assert_not_called()
+
     def test_required_files_exclude_optional_variants(self) -> None:
         self.assertEqual(
             skip_list_support.get_required_skip_list_files(

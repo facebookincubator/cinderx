@@ -1371,7 +1371,7 @@ int _cinderx_exec_impl(PyObject* m) {
     return -1;
   }
 
-  int jit_init_ret = jit::initialize();
+  int jit_init_ret = jit::initialize(m);
   if (jit_init_ret) {
     // Exit here rather than in jit::initialize() so the tests for printing
     // argument help works.

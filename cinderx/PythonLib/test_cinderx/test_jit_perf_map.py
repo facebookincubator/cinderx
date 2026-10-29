@@ -209,7 +209,7 @@ class PerfMapTests(unittest.TestCase):
         # via fclose(nullptr) or a repeated munmap.
         script = (
             "import cinderx.jit\n"
-            "import cinderjit\n"
+            "import _cinderx\n"
             "import os\n"
             "\n"
             "\n"
@@ -222,8 +222,8 @@ class PerfMapTests(unittest.TestCase):
             "\n"
             "cinderx.jit.lazy_compile(compute)\n"
             "compute()\n"
-            "cinderjit.after_fork_child()\n"
-            "cinderjit.after_fork_child()\n"
+            "_cinderx.after_fork_child()\n"
+            "_cinderx.after_fork_child()\n"
             'print(f"survived({os.getpid()})", flush=True)\n'
         )
         stdout = self._run_script(script, tempfile.gettempdir())

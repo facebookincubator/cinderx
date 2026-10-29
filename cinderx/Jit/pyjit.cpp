@@ -15,7 +15,6 @@
 #include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/hugepages.h"
-#include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/runtime_offsets.h"
@@ -1806,7 +1805,7 @@ PyObject* is_multithreaded_compile_test_enabled(PyObject*, PyObject*) {
 
 bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
   // There appear to be instances where the runtime is finalizing and goes to
-  // destroy the cinderjit module and deopt all compiled functions, only to find
+  // destroy the _cinderx module and deopt all compiled functions, only to find
   // that some of the compiled functions have already been zeroed out and
   // possibly deallocated.  In theory this should be covered by funcDestroyed()
   // but somewhere that isn't being triggered.  This is not a good solution but
@@ -2737,8 +2736,7 @@ PyObject* disassemble(PyObject* /* self */, PyObject* func) {
 PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   JIT_CHECK(
       jitCtx() != nullptr,
-      "JIT context not initialized despite cinderjit module having been "
-      "loaded");
+      "JIT context not initialized despite JIT APIs having been registered");
   if (!PyUnicode_Check(arg)) {
     PyErr_SetString(PyExc_ValueError, "dump_elf expects a filename string");
     return nullptr;
@@ -3506,7 +3504,7 @@ PyObject* release_fork_locks(PyObject* imp) {
 
 // Patch sys.monitoring.register_callback to intercept debugger/profiler
 // attachment.
-void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
+void patchSysMonitoringFunctions(PyObject* cinderx_module) {
   BorrowedRef<> monitoring = PySys_GetObject("monitoring");
   if (monitoring == nullptr) {
     JIT_DLOG("sys.monitoring not found, skipping JIT monitoring integration");
@@ -3527,10 +3525,10 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
   mod_state->orig_sys_monitoring_register_callback = Ref<>::create(original);
 
   Ref<> patched_func = Ref<>::steal(PyObject_GetAttrString(
-      cinderjit_module, "patched_sys_monitoring_register_callback"));
+      cinderx_module, "patched_sys_monitoring_register_callback"));
   if (patched_func == nullptr) {
     JIT_LOG(
-        "Failed to get patched_sys_monitoring_register_callback from cinderjit "
+        "Failed to get patched_sys_monitoring_register_callback from _cinderx "
         "module");
     PyErr_Clear();
     return;
@@ -3555,7 +3553,7 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
         Ref<>::create(orig_free_tool_id);
 
     Ref<> patched_free_tool_id = Ref<>::steal(PyObject_GetAttrString(
-        cinderjit_module, "patched_sys_monitoring_free_tool_id"));
+        cinderx_module, "patched_sys_monitoring_free_tool_id"));
     if (patched_free_tool_id != nullptr) {
       if (PyObject_SetAttrString(
               monitoring, "free_tool_id", patched_free_tool_id) < 0) {
@@ -3566,7 +3564,7 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
       }
     } else {
       JIT_LOG(
-          "Failed to get patched_sys_monitoring_free_tool_id from cinderjit "
+          "Failed to get patched_sys_monitoring_free_tool_id from _cinderx "
           "module");
       PyErr_Clear();
     }
@@ -3580,7 +3578,7 @@ void patchSysMonitoringFunctions(PyObject* cinderjit_module) {
 
 // Patch sys.setprofile and sys.settrace to intercept profiler/debugger
 // attachment.
-void patchSysSetProfileAndSetTrace(PyObject* cinderjit_module) {
+void patchSysSetProfileAndSetTrace(PyObject* cinderx_module) {
   Ref<> sys = Ref<>::steal(PyImport_ImportModule("sys"));
   if (sys == nullptr) {
     PyErr_Clear();
@@ -3603,9 +3601,9 @@ void patchSysSetProfileAndSetTrace(PyObject* cinderjit_module) {
         storeOriginal(original);
 
         Ref<> patched = Ref<>::steal(
-            PyObject_GetAttrString(cinderjit_module, patched_attr_name));
+            PyObject_GetAttrString(cinderx_module, patched_attr_name));
         if (patched == nullptr) {
-          JIT_LOG("Failed to get {} from cinderjit module", patched_attr_name);
+          JIT_LOG("Failed to get {} from _cinderx module", patched_attr_name);
           PyErr_Clear();
           return;
         }
@@ -3989,10 +3987,6 @@ PyMethodDef jit_methods[] = {
      page_in_profiler_dependencies,
      METH_NOARGS,
      PyDoc_STR("Read the memory needed by ebpf-based profilers.")},
-    {"after_fork_child",
-     after_fork_child,
-     METH_NOARGS,
-     PyDoc_STR("Callback to be invoked by the runtime after fork().")},
     {"_deopt_gen",
      deopt_gen,
      METH_O,
@@ -4010,27 +4004,29 @@ PyMethodDef jit_methods[] = {
     {nullptr, nullptr, 0, nullptr},
 };
 
-int jit_exec(PyObject*) {
-  return 0;
+int initJitMethods(PyObject* mod) {
+  if (PyModule_AddFunctions(mod, jit_methods) < 0) {
+    return -1;
+  }
+
+  // Interpreter-owned fork callback lists outlive native module shutdown.
+  // This callback must not retain the module through its receiver.
+  static PyMethodDef callback = {
+      "after_fork_child",
+      after_fork_child,
+      METH_NOARGS,
+      PyDoc_STR("Callback to be invoked by the runtime after fork()."),
+  };
+  Ref<> name = Ref<>::steal(PyModule_GetNameObject(mod));
+  if (name == nullptr) {
+    return -1;
+  }
+  Ref<> fn = Ref<>::steal(PyCFunction_NewEx(&callback, nullptr, name));
+  if (fn == nullptr) {
+    return -1;
+  }
+  return PyObject_SetAttrString(mod, callback.ml_name, fn);
 }
-
-PyModuleDef_Slot jit_slots[] = {
-    {Py_mod_exec, reinterpret_cast<void*>(jit_exec)},
-    {}};
-
-PyModuleDef jit_module = {
-    PyModuleDef_HEAD_INIT,
-    "cinderjit", /* m_name */
-    PyDoc_STR(
-        "Control the Cinder JIT compiler. Only available when the JIT "
-        "has been enabled."),
-    0, /* m_size */
-    jit_methods, /* m_methods */
-    jit_slots, /* m_slots */
-    nullptr, /* m_traverse */
-    nullptr, /* m_clear */
-    nullptr, /* m_free */
-};
 
 // Point a nested code object at the function whose code contains it, so the
 // JIT can preload and compile the code without an instance of the nested
@@ -4080,7 +4076,7 @@ void trackEligibleCodeObjects(
 }
 
 // Register Python-level fork callbacks, if available.
-int register_fork_callback(BorrowedRef<> cinderjit_module) {
+int register_fork_callback(BorrowedRef<> cinderx_module) {
   auto os_module = Ref<>::steal(
       PyImport_ImportModuleLevel("posix", nullptr, nullptr, nullptr, 0));
   if (os_module == nullptr) {
@@ -4119,7 +4115,7 @@ int register_fork_callback(BorrowedRef<> cinderjit_module) {
     }
   } else {
     auto callback = Ref<>::steal(
-        PyObject_GetAttrString(cinderjit_module, "after_fork_child"));
+        PyObject_GetAttrString(cinderx_module, "after_fork_child"));
     if (callback == nullptr) {
       return -1;
     }
@@ -4664,7 +4660,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
 
 namespace cinderx::jit {
 
-int initialize() {
+int initialize(BorrowedRef<> cinderx_module) {
   JIT_CHECK(
       getConfig().state != State::kFinalizing,
       "Trying to re-initialize the JIT as it is finalizing");
@@ -4747,7 +4743,7 @@ int initialize() {
   ensureForkHandlersRegistered();
 
   // Create code allocator after jit::Config has been filled out.
-  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  cinderx::ModuleState* mod_state = cinderx::getModuleState(cinderx_module);
   mod_state->code_allocator.reset(CodeAllocator::make());
 
   // Discover the TLS offset for PyThreadState so the JIT can load tstate
@@ -4759,21 +4755,19 @@ int initialize() {
   // asmjit cannot initialize.
   mod_state->jit_context.reset(new CompilerContext<Compiler>());
 
-  PyObject* mod = _Ci_CreateBuiltinModule(&jit_module, "cinderjit");
-  if (mod == nullptr) {
+  if (initJitMethods(cinderx_module) < 0) {
     return -1;
   }
 
-  jitCtx()->setCinderJitModule(Ref<>::steal(mod));
-
-  if (install_jit_audit_hook() < 0 || register_fork_callback(mod) < 0 ||
+  if (install_jit_audit_hook() < 0 ||
+      register_fork_callback(cinderx_module) < 0 ||
       register_gc_callback() < 0) {
     return -1;
   }
 
   if (getConfig().support_instrumentation) {
-    patchSysMonitoringFunctions(mod);
-    patchSysSetProfileAndSetTrace(mod);
+    patchSysMonitoringFunctions(cinderx_module);
+    patchSysSetProfileAndSetTrace(cinderx_module);
   }
 
   // Set up perf event writers.
