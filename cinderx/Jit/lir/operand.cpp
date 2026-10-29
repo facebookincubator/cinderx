@@ -264,7 +264,6 @@ PhyLocation Operand::getPhyRegOrStackSlot() const {
           type_,
           rawValue());
   }
-  return -1;
 }
 
 void Operand::setPhyRegOrStackSlot(PhyLocation loc) {

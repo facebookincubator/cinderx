@@ -241,7 +241,6 @@ TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
     SKIP(
         "Callsite live-value locations are only filled in free-threaded "
         "builds");
-    return;
   }
 
   hir::Function hir_function;
