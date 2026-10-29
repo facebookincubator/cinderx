@@ -608,6 +608,8 @@ class HIRBuilder {
   // Tracks the most recent constant read from a KW_NAMES opcode.
   Register* kwnames_{nullptr};
 
+  std::unordered_map<Register*, const PreloadedImport*> preloaded_imports_;
+
   OperandStack static_method_stack_;
 
   // True if the function's bytecode contains only opcodes that cannot invoke

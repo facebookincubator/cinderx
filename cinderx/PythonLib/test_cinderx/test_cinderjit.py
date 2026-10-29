@@ -1,7 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import asyncio
+import builtins
 import copy
+import dis
 import faulthandler
 import gc
 import subprocess
@@ -1029,7 +1031,472 @@ class UnwindStateTests(unittest.TestCase):
         self.assertEqual(deleted, [1])
 
 
+@skip_unless_jit("Requires JIT import-cache inspection")
 class ImportTests(unittest.TestCase):
+    _MISSING = object()
+
+    def _install_module(self, name, module):
+        previous = sys.modules.get(name, self._MISSING)
+        sys.modules[name] = module
+
+        def restore():
+            if previous is self._MISSING:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = previous
+
+        self.addCleanup(restore)
+
+    def _make_import_name(self, module_name):
+        namespace: dict[str, Any] = {
+            "__builtins__": builtins.__dict__,
+            "__name__": __name__,
+        }
+        source = f"""
+def load():
+    import {module_name} as imported
+    return imported
+"""
+        exec(compile(source, f"<{module_name}>", "exec"), namespace, namespace)
+        load = namespace["load"]
+        self.assertTrue(force_compile(load))
+        self.assertTrue(is_jit_compiled(load))
+        return load
+
+    def _make_import_from(self, module_name, member="value"):
+        namespace: dict[str, Any] = {
+            "__builtins__": builtins.__dict__,
+            "__name__": __name__,
+        }
+        source = f"""
+def load():
+    from {module_name} import {member} as imported
+    return imported
+"""
+        exec(compile(source, f"<{module_name}>", "exec"), namespace, namespace)
+        load = namespace["load"]
+        self.assertTrue(force_compile(load))
+        self.assertTrue(is_jit_compiled(load))
+        return load
+
+    def _hir_opcodes(self, func):
+        opcodes = cinderx.jit.get_function_hir_opcode_counts(func)
+        self.assertIsNotNone(opcodes)
+        return opcodes
+
+    def _assert_import_name_cached(self, func):
+        opcodes = self._hir_opcodes(func)
+        self.assertGreaterEqual(opcodes.get("LoadGlobalCached", 0), 1)
+        self.assertGreaterEqual(opcodes.get("GuardIs", 0), 1)
+        self.assertEqual(opcodes.get("ImportName", 0), 0)
+        self.assertEqual(opcodes.get("EagerImportName", 0), 0)
+
+    def _assert_import_from_cached(self, func):
+        opcodes = self._hir_opcodes(func)
+        self.assertGreaterEqual(opcodes.get("LoadGlobalCached", 0), 2)
+        self.assertGreaterEqual(opcodes.get("Guard", 0), 1)
+        self.assertEqual(opcodes.get("ImportFrom", 0), 0)
+        self.assertEqual(opcodes.get("ImportName", 0), 0)
+        self.assertEqual(opcodes.get("EagerImportName", 0), 0)
+
+    def _assert_generic_import_name(self, func):
+        opcodes = self._hir_opcodes(func)
+        self.assertGreater(
+            opcodes.get("ImportName", 0) + opcodes.get("EagerImportName", 0),
+            0,
+        )
+
+    def _guard_deopts(self, func):
+        deopts = cinderx.jit.get_and_clear_runtime_stats().get("deopt") or ()
+        return sum(
+            event["int"]["count"]
+            for event in deopts
+            if event["normal"]["func_qualname"] == func.__qualname__
+            and event["normal"]["reason"] == "GuardFailure"
+        )
+
+    def _assert_eager_import_name(self, func):
+        self.assertIn(
+            "EAGER_IMPORT_NAME",
+            {instruction.opname for instruction in dis.get_instructions(func)},
+        )
+
+    def test_import_name_uses_cache(self) -> None:
+        name = "_cinderx_import_cache_basic"
+        module = types.ModuleType(name)
+        self._install_module(name, module)
+        load = self._make_import_name(name)
+
+        self.assertIs(load(), module)
+        self._assert_import_name_cached(load)
+
+    def test_import_name_sys_modules_mutations_deopt(self) -> None:
+        for mutation in ("replace", "delete", "readd"):
+            with self.subTest(mutation=mutation):
+                name = f"_cinderx_import_cache_{mutation}"
+                original = types.ModuleType(name)
+                replacement = types.ModuleType(name)
+                self._install_module(name, original)
+                load = self._make_import_name(name)
+                self.assertIs(load(), original)
+
+                if mutation == "replace":
+                    sys.modules[name] = replacement
+                elif mutation == "delete":
+                    del sys.modules[name]
+                else:
+                    del sys.modules[name]
+                    sys.modules[name] = replacement
+                cinderx.jit.clear_runtime_stats()
+
+                if mutation == "delete":
+                    with self.assertRaises(ModuleNotFoundError):
+                        load()
+                else:
+                    self.assertIs(load(), replacement)
+                self.assertGreater(self._guard_deopts(load), 0)
+
+    @run_in_fork
+    def test_import_name_sys_modules_clear_deopts(self) -> None:
+        name = "_cinderx_import_cache_clear"
+        original = types.ModuleType(name)
+        replacement = types.ModuleType(name)
+        self._install_module(name, original)
+        load = self._make_import_name(name)
+        self.assertIs(load(), original)
+
+        saved_modules = sys.modules.copy()
+        try:
+            sys.modules.clear()
+            sys.modules.update(saved_modules)
+            sys.modules[name] = replacement
+            cinderx.jit.clear_runtime_stats()
+
+            self.assertIs(load(), replacement)
+            self.assertGreater(self._guard_deopts(load), 0)
+        finally:
+            sys.modules.clear()
+            sys.modules.update(saved_modules)
+
+    def test_import_from_member_rebinding_does_not_deopt(self) -> None:
+        name = "_cinderx_import_cache_member_rebind"
+        original = object()
+        replacement = object()
+        module = types.ModuleType(name)
+        cast(Any, module).value = original
+        self._install_module(name, module)
+        load = self._make_import_from(name)
+        self.assertIs(load(), original)
+
+        cast(Any, module).value = replacement
+        cinderx.jit.clear_runtime_stats()
+
+        self.assertIs(load(), replacement)
+        self.assertEqual(self._guard_deopts(load), 0)
+        self._assert_import_from_cached(load)
+
+    def test_import_from_member_deletion_deopts_to_import_error(self) -> None:
+        name = "_cinderx_import_cache_member_delete"
+        module = types.ModuleType(name)
+        cast(Any, module).value = object()
+        self._install_module(name, module)
+        load = self._make_import_from(name)
+        self.assertIs(load(), cast(Any, module).value)
+
+        del cast(Any, module).value
+        cinderx.jit.clear_runtime_stats()
+
+        with self.assertRaises(ImportError):
+            load()
+        self.assertGreater(self._guard_deopts(load), 0)
+
+    def test_import_from_member_deletion_deopts_to_module_getattr(self) -> None:
+        name = "_cinderx_import_cache_module_getattr"
+        original = object()
+        fallback = object()
+        module = types.ModuleType(name)
+        cast(Any, module).value = original
+
+        def module_getattr(name: str) -> object:
+            if name == "value":
+                return fallback
+            raise AttributeError(name)
+
+        cast(Any, module).__getattr__ = module_getattr
+        self._install_module(name, module)
+        load = self._make_import_from(name)
+        self.assertIs(load(), original)
+
+        del cast(Any, module).value
+        cinderx.jit.clear_runtime_stats()
+
+        self.assertIs(load(), fallback)
+        self.assertGreater(self._guard_deopts(load), 0)
+
+    def test_import_from_same_member_uses_distinct_caches(self) -> None:
+        left_name = "_cinderx_import_cache_left"
+        right_name = "_cinderx_import_cache_right"
+        left = types.ModuleType(left_name)
+        right = types.ModuleType(right_name)
+        cast(Any, left).value = object()
+        cast(Any, right).value = object()
+        self._install_module(left_name, left)
+        self._install_module(right_name, right)
+
+        namespace: dict[str, Any] = {
+            "__builtins__": builtins.__dict__,
+            "__name__": __name__,
+        }
+        source = f"""
+def load():
+    from {left_name} import value as left_value
+    from {right_name} import value as right_value
+    return left_value, right_value
+"""
+        exec(compile(source, "<distinct_import_caches>", "exec"), namespace, namespace)
+        load = namespace["load"]
+        self.assertTrue(force_compile(load))
+
+        self.assertEqual(load(), (cast(Any, left).value, cast(Any, right).value))
+        self._assert_import_from_cached(load)
+
+    @run_in_fork
+    def test_custom_import_uses_generic_path(self) -> None:
+        calls = []
+        imported = object()
+
+        def custom_import(name, globals, locals, fromlist, level):
+            calls.append((name, globals, locals, fromlist, level))
+            return imported
+
+        source = """
+def load():
+    import _cinderx_import_cache_custom as result
+    return result
+"""
+        namespace: dict[str, Any] = {
+            "__builtins__": builtins.__dict__,
+            "__name__": __name__,
+        }
+        exec(compile(source, "<custom_import>", "exec"), namespace, namespace)
+        load = namespace["load"]
+        original_import = builtins.__import__
+        try:
+            cast(Any, builtins).__import__ = custom_import
+            self.assertTrue(force_compile(load))
+
+            self._assert_generic_import_name(load)
+            self.assertIs(load(), imported)
+            self.assertEqual(calls[0][0], "_cinderx_import_cache_custom")
+        finally:
+            cast(Any, builtins).__import__ = original_import
+
+    def test_relative_import_uses_generic_path(self) -> None:
+        package_name = "_cinderx_import_cache_package"
+        target_name = f"{package_name}.target"
+        value = object()
+        package = types.ModuleType(package_name)
+        package.__path__ = []
+        target = types.ModuleType(target_name)
+        cast(Any, target).value = value
+        cast(Any, package).target = target
+        self._install_module(package_name, package)
+        self._install_module(target_name, target)
+
+        namespace: dict[str, Any] = {
+            "__builtins__": builtins.__dict__,
+            "__name__": f"{package_name}.user",
+            "__package__": package_name,
+        }
+        source = """
+def load():
+    from .target import value as imported
+    return imported
+"""
+        exec(compile(source, "<relative_import>", "exec"), namespace, namespace)
+        load = namespace["load"]
+        self.assertTrue(force_compile(load))
+
+        self._assert_generic_import_name(load)
+        self.assertIs(load(), value)
+
+    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    def test_eager_import_name_cache_and_sys_modules_mutations(self) -> None:
+        for mutation in ("unchanged", "replace", "delete", "readd"):
+            with self.subTest(mutation=mutation):
+                name = f"_cinderx_eager_import_cache_{mutation}"
+                original = types.ModuleType(name)
+                replacement = types.ModuleType(name)
+                self._install_module(name, original)
+                load = self._make_import_name(name)
+                self._assert_eager_import_name(load)
+                self.assertIs(load(), original)
+
+                if mutation == "unchanged":
+                    self._assert_import_name_cached(load)
+                    continue
+                if mutation == "replace":
+                    sys.modules[name] = replacement
+                elif mutation == "delete":
+                    del sys.modules[name]
+                else:
+                    del sys.modules[name]
+                    sys.modules[name] = replacement
+                cinderx.jit.clear_runtime_stats()
+
+                if mutation == "delete":
+                    with self.assertRaises(ModuleNotFoundError):
+                        load()
+                else:
+                    self.assertIs(load(), replacement)
+                self.assertGreater(self._guard_deopts(load), 0)
+
+    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    @run_in_fork
+    def test_eager_import_name_sys_modules_clear_deopts(self) -> None:
+        name = "_cinderx_eager_import_cache_clear"
+        original = types.ModuleType(name)
+        replacement = types.ModuleType(name)
+        self._install_module(name, original)
+        load = self._make_import_name(name)
+        self._assert_eager_import_name(load)
+        self.assertIs(load(), original)
+
+        saved_modules = sys.modules.copy()
+        try:
+            sys.modules.clear()
+            sys.modules.update(saved_modules)
+            sys.modules[name] = replacement
+            cinderx.jit.clear_runtime_stats()
+
+            self.assertIs(load(), replacement)
+            self.assertGreater(self._guard_deopts(load), 0)
+        finally:
+            sys.modules.clear()
+            sys.modules.update(saved_modules)
+
+    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    def test_eager_import_from_member_mutations(self) -> None:
+        for mutation in ("rebind", "delete"):
+            with self.subTest(mutation=mutation):
+                name = f"_cinderx_eager_import_member_{mutation}"
+                original = object()
+                replacement = object()
+                module = types.ModuleType(name)
+                cast(Any, module).value = original
+                self._install_module(name, module)
+                load = self._make_import_from(name)
+                self._assert_eager_import_name(load)
+                self.assertIs(load(), original)
+
+                cinderx.jit.clear_runtime_stats()
+                if mutation == "rebind":
+                    cast(Any, module).value = replacement
+                    self.assertIs(load(), replacement)
+                    self.assertEqual(self._guard_deopts(load), 0)
+                    self._assert_import_from_cached(load)
+                else:
+                    del cast(Any, module).value
+                    with self.assertRaises(ImportError):
+                        load()
+                    self.assertGreater(self._guard_deopts(load), 0)
+
+    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    def test_eager_import_from_module_getattr_fallback(self) -> None:
+        name = "_cinderx_eager_import_module_getattr"
+        original = object()
+        fallback = object()
+        module = types.ModuleType(name)
+        cast(Any, module).value = original
+
+        def module_getattr(name: str) -> object:
+            if name == "value":
+                return fallback
+            raise AttributeError(name)
+
+        cast(Any, module).__getattr__ = module_getattr
+        self._install_module(name, module)
+        load = self._make_import_from(name)
+        self._assert_eager_import_name(load)
+        self.assertIs(load(), original)
+
+        del cast(Any, module).value
+        cinderx.jit.clear_runtime_stats()
+
+        self.assertIs(load(), fallback)
+        self.assertGreater(self._guard_deopts(load), 0)
+
+    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    @run_in_fork
+    def test_eager_import_custom_import_uses_generic_path(self) -> None:
+        imported = object()
+
+        def custom_import(name, globals, locals, fromlist, level):
+            return imported
+
+        namespace: dict[str, Any] = {
+            "__builtins__": builtins.__dict__,
+            "__name__": __name__,
+        }
+        exec(
+            compile(
+                "def load():\n"
+                "    import _cinderx_eager_import_custom as result\n"
+                "    return result\n",
+                "<eager_custom_import>",
+                "exec",
+            ),
+            namespace,
+            namespace,
+        )
+        load = namespace["load"]
+        self._assert_eager_import_name(load)
+        original_import = builtins.__import__
+        try:
+            cast(Any, builtins).__import__ = custom_import
+            self.assertTrue(force_compile(load))
+
+            self._assert_generic_import_name(load)
+            self.assertIs(load(), imported)
+        finally:
+            cast(Any, builtins).__import__ = original_import
+
+    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    def test_eager_import_relative_uses_generic_path(self) -> None:
+        package_name = "_cinderx_eager_import_package"
+        target_name = f"{package_name}.target"
+        value = object()
+        package = types.ModuleType(package_name)
+        package.__path__ = []
+        target = types.ModuleType(target_name)
+        cast(Any, target).value = value
+        cast(Any, package).target = target
+        self._install_module(package_name, package)
+        self._install_module(target_name, target)
+
+        namespace: dict[str, Any] = {
+            "__builtins__": builtins.__dict__,
+            "__name__": f"{package_name}.user",
+            "__package__": package_name,
+        }
+        exec(
+            compile(
+                "def load():\n"
+                "    from .target import value as imported\n"
+                "    return imported\n",
+                "<eager_relative_import>",
+                "exec",
+            ),
+            namespace,
+            namespace,
+        )
+        load = namespace["load"]
+        self._assert_eager_import_name(load)
+        self.assertTrue(force_compile(load))
+
+        self._assert_generic_import_name(load)
+        self.assertIs(load(), value)
+
     @cinder_support.failUnlessJITCompiled
     def test_import_name(self) -> None:
         import math

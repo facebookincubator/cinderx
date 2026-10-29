@@ -2,6 +2,8 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/util.h"
+#include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
@@ -13,6 +15,7 @@
 
 #include <array>
 #include <memory>
+#include <vector>
 
 namespace cinderx {
 
@@ -33,6 +36,131 @@ class JITContextTest : public RuntimeTest {
 
   std::unique_ptr<CompilerContext<Compiler>> jit_ctx_;
 };
+
+std::vector<const hir::PreloadedImport*> importRecords(
+    const hir::Preloader& preloader) {
+  std::vector<const hir::PreloadedImport*> records;
+  for (const auto& instr : BytecodeInstructionBlock{preloader.code()}) {
+    if (instr.opcode() != IMPORT_NAME && instr.opcode() != EAGER_IMPORT_NAME) {
+      continue;
+    }
+    if (const auto* info = preloader.preloadedImport(instr.baseOffset())) {
+      EXPECT_EQ(info->opcode, instr.opcode());
+      records.push_back(info);
+    }
+  }
+  return records;
+}
+
+TEST_F(JITContextTest, PreloaderCanonicalImportsPopulateSiteRecords) {
+  const char* src = R"(
+import types
+
+def func():
+    import types
+    from types import SimpleNamespace
+    return types, SimpleNamespace
+)";
+  Ref<PyFunctionObject> func{compileAndGet(src, "func")};
+  std::unique_ptr<hir::Preloader> preloader{hir::Preloader::make(func)};
+  ASSERT_NE(preloader, nullptr);
+
+  std::vector<const hir::PreloadedImport*> records = importRecords(*preloader);
+  ASSERT_EQ(records.size(), 2);
+
+  const hir::PreloadedImport* import_name = records[0];
+  const hir::PreloadedImport* import_from = records[1];
+  ASSERT_TRUE(import_name->from_members.empty());
+  ASSERT_EQ(import_from->from_members.size(), 1);
+  EXPECT_EQ(
+      PyUnicode_CompareWithASCIIString(
+          import_from->from_members[0].name, "SimpleNamespace"),
+      0);
+
+  for (const hir::PreloadedImport* info : records) {
+    EXPECT_EQ(
+        ftAtomicLoadPtrAcquire(*info->full_module.cache),
+        info->full_module.expected);
+    EXPECT_EQ(
+        ftAtomicLoadPtrAcquire(*info->returned_module.cache),
+        info->returned_module.expected);
+    EXPECT_EQ(
+        ftAtomicLoadPtrAcquire(*info->import_func.cache),
+        info->import_func.expected);
+    EXPECT_TRUE(PyDict_CheckExact(info->modules));
+    EXPECT_TRUE(PyDict_CheckExact(info->source_module_dict));
+  }
+  EXPECT_EQ(
+      ftAtomicLoadPtrAcquire(*import_from->from_members[0].value.cache),
+      import_from->from_members[0].value.expected);
+}
+
+TEST_F(JITContextTest, PreloaderUnsafeImportFormsDoNotPopulateRecords) {
+  const char* src = R"(
+def replacement_import(*args, **kwargs):
+    return None
+
+def template():
+    import types
+
+custom = type(template)(
+    template.__code__,
+    {"__builtins__": {"__import__": replacement_import}},
+)
+
+def relative():
+    from . import missing
+)";
+  runCode(src);
+
+  for (const char* name : {"custom", "relative"}) {
+    Ref<PyFunctionObject> func{getGlobal(name)};
+    std::unique_ptr<hir::Preloader> preloader{hir::Preloader::make(func)};
+    ASSERT_NE(preloader, nullptr);
+    EXPECT_TRUE(importRecords(*preloader).empty()) << name;
+  }
+
+#if PY_VERSION_HEX >= 0x030F0000
+  runCode(R"(
+import dis
+
+def lazy_template():
+    import types
+
+code = bytearray(lazy_template.__code__.co_code)
+for instr in dis.get_instructions(lazy_template):
+    if instr.opname == "IMPORT_NAME":
+        code[instr.offset + 1] = (instr.arg & ~3) | 1
+lazy = type(lazy_template)(
+    lazy_template.__code__.replace(co_code=bytes(code)),
+    globals(),
+)
+)");
+  Ref<PyFunctionObject> lazy_func{getGlobal("lazy")};
+  std::unique_ptr<hir::Preloader> lazy_preloader{
+      hir::Preloader::make(lazy_func)};
+  ASSERT_NE(lazy_preloader, nullptr);
+  EXPECT_TRUE(importRecords(*lazy_preloader).empty());
+#endif
+}
+
+TEST_F(JITContextTest, PreloaderDeclinesCinderXModuleImports) {
+  const char* src = R"(
+def import_module():
+    import _cinderx
+
+def import_member():
+    from _cinderx import _next_or_sentinel
+)";
+  runCode(src);
+
+  for (const char* name : {"import_module", "import_member"}) {
+    Ref<PyFunctionObject> func{getGlobal(name)};
+    std::unique_ptr<hir::Preloader> preloader{hir::Preloader::make(func)};
+    ASSERT_NE(preloader, nullptr);
+    EXPECT_TRUE(importRecords(*preloader).empty()) << name;
+  }
+}
 
 TEST_F(JITContextTest, UnwatchableBuiltins) {
   // This is a C++ test rather than in test_cinderjit so we can guarantee a

@@ -1877,6 +1877,214 @@ def test():
   EXPECT_EQ(counts[Opcode::kGuardType], 1);
 }
 
+class ImportCacheHIRTest : public LoadGlobalGuardTest {
+ public:
+  void expectCachedImportShape(
+      BorrowedRef<PyFunctionObject> pyfunc,
+      int expected_loads,
+      int expected_import_name_guards,
+      bool has_from_member) {
+    std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+    ASSERT_NE(irfunc, nullptr);
+
+    auto counts = opcodeCounts(*irfunc);
+    EXPECT_EQ(counts[Opcode::kLoadGlobalCached], expected_loads);
+    EXPECT_EQ(
+        counts[Opcode::kGuardIs],
+        expected_import_name_guards + (has_from_member ? 1 : 0));
+    EXPECT_EQ(counts[Opcode::kGuard], has_from_member ? 1 : 0);
+    EXPECT_EQ(counts[Opcode::kImportName], 0);
+    EXPECT_EQ(counts[Opcode::kEagerImportName], 0);
+    EXPECT_EQ(counts[Opcode::kImportFrom], 0);
+
+    int import_name_guards = 0;
+    int import_from_module_guards = 0;
+    int import_from_member_guards = 0;
+    for (const BasicBlock& block : irfunc->cfg.blocks) {
+      const FrameState* snapshot = nullptr;
+      for (const Instr& instr : block) {
+        if (instr.isSnapshot()) {
+          snapshot = static_cast<const Snapshot&>(instr).frameState();
+          continue;
+        }
+        const DeoptBase* deopt = instr.asDeoptBase();
+        if (deopt == nullptr) {
+          continue;
+        }
+        if (instr.isGuardIs() && deopt->descr().starts_with("IMPORT_NAME")) {
+          ASSERT_NE(snapshot, nullptr);
+          EXPECT_EQ(snapshot->stack.size(), 2);
+          import_name_guards++;
+        } else if (
+            instr.isGuardIs() &&
+            deopt->descr().starts_with("IMPORT_FROM module")) {
+          ASSERT_NE(snapshot, nullptr);
+          EXPECT_EQ(snapshot->stack.size(), 1);
+          import_from_module_guards++;
+        } else if (
+            instr.isGuard() && deopt->descr().starts_with("IMPORT_FROM:")) {
+          ASSERT_NE(deopt->frameState(), nullptr);
+          EXPECT_EQ(deopt->frameState()->stack.size(), 1);
+          import_from_member_guards++;
+        }
+      }
+    }
+    EXPECT_EQ(import_name_guards, expected_import_name_guards);
+    EXPECT_EQ(import_from_module_guards, has_from_member ? 1 : 0);
+    EXPECT_EQ(import_from_member_guards, has_from_member ? 1 : 0);
+  }
+
+  void expectGenericImport(BorrowedRef<PyFunctionObject> pyfunc) {
+    std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+    ASSERT_NE(irfunc, nullptr);
+
+    auto counts = opcodeCounts(*irfunc);
+    EXPECT_EQ(counts[Opcode::kLoadGlobalCached], 0);
+    EXPECT_EQ(counts[Opcode::kGuardIs], 0);
+    EXPECT_EQ(
+        counts[Opcode::kImportName] + counts[Opcode::kEagerImportName], 1);
+  }
+
+  bool hasBytecodeOpcode(BorrowedRef<PyFunctionObject> pyfunc, int opcode) {
+    for (const auto& instr : BytecodeInstructionBlock{pyfunc->func_code}) {
+      if (instr.opcode() == opcode) {
+        return true;
+      }
+    }
+    return false;
+  }
+};
+
+TEST_F(ImportCacheHIRTest, EligibleImportNameUsesCachedGuardsAndSnapshot) {
+  const char* pycode = R"(
+import dis
+import types
+
+def template():
+  import types
+  return types
+
+code = bytearray(template.__code__.co_code)
+for instr in dis.get_instructions(template):
+  if instr.opname in ("IMPORT_NAME", "EAGER_IMPORT_NAME"):
+    code[instr.offset] = dis.opmap["IMPORT_NAME"]
+test = type(template)(template.__code__.replace(co_code=bytes(code)), globals())
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  ASSERT_TRUE(hasBytecodeOpcode(pyfunc, IMPORT_NAME));
+
+  expectCachedImportShape(pyfunc, 2, 2, false);
+}
+
+TEST_F(ImportCacheHIRTest, DottedImportGuardsFullAndReturnedModules) {
+  const char* pycode = R"(
+import xml.etree
+
+def test():
+  import xml.etree
+  return xml
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+
+  expectCachedImportShape(pyfunc, 3, 3, false);
+}
+
+TEST_F(ImportCacheHIRTest, EligibleImportFromUsesMemberGuardAndSnapshot) {
+  const char* pycode = R"(
+import types
+
+def test():
+  from types import SimpleNamespace
+  return SimpleNamespace
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+
+  expectCachedImportShape(pyfunc, 3, 2, true);
+}
+
+#if PY_VERSION_HEX < 0x030F0000
+TEST_F(ImportCacheHIRTest, EagerImportNameAndFromUseCachedGuardsAndSnapshots) {
+  const char* pycode = R"(
+import dis
+import types
+
+def import_template():
+  import types
+  return types
+
+def from_template():
+  from types import SimpleNamespace
+  return SimpleNamespace
+
+def make_eager(func):
+  code = bytearray(func.__code__.co_code)
+  for instr in dis.get_instructions(func):
+    if instr.opname == "IMPORT_NAME":
+      code[instr.offset] = dis.opmap["EAGER_IMPORT_NAME"]
+  return type(func)(func.__code__.replace(co_code=bytes(code)), globals())
+
+eager_import = make_eager(import_template)
+eager_from = make_eager(from_template)
+)";
+  runCode(pycode);
+  Ref<PyFunctionObject> eager_import(getGlobal("eager_import"));
+  Ref<PyFunctionObject> eager_from(getGlobal("eager_from"));
+  ASSERT_TRUE(hasBytecodeOpcode(eager_import, EAGER_IMPORT_NAME));
+  ASSERT_TRUE(hasBytecodeOpcode(eager_from, EAGER_IMPORT_NAME));
+
+  expectCachedImportShape(eager_import, 2, 2, false);
+  expectCachedImportShape(eager_from, 3, 2, true);
+}
+#endif
+
+TEST_F(ImportCacheHIRTest, CustomAndRelativeImportsRemainGeneric) {
+  const char* pycode = R"(
+def replacement_import(*args, **kwargs):
+  return None
+
+def template():
+  import types
+
+custom = type(template)(
+    template.__code__,
+    {"__builtins__": {"__import__": replacement_import}},
+)
+
+def relative():
+  from . import missing
+)";
+  runCode(pycode);
+  Ref<PyFunctionObject> custom(getGlobal("custom"));
+  Ref<PyFunctionObject> relative(getGlobal("relative"));
+
+  expectGenericImport(custom);
+  expectGenericImport(relative);
+}
+
+#if PY_VERSION_HEX >= 0x030F0000
+TEST_F(ImportCacheHIRTest, LazyImportRemainsGeneric) {
+  const char* pycode = R"(
+import dis
+
+def template():
+  import types
+
+code = bytearray(template.__code__.co_code)
+for instr in dis.get_instructions(template):
+  if instr.opname == "IMPORT_NAME":
+    code[instr.offset + 1] = (instr.arg & ~3) | 1
+lazy = type(template)(template.__code__.replace(co_code=bytes(code)), globals())
+)";
+  runCode(pycode);
+  Ref<PyFunctionObject> lazy(getGlobal("lazy"));
+
+  expectGenericImport(lazy);
+}
+#endif
+
 class HIRCloneTest : public RuntimeTest {};
 
 TEST_F(HIRCloneTest, CanCloneInstrs) {

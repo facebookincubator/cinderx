@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/context.h"
@@ -36,6 +37,37 @@ class ASMGeneratorTest : public RuntimeTest {
     }
     return jit_ctx->makeCompiledFunction(
         func_obj, key, std::move(*compiled_func));
+  }
+
+  bool HasBytecodeOpcode(BorrowedRef<PyFunctionObject> func, int opcode) {
+    for (const auto& instr : BytecodeInstructionBlock{func->func_code}) {
+      if (instr.opcode() == opcode) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void ExpectImportGuardReplay(
+      BorrowedRef<PyFunctionObject> func,
+      const char* module_name,
+      BorrowedRef<> original,
+      BorrowedRef<> replacement,
+      int import_opcode) {
+    ASSERT_TRUE(HasBytecodeOpcode(func, import_opcode));
+    Ref<CompiledFunction> compiled = GenerateCode(func);
+    ASSERT_NE(compiled, nullptr);
+
+    PyObject* args[] = {};
+    Ref<> initial = Ref<>::steal(compiled->invoke(func, args, 0));
+    ASSERT_EQ(initial, original);
+
+    ASSERT_EQ(
+        PyDict_SetItemString(
+            PyImport_GetModuleDict(), module_name, replacement),
+        0);
+    Ref<> after_replacement = Ref<>::steal(compiled->invoke(func, args, 0));
+    EXPECT_EQ(after_replacement, replacement);
   }
 };
 
@@ -1491,6 +1523,102 @@ def test_override_builtin_import(locals):
   auto res1 = Ref<>::steal(compiled_func->invoke(pyfunc, args1, 1));
   EXPECT_EQ(res1.get(), Py_True)
       << "Failed to run test_override_builtin_import(True)";
+}
+
+TEST_F(ASMGeneratorTest, ImportNameGuardFailureReplaysOriginalOpcode) {
+  const char* pycode = R"(
+import dis
+import sys
+import types
+
+normal_original = types.ModuleType("_cinderx_codegen_normal_import")
+normal_replacement = types.ModuleType("_cinderx_codegen_normal_import")
+sys.modules["_cinderx_codegen_normal_import"] = normal_original
+
+def normal_template():
+  import _cinderx_codegen_normal_import as imported
+  return imported
+
+normal_code = bytearray(normal_template.__code__.co_code)
+for instr in dis.get_instructions(normal_template):
+  if instr.opname in ("IMPORT_NAME", "EAGER_IMPORT_NAME"):
+    normal_code[instr.offset] = dis.opmap["IMPORT_NAME"]
+normal_import = type(normal_template)(
+    normal_template.__code__.replace(co_code=bytes(normal_code)), globals()
+)
+
+eager_original = types.ModuleType("_cinderx_codegen_eager_import")
+eager_replacement = types.ModuleType("_cinderx_codegen_eager_import")
+sys.modules["_cinderx_codegen_eager_import"] = eager_original
+
+def eager_template():
+  import _cinderx_codegen_eager_import as imported
+  return imported
+
+if "EAGER_IMPORT_NAME" in dis.opmap:
+  code = bytearray(eager_template.__code__.co_code)
+  for instr in dis.get_instructions(eager_template):
+    if instr.opname == "IMPORT_NAME":
+      code[instr.offset] = dis.opmap["EAGER_IMPORT_NAME"]
+  eager_import = type(eager_template)(
+      eager_template.__code__.replace(co_code=bytes(code)), globals()
+  )
+)";
+  runCode(pycode);
+
+  Ref<PyFunctionObject> normal_import(getGlobal("normal_import"));
+  Ref<> normal_original(getGlobal("normal_original"));
+  Ref<> normal_replacement(getGlobal("normal_replacement"));
+  ExpectImportGuardReplay(
+      normal_import,
+      "_cinderx_codegen_normal_import",
+      normal_original,
+      normal_replacement,
+      IMPORT_NAME);
+
+#if PY_VERSION_HEX < 0x030F0000
+  Ref<PyFunctionObject> eager_import(getGlobal("eager_import"));
+  Ref<> eager_original(getGlobal("eager_original"));
+  Ref<> eager_replacement(getGlobal("eager_replacement"));
+  ExpectImportGuardReplay(
+      eager_import,
+      "_cinderx_codegen_eager_import",
+      eager_original,
+      eager_replacement,
+      EAGER_IMPORT_NAME);
+#endif
+}
+
+TEST_F(ASMGeneratorTest, ImportFromGuardFailureReplaysImportFrom) {
+  const char* pycode = R"(
+import sys
+import types
+
+member_module = types.ModuleType("_cinderx_codegen_member_import")
+member_value = object()
+member_module.value = member_value
+sys.modules["_cinderx_codegen_member_import"] = member_module
+
+def import_member():
+  from _cinderx_codegen_member_import import value
+  return value
+)";
+  runCode(pycode);
+  Ref<PyFunctionObject> import_member(getGlobal("import_member"));
+  ASSERT_TRUE(HasBytecodeOpcode(import_member, IMPORT_FROM));
+  Ref<CompiledFunction> compiled = GenerateCode(import_member);
+  ASSERT_NE(compiled, nullptr);
+
+  PyObject* args[] = {};
+  Ref<> initial = Ref<>::steal(compiled->invoke(import_member, args, 0));
+  ASSERT_EQ(initial, getGlobal("member_value"));
+
+  Ref<> member_module(getGlobal("member_module"));
+  ASSERT_EQ(PyObject_DelAttrString(member_module, "value"), 0);
+  Ref<> after_deletion = Ref<>::steal(compiled->invoke(import_member, args, 0));
+  EXPECT_EQ(after_deletion, nullptr);
+  EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_ImportError));
+  PyErr_Clear();
 }
 
 TEST_F(ASMGeneratorTest, GetLength) {

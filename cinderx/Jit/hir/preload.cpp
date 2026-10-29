@@ -2,9 +2,12 @@
 
 #include "cinderx/Jit/hir/preload.h"
 
+#include "internal/pycore_runtime.h"
+
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode.h"
@@ -20,7 +23,9 @@
 #include "internal/pycore_lazyimportobject.h" // PyLazyImport_CheckExact
 #endif
 
+#include <optional>
 #include <utility>
+#include <vector>
 
 namespace cinderx::jit::hir {
 
@@ -146,6 +151,274 @@ std::unique_ptr<NativeTarget> resolve_native_target(
 
 thread_local PreloaderManager* tls_manager = nullptr;
 
+// 3.15 packs the lazy-import flags into the low two bits of the IMPORT_NAME
+// oparg and the name index into the rest.  CPython decodes this inline in
+// bytecodes.c and exports no names for it.
+constexpr int kImportEagerFlag = 0x02;
+constexpr int kImportNameIdxShift = 2;
+
+bool isExactInternedUnicode(BorrowedRef<> obj) {
+  return PyUnicode_CheckExact(obj) && PyUnicode_CHECK_INTERNED(obj.get());
+}
+
+bool isCacheableDict(BorrowedRef<PyDictObject> dict) {
+  if (!PyDict_CheckExact(dict)) {
+    return false;
+  }
+  CriticalSectionGuard guard(dict);
+  return hasOnlyUnicodeKeys(dict);
+}
+
+bool isInitializedModule(BorrowedRef<> module) {
+  if (!PyModule_CheckExact(module)) {
+    return false;
+  }
+  BorrowedRef<PyDictObject> dict{PyModule_GetDict(module)};
+  BorrowedRef<> spec{PyDict_GetItem(dict, &_Py_ID(__spec__))};
+  if (spec == nullptr) {
+    return true;
+  }
+  Ref<> initializing{
+      Ref<>::steal(PyObject_GetAttr(spec, &_Py_ID(_initializing)))};
+  if (initializing == nullptr) {
+    bool attr_error = PyErr_ExceptionMatches(PyExc_AttributeError);
+    PyErr_Clear();
+    return attr_error;
+  }
+  int is_initializing = PyObject_IsTrue(initializing);
+  if (is_initializing < 0) {
+    PyErr_Clear();
+    return false;
+  }
+  return is_initializing == 0;
+}
+
+int importNameIndex(const BytecodeInstruction& instr) {
+  if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+    return instr.oparg() >> kImportNameIdxShift;
+  }
+  return instr.oparg();
+}
+
+bool isEagerImport(const BytecodeInstruction& instr, bool is_module_code) {
+  if (instr.opcode() == EAGER_IMPORT_NAME) {
+    return true;
+  }
+  if (instr.opcode() != IMPORT_NAME) {
+    return false;
+  }
+  if constexpr (PY_VERSION_HEX >= 0x030F0000) {
+    return instr.oparg() & kImportEagerFlag;
+  }
+  if (!is_module_code) {
+    return true;
+  }
+#ifdef ENABLE_LAZY_IMPORTS
+  return !PyImport_IsLazyImportsEnabled();
+#else
+  return true;
+#endif
+}
+
+// Name of the module an import expression evaluates to.  `from a.b import c`
+// yields the module it names, but a bare `import a.b` binds the top-level
+// package `a`.  Returns nullptr on failure.
+Ref<PyUnicodeObject> returnedModuleName(
+    BorrowedRef<PyUnicodeObject> full_name,
+    bool has_from_members) {
+  if (has_from_members) {
+    return Ref<PyUnicodeObject>::create(full_name);
+  }
+  Py_ssize_t dot =
+      PyUnicode_FindChar(full_name, '.', 0, PyUnicode_GET_LENGTH(full_name), 1);
+  if (dot == -2) {
+    PyErr_Clear();
+    return nullptr;
+  }
+  if (dot < 0) {
+    return Ref<PyUnicodeObject>::create(full_name);
+  }
+  Ref<> prefix = Ref<>::steal(PyUnicode_Substring(full_name, 0, dot));
+  if (prefix == nullptr) {
+    return nullptr;
+  }
+  PyObject* raw_prefix = prefix.release();
+  PyUnicode_InternInPlace(&raw_prefix);
+  return Ref<PyUnicodeObject>::steal(raw_prefix);
+}
+
+PyObject** dictCache(
+    BorrowedRef<PyDictObject> dict,
+    BorrowedRef<PyUnicodeObject> name) {
+  auto* state = cinderx::getModuleState();
+  if (state == nullptr || state->cache_manager == nullptr) {
+    return nullptr;
+  }
+  return state->cache_manager->getGlobalCache(dict, dict, name);
+}
+
+bool importInfoStillValid(const PreloadedImport& info) {
+  if (!info.full_module.isValid() || !info.returned_module.isValid() ||
+      !info.import_func.isValid() || !isCacheableDict(info.modules) ||
+      !isCacheableDict(info.source_module_dict)) {
+    return false;
+  }
+  for (const auto& member : info.from_members) {
+    if (!member.value.isValid()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+std::optional<PreloadedImport> makePreloadedImport(
+    BorrowedRef<PyCodeObject> code,
+    BorrowedRef<PyDictObject> builtins,
+    const BytecodeInstruction& instr,
+    BorrowedRef<> fromlist,
+    bool is_module_code) {
+  if (!isEagerImport(instr, is_module_code) ||
+      (fromlist != Py_None && !PyTuple_CheckExact(fromlist))) {
+    return std::nullopt;
+  }
+
+  int name_idx = importNameIndex(instr);
+  BorrowedRef<PyTupleObject> names{code->co_names};
+  if (name_idx < 0 || name_idx >= PyTuple_GET_SIZE(names)) {
+    return std::nullopt;
+  }
+  BorrowedRef<PyUnicodeObject> full_name{PyTuple_GET_ITEM(names, name_idx)};
+  if (!isExactInternedUnicode(full_name)) {
+    return std::nullopt;
+  }
+
+  Py_ssize_t num_from_members =
+      fromlist == Py_None ? 0 : PyTuple_GET_SIZE(fromlist);
+  for (Py_ssize_t i = 0; i < num_from_members; i++) {
+    BorrowedRef<> member_name{PyTuple_GET_ITEM(fromlist.get(), i)};
+    if (!isExactInternedUnicode(member_name) ||
+        PyUnicode_CompareWithASCIIString(member_name, "*") == 0) {
+      return std::nullopt;
+    }
+  }
+
+  PyInterpreterState* interp = PyInterpreterState_Get();
+  BorrowedRef<PyDictObject> interpreter_builtins{interp->builtins};
+  if (builtins != interpreter_builtins || !isCacheableDict(builtins)) {
+    return std::nullopt;
+  }
+  BorrowedRef<> canonical_import{CI_INTERP_IMPORT_FIELD(interp, import_func)};
+  Ref<PyUnicodeObject> import_name =
+      Ref<PyUnicodeObject>::steal(PyUnicode_InternFromString("__import__"));
+  if (canonical_import == nullptr || import_name == nullptr ||
+      PyDict_GetItemWithError(builtins, import_name) != canonical_import) {
+    PyErr_Clear();
+    return std::nullopt;
+  }
+
+  BorrowedRef<PyDictObject> modules{CI_INTERP_IMPORT_FIELD(interp, modules)};
+  if (!isCacheableDict(modules)) {
+    return std::nullopt;
+  }
+  BorrowedRef<> full_module{PyDict_GetItemWithError(modules, full_name)};
+  if (full_module == nullptr || !isInitializedModule(full_module)) {
+    PyErr_Clear();
+    return std::nullopt;
+  }
+
+  Ref<PyUnicodeObject> returned_name =
+      returnedModuleName(full_name, num_from_members != 0);
+  if (returned_name == nullptr) {
+    PyErr_Clear();
+    return std::nullopt;
+  }
+  BorrowedRef<> returned_module{
+      PyDict_GetItemWithError(modules, returned_name)};
+  if (returned_module == nullptr || !isInitializedModule(returned_module)) {
+    PyErr_Clear();
+    return std::nullopt;
+  }
+
+  auto* state = cinderx::getModuleState();
+  if (state != nullptr &&
+      (full_module == state->cinderx_module ||
+       returned_module == state->cinderx_module)) {
+    // Pinning _cinderx in code owned by its JIT Context creates a cycle that
+    // can re-enter Context teardown when compiled references are released.
+    return std::nullopt;
+  }
+
+  BorrowedRef<PyDictObject> source_module_dict{PyModule_GetDict(full_module)};
+  if (!isCacheableDict(source_module_dict)) {
+    return std::nullopt;
+  }
+
+  PyObject** full_module_cache = dictCache(modules, full_name);
+  PyObject** returned_module_cache = dictCache(modules, returned_name);
+  PyObject** import_func_cache = dictCache(builtins, import_name);
+  if (full_module_cache == nullptr || returned_module_cache == nullptr ||
+      import_func_cache == nullptr) {
+    return std::nullopt;
+  }
+
+  PreloadedImport info{
+      .opcode = instr.opcode(),
+      .name_idx = name_idx,
+      .full_name = Ref<PyUnicodeObject>::create(full_name),
+      .returned_name = std::move(returned_name),
+      .modules = Ref<PyDictObject>::create(modules),
+      .full_module =
+          {.cache = full_module_cache, .expected = Ref<>::create(full_module)},
+      .returned_module =
+          {.cache = returned_module_cache,
+           .expected = Ref<>::create(returned_module)},
+      .import_func =
+          {.cache = import_func_cache,
+           .expected = Ref<>::create(canonical_import)},
+      .source_module_dict = Ref<PyDictObject>::create(source_module_dict),
+  };
+
+  info.from_members.reserve(num_from_members);
+  for (Py_ssize_t i = 0; i < num_from_members; i++) {
+    BorrowedRef<PyUnicodeObject> member_name{
+        PyTuple_GET_ITEM(fromlist.get(), i)};
+    Py_ssize_t member_name_idx = -1;
+    for (Py_ssize_t j = 0; j < PyTuple_GET_SIZE(names); j++) {
+      if (PyTuple_GET_ITEM(names, j) == member_name) {
+        member_name_idx = j;
+        break;
+      }
+    }
+    if (member_name_idx < 0) {
+      return std::nullopt;
+    }
+    BorrowedRef<> member_value{
+        PyDict_GetItemWithError(source_module_dict, member_name)};
+    if (member_value == nullptr) {
+      PyErr_Clear();
+      return std::nullopt;
+    }
+#if PY_VERSION_HEX >= 0x030F0000
+    if (PyLazyImport_CheckExact(member_value)) {
+      return std::nullopt;
+    }
+#endif
+    PyObject** member_cache = dictCache(source_module_dict, member_name);
+    if (member_cache == nullptr) {
+      return std::nullopt;
+    }
+    info.from_members.emplace_back(
+        PreloadedImportMember{
+            .name_idx = member_name_idx,
+            .name = Ref<PyUnicodeObject>::create(member_name),
+            .value =
+                {.cache = member_cache,
+                 .expected = Ref<>::create(member_value)},
+        });
+  }
+  return info;
+}
+
 } // namespace
 
 namespace {
@@ -259,6 +532,12 @@ std::unique_ptr<Preloader> Preloader::makeImpl(
       "result: {}",
       success);
   return success ? std::move(preloader) : nullptr;
+}
+
+bool CachedValue::isValid() const {
+  BorrowedRef<> current =
+      cache == nullptr ? nullptr : ftAtomicLoadPtrAcquire(*cache);
+  return current == expected;
 }
 
 BorrowedRef<PyFunctionObject> InvokeTarget::func() const {
@@ -382,6 +661,11 @@ PyObject** Preloader::globalCache(int name_idx) const {
   return it->second;
 }
 
+const PreloadedImport* Preloader::preloadedImport(BCOffset bc_off) const {
+  auto it = preloaded_imports_.find(bc_off);
+  return it != preloaded_imports_.end() ? &it->second : nullptr;
+}
+
 std::unique_ptr<Function> Preloader::makeFunction() const {
   // We touch refcounts of Python objects here, so must serialize
   auto irfunc = std::make_unique<Function>();
@@ -503,6 +787,9 @@ bool Preloader::preload(BorrowedRef<> module, bool register_code) {
     return global_value;
   };
   jit::BytecodeInstructionBlock bc_instrs{code_};
+  std::optional<BytecodeInstruction> previous_instr;
+  std::optional<BytecodeInstruction> previous_previous_instr;
+  std::vector<std::pair<BCOffset, PreloadedImport>> import_candidates;
   for (auto bc_instr : bc_instrs) {
     switch (bc_instr.opcode()) {
       case LOAD_GLOBAL: {
@@ -546,6 +833,52 @@ bool Preloader::preload(BorrowedRef<> module, bool register_code) {
             global_caches_.emplace(name_idx, cache);
             global_names_.emplace(name_idx, name);
           }
+        }
+        break;
+      }
+      case EAGER_IMPORT_NAME:
+      case IMPORT_NAME: {
+        if (previous_previous_instr == std::nullopt ||
+            previous_instr == std::nullopt) {
+          break;
+        }
+
+        bool is_absolute = false;
+        if (previous_previous_instr->opcode() == LOAD_CONST) {
+          BorrowedRef<> level = constArg(*previous_previous_instr);
+          if (PyLong_CheckExact(level)) {
+            is_absolute = PyLong_AsLong(level) == 0;
+            PyErr_Clear();
+          }
+        }
+#if PY_VERSION_HEX >= 0x030E0000
+        if (previous_previous_instr->opcode() == LOAD_SMALL_INT) {
+          is_absolute = previous_previous_instr->oparg() == 0;
+        }
+#endif
+        if (!is_absolute) {
+          break;
+        }
+
+        BorrowedRef<> fromlist;
+        if (previous_instr->opcode() == LOAD_CONST) {
+          fromlist = constArg(*previous_instr);
+        }
+#if PY_VERSION_HEX >= 0x030F0000
+        constexpr int kCommonConstantNone = 7;
+        if (previous_instr->opcode() == LOAD_COMMON_CONSTANT &&
+            previous_instr->oparg() == kCommonConstantNone) {
+          fromlist = Py_None;
+        }
+#endif
+        if (fromlist == nullptr) {
+          break;
+        }
+        std::optional<PreloadedImport> info = makePreloadedImport(
+            code_, builtins_, bc_instr, fromlist, isModuleCodeObject());
+        if (info != std::nullopt) {
+          import_candidates.emplace_back(
+              bc_instr.baseOffset(), std::move(*info));
         }
         break;
       }
@@ -623,6 +956,8 @@ bool Preloader::preload(BorrowedRef<> module, bool register_code) {
       }
 #endif
     }
+    previous_previous_instr = previous_instr;
+    previous_instr = bc_instr;
   }
 
   // Re-fetch the global values at the end after we may have triggered side
@@ -642,6 +977,15 @@ bool Preloader::preload(BorrowedRef<> module, bool register_code) {
     }
 #endif
     global_values_.emplace(idx_and_ref.first, std::move(global_value));
+  }
+
+  // Import and global preloading can execute Python and mutate any of the
+  // watched dictionaries. Only publish records whose cells still contain the
+  // exact objects observed when the record was built.
+  for (auto& [bc_off, info] : import_candidates) {
+    if (importInfoStillValid(info)) {
+      preloaded_imports_.emplace(bc_off, std::move(info));
+    }
   }
 
   return true;

@@ -4793,9 +4793,45 @@ void HIRBuilder::emitImportFrom(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   auto& stack = tc.frame.stack;
-  Register* name = stack.top();
+  Register* module = stack.top();
   Register* res = allocateTemp();
-  tc.emit<ImportFrom>(res, name, bc_instr.oparg(), tc.frame);
+  auto import_it = preloaded_imports_.find(module);
+  if (import_it == preloaded_imports_.end()) {
+    tc.emit<ImportFrom>(res, module, bc_instr.oparg(), tc.frame);
+    stack.push(res);
+    return;
+  }
+
+  const PreloadedImport& import = *import_it->second;
+  const PreloadedImportMember* member = nullptr;
+  for (const auto& candidate : import.from_members) {
+    if (candidate.name_idx == bc_instr.oparg()) {
+      member = &candidate;
+      break;
+    }
+  }
+  if (member == nullptr) {
+    tc.emit<ImportFrom>(res, module, bc_instr.oparg(), tc.frame);
+    stack.push(res);
+    return;
+  }
+
+  tc.emit<Snapshot>(tc.frame);
+  auto module_guard =
+      tc.emit<GuardIs>(module, import.returned_module.expected, module);
+  module_guard->setDescr(
+      fmt::format("IMPORT_FROM module: {}", preloader_.name(import.name_idx)));
+  tc.emit<LoadGlobalCached>(
+      res,
+      code_,
+      import.source_module_dict,
+      import.source_module_dict,
+      static_cast<int>(member->name_idx),
+      member->value.cache);
+  auto member_guard = tc.emit<Guard>(res, tc.frame);
+  member_guard->setDescr(
+      fmt::format("IMPORT_FROM: {}", preloader_.name(member->name_idx)));
+  tc.emit<RefineType>(res, TObject, res);
   stack.push(res);
 }
 
@@ -4812,15 +4848,78 @@ void HIRBuilder::emitImportName(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   auto& stack = tc.frame.stack;
+  FrameState pre_op_frame{tc.frame};
   Register* fromlist = stack.pop();
   Register* level = stack.pop();
   Register* res = allocateTemp();
-  if (bc_instr.opcode() == EAGER_IMPORT_NAME) {
-    tc.emit<EagerImportName>(res, bc_instr.oparg(), fromlist, level, tc.frame);
-  } else {
-    tc.emit<ImportName>(
-        res, importNameIdx(bc_instr.oparg()), fromlist, level, tc.frame);
+  const PreloadedImport* import =
+      preloader_.preloadedImport(bc_instr.baseOffset());
+  if (import == nullptr) {
+    if (bc_instr.opcode() == EAGER_IMPORT_NAME) {
+      tc.emit<EagerImportName>(
+          res, bc_instr.oparg(), fromlist, level, tc.frame);
+    } else {
+      tc.emit<ImportName>(
+          res, importNameIdx(bc_instr.oparg()), fromlist, level, tc.frame);
+    }
+    stack.push(res);
+    return;
   }
+
+  int name_idx = static_cast<int>(import->name_idx);
+  Register* importer = allocateTemp();
+  tc.emit<LoadGlobalCached>(
+      importer,
+      code_,
+      preloader_.builtins(),
+      preloader_.builtins(),
+      name_idx,
+      import->import_func.cache);
+
+  Register* full_module = allocateTemp();
+  tc.emit<LoadGlobalCached>(
+      full_module,
+      code_,
+      import->modules,
+      import->modules,
+      name_idx,
+      import->full_module.cache);
+
+  bool returned_is_full =
+      import->returned_module.cache == import->full_module.cache &&
+      import->returned_module.expected == import->full_module.expected;
+  Register* returned_module = full_module;
+  if (!returned_is_full) {
+    returned_module = res;
+    tc.emit<LoadGlobalCached>(
+        returned_module,
+        code_,
+        import->modules,
+        import->modules,
+        name_idx,
+        import->returned_module.cache);
+  }
+
+  tc.emit<Snapshot>(pre_op_frame);
+  auto importer_guard =
+      tc.emit<GuardIs>(importer, import->import_func.expected, importer);
+  importer_guard->setDescr("IMPORT_NAME: __import__");
+  auto full_module_guard =
+      tc.emit<GuardIs>(full_module, import->full_module.expected, full_module);
+  full_module_guard->setDescr(
+      fmt::format("IMPORT_NAME full: {}", preloader_.name(import->name_idx)));
+  if (!returned_is_full) {
+    auto returned_module_guard = tc.emit<GuardIs>(
+        returned_module, import->returned_module.expected, returned_module);
+    returned_module_guard->setDescr(
+        fmt::format(
+            "IMPORT_NAME returned: {}", preloader_.name(import->name_idx)));
+  }
+
+  if (returned_is_full) {
+    tc.emit<Assign>(res, returned_module);
+  }
+  preloaded_imports_.emplace(res, import);
   stack.push(res);
 }
 

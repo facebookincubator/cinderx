@@ -16,6 +16,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace cinderx::jit::hir {
 
@@ -24,6 +25,54 @@ namespace cinderx::jit::hir {
 using ArgTypeMap = SortedVecMap<int, Type>;
 using GlobalNamesMap = SortedVecMap<int, BorrowedRef<>>;
 using GlobalsCacheMap = SortedVecMap<int, PyObject**>;
+
+// A dict value observed during preload, paired with the GlobalCache slot that
+// tracks that dict entry.  The compiled fast path is only correct while the
+// slot still holds `expected`; any mutation of the dict replaces it.
+struct CachedValue {
+  PyObject** cache{nullptr};
+  Ref<> expected;
+
+  bool isValid() const;
+};
+
+// One name from the fromlist of a `from <module> import a, b` instruction.
+struct PreloadedImportMember {
+  // Index of `name` in the code object's co_names.
+  Py_ssize_t name_idx;
+  Ref<PyUnicodeObject> name;
+  // The member, as read out of the source module's dict.
+  CachedValue value;
+};
+
+// Everything needed to compile an IMPORT_NAME, and the IMPORT_FROMs consuming
+// its result, into guarded cache reads rather than a call into importlib.
+// Built while the GIL is held, and owns strong references to every object it
+// names so a background compile can use it after the GIL is released.
+struct PreloadedImport {
+  // IMPORT_NAME or EAGER_IMPORT_NAME.
+  int opcode;
+  // Index of `full_name` in the code object's co_names.
+  Py_ssize_t name_idx;
+  // The dotted name as written in the source, e.g. `a.b` for `import a.b`.
+  Ref<PyUnicodeObject> full_name;
+  // Name of the module the import expression evaluates to.  Equal to
+  // `full_name` for `from a.b import c`, but the top-level package `a` for a
+  // bare `import a.b`, which binds `a`.
+  Ref<PyUnicodeObject> returned_name;
+  // sys.modules, plus the entries of it named by the two names above.
+  Ref<PyDictObject> modules;
+  CachedValue full_module;
+  CachedValue returned_module;
+  // builtins.__import__, guarded so that replacing it falls back to the
+  // interpreter's import.
+  CachedValue import_func;
+  // __dict__ of `full_name`'s module; `from_members` are read out of it.
+  Ref<PyDictObject> source_module_dict;
+  std::vector<PreloadedImportMember> from_members;
+};
+
+using PreloadedImportMap = SortedVecMap<BCOffset, PreloadedImport>;
 
 // A map keyed by type descr tuples.
 template <class T>
@@ -143,6 +192,9 @@ class Preloader {
   // Get the global cache at a given name index
   PyObject** globalCache(int name_idx) const;
 
+  // Get import information for the instruction at a bytecode offset.
+  const PreloadedImport* preloadedImport(BCOffset bc_off) const;
+
   std::unique_ptr<Function> makeFunction() const;
 
   BorrowedRef<PyCodeObject> code() const;
@@ -233,6 +285,9 @@ class Preloader {
   // dict deletes them, avoiding UAF when the compiler infers types via
   // Type::fromObject. See test_delete_global_during_background_compile.
   SortedVecMap<int, Ref<>> global_values_;
+  // Keyed by import instruction bytecode offset. These records own all Python
+  // objects needed to build the import fast path without the GIL.
+  PreloadedImportMap preloaded_imports_;
   OwnedType return_type_;
   // for primitive args only, null unless has_primitive_args_
   Ref<_PyTypedArgsInfo> prim_args_info_;
