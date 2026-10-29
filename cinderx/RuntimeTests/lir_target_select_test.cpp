@@ -247,23 +247,25 @@ TEST_F(LIRTargetSelectTest, LegalizesComparisonOutputToMin32Bit) {
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesBitwiseOutputToMin32Bit) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:8bit = Move 1
-  %2:8bit = Move 2
-  %3:8bit = And %1, %2
-  Return %3
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* left = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, Imm{1});
+  Instruction* right = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, Imm{2});
+  Instruction* bitwise = block->allocateInstr(
+      Opcode::kAnd, nullptr, OutVReg{DataType::k8bit}, VReg{left}, VReg{right});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{bitwise});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kAnd)
-                 .outVreg(3)
+                 .outVreg(bitwise->id())
                  .outType(DataType::k32bit));
-  EXPECT_NO_LIR(Query(*lir_func)
+  EXPECT_NO_LIR(Query(function)
                     .opcode(Opcode::kAnd)
-                    .outVreg(3)
+                    .outVreg(bitwise->id())
                     .outType(DataType::k8bit));
 }
 
