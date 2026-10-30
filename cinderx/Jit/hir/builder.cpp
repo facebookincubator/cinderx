@@ -2667,6 +2667,10 @@ void HIRBuilder::emitInvokeMethod(
       invoke->setOperand(i + 1, arg_regs[i]);
     }
 
+    if (invoke->returnsPrimitive()) {
+      invoke->setOutput(1, allocateTemp());
+    }
+
     invoke->setFrameState(tc.frame);
     tc.frame.stack.push(out);
   } else {

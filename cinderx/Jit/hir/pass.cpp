@@ -598,9 +598,13 @@ Type outputType(const Instr& instr, std::size_t output_idx) {
     // Whether the generator is done.
     case Opcode::kSend:
       return TCInt64;
-    // The second word of a struct return, e.g. a native entry point.
-    case Opcode::kCallInd:
-      return TCPtr;
+    case Opcode::kCallInd: {
+      const auto& call = instr.as<CallInd>();
+      if (call.retType() <= TCDouble) {
+        return TCDouble;
+      }
+      return call.returnsPrimitive() ? TCInt32 : TCPtr;
+    }
     default:
       JIT_THROW("'{}' has no second output", instr);
   }

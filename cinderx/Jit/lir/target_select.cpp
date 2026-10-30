@@ -19,6 +19,25 @@ namespace cinderx::jit::lir {
 
 namespace {
 
+// Deopt exits reserve floating-point registers for spilling live values.
+// Guard inputs must be available in general-purpose registers.
+void legalizeGuardFPInput(BasicBlock* block, instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  JIT_DCHECK(instr->isGuard(), "Expected Guard, got {}", instr->opname());
+
+  constexpr size_t kGuardVarIndex = 2;
+  Operand* guard_var = instr->getInput(kGuardVarIndex);
+  if (guard_var->dataType() != DataType::kDouble) {
+    return;
+  }
+
+  Instruction* move = block->allocateInstrBefore(
+      instr_iter, Opcode::kMove, OutVReg{DataType::k64bit});
+  move->appendInput(instr->releaseInput(kGuardVarIndex));
+  instr->setInput(
+      kGuardVarIndex, std::make_unique<Operand>(move, Operand::kLinked));
+}
+
 #if defined(CINDER_X86_64)
 
 /* x86-64 can materialize an imm64 in a register, but cannot encode an imm64
@@ -91,6 +110,9 @@ void selectX64Opcodes(Function* func) {
     for (instr_iter_t iter = instrs.begin(); iter != instrs.end();) {
       instr_iter_t cur_iter = iter++;
       switch (cur_iter->get()->opcode()) {
+        case Opcode::kGuard:
+          legalizeGuardFPInput(block, cur_iter);
+          break;
         case Opcode::kStore:
           selectX64StoreLargeConstant(block, cur_iter);
           break;
@@ -235,27 +257,6 @@ void legalizeA64SignedSubWordInputs(
     sext->appendInput(instr->releaseInput(i));
     instr->setInput(i, std::make_unique<Operand>(sext, Operand::kLinked));
   }
-}
-
-/* AArch64 cannot directly test-and-branch on FP registers. Move double guard
- * inputs through a GP-sized vreg before guard selection and register
- * allocation.
- */
-void legalizeA64GuardFPInput(BasicBlock* block, instr_iter_t instr_iter) {
-  Instruction* instr = instr_iter->get();
-  JIT_DCHECK(instr->isGuard(), "Expected Guard, got {}", instr->opname());
-
-  constexpr size_t kGuardVarIndex = 2;
-  Operand* guard_var = instr->getInput(kGuardVarIndex);
-  if (guard_var->dataType() != DataType::kDouble) {
-    return;
-  }
-
-  Instruction* move = block->allocateInstrBefore(
-      instr_iter, Opcode::kMove, OutVReg{DataType::k64bit});
-  move->appendInput(instr->releaseInput(kGuardVarIndex));
-  instr->setInput(
-      kGuardVarIndex, std::make_unique<Operand>(move, Operand::kLinked));
 }
 
 Instruction* moveA64StackInputToVreg(
@@ -859,7 +860,7 @@ void selectA64Opcodes(Function* func) {
           selectA64CondBranch(block, cur_iter, use_counts);
           break;
         case Opcode::kGuard:
-          legalizeA64GuardFPInput(block, cur_iter);
+          legalizeGuardFPInput(block, cur_iter);
           selectA64Guard(block, cur_iter, use_counts);
           break;
         case Opcode::kNegate:

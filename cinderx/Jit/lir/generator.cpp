@@ -1856,7 +1856,9 @@ void LIRGenerator::appendMoveFromSecondReturnReg(
       dst,
       Opcode::kMove,
       PhyReg{
-          codegen::arch::reg_general_auxilary_return_loc,
+          dst->type() <= hir::TCDouble
+              ? codegen::arch::reg_double_auxilary_return_loc
+              : codegen::arch::reg_general_auxilary_return_loc,
           hirTypeToDataType(dst->type())});
 }
 
@@ -4422,18 +4424,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case hir::Opcode::kCallInd: {
         auto& hir_instr = i.as<CallInd>();
-        // A primitive return value's error flag comes back in the second
-        // return register, so it can't also hold a second output.
-        JIT_CHECK(
-            !hir_instr.returnsTwoValues() ||
-                !(hir_instr.retType() <= TPrimitive),
-            "CallInd<{}> returns both a two-word struct and a primitive",
+        JIT_THROW_IF(
+            hir_instr.returnsPrimitive() && hir_instr.numOutputs() != 2,
+            "Primitive CallInd<{}> requires a success output",
             hir_instr.name());
         // Non-null only for a two-word struct return on Windows, which is the
         // one case not returned in registers.
         Instruction* ret_struct = nullptr;
 #if defined(CINDER_X86_64) && defined(_WIN32)
-        if (hir_instr.returnsTwoValues()) {
+        if (hir_instr.returnsStruct()) {
           // The Microsoft x64 ABI returns such a struct through a hidden
           // buffer whose pointer is passed ahead of the declared arguments,
           // rather than in a second register.
@@ -4461,30 +4460,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               hir_instr.output(), Opcode::kLoad, Ind{ret_struct, 0});
           bbb.appendInstr(
               hir_instr.output(1), Opcode::kLoad, Ind{ret_struct, 8});
-        } else if (hir_instr.returnsTwoValues()) {
+        } else if (hir_instr.numOutputs() > 1) {
           appendMoveFromSecondReturnReg(bbb, hir_instr.output(1));
         }
-        auto kind = InstrGuardKind::kNotZero;
-        Type ret_type = hir_instr.retType();
-        if (ret_type <= TCDouble) {
-          appendGuard(
-              bbb,
-              kind,
-              hir_instr,
-              PhyReg{
-                  codegen::arch::reg_double_auxilary_return_loc,
-                  DataType::kDouble});
-        } else if (ret_type <= TPrimitive) {
-          appendGuard(
-              bbb,
-              kind,
-              hir_instr,
-              PhyReg{
-                  codegen::arch::reg_general_auxilary_return_loc,
-                  DataType::k32bit});
-        } else {
-          appendGuard(bbb, kind, hir_instr, hir_instr.output());
-        }
+        appendGuard(
+            bbb,
+            InstrGuardKind::kNotZero,
+            hir_instr,
+            hir_instr.output(hir_instr.returnsPrimitive() ? 1 : 0));
         break;
       }
       case hir::Opcode::kCallIntrinsic: {

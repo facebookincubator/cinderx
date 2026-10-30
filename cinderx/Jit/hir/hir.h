@@ -1060,10 +1060,8 @@ inline std::ostream& operator<<(std::ostream& os, CallCFunc::Func func) {
   return os << "<unknown CallCFunc>";
 }
 
-// Call to a C function pointer, the return value indicates an error. If the
-// return type is PyObject then an error is indicated by returning NULL. If
-// the return type is a primitive then edx is zero if returning an integer or
-// xmm1 if returning a floating point value.
+// Call to a C function pointer. For object returns, NULL indicates an error.
+// For primitive returns, the second output is a success flag, zero on error.
 class INSTR_CLASS(CallInd, (TTop), Operands<>, DeoptBase) {
  public:
   CallInd(Register* dst, const char* name, Type ret_type)
@@ -1104,10 +1102,13 @@ class INSTR_CLASS(CallInd, (TTop), Operands<>, DeoptBase) {
     return getOperand(arg + 1);
   }
 
-  // Whether the callee returns a two-word struct by value, the second word
-  // being defined as this instruction's second output.
-  bool returnsTwoValues() const {
-    return numOutputs() > 1;
+  bool returnsPrimitive() const {
+    return retType() <= TPrimitive;
+  }
+
+  // Whether the second output holds a struct field rather than a success flag.
+  bool returnsStruct() const {
+    return numOutputs() > 1 && !returnsPrimitive();
   }
 
  private:

@@ -868,6 +868,8 @@ TEST(LIRBlockTest, BatchRemovePredecessorsHandlesDuplicateEdges) {
 
 class LIRGeneratorTest : public RuntimeTest {
  public:
+  using RuntimeTest::RuntimeTest;
+
   std::unique_ptr<Function> getLIRFunction(
       PyObject* func_obj,
       PassConfig pass_config = PassConfig::kAllExceptInliner,
@@ -1025,6 +1027,121 @@ class LIRGeneratorTest : public RuntimeTest {
   std::vector<std::unique_ptr<hir::Function>> hir_funcs_;
   std::vector<std::unique_ptr<CodeRuntime>> runtimes_;
 };
+
+#ifdef ENABLE_INTERPRETER_LOOP
+// Static Python class bodies need the CinderX interpreter loop.
+class PrimitiveCallIndTest : public LIRGeneratorTest,
+                             public ::testing::WithParamInterface<bool> {
+ public:
+  PrimitiveCallIndTest()
+      : LIRGeneratorTest(static_cast<Flags>(kJit | kStaticCompiler)) {}
+
+  const char* source() const {
+    return GetParam() ? R"(
+from __static__ import double, box
+
+class C:
+    def value(self, fail: bool) -> double:
+        if fail:
+            raise RuntimeError("primitive failure")
+        return 0.0
+
+def func(c: C, fail: bool):
+    return box(c.value(fail))
+)"
+                      : R"(
+from __static__ import int64, box
+
+class C:
+    def value(self, fail: bool) -> int64:
+        if fail:
+            raise RuntimeError("primitive failure")
+        return 0
+
+def func(c: C, fail: bool):
+    return box(c.value(fail))
+)";
+  }
+};
+
+TEST_P(PrimitiveCallIndTest, DefinesAndGuardsSuccessOutput) {
+  const bool returns_double = GetParam();
+  Ref<PyObject> pyfunc(compileStaticAndGet(source(), "func"));
+  ASSERT_NE(pyfunc.get(), nullptr);
+  auto lir_func = getLIRFunction(pyfunc.get());
+  ASSERT_NE(lir_func, nullptr);
+
+  const Instruction* call = nullptr;
+  for (BasicBlock* block : lir_func->basicBlocks()) {
+    for (const auto& instruction : block->instructions()) {
+      const hir::Instr* origin = instruction->origin();
+      if (instruction->isCall() && origin != nullptr && origin->isCallInd() &&
+          origin->as<hir::CallInd>().returnsPrimitive()) {
+        call = instruction.get();
+      }
+    }
+  }
+  ASSERT_NE(call, nullptr);
+  const auto& hir_call = call->origin()->as<hir::CallInd>();
+  ASSERT_EQ(hir_call.numOutputs(), 2);
+  EXPECT_EQ(
+      hir_call.output()->type(), returns_double ? hir::TCDouble : hir::TCInt64);
+  EXPECT_EQ(
+      hir_call.output(1)->type(),
+      returns_double ? hir::TCDouble : hir::TCInt32);
+  EXPECT_FALSE(hir_call.returnsStruct());
+  EXPECT_EQ(call->getNumInputs(), hir_call.numOperands());
+
+  const DataType success_type =
+      returns_double ? DataType::kDouble : DataType::k32bit;
+  const PhyLocation success_reg = returns_double
+      ? codegen::arch::reg_double_auxilary_return_loc
+      : codegen::arch::reg_general_auxilary_return_loc;
+  const Instruction* success = nullptr;
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kMove)
+                 .outType(success_type)
+                 .inPhyReg(0, success_reg)
+                 .with([&](const Instruction* instruction) {
+                   if (instruction->origin() != &hir_call) {
+                     return false;
+                   }
+                   success = instruction;
+                   return true;
+                 }));
+  ASSERT_NE(success, nullptr);
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kGuard)
+                 .inImm(0, InstrGuardKind::kNotZero)
+                 .inType(2, success_type)
+                 .inVreg(2, success->id()));
+}
+
+TEST_P(PrimitiveCallIndTest, ZeroReturnSucceedsAndExceptionsPropagate) {
+  runStaticCode(source());
+  runStockCode(R"(
+from cinderx.jit import force_compile, is_jit_compiled
+
+force_compile(C.value)
+force_compile(func)
+assert is_jit_compiled(C.value)
+assert is_jit_compiled(func)
+instance = C()
+assert func(instance, False) == 0
+try:
+    func(instance, True)
+except RuntimeError as error:
+    assert str(error) == "primitive failure"
+else:
+    raise AssertionError("primitive call did not propagate its exception")
+)");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    PrimitiveReturns,
+    PrimitiveCallIndTest,
+    ::testing::Values(false, true));
+#endif
 
 TEST_F(LIRGeneratorTest, GeneratedPhiInputsFollowPredecessors) {
   const char* src = R"(
