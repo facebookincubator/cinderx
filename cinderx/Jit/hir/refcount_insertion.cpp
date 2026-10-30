@@ -214,66 +214,48 @@ struct RegState {
 //
 // All live values are tracked, even if they aren't a reference counted type,
 // in order to correctly populate deopt info.
-class StateMap {
-  using map_t = std::unordered_map<Register*, RegState>;
+struct StateMap : std::unordered_map<Register*, RegState> {
+  using super = std::unordered_map<Register*, RegState>;
 
- public:
-  auto size() const {
-    return map_.size();
-  }
-  auto empty() const {
-    return map_.empty();
-  }
-
-  auto countModel(Register* model) const {
-    JIT_DCHECK(model == modelReg(model), "countModel given non-model reg");
-    return map_.contains(model);
+  bool containsModel(Register* model) const {
+    JIT_DCHECK(
+        model == modelReg(model),
+        "containsModel given non-model reg {}",
+        *model);
+    return contains(model);
   }
 
   RegState& getModel(Register* model) {
-    JIT_DCHECK(model == modelReg(model), "getModel given non-model reg");
-    return map_get(map_, model);
+    JIT_DCHECK(
+        model == modelReg(model), "getModel given non-model reg {}", *model);
+    return at(model);
   }
   const RegState& getModel(Register* model) const {
-    JIT_DCHECK(model == modelReg(model), "getModel given non-model reg");
-    return map_get(map_, model);
+    return const_cast<StateMap*>(this)->getModel(model);
   }
 
-  auto find(Register* reg) {
-    return map_.find(modelReg(reg));
-  }
-  auto find(Register* reg) const {
-    return map_.find(modelReg(reg));
-  }
-
-  template <typename... Args>
-  auto emplace(Args&&... args) {
-    return map_.emplace(std::forward<Args>(args)...);
+  size_t eraseModel(Register* model) {
+    JIT_DCHECK(
+        model == modelReg(model), "eraseModel given non-model reg {}", *model);
+    return erase(model);
   }
 
-  auto begin() {
-    return map_.begin();
+  // Override lookup functions to handle non-model registers.
+
+  RegState& at(Register* reg) {
+    return super::at(modelReg(reg));
   }
-  auto begin() const {
-    return map_.begin();
+  const RegState& at(Register* reg) const {
+    return super::at(modelReg(reg));
   }
 
-  auto end() {
-    return map_.end();
-  }
-  auto end() const {
-    return map_.end();
+  iterator find(Register* reg) {
+    return super::find(modelReg(reg));
   }
 
-  auto eraseModel(Register* model) {
-    JIT_DCHECK(model == modelReg(model), "eraseModel given non-model reg");
-    return map_.erase(model);
+  const_iterator find(Register* reg) const {
+    return super::find(modelReg(reg));
   }
-
-  bool operator==(const StateMap& other) const = default;
-
- private:
-  map_t map_;
 };
 
 // In- and out-states for a BasicBlock, populated during the analysis phase.
@@ -613,7 +595,7 @@ void killRegisters(
   std::vector<RegCopyState> rstates;
   rstates.reserve(regs.size());
   for (Register* reg : regs) {
-    rstates.emplace_back(reg, &map_get(env.live_regs, reg));
+    rstates.emplace_back(reg, &env.live_regs.at(reg));
   }
   auto rstate_lt = [](RegCopyState& a, RegCopyState& b) {
     bool a_borrowed = a.rstate->isBorrowed();
@@ -670,7 +652,7 @@ void useSimpleInState(Env& env, BasicBlock* block) {
       "Phis in a single-predecessor block are unsupported");
 
   BasicBlock* pred = (*block->inEdges().begin())->from();
-  useInState(env, map_get(env.blocks, pred).out);
+  useInState(env, env.blocks.at(pred).out);
 
   // First, adjust for a conditional branch, if any, in the predecessor.
   Instr* term = pred->getTerminator();
@@ -681,7 +663,7 @@ void useSimpleInState(Env& env, BasicBlock* block) {
     // immortal sentinel.
     if (block == cond->false_bb()) {
       Register* reg = cond->getOperand(0);
-      setUncounted(env, map_get(env.live_regs, reg));
+      setUncounted(env, env.live_regs.at(reg));
     }
   }
 
@@ -747,7 +729,7 @@ bool isLiveIn(BasicBlock* block, Register* reg, const StateMap& in_state) {
   if (reg->instr()->isPhi() && reg->instr()->block() == block) {
     return false;
   }
-  return in_state.countModel(reg);
+  return in_state.containsModel(reg);
 }
 
 struct PhiInput {
@@ -774,7 +756,7 @@ std::vector<PhiInput> collectPhiInputs(
       continue;
     }
     auto input = phi.getOperand(phi_idx);
-    inputs.emplace_back(pred.block, &map_get(*pred.state, input));
+    inputs.emplace_back(pred.block, &pred.state->at(input));
     ++preds_it;
   }
   JIT_DCHECK(!inputs.empty(), "Processing block with no visited predecessors");
@@ -832,14 +814,14 @@ PhiSupport processPhis(
       if (!isLiveIn(block, model, in_state) && input.rstate->isOwned()) {
         promote_output = true;
 
-        size_t model_bit = map_get(env.reg_to_bit, model);
+        size_t model_bit = env.reg_to_bit.at(model);
         support_info.dead.add(model_bit);
         auto forward_pair =
             support_info.forwards.emplace(model_bit, BorrowSupport{});
         if (forward_pair.second) {
           forward_pair.first->second.init(env.num_support_bits);
         }
-        forward_pair.first->second.add(map_get(env.reg_to_bit, output));
+        forward_pair.first->second.add(env.reg_to_bit.at(output));
         TRACE("Forwarding support from dead {} to {}", *model, *output);
       }
     }
@@ -853,7 +835,7 @@ PhiSupport processPhis(
     rstate.setBorrowed(env.num_support_bits);
     for (auto& input : inputs) {
       if (input.rstate->isOwned()) {
-        rstate.support().add(map_get(env.reg_to_bit, input.rstate->model()));
+        rstate.support().add(env.reg_to_bit.at(input.rstate->model()));
       } else if (input.rstate->isBorrowed()) {
         // If this input gets promoted to owned because of a loop, the borrow
         // support we add here will be redundant and could result in worse
@@ -984,7 +966,7 @@ void stealInputs(
     }
 
     auto reg = instr.getOperand(i);
-    auto& rstate = map_get(env.live_regs, reg);
+    auto& rstate = env.live_regs.at(reg);
     if (rstate.isOwned() && dying_regs.contains(reg)) {
       // This instruction is the last use of reg and we own a reference to it.
       // Normally we let ownership for the input pass to the instruction's
@@ -1037,7 +1019,7 @@ void processOutput(
   // specific object, breaking the dependency on the instruction that produced
   // the runtime value
   if (isPassthrough(instr) && !instr.isGuardIs()) {
-    auto& rstate = map_get(env.live_regs, output);
+    auto& rstate = env.live_regs.at(output);
     rstate.addCopy(output);
     if (isUncounted(output)) {
       setUncounted(env, rstate);
@@ -1113,7 +1095,7 @@ void processInstr(Env& env, Instr& instr) {
         "Unexpected live value(s) at Return, with state:\n{}",
         env.live_regs);
     JIT_DCHECK(
-        !map_get(env.live_regs, instr.getOperand(0)).isOwned(),
+        !env.live_regs.at(instr.getOperand(0)).isOwned(),
         "Return operand should not be owned at exit");
     return;
   }
@@ -1144,7 +1126,7 @@ void exitBlock(Env& env, const Edge* out_edge) {
     return;
   }
   auto const& from_regs = env.live_regs;
-  auto const& to_regs = map_get(env.blocks, succ).in;
+  auto const& to_regs = env.blocks.at(succ).in;
   TRACE("Reconciling to in-state for bb {}:\n{}", succ->id, to_regs);
 
   // Count the number of increfs we need for each value.
@@ -1332,7 +1314,7 @@ bool RefcountInsertion::run(Function& func) {
     if (block->inEdges().size() <= 1) {
       useSimpleInState(env, block);
     } else {
-      useInState(env, map_get(env.blocks, block).in);
+      useInState(env, env.blocks.at(block).in);
     }
 
     TRACE("\nEntering bb {} with state:\n{}", block->id, env.live_regs);
