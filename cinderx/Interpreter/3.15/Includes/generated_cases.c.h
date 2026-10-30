@@ -3185,7 +3185,7 @@
                 callable = stack_pointer[-4];
                 PyObject *callable_o = PyStackRef_AsPyObjectBorrow(callable);
                 PyInterpreterState *interp = tstate->interp;
-                if (callable_o != interp->callable_cache.isinstance) {
+                if (callable_o != CiInterpPost(interp)->callable_cache.isinstance) {
                     UPDATE_MISS_STATS(CALL);
                     assert(_PyOpcode_Deopt[opcode] == (CALL));
                     JUMP_TO_PREDICTED(CALL);
@@ -3699,7 +3699,7 @@
                 callable = stack_pointer[-3];
                 PyObject *callable_o = PyStackRef_AsPyObjectBorrow(callable);
                 PyInterpreterState *interp = tstate->interp;
-                if (callable_o != interp->callable_cache.len) {
+                if (callable_o != CiInterpPost(interp)->callable_cache.len) {
                     UPDATE_MISS_STATS(CALL);
                     assert(_PyOpcode_Deopt[opcode] == (CALL));
                     JUMP_TO_PREDICTED(CALL);
@@ -3774,7 +3774,7 @@
                 callable = stack_pointer[-3];
                 PyObject *callable_o = PyStackRef_AsPyObjectBorrow(callable);
                 PyInterpreterState *interp = tstate->interp;
-                if (callable_o != interp->callable_cache.list_append) {
+                if (callable_o != CiInterpPost(interp)->callable_cache.list_append) {
                     UPDATE_MISS_STATS(CALL);
                     assert(_PyOpcode_Deopt[opcode] == (CALL));
                     JUMP_TO_PREDICTED(CALL);
@@ -9237,7 +9237,7 @@
             {
                 #ifdef Py_GIL_DISABLED
                 if (frame->tlbc_index !=
-                    ((_PyThreadStateImpl *)tstate)->tlbc_index) {
+                    CiTstatePost(tstate)->tlbc_index) {
                     _PyFrame_SetStackPointer(frame, stack_pointer);
                     _Py_CODEUNIT *bytecode =
                     _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame));
@@ -9246,7 +9246,7 @@
                         JUMP_TO_LABEL(error);
                     }
                     ptrdiff_t off = this_instr - _PyFrame_GetBytecode(frame);
-                    frame->tlbc_index = ((_PyThreadStateImpl *)tstate)->tlbc_index;
+                    frame->tlbc_index = CiTstatePost(tstate)->tlbc_index;
                     frame->instr_ptr = bytecode + off;
                     next_instr = frame->instr_ptr;
                     DISPATCH();
@@ -12262,7 +12262,7 @@
             {
                 #ifdef Py_GIL_DISABLED
                 if (frame->tlbc_index !=
-                    ((_PyThreadStateImpl *)tstate)->tlbc_index) {
+                    CiTstatePost(tstate)->tlbc_index) {
                     _PyFrame_SetStackPointer(frame, stack_pointer);
                     _Py_CODEUNIT *bytecode =
                     _PyEval_GetExecutableCode(tstate, _PyFrame_GetCode(frame));
@@ -12271,7 +12271,7 @@
                         JUMP_TO_LABEL(error);
                     }
                     ptrdiff_t off = this_instr - _PyFrame_GetBytecode(frame);
-                    frame->tlbc_index = ((_PyThreadStateImpl *)tstate)->tlbc_index;
+                    frame->tlbc_index = CiTstatePost(tstate)->tlbc_index;
                     frame->instr_ptr = bytecode + off;
                     next_instr = frame->instr_ptr;
                     DISPATCH();
@@ -12353,7 +12353,7 @@
             }
             #ifdef Py_GIL_DISABLED
             if (frame->tlbc_index !=
-                ((_PyThreadStateImpl *)tstate)->tlbc_index) {
+                CiTstatePost(tstate)->tlbc_index) {
                 UPDATE_MISS_STATS(RESUME);
                 assert(_PyOpcode_Deopt[opcode] == (RESUME));
                 JUMP_TO_PREDICTED(RESUME);
@@ -12394,7 +12394,7 @@
                 }
                 #ifdef Py_GIL_DISABLED
                 if (frame->tlbc_index !=
-                    ((_PyThreadStateImpl *)tstate)->tlbc_index) {
+                    CiTstatePost(tstate)->tlbc_index) {
                     UPDATE_MISS_STATS(RESUME);
                     assert(_PyOpcode_Deopt[opcode] == (RESUME));
                     JUMP_TO_PREDICTED(RESUME);
