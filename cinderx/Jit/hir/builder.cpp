@@ -292,6 +292,13 @@ bool isBannedName(std::string_view name) {
   return name == "eval" || name == "exec" || name == "locals";
 }
 
+// Builtins that read the calling frame's locals when called without arguments.
+// JIT frames don't keep the frame's locals up to date, so these would see an
+// empty namespace.  Called with an argument they're ordinary builtins.
+bool isBannedZeroArgCallName(std::string_view name) {
+  return name == "dir" || name == "vars";
+}
+
 // Whether a LOAD_GLOBAL should pin the value it saw at compile time with a
 // GuardIs.
 //
@@ -5576,9 +5583,23 @@ void HIRBuilder::checkTranslate() {
       banned_name_ids.insert(i);
     }
   }
+  // Name index of a `LOAD_GLOBAL NULL + <name>` for a builtin banned when it
+  // is called with no arguments, if the previous instruction was one.
+  std::optional<Py_ssize_t> pending_zero_arg_call;
   for (auto& bci : BytecodeInstructionBlock{code_}) {
     auto opcode = bci.opcode();
     int oparg = bci.oparg();
+    if (pending_zero_arg_call.has_value() && opcode == CALL && oparg == 0) {
+      throw std::runtime_error{fmt::format(
+          "Cannot compile {} to HIR because it calls '{}' without arguments",
+          preloader_.fullname(),
+          names[*pending_zero_arg_call])};
+    }
+    pending_zero_arg_call.reset();
+    if (opcode == LOAD_GLOBAL && (oparg & 0x01) &&
+        isBannedZeroArgCallName(names[oparg >> 1])) {
+      pending_zero_arg_call = oparg >> 1;
+    }
     if (!isSupportedOpcode(opcode)) {
       throw std::runtime_error{fmt::format(
           "Cannot compile {} to HIR because it contains unsupported opcode {} "

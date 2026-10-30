@@ -3517,6 +3517,49 @@ class LocalsBuiltinTests(unittest.TestCase):
             force_compile(foo)
         self.assertFalse(is_jit_compiled(foo))
 
+    def test_zero_arg_vars_not_compiled(self) -> None:
+        def foo(a: int) -> dict[str, object]:
+            b = a + 1  # noqa: F841
+            return vars().copy()
+
+        with self.assertRaises(RuntimeError):
+            force_compile(foo)
+        self.assertFalse(is_jit_compiled(foo))
+        self.assertEqual(foo(1), {"a": 1, "b": 2})
+
+    def test_zero_arg_dir_not_compiled(self) -> None:
+        def foo(a: int) -> list[str]:
+            b = a + 1  # noqa: F841
+            return dir()
+
+        with self.assertRaises(RuntimeError):
+            force_compile(foo)
+        self.assertFalse(is_jit_compiled(foo))
+        self.assertEqual(foo(1), ["a", "b"])
+
+    def test_vars_and_dir_with_argument_compiled(self) -> None:
+        class C:
+            def __init__(self) -> None:
+                self.x = 1
+
+        def foo(obj: C) -> tuple[dict[str, object], bool]:
+            return vars(obj), "x" in dir(obj)
+
+        self.assertTrue(force_compile(foo))
+        self.assertTrue(is_jit_compiled(foo))
+        self.assertEqual(foo(C()), ({"x": 1}, True))
+
+    def test_zero_arg_vars_from_compiled_caller(self) -> None:
+        def callee(a: int) -> str:
+            return "{a}-{b}".format(b=a * 2, **vars())
+
+        def caller(n: int) -> str:
+            return callee(n)
+
+        self.assertTrue(force_compile(caller))
+        self.assertTrue(is_jit_compiled(caller))
+        self.assertEqual(caller(3), "3-6")
+
 
 class GetCompiledFunctionTests(unittest.TestCase):
     def test_returns_compile_for_compiled_function(self) -> None:
