@@ -1032,6 +1032,11 @@ class UnwindStateTests(unittest.TestCase):
         self.assertEqual(deleted, [1])
 
 
+HAS_EAGER_IMPORT_NAME: bool = (
+    sys.version_info < (3, 15) and "EAGER_IMPORT_NAME" in dis.opmap
+)
+
+
 @skip_unless_jit("Requires JIT import-cache inspection")
 class ImportTests(unittest.TestCase):
     _MISSING = object()
@@ -1321,7 +1326,7 @@ def load():
         self._assert_generic_import_name(load)
         self.assertIs(load(), value)
 
-    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    @unittest.skipUnless(HAS_EAGER_IMPORT_NAME, "requires EAGER_IMPORT_NAME")
     def test_eager_import_name_cache_and_sys_modules_mutations(self) -> None:
         for mutation in ("unchanged", "replace", "delete", "readd"):
             with self.subTest(mutation=mutation):
@@ -1352,7 +1357,7 @@ def load():
                     self.assertIs(load(), replacement)
                 self.assertGreater(self._guard_deopts(load), 0)
 
-    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    @unittest.skipUnless(HAS_EAGER_IMPORT_NAME, "requires EAGER_IMPORT_NAME")
     @run_in_fork
     def test_eager_import_name_sys_modules_clear_deopts(self) -> None:
         name = "_cinderx_eager_import_cache_clear"
@@ -1376,7 +1381,7 @@ def load():
             sys.modules.clear()
             sys.modules.update(saved_modules)
 
-    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    @unittest.skipUnless(HAS_EAGER_IMPORT_NAME, "requires EAGER_IMPORT_NAME")
     def test_eager_import_from_member_mutations(self) -> None:
         for mutation in ("rebind", "delete"):
             with self.subTest(mutation=mutation):
@@ -1402,7 +1407,7 @@ def load():
                         load()
                     self.assertGreater(self._guard_deopts(load), 0)
 
-    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    @unittest.skipUnless(HAS_EAGER_IMPORT_NAME, "requires EAGER_IMPORT_NAME")
     def test_eager_import_from_module_getattr_fallback(self) -> None:
         name = "_cinderx_eager_import_module_getattr"
         original = object()
@@ -1427,7 +1432,7 @@ def load():
         self.assertIs(load(), fallback)
         self.assertGreater(self._guard_deopts(load), 0)
 
-    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    @unittest.skipUnless(HAS_EAGER_IMPORT_NAME, "requires EAGER_IMPORT_NAME")
     @run_in_fork
     def test_eager_import_custom_import_uses_generic_path(self) -> None:
         imported = object()
@@ -1462,7 +1467,7 @@ def load():
         finally:
             cast(Any, builtins).__import__ = original_import
 
-    @unittest.skipUnless(sys.version_info < (3, 15), "requires EAGER_IMPORT_NAME")
+    @unittest.skipUnless(HAS_EAGER_IMPORT_NAME, "requires EAGER_IMPORT_NAME")
     def test_eager_import_relative_uses_generic_path(self) -> None:
         package_name = "_cinderx_eager_import_package"
         target_name = f"{package_name}.target"
