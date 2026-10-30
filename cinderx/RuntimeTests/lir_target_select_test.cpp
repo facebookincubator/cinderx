@@ -490,24 +490,36 @@ TEST_F(LIRTargetSelectTest, SelectsA64GuardCCForSingleUseCompareGuard) {
 }
 
 TEST_F(LIRTargetSelectTest, SelectsA64GuardCCThroughFlagPreservingInstrs) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:64bit = Move 1
-  %2:64bit = Move 2
-  %3:8bit = LessThanUnsigned %1, %2
-  %4:64bit = Move 8
-  Guard 4, 0, %3, 0
-  Return %1
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* left = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* right = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{2});
+  Instruction* comparison = block->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kUnsignedLT,
+      OutVReg{DataType::k8bit},
+      VReg{left},
+      VReg{right});
+  block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{8});
+  block->allocateInstr(
+      Opcode::kGuard, nullptr, Imm{kNotZero}, Imm{0}, VReg{comparison}, Imm{0});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{left});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2));
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kA64GuardCC));
-  EXPECT_NO_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
+                 .opcode(Opcode::kCmp)
+                 .inVreg(0, left->id())
+                 .inVreg(1, right->id()));
+  EXPECT_LIR(Query(function).opcode(Opcode::kA64GuardCC));
+  EXPECT_NO_LIR(Query(function)
                     .opcode(Opcode::kCompare)
                     .condition(Condition::kUnsignedLT));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kGuard));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kGuard));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsA64GuardCCAcrossFlagClobber) {
