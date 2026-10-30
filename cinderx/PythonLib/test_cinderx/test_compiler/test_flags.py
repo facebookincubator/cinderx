@@ -44,8 +44,11 @@ class FlagTests(CompilerTest):
         except AttributeError:
             code = self.find_code(f)
         actual = code.co_flags
-        if actual != expected:
-            self.assertEqual(show_flags(actual), show_flags(expected))
+        self.assertEqual(
+            actual,
+            expected,
+            f"{show_flags(actual)} != {show_flags(expected)}",
+        )
 
     def test_future_no_longer_relevant(self) -> None:
         f = self.run_code(
