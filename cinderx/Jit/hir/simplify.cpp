@@ -643,6 +643,35 @@ PrimitiveCompareOp swapOperandsCompareOp(PrimitiveCompareOp op) {
   JIT_ABORT("Unknown PrimitiveCompareOp {}", static_cast<int>(op));
 }
 
+// Get the op that gives the opposite result for the same integer operands, e.g.
+// `!(a < b)` is `a >= b`.  Only == and != are complements of each other for
+// floats, since every ordered comparison involving a NaN is false.
+PrimitiveCompareOp negateCompareOp(PrimitiveCompareOp op) {
+  switch (op) {
+    case PrimitiveCompareOp::kEqual:
+      return PrimitiveCompareOp::kNotEqual;
+    case PrimitiveCompareOp::kNotEqual:
+      return PrimitiveCompareOp::kEqual;
+    case PrimitiveCompareOp::kLessThan:
+      return PrimitiveCompareOp::kGreaterThanEqual;
+    case PrimitiveCompareOp::kLessThanEqual:
+      return PrimitiveCompareOp::kGreaterThan;
+    case PrimitiveCompareOp::kGreaterThan:
+      return PrimitiveCompareOp::kLessThanEqual;
+    case PrimitiveCompareOp::kGreaterThanEqual:
+      return PrimitiveCompareOp::kLessThan;
+    case PrimitiveCompareOp::kLessThanUnsigned:
+      return PrimitiveCompareOp::kGreaterThanEqualUnsigned;
+    case PrimitiveCompareOp::kLessThanEqualUnsigned:
+      return PrimitiveCompareOp::kGreaterThanUnsigned;
+    case PrimitiveCompareOp::kGreaterThanUnsigned:
+      return PrimitiveCompareOp::kLessThanEqualUnsigned;
+    case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
+      return PrimitiveCompareOp::kLessThanUnsigned;
+  }
+  JIT_ABORT("Unknown PrimitiveCompareOp {}", static_cast<int>(op));
+}
+
 Register* simplifyLongCompare(Env& env, const LongCompare* instr) {
   Register* left = instr->getOperand(0);
   Register* right = instr->getOperand(1);
@@ -1594,6 +1623,46 @@ Register* simplifyIntBinaryOp(Env& env, const IntBinaryOp* instr) {
     if (rhs->type().hasIntSpec()) {
       env.emit<UseType>(rhs, rhs->type());
       return rhs->type().intSpec() ? rhs : lhs;
+    }
+  }
+
+  return nullptr;
+}
+
+Register* simplifyPrimitiveUnaryOp(Env& env, const PrimitiveUnaryOp* instr) {
+  if (instr->op() != PrimitiveUnaryOpKind::kNotInt) {
+    return nullptr;
+  }
+  Register* value = instr->value();
+  Type value_type = value->type();
+  if (value_type.hasIntSpec()) {
+    env.emit<UseType>(value, value_type);
+    return env.emit<LoadConst>(Type::fromCBool(value_type.intSpec() == 0));
+  }
+
+  const Instr* value_instr = value->instr();
+
+  // !!b --> b, when b is already a CBool.
+  if (value_instr->isPrimitiveUnaryOp() &&
+      static_cast<const PrimitiveUnaryOp*>(value_instr)->op() ==
+          PrimitiveUnaryOpKind::kNotInt) {
+    Register* inner = value_instr->getOperand(0);
+    if (inner->isA(TCBool)) {
+      return inner;
+    }
+  }
+
+  // !(a CMP b) --> a !CMP b.
+  if (value_instr->isPrimitiveCompare()) {
+    auto compare = static_cast<const PrimitiveCompare*>(value_instr);
+    PrimitiveCompareOp op = compare->op();
+    bool is_equality =
+        op == PrimitiveCompareOp::kEqual || op == PrimitiveCompareOp::kNotEqual;
+    if (is_equality ||
+        (!compare->left()->type().couldBe(TCDouble) &&
+         !compare->right()->type().couldBe(TCDouble))) {
+      return env.emit<PrimitiveCompare>(
+          negateCompareOp(op), compare->left(), compare->right());
     }
   }
 
@@ -2893,6 +2962,9 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
     case Opcode::kIntBinaryOp:
       return simplifyIntBinaryOp(env, static_cast<const IntBinaryOp*>(instr));
 
+    case Opcode::kPrimitiveUnaryOp:
+      return simplifyPrimitiveUnaryOp(
+          env, static_cast<const PrimitiveUnaryOp*>(instr));
     case Opcode::kPrimitiveCompare:
       return simplifyPrimitiveCompare(
           env, static_cast<const PrimitiveCompare*>(instr));

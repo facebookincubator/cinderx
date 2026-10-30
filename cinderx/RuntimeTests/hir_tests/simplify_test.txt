@@ -15126,6 +15126,470 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
+PrimitiveUnaryOpNotIntOfConstantIsConstantFolded
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<CInt64[0]>
+    v1 = PrimitiveUnaryOp<NotInt> v0
+    v2 = PrimitiveBoxBool v1
+    Return v2
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[0]> v0
+    v3:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v3
+    v4:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v4
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[0]> v0
+    v3:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v3
+    v4:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v4
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[0]> v0
+    v3:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v3
+    v4:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v4
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[0]> v0
+    v3:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v3
+    v4:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v4
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<CInt64[0]> v0
+    v3:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v3
+    v4:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v4
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNotIntOfNotIntOfCBoolIsRemoved
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0, CBool>
+    v1 = PrimitiveUnaryOp<NotInt> v0
+    v2 = PrimitiveUnaryOp<NotInt> v1
+    v3 = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CBool = LoadArg<0, CBool>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v3:ImmortalBool = PrimitiveBoxBool v0
+    Return v3
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CBool = LoadArg<0, CBool>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v3:ImmortalBool = PrimitiveBoxBool v0
+    Return v3
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CBool = LoadArg<0, CBool>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v3:ImmortalBool = PrimitiveBoxBool v0
+    Return v3
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CBool = LoadArg<0, CBool>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v3:ImmortalBool = PrimitiveBoxBool v0
+    Return v3
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CBool = LoadArg<0, CBool>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v3:ImmortalBool = PrimitiveBoxBool v0
+    Return v3
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNotIntOfNotIntOfCIntDoesNotSimplify
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0, CInt64>
+    v1 = PrimitiveUnaryOp<NotInt> v0
+    v2 = PrimitiveUnaryOp<NotInt> v1
+    v3 = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v2:CBool = PrimitiveUnaryOp<NotInt> v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v2:CBool = PrimitiveUnaryOp<NotInt> v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v2:CBool = PrimitiveUnaryOp<NotInt> v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v2:CBool = PrimitiveUnaryOp<NotInt> v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CBool = PrimitiveUnaryOp<NotInt> v0
+    v2:CBool = PrimitiveUnaryOp<NotInt> v1
+    v3:ImmortalBool = PrimitiveBoxBool v2
+    Return v3
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNotIntOfLessThanNegatesCompare
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0, CInt64>
+    v1 = LoadArg<1, CInt64>
+    v2 = PrimitiveCompare<LessThan> v0 v1
+    v3 = PrimitiveUnaryOp<NotInt> v2
+    v4 = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = LoadArg<1, CInt64>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = LoadArg<1, CInt64>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = LoadArg<1, CInt64>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = LoadArg<1, CInt64>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = LoadArg<1, CInt64>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNotIntOfUnsignedCompareNegatesCompare
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0, CUInt32>
+    v1 = LoadArg<1, CUInt32>
+    v2 = PrimitiveCompare<LessThanEqualUnsigned> v0 v1
+    v3 = PrimitiveUnaryOp<NotInt> v2
+    v4 = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt32 = LoadArg<0, CUInt32>
+    v1:CUInt32 = LoadArg<1, CUInt32>
+    v2:CBool = PrimitiveCompare<LessThanEqualUnsigned> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanUnsigned> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt32 = LoadArg<0, CUInt32>
+    v1:CUInt32 = LoadArg<1, CUInt32>
+    v2:CBool = PrimitiveCompare<LessThanEqualUnsigned> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanUnsigned> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt32 = LoadArg<0, CUInt32>
+    v1:CUInt32 = LoadArg<1, CUInt32>
+    v2:CBool = PrimitiveCompare<LessThanEqualUnsigned> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanUnsigned> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt32 = LoadArg<0, CUInt32>
+    v1:CUInt32 = LoadArg<1, CUInt32>
+    v2:CBool = PrimitiveCompare<LessThanEqualUnsigned> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanUnsigned> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CUInt32 = LoadArg<0, CUInt32>
+    v1:CUInt32 = LoadArg<1, CUInt32>
+    v2:CBool = PrimitiveCompare<LessThanEqualUnsigned> v0 v1
+    v5:CBool = PrimitiveCompare<GreaterThanUnsigned> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNotIntOfIsNegatesCompare
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = PrimitiveCompare<Equal> v0 v1
+    v3 = PrimitiveUnaryOp<NotInt> v2
+    v4 = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CBool = PrimitiveCompare<Equal> v0 v1
+    v5:CBool = PrimitiveCompare<NotEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CBool = PrimitiveCompare<Equal> v0 v1
+    v5:CBool = PrimitiveCompare<NotEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CBool = PrimitiveCompare<Equal> v0 v1
+    v5:CBool = PrimitiveCompare<NotEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CBool = PrimitiveCompare<Equal> v0 v1
+    v5:CBool = PrimitiveCompare<NotEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CBool = PrimitiveCompare<Equal> v0 v1
+    v5:CBool = PrimitiveCompare<NotEqual> v0 v1
+    v4:ImmortalBool = PrimitiveBoxBool v5
+    Return v4
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNotIntOfDoubleLessThanDoesNotSimplify
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0, CDouble>
+    v1 = LoadArg<1, CDouble>
+    v2 = PrimitiveCompare<LessThan> v0 v1
+    v3 = PrimitiveUnaryOp<NotInt> v2
+    v4 = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:CDouble = LoadArg<1, CDouble>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v3:CBool = PrimitiveUnaryOp<NotInt> v2
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:CDouble = LoadArg<1, CDouble>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v3:CBool = PrimitiveUnaryOp<NotInt> v2
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:CDouble = LoadArg<1, CDouble>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v3:CBool = PrimitiveUnaryOp<NotInt> v2
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:CDouble = LoadArg<1, CDouble>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v3:CBool = PrimitiveUnaryOp<NotInt> v2
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:CDouble = LoadArg<1, CDouble>
+    v2:CBool = PrimitiveCompare<LessThan> v0 v1
+    v3:CBool = PrimitiveUnaryOp<NotInt> v2
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Test Name ---
 LongCompareOfTwoConstantsIsConstantFolded
 --- Input ---
 # HIR
