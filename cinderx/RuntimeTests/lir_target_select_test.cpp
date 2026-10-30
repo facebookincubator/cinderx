@@ -572,23 +572,24 @@ BB %0
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesGuardFPInputToGPInput) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:Double = Move 1
-  Guard 4, 0, %1, 0
-  Return %1
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* value = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::kDouble}, Imm{1});
+  block->allocateInstr(
+      Opcode::kGuard, nullptr, Imm{kNotZero}, Imm{0}, VReg{value}, Imm{0});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{value});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
   // The FP input is moved into a GP register before the guard.
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
-                 .inVreg(0, 1)
+                 .inVreg(0, value->id())
                  .inType(0, DataType::kDouble));
-  EXPECT_LIR(Query(*lir_func).guard(4, 0, DataType::k64bit));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kA64GuardCC));
+  EXPECT_LIR(Query(function).guard(kNotZero, 0, DataType::k64bit));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kA64GuardCC));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitSetForTest32BranchS) {
