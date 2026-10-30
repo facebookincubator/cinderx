@@ -2026,10 +2026,15 @@ def make_eager(func):
       code[instr.offset] = dis.opmap["EAGER_IMPORT_NAME"]
   return type(func)(func.__code__.replace(co_code=bytes(code)), globals())
 
-eager_import = make_eager(import_template)
-eager_from = make_eager(from_template)
+has_eager_import_name = "EAGER_IMPORT_NAME" in dis.opmap
+if has_eager_import_name:
+  eager_import = make_eager(import_template)
+  eager_from = make_eager(from_template)
 )";
   runCode(pycode);
+  if (getGlobal("has_eager_import_name") != Py_True) {
+    SKIP("Requires EAGER_IMPORT_NAME");
+  }
   Ref<PyFunctionObject> eager_import(getGlobal("eager_import"));
   Ref<PyFunctionObject> eager_from(getGlobal("eager_from"));
   ASSERT_TRUE(hasBytecodeOpcode(eager_import, EAGER_IMPORT_NAME));

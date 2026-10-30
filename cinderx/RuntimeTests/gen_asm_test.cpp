@@ -1613,7 +1613,8 @@ def eager_template():
   import _cinderx_codegen_eager_import as imported
   return imported
 
-if "EAGER_IMPORT_NAME" in dis.opmap:
+has_eager_import_name = "EAGER_IMPORT_NAME" in dis.opmap
+if has_eager_import_name:
   code = bytearray(eager_template.__code__.co_code)
   for instr in dis.get_instructions(eager_template):
     if instr.opname == "IMPORT_NAME":
@@ -1635,6 +1636,9 @@ if "EAGER_IMPORT_NAME" in dis.opmap:
       IMPORT_NAME);
 
 #if PY_VERSION_HEX < 0x030F0000
+  if (getGlobal("has_eager_import_name") != Py_True) {
+    return;
+  }
   Ref<PyFunctionObject> eager_import(getGlobal("eager_import"));
   Ref<> eager_original(getGlobal("eager_original"));
   Ref<> eager_replacement(getGlobal("eager_replacement"));
