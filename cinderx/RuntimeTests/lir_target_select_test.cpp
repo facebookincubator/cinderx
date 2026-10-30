@@ -593,23 +593,26 @@ TEST_F(LIRTargetSelectTest, LegalizesGuardFPInputToGPInput) {
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitSetForTest32BranchS) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %2
-  %1:64bit = Move 1
-  Test32 %1, %1
-  BranchS BB%1
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %1
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+  Instruction* value = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  entry->allocateInstr(Opcode::kTest32, nullptr, VReg{value}, VReg{value});
+  entry->allocateInstr(
+      Opcode::kBranchCC, nullptr, Condition::kSign, Lbl{true_block});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{value});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{value});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchBitSet).inImm(1, 31));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kTest32));
+  EXPECT_LIR(Query(function).opcode(Opcode::kBranchBitSet).inImm(1, 31));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kTest32));
   EXPECT_NO_LIR(
-      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
+      Query(function).opcode(Opcode::kBranchCC).condition(Condition::kSign));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitNotSetForTest32BranchNS) {
