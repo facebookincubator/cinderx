@@ -19,6 +19,7 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Software Development :: Compilers",
 ]
 
@@ -35,14 +36,31 @@ filterwarnings = [
 [tool.cibuildwheel]
 # TODO(D107415749): muxllinux still has issues with FT.
 build = [
-    "cp314-manylinux_x86_64",
-    "cp314t-manylinux_x86_64",
-    "cp314-musllinux_x86_64",
-    "cp314-manylinux_aarch64",
-    "cp314t-manylinux_aarch64",
-    "cp314-musllinux_aarch64",
+    # Python 3.14.
     "cp314-macosx_arm64",
+    "cp314-manylinux_aarch64",
+    "cp314-manylinux_x86_64",
+    "cp314-musllinux_aarch64",
+    "cp314-musllinux_x86_64",
     "cp314-win_amd64",
+    # Python 3.14t, only tested on Linux so far.
+    "cp314t-manylinux_aarch64",
+    "cp314t-manylinux_x86_64",
+    # Python 3.15.
+    "cp315-macosx_arm64",
+    "cp315-manylinux_aarch64",
+    "cp315-manylinux_x86_64",
+    "cp315-musllinux_aarch64",
+    "cp315-musllinux_x86_64",
+
+    # Windows support for Python 3.15 still has issues.
+    #
+    # "cp315-win_amd64",
+
+    # No UpstreamBorrow/ file for 3.15t yet.
+    #
+    # "cp315t-manylinux_aarch64",
+    # "cp315t-manylinux_x86_64",
 ]
 # If it exists, pass through CINDERX_VERSION_PATCH to setuptools to specify the
 # patch version.
