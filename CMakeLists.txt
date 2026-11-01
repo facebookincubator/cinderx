@@ -536,6 +536,18 @@ if (NOT WINDOWS)
   )
 endif()
 
+# libstdc++/libc++ headers force default visibility on some template
+# instantiations, typeinfo, and vtables in spite of -fvisibility=hidden.
+# Exclude them to shrink the size of the native extension.
+#
+# The only symbol that needs to be exported by the extension is PyInit__cinderx.
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_options(${PROJECT_NAME} PRIVATE "LINKER:--exclude-libs,ALL")
+elseif (${MACOS})
+  target_link_options(
+    ${PROJECT_NAME} PRIVATE "LINKER:-exported_symbol,_PyInit__cinderx")
+endif()
+
 ##############################################################################
 # RuntimeTests/ — opt-in C++ GoogleTest binary.
 
