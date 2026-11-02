@@ -27,8 +27,7 @@ class FrameIPTest : public RuntimeTest {
     std::unique_ptr<hir::Preloader> preloader{
         hir::Preloader::make(func, makeFrameReifier(func->func_code))};
     ASSERT_NE(preloader, nullptr) << "Failed preloading " << name;
-    auto jit_ctx = reinterpret_cast<CompilerContext<Compiler>*>(
-        cinderx::getModuleState()->jit_context.get());
+    auto* jit_ctx = getContext();
     ASSERT_NE(jit_ctx, nullptr) << "JIT context was not initialized";
     // compilePreloaderImpl() expects its caller to have already claimed the
     // compile under the GIL; the production entry points do that in

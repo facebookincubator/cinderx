@@ -47,6 +47,15 @@ void initializePython() {
       status.err_msg != nullptr ? status.err_msg : "<no error message>");
 }
 
+ModuleState* RuntimeTest::moduleState() const {
+  return module_state_;
+}
+
+jit::CompilerContext<jit::Compiler>* RuntimeTest::getContext() const {
+  return static_cast<jit::CompilerContext<jit::Compiler>*>(
+      moduleState()->jit_context.get());
+}
+
 std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
     BorrowedRef<PyFunctionObject> func) {
   // Force preloading dependent functions to test the inliner.

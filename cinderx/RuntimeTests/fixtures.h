@@ -8,6 +8,8 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/pass.h"
 #include "cinderx/Jit/hir/preload.h"
@@ -88,7 +90,13 @@ class RuntimeTest : public ::testing::Test {
     JIT_CHECK(
         cinderx_mod != nullptr, "Could not import cinderx during test setup");
 
-    auto mod_state = cinderx::getModuleState();
+    cinderx_module_ = Ref<>::steal(PyImport_ImportModule("_cinderx"));
+    JIT_CHECK(
+        cinderx_module_ != nullptr,
+        "Could not import the native _cinderx module during test setup");
+
+    module_state_ = cinderx::getModuleState(cinderx_module_.get());
+    auto* mod_state = moduleState();
     ASSERT_NE(mod_state, nullptr) << "Could not load the CinderX module state, "
                                      "CinderX has not initialized properly";
 
@@ -115,6 +123,8 @@ class RuntimeTest : public ::testing::Test {
     isolated_preloaders_.reset();
 
     globals_.reset();
+    cinderx_module_.reset();
+    module_state_ = nullptr;
     int result = Py_FinalizeEx();
     ASSERT_EQ(result, 0) << "Failed finalizing the interpreter";
 
@@ -303,6 +313,9 @@ class RuntimeTest : public ::testing::Test {
   std::unique_ptr<jit::hir::Function> buildHIR(
       BorrowedRef<PyFunctionObject> func);
 
+  ModuleState* moduleState() const;
+  jit::CompilerContext<jit::Compiler>* getContext() const;
+
   // Out param is a limitation of googletest.
   // See https://fburl.com/z3fzhl9p for more details.
   void CompileToHIR(
@@ -338,6 +351,8 @@ class RuntimeTest : public ::testing::Test {
   }
 
  private:
+  Ref<> cinderx_module_;
+  ModuleState* module_state_{nullptr};
   Ref<> globals_;
   std::optional<jit::hir::IsolatedPreloaders> isolated_preloaders_;
   Flags flags_;
