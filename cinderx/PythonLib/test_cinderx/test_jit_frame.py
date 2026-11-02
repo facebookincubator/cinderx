@@ -4,14 +4,16 @@
 
 import asyncio
 import gc
+import subprocess
 import sys
+import textwrap
 import traceback
 import unittest
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.jit import force_compile, is_jit_compiled, jit_suppress
-from cinderx.test_support import skip_unless_jit
+from cinderx.test_support import ENCODING, skip_unless_jit, subprocess_env
 
 
 def firstlineno(func):
@@ -326,6 +328,69 @@ class FreeThreadedGCFrameTests(unittest.TestCase):
         self.assertIs(frame.f_code, _collect_getframe_cycle.__code__)
         self.assertIsNotNone(frame.f_back)
         self.assertIs(frame.f_back.f_code, _call_collect_getframe_cycle.__code__)
+
+
+# Keeps `_cinderx`, and with it the JIT, alive until the interpreter's last GC
+# pass, whose finalizer is the first call of `Holder.__del__`.
+_FINALIZER_AT_SHUTDOWN = textwrap.dedent(
+    """\
+    import codecs
+    import os
+
+    import _cinderx
+    import cinderx.jit
+
+
+    class Holder:
+        def __del__(self, _write=os.write):
+            _write(1, b"finalized\\n")
+
+        def search(self, name):
+            return None
+
+
+    def probe():
+        pass
+
+
+    probe()
+    print("probe compiled:", cinderx.jit.is_jit_compiled(probe))
+
+    holder = Holder()
+    holder.cycle = holder
+    holder.module = _cinderx
+    codecs.register(holder.search)
+    del holder
+    """
+)
+
+
+class FinalizerAtShutdownTests(unittest.TestCase):
+    @cinder_support.skip_unless_lightweight_frames(
+        "Interpreter finalization frees the type of lightweight frame reifiers"
+    )
+    def test_first_call_in_last_gc_pass(self) -> None:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "cinderx-jit-all",
+                "-X",
+                "cinderx-jit-background-compile=0",
+                "-c",
+                _FINALIZER_AT_SHUTDOWN,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding=ENCODING,
+            env=subprocess_env(),
+        )
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"child failed\nstdout={proc.stdout!r}\nstderr={proc.stderr!r}",
+        )
+        self.assertEqual(proc.stdout, "probe compiled: True\nfinalized\n")
 
 
 class GetGenFrameDuringThrowTest(unittest.TestCase):

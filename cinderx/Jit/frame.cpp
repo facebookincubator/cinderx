@@ -442,6 +442,13 @@ PyType_Slot framereifier_type_slots[] = {
 
 Ref<> makeFrameReifier([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  // Finalization frees the interpreter's jit_executable type before its last
+  // GC pass, and finalizers run in that pass can still reach the JIT.
+  if (Py_IsFinalizing()) {
+    throw std::runtime_error(
+        fmt::format(
+            "cannot make reifier {} while finalizing", codeQualname(code)));
+  }
   PyObject* reifier =
       PyUnstable_MakeJITExecutable(reifyRunningFrame, code, nullptr);
   if (reifier == nullptr) {
