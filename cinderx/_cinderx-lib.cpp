@@ -15,6 +15,7 @@
 #include "cinderx/Jit/anextawaitable.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/function_slots.h"
 #include "cinderx/Jit/generators_rt.h"
@@ -68,7 +69,8 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   _PyCheckedDict_ClearCaches();
   _PyCheckedList_ClearCaches();
   _PyClassLoader_ClearValueCache();
-  if (auto* ctx = jit::getContext()) {
+  auto* ctx = static_cast<jit::Context*>(state->jit_context.get());
+  if (ctx != nullptr) {
     ctx->clearDeoptStats();
   }
   // We replace sys._clear_type_cache with our own function which clears the
@@ -739,7 +741,7 @@ int cinderx_type_watcher(PyTypeObject* type) {
   return 0;
 }
 
-static PyObject* cinderx_freeze_type(PyObject*, PyObject* o) {
+static PyObject* cinderx_freeze_type(PyObject* mod, PyObject* o) {
   if (!PyType_Check(o)) {
     PyErr_Format(
         PyExc_TypeError,
@@ -748,7 +750,7 @@ static PyObject* cinderx_freeze_type(PyObject*, PyObject* o) {
     return nullptr;
   }
 
-  if (!cinderx::getModuleState()->enable_patching) {
+  if (!cinderx::getModuleState(mod)->enable_patching) {
     ((PyTypeObject*)o)->tp_flags |= Py_TPFLAGS_IMMUTABLETYPE;
   }
   Py_INCREF(o);

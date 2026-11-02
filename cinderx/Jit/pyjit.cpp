@@ -3311,8 +3311,8 @@ PyObject* jit_unsuppress(PyObject* /* self */, PyObject* arg) {
   return arg;
 }
 
-PyObject* get_allocator_stats(PyObject*, PyObject*) {
-  auto base_allocator = cinderx::getModuleState()->code_allocator.get();
+PyObject* get_allocator_stats(PyObject* mod, PyObject*) {
+  auto base_allocator = cinderx::getModuleState(mod)->code_allocator.get();
   if (base_allocator == nullptr) {
     Py_RETURN_NONE;
   }
