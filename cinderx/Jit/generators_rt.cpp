@@ -8,10 +8,10 @@
 #include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py_object_allocator.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
-#include "cinderx/Jit/generators_mm.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
 
@@ -102,8 +102,8 @@ void clearNeverResumedGenerator(
   deopt_jit_gen_object_only(gen, footer, state);
 }
 
-// Reimplementation of CPython's gen_dealloc that uses our custom free-list
-// (Ci_free_jit_list_gen) instead of PyObject_GC_Del for memory recycling.
+// Reimplementation of CPython's gen_dealloc that releases memory through
+// our generator allocator instead of PyObject_GC_Del directly.
 void gen_dealloc_with_custom_free(
     PyObject* self,
     bool clear_never_resumed = false,
@@ -178,7 +178,7 @@ void gen_dealloc_with_custom_free(
 #endif
 
   state = state != nullptr ? state : cinderx::getModuleState();
-  state->jit_gen_free_list->free(self);
+  state->jit_gen_allocator->free(self);
 }
 
 void jitgen_dealloc(PyObject* self) {
@@ -1124,12 +1124,26 @@ void init_jit_genobject_type() {
   copy_methods(PyCoro_Type.tp_methods, coro_type->tp_methods);
 
   if constexpr (kFreeThreadedBuild) {
-    state->jit_gen_free_list.reset(new JITGenFreeThreadedFreeList());
+    // In free-threaded builds, GC objects need to come from the mimalloc heaps
+    // to make GC scans and refcounting work.  Plus, PyObjectAllocator isn't
+    // thread-safe yet.
+    state->jit_gen_allocator =
+        std::make_unique<PyObjectAllocator>(PyObjectAllocatorConfig{});
   } else {
-    state->jit_gen_free_list.reset(new JitGenFreeList());
+    // These values were determined experimentally on IG's webservers.  The
+    // number of outstanding generators seems to burst up to ~60k on startup
+    // but then quickly settles down to around 1-2k, so 2048 entries should
+    // be enough.  The average size seems to be ~400 bytes with the max
+    // being about 10x that.  Performance experiments showed an entry size
+    // of 512 was a greater improvement compared to 1024.  Presumably the
+    // trade-off in extra fixed memory allocation cost on workers isn't
+    // worth it for greater sizes.
+    state->jit_gen_allocator = std::make_unique<PyObjectAllocator>(
+        PyObjectAllocatorConfig{.entry_count = 2048, .entry_size = 512});
+    state->jit_gen_allocator->setKeepAlive(state->cinderx_module);
   }
 
-  // Override dealloc so we can use a "free-list" for our objects.
+  // Override dealloc so our allocator can reclaim our objects.
   JIT_CHECK(
       PyGen_Type.tp_dealloc == original_gen_dealloc &&
           PyCoro_Type.tp_dealloc == original_coro_dealloc,

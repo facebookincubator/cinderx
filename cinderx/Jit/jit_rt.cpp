@@ -779,6 +779,20 @@ void initFrameCellVars(
 #endif
 }
 
+namespace {
+
+size_t computeGeneratorSlots(
+    BorrowedRef<PyCodeObject> code,
+    uint64_t jit_data_size) {
+  // A "slot" is the size of PyObject* and we assume this just means 64 bits
+  // for purposes of sizing allocation to cover JIT data.
+  static_assert(sizeof(uint64_t) == sizeof(PyObject*));
+  // +1 for the pointer to JIT data (GenDataFooter*)
+  return _PyFrame_NumSlotsForCodeObject(code) + 1 + ceilDiv(jit_data_size, 8);
+}
+
+} // namespace
+
 std::pair<_PyInterpreterFrame*, GenDataFooter*> allocateGenAndInterpreterFrame(
     PyThreadState* tstate,
     PyFunctionObject* func,
@@ -793,8 +807,15 @@ std::pair<_PyInterpreterFrame*, GenDataFooter*> allocateGenAndInterpreterFrame(
 
   auto spill_size = code_rt->spillSize();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
-  auto [gen, gen_size] = cinderx::getModuleState()->jit_gen_free_list->allocate(
-      co, spill_size + sizeof(GenDataFooter));
+  ModuleState* state = cinderx::getModuleState();
+  const bool is_coro = !!(co->co_flags & CO_COROUTINE);
+  BorrowedRef<PyTypeObject> gen_tp{
+      is_coro ? state->coro_type.get() : state->gen_type.get()};
+  const size_t slots =
+      computeGeneratorSlots(co, spill_size + sizeof(GenDataFooter));
+  auto [gen_obj, gen_size] = state->jit_gen_allocator->allocateVar(
+      gen_tp, static_cast<Py_ssize_t>(slots));
+  auto* gen = reinterpret_cast<JitGenObject*>(gen_obj);
 
   gen->gi_frame_state = FRAME_CREATED;
   gen->gi_weakreflist = nullptr;

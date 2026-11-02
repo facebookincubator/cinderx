@@ -6,11 +6,11 @@
 
 #include "cinderx/Common/containers.h"
 #include "cinderx/Common/hugepages.h"
+#include "cinderx/Common/py_object_allocator.h"
 #include "cinderx/Common/runtime_offsets.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/context_iface.h"
-#include "cinderx/Jit/generators_mm_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/jit_list_iface.h"
 #include "cinderx/Jit/perf_jitdump.h"
@@ -67,7 +67,7 @@ struct ModuleState {
   std::unique_ptr<jit::ISymbolizer> symbolizer;
   std::unique_ptr<jit::IJitContext> jit_context;
   std::unique_ptr<jit::IJITList> jit_list;
-  std::unique_ptr<jit::IJitGenFreeList> jit_gen_free_list;
+  std::unique_ptr<PyObjectAllocator> jit_gen_allocator;
 
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value;
 
@@ -162,7 +162,7 @@ struct ModuleState {
   UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
 
   // The CinderX PyModule instance itself.  Stored so that code with data backed
-  // by the module (e.g. the generator free-list) can prevent premature cleanup
+  // by the module (e.g. the generator allocator) can prevent premature cleanup
   // by holding a reference to it.
   BorrowedRef<> cinderx_module;
 

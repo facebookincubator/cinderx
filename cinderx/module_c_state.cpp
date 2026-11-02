@@ -261,7 +261,7 @@ PyObject** Ci_GetDictCache(PyObject* dict, PyObject* key) {
 }
 
 void Ci_free_jit_list_gen(PyGenObject* obj) {
-  cinderx::getModuleState()->jit_gen_free_list->free(
+  cinderx::getModuleState()->jit_gen_allocator->free(
       reinterpret_cast<PyObject*>(obj));
 }
 
