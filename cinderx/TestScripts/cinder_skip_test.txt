@@ -10,9 +10,7 @@ test.test_rlcompleter.TestRlcompleter.test_global_matches
 
 
 test.test__xxsubinterpreters.*
-test.test_ast.ModuleStateTests.test_subinterpreter
 test.test_atexit.SubinterpreterTest.*
-test.test_capi.SubinterpreterTest.*
 test.test_embed.AuditingTests.test_audit_subinterpreter
 test.test_embed.EmbeddingTests.test_subinterps_different_ids
 test.test_embed.EmbeddingTests.test_subinterps_distinct_state
@@ -20,15 +18,12 @@ test.test_embed.EmbeddingTests.test_subinterps_main
 test.test_multibytecodec.Test_IncrementalEncoder.test_subinterp
 test.test_threading.SubinterpThreadingTests.*
 test_interpreters
-test.test_capi.CAPITest.test_getitem_with_error
 test.test_repl.TestInteractiveInterpreter.test_no_memory
 test__opcode
 test.test_dis.*.test_widths
 test.test_asyncgen.AsyncGenAsyncioTest.test_async_gen_asyncio_gc_aclose_09
 test.test_fork1.ForkTest.test_threaded_import_lock_fork
-test.test_gdb.PrettyPrintTests.test_frames
 test.test_generators.GeneratorTest.test_name
-test.test_inspect.TestSignatureBind.test_signature_bind_implicit_arg
 test.test_tracemalloc.TestTracemallocEnabled.test_get_traced_memory
 test.test_types.UnionTests.test_or_type_operator_reference_cycle
 test.test_trace.TestLineCounts.test_trace_list_comprehension
@@ -36,11 +31,6 @@ test.test_dis.DisTests.test_bug_1333982
 test.test_dis.DisTests.test_disassemble_recursive
 test.test_dis.DisWithFileTests.test_bug_1333982
 test.test_dis.DisWithFileTests.test_disassemble_recursive
-
-# skip to fix T236042405
-test.test_httplib.test_local_bad_hostname
-test.test_httplib.test_local_good_hostname
-
 
 #
 # Skips added for 3.12+.
