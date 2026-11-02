@@ -727,6 +727,13 @@ int cinderx_func_watcher(
 }
 
 int cinderx_type_watcher(PyTypeObject* type) {
+  // Since 3.15 type watchers also fire from type_dealloc(). A type freed by
+  // the GC has already been through type_clear(), which drops tp_mro, so it
+  // can no longer be looked up and has to be treated as destroyed.
+  if (type->tp_mro == nullptr) {
+    jit::typeDestroyed(type);
+    return 0;
+  }
   jit::typeModified(type);
 
   return 0;
