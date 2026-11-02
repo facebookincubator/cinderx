@@ -195,6 +195,12 @@ struct Config {
   bool attr_caches{!kFreeThreadedBuild};
   // Collect stats information about attribute caches.
   bool collect_attr_cache_stats{false};
+  // Use dict-watcher-backed caches for global loads and preloaded imports.
+  bool global_caches{true};
+  // Read the current thread state straight out of the TLS block at an offset
+  // discovered at startup, rather than calling into the runtime for it.  The
+  // offset is specific to how this process laid out its static TLS.
+  bool tls_thread_state{true};
   // Use inline caches for binary operations and comparisons, dispatching
   // through a per-cache specialization state machine on the operand types
   // observed at runtime.  Opt-in / off by default.

@@ -8,6 +8,7 @@
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
+#include "cinderx/Jit/codegen/tls.h"
 #include "cinderx/Jit/codegen/tsan.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
@@ -696,7 +697,7 @@ void translateLoadThreadState(Environ* env, const Instruction* instr) {
     JIT_ABORT("LoadThreadState output must be a register or stack slot");
   }
 
-  if (cinderx::getModuleState()->tstate_offset != -1) {
+  if (canLoadThreadStateFromTls()) {
     // Fast path: load tstate directly from the TLS segment register.
     asmjit::x86::Mem tls(cinderx::getModuleState()->tstate_offset);
     tls.setSegment(x86::fs);
@@ -723,7 +724,7 @@ void translateLoadThreadState(Environ* env, const Instruction* instr) {
     JIT_ABORT("LoadThreadState output must be a register or stack slot");
   }
 
-  if (cinderx::getModuleState()->tstate_offset != -1) {
+  if (canLoadThreadStateFromTls()) {
     // Fast path: load tstate from thread-local storage.
     as->mrs(dst, a64::Predicate::SysReg::kTPIDR_EL0);
     as->ldr(

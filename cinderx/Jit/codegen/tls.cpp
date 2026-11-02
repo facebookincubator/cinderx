@@ -8,6 +8,7 @@
 
 #include "cinderx/Common/define.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/module_state.h"
 
 namespace cinderx::jit::codegen {
@@ -230,4 +231,10 @@ void initThreadStateOffset() {
 
   module_state->tstate_offset_inited = true;
 }
+
+bool canLoadThreadStateFromTls() {
+  return getConfig().tls_thread_state &&
+      cinderx::getModuleState()->tstate_offset != -1;
+}
+
 } // namespace cinderx::jit::codegen

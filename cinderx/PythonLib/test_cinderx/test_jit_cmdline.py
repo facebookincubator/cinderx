@@ -361,6 +361,91 @@ class CmdLineTest(unittest.TestCase):
 
     # Compilation options.
 
+    def test_global_caches(self) -> None:
+        source = textwrap.dedent(
+            f"""\
+            import cinderx.jit as jit
+
+            value = 1
+
+            def read():
+                return value
+
+            jit.force_compile(read)
+            assert jit.is_jit_compiled(read)
+            assert read() == 1
+            value = 2
+            assert read() == 2
+
+            counts = jit.get_function_hir_opcode_counts(read)
+            print("CACHED" if counts.get("LoadGlobalCached") else "UNCACHED")
+            print({_OK!r})
+            """
+        )
+        args = ["-c", source]
+
+        def check_on(proc: subprocess.CompletedProcess[str]) -> None:
+            self._assert_ok(proc)
+            self.assertIn("CACHED", proc.stdout.split())
+
+        def check_off(proc: subprocess.CompletedProcess[str]) -> None:
+            self._assert_ok(proc)
+            self.assertIn("UNCACHED", proc.stdout.split())
+
+        self._check_both_forms(
+            "cinderx-jit-global-caches=1",
+            "CINDERX_JIT_GLOBAL_CACHES=1",
+            args,
+            check_on,
+        )
+        self._check_both_forms(
+            "cinderx-jit-global-caches=0",
+            "CINDERX_JIT_GLOBAL_CACHES=0",
+            args,
+            check_off,
+        )
+
+    def test_tls_thread_state(self) -> None:
+        # The thread state has to be right on every thread, not just the one
+        # that compiled the function.
+        source = textwrap.dedent(
+            f"""\
+            import threading
+
+            import cinderx.jit as jit
+
+            def call(f, x):
+                return f(x)
+
+            jit.force_compile(call)
+            assert jit.is_jit_compiled(call)
+
+            results = []
+            threads = [
+                threading.Thread(target=lambda: results.append(call(abs, -3)))
+                for _ in range(4)
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+            assert results == [3] * 4, results
+            print({_OK!r})
+            """
+        )
+        self._check_both_forms(
+            "cinderx-jit-tls-thread-state=0",
+            "CINDERX_JIT_TLS_THREAD_STATE=0",
+            ["-c", source],
+            self._assert_ok,
+        )
+        self._check_acknowledged(
+            "cinderx-jit-tls-thread-state=0",
+            "CINDERX_JIT_TLS_THREAD_STATE=0",
+            "cinderx-jit-tls-thread-state",
+            "CINDERX_JIT_TLS_THREAD_STATE",
+        )
+
     def test_jit_all(self) -> None:
         source = textwrap.dedent(
             f"""\

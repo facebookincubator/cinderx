@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/tls.h"
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/lir/printer.h"
 #include "cinderx/module_state.h"
@@ -630,7 +631,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       // an implicit scratch when the output is a stack slot, so we must always
       // reserve it.
       if (instr_opcode == Opcode::kLoadThreadState) {
-        if (cinderx::getModuleState()->tstate_offset == -1) {
+        if (!codegen::canLoadThreadStateFromTls()) {
           reserveRegisters(instr_loc, CALLER_SAVE_REGS);
         } else {
           // TLS path still uses rax/x0 as scratch for stack outputs.

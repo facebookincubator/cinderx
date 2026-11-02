@@ -12,6 +12,7 @@
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/compilation_lock.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/eligibility.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -635,6 +636,9 @@ PyObject** Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
 }
 
 bool Preloader::canCacheGlobals() const {
+  if (!getConfig().global_caches) {
+    return false;
+  }
   {
     CriticalSectionGuard guard(builtins_);
     if (!hasOnlyUnicodeKeys(builtins_)) {
@@ -838,6 +842,10 @@ bool Preloader::preload(BorrowedRef<> module, bool register_code) {
       }
       case EAGER_IMPORT_NAME:
       case IMPORT_NAME: {
+        // Preloaded imports are served out of global caches.
+        if (!getConfig().global_caches) {
+          break;
+        }
         if (previous_previous_instr == std::nullopt ||
             previous_instr == std::nullopt) {
           break;

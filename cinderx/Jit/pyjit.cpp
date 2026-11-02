@@ -774,6 +774,18 @@ FlagProcessor initFlagProcessor() {
       "Use inline caches for attribute access instructions");
 
   flag_processor.addOption(
+      "cinderx-jit-global-caches",
+      "CINDERX_JIT_GLOBAL_CACHES",
+      getMutableConfig().global_caches,
+      "Use dict-watcher-backed caches for global loads and imports");
+
+  flag_processor.addOption(
+      "cinderx-jit-tls-thread-state",
+      "CINDERX_JIT_TLS_THREAD_STATE",
+      getMutableConfig().tls_thread_state,
+      "Load the current thread state directly from thread-local storage");
+
+  flag_processor.addOption(
       "cinderx-jit-attr-cache-size",
       "CINDERX_JIT_ATTR_CACHE_SIZE",
       [](uint32_t entries) {
