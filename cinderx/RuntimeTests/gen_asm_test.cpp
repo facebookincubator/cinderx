@@ -1742,7 +1742,9 @@ class NewASMGeneratorTest : public RuntimeTest {
     if (!compiled_func.has_value()) {
       return nullptr;
     }
-    return CompiledFunction::create(std::move(*compiled_func), false);
+    auto compiled = CompiledFunction::create(
+        std::move(*compiled_func), *getContext(), false);
+    return compiled;
   }
 };
 

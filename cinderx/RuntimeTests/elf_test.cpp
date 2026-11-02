@@ -1,6 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 #include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/writer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
@@ -77,7 +78,8 @@ def func(x):
   std::optional<CompiledFunctionData> compiled_data = Compiler().compile(func);
   ASSERT_TRUE(compiled_data.has_value());
   auto compiled_func =
-      CompiledFunction::create(std::move(*compiled_data), false);
+      CompiledFunction::create(std::move(*compiled_data), *getContext(), false);
+  ASSERT_NE(compiled_func, nullptr);
 
   std::stringstream ss;
 

@@ -17,6 +17,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <vector>
 
 namespace cinderx {
@@ -54,8 +55,7 @@ struct DeferredCleanupReentry {
     data.runtime = data.stable_storage->allocateCodeRuntime(func);
     data.stable_storage->allocateForTesting<InlineCacheLifetime>(live_count);
     Ref<CompiledFunction> compiled =
-        CompiledFunction::create(std::move(data), false);
-    compiled->setOwner(context);
+        CompiledFunction::create(std::move(data), *context, false);
   }
 
   Context* context;
@@ -109,7 +109,7 @@ TEST_F(InlineCacheTest, CompiledDataOwnsCodeRuntimeStorage) {
   EXPECT_EQ(Py_REFCNT(func.get()), initial_refcount);
 }
 
-TEST_F(InlineCacheTest, GCClearReleasesRetiredCodeRuntimeReferences) {
+TEST_F(InlineCacheTest, ClearDuringFinalizationReleasesCodeRuntimeReferences) {
   Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
   const Py_ssize_t initial_refcount = Py_REFCNT(func.get());
 
@@ -119,10 +119,10 @@ TEST_F(InlineCacheTest, GCClearReleasesRetiredCodeRuntimeReferences) {
   data.runtime->addReference(func.getObj());
 
   Ref<CompiledFunction> compiled =
-      CompiledFunction::create(std::move(data), false);
+      CompiledFunction::create(std::move(data), *getContext(), false);
   ASSERT_NE(compiled, nullptr);
-  compiled->clear();
-  ASSERT_EQ(Py_REFCNT(func.get()), initial_refcount + 1);
+  compiled->clear(true /* context_finalizing */);
+  ASSERT_EQ(Py_REFCNT(func.get()), initial_refcount);
 
   ASSERT_EQ(Py_TYPE(compiled.get())->tp_clear(compiled.getObj()), 0);
   EXPECT_EQ(Py_REFCNT(func.get()), initial_refcount);
@@ -138,11 +138,30 @@ TEST_F(InlineCacheTest, DeferredCleanupPreservesEntriesQueuedByDestructors) {
     data.stable_storage->allocateForTesting<DeferredCleanupReentry>(
         getContext(), func, live_count);
     Ref<CompiledFunction> compiled =
-        CompiledFunction::create(std::move(data), false);
-    compiled->setOwner(getContext());
+        CompiledFunction::create(std::move(data), *getContext(), false);
   }
 
   getContext()->processDeferredCleanup();
+  EXPECT_EQ(live_count, 1);
+  getContext()->processDeferredCleanup();
+  EXPECT_EQ(live_count, 0);
+}
+
+TEST_F(InlineCacheTest, DeferredCleanupReclaimsGarbageCollectedCompilation) {
+  int live_count = 0;
+  {
+    Ref<PyFunctionObject> func(
+        compileStockAndGet("def func(): pass\n", "func"));
+    ASSERT_EQ(compileFunction(func), Result::OK);
+    auto compiled = getContext()->lookupFunc(func);
+    ASSERT_NE(compiled, nullptr);
+    compiled->runtime()->addReference(func.getObj());
+    compiled->data()->stable_storage->allocateForTesting<InlineCacheLifetime>(
+        live_count);
+    ASSERT_EQ(PyDict_DelItemString(func->func_globals, "func"), 0);
+  }
+
+  PyGC_Collect();
   EXPECT_EQ(live_count, 1);
   getContext()->processDeferredCleanup();
   EXPECT_EQ(live_count, 0);
@@ -158,9 +177,8 @@ TEST_F(InlineCacheTest, DeferredGenerationsContributeSeparateInlineCacheStats) {
         data.stable_storage->allocateLoadMethodCache(BCOffset{24});
     cache->initCacheStats("deferred.py", name);
     Ref<CompiledFunction> compiled =
-        CompiledFunction::create(std::move(data), false);
+        CompiledFunction::create(std::move(data), *getContext(), false);
     ASSERT_NE(compiled, nullptr);
-    compiled->setOwner(getContext());
   }
 
   InlineCacheStats stats = getContext()->getAndClearLoadMethodCacheStats();
@@ -182,9 +200,10 @@ TEST_F(InlineCacheTest, DeferredCompiledDataContributesInlineCacheStats) {
 
   {
     Ref<CompiledFunction> compiled =
-        CompiledFunction::create(std::move(data), false);
+        CompiledFunction::create(std::move(data), *context, false);
     ASSERT_NE(compiled, nullptr);
-    compiled->setOwner(context);
+    compiled->clear();
+    compiled->clear(); // Check idempotency.
   }
 
   InlineCacheStats stats = context->getAndClearLoadMethodCacheStats();
@@ -192,6 +211,202 @@ TEST_F(InlineCacheTest, DeferredCompiledDataContributesInlineCacheStats) {
   EXPECT_EQ(stats.front().filename, "deferred.py");
   EXPECT_EQ(stats.front().method_name, "func");
 }
+
+class ActiveCompilationClearTest : public RuntimeTest {
+ protected:
+  void TearDown() override {
+    compiled_.reset();
+    getContext()->processDeferredCleanup();
+    marker_.reset();
+    RuntimeTest::TearDown();
+  }
+
+  static PyObject* probe(PyObject* self, PyObject*) {
+    auto* test = static_cast<ActiveCompilationClearTest*>(
+        PyCapsule_GetPointer(self, nullptr));
+    Ref<PyFunctionObject> func{test->getGlobal("func")};
+    test->compiled_->removeFunction(func);
+    getContext()->forgetCode(func);
+    test->compiled_->clear();
+    test->compiled_.reset();
+    getContext()->processDeferredCleanup();
+    EXPECT_TRUE(test->markerAlive());
+    EXPECT_EQ(test->live_count_, 1);
+    if (test->after_retirement_) {
+      test->after_retirement_();
+    }
+    Py_RETURN_NONE;
+  }
+
+  static PyObject* resetProbe(PyObject* self, PyObject*) {
+    auto* test = static_cast<ActiveCompilationClearTest*>(
+        PyCapsule_GetPointer(self, nullptr));
+    getContext()->clearForMultithreadedCompileTest();
+    EXPECT_NE(test->compiled_->runtime(), nullptr);
+    EXPECT_TRUE(test->markerAlive());
+    EXPECT_EQ(test->live_count_, 1);
+    Py_RETURN_NONE;
+  }
+
+  Ref<CompiledFunction> compiled_;
+  Ref<> marker_;
+  int live_count_{0};
+  std::function<void()> after_retirement_;
+
+  bool markerAlive() {
+    auto marker = Ref<>::steal(PyObject_CallNoArgs(marker_));
+    EXPECT_NE(marker, nullptr);
+    return marker != nullptr && marker != Py_None;
+  }
+};
+
+TEST_F(
+    ActiveCompilationClearTest,
+    CacheResetPreservesRuntimeReferencesOnActiveFrames) {
+  runCode(R"(
+class Marker: pass
+def func(n):
+    if n:
+        return func(n - 1) + 1
+    probe()
+    return 42
+)");
+  static PyMethodDef probe_def = {"probe", resetProbe, METH_NOARGS, nullptr};
+  auto capsule = Ref<>::steal(PyCapsule_New(this, nullptr, nullptr));
+  ASSERT_NE(capsule, nullptr);
+  auto probe_func = Ref<>::steal(PyCFunction_New(&probe_def, capsule));
+  ASSERT_NE(probe_func, nullptr);
+  Ref<PyFunctionObject> func{getGlobal("func")};
+  ASSERT_EQ(PyDict_SetItemString(func->func_globals, "probe", probe_func), 0);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  compiled_ = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled_, nullptr);
+  auto marker = Ref<>::steal(PyObject_CallNoArgs(getGlobal("Marker")));
+  ASSERT_NE(marker, nullptr);
+  marker_ = Ref<>::steal(PyWeakref_NewRef(marker, nullptr));
+  ASSERT_NE(marker_, nullptr);
+  compiled_->runtime()->addReference(marker);
+  marker.reset();
+  compiled_->data()->stable_storage->allocateForTesting<InlineCacheLifetime>(
+      live_count_);
+
+  auto result = Ref<>::steal(PyObject_CallFunction(func, "i", 3));
+  EXPECT_TRUE(isIntEquals(result, 45));
+  compiled_.reset();
+  getContext()->processDeferredCleanup();
+  EXPECT_TRUE(markerAlive());
+  EXPECT_EQ(live_count_, 1);
+}
+
+TEST_F(
+    ActiveCompilationClearTest,
+    ForgetCodeRetainsDataUntilRecursiveFramesReturn) {
+  runCode(R"(
+class Marker: pass
+def func(n):
+    if n:
+        return func(n - 1) + 1
+    probe()
+    return 42
+)");
+  static PyMethodDef probe_def = {"probe", probe, METH_NOARGS, nullptr};
+  auto capsule = Ref<>::steal(PyCapsule_New(this, nullptr, nullptr));
+  auto probe_func = Ref<>::steal(PyCFunction_New(&probe_def, capsule));
+  Ref<PyFunctionObject> func{getGlobal("func")};
+  ASSERT_EQ(PyDict_SetItemString(func->func_globals, "probe", probe_func), 0);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  compiled_ = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled_, nullptr);
+  auto marker = Ref<>::steal(PyObject_CallNoArgs(getGlobal("Marker")));
+  ASSERT_NE(marker, nullptr);
+  marker_ = Ref<>::steal(PyWeakref_NewRef(marker, nullptr));
+  ASSERT_NE(marker_, nullptr);
+  compiled_->runtime()->addReference(marker);
+  marker.reset();
+  compiled_->data()->stable_storage->allocateForTesting<InlineCacheLifetime>(
+      live_count_);
+
+  auto result = Ref<>::steal(PyObject_CallFunction(func, "i", 3));
+  EXPECT_TRUE(isIntEquals(result, 45));
+  compiled_.reset();
+  getContext()->processDeferredCleanup();
+  EXPECT_FALSE(markerAlive());
+  EXPECT_EQ(live_count_, 0);
+}
+
+TEST_F(ActiveCompilationClearTest, RetirementPreservesTypeAndFunctionWatches) {
+  runCode(R"(
+class Marker: pass
+class Watched:
+    value = 1
+def watched():
+    return 1
+def replacement():
+    return 2
+def func():
+    probe()
+    return 42
+)");
+  static PyMethodDef probe_def = {"probe", probe, METH_NOARGS, nullptr};
+  Ref<> capsule = Ref<>::steal(PyCapsule_New(this, nullptr, nullptr));
+  ASSERT_NE(capsule, nullptr);
+  Ref<> probe_func = Ref<>::steal(PyCFunction_New(&probe_def, capsule));
+  ASSERT_NE(probe_func, nullptr);
+  Ref<PyFunctionObject> func{getGlobal("func")};
+  ASSERT_EQ(PyDict_SetItemString(func->func_globals, "probe", probe_func), 0);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  compiled_ = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled_, nullptr);
+  Ref<> marker = Ref<>::steal(PyObject_CallNoArgs(getGlobal("Marker")));
+  ASSERT_NE(marker, nullptr);
+  marker_ = Ref<>::steal(PyWeakref_NewRef(marker, nullptr));
+  ASSERT_NE(marker_, nullptr);
+  compiled_->runtime()->addReference(marker);
+  marker.reset();
+  compiled_->data()->stable_storage->allocateForTesting<InlineCacheLifetime>(
+      live_count_);
+
+  BorrowedRef<PyTypeObject> watched_type{getGlobal("Watched")};
+  Ref<PyFunctionObject> watched_func{getGlobal("watched")};
+  auto type_patcher = std::make_unique<TypeDeoptPatcher>(watched_type);
+  auto func_patcher = std::make_unique<FuncCodeDeoptPatcher>(
+      watched_func, BorrowedRef<PyCodeObject>{watched_func->func_code});
+  auto* type_watch = type_patcher.get();
+  auto* func_watch = func_patcher.get();
+  alignas(8) std::array<uint8_t, 8> type_patchpoint{};
+  alignas(8) std::array<uint8_t, 8> func_patchpoint{};
+  type_watch->linkJump(
+      reinterpret_cast<uintptr_t>(type_patchpoint.data()),
+      reinterpret_cast<uintptr_t>(type_patchpoint.data()));
+  func_watch->linkJump(
+      reinterpret_cast<uintptr_t>(func_patchpoint.data()),
+      reinterpret_cast<uintptr_t>(func_patchpoint.data()));
+  getContext()->watchType(watched_type, type_watch);
+  getContext()->watchFunc(watched_func, func_watch, [func_watch] {
+    return func_watch->assumptionsStillValid();
+  });
+  compiled_->runtime()->addReference(watched_type);
+  compiled_->runtime()->addReference(watched_func.getObj());
+  compiled_->runtime()->addReference(watched_func->func_code);
+  compiled_->data()->code_patchers.push_back(std::move(type_patcher));
+  compiled_->data()->code_patchers.push_back(std::move(func_patcher));
+  after_retirement_ = [&]() {
+    EXPECT_FALSE(type_watch->isPatched());
+    EXPECT_FALSE(func_watch->isPatched());
+    runCode("Watched.value = 2\nwatched.__code__ = replacement.__code__\n");
+    EXPECT_TRUE(type_watch->isPatched());
+    EXPECT_TRUE(func_watch->isPatched());
+  };
+
+  Ref<> result = Ref<>::steal(PyObject_CallNoArgs(func));
+  after_retirement_ = nullptr;
+  EXPECT_TRUE(isIntEquals(result, 42));
+  getContext()->processDeferredCleanup();
+  EXPECT_FALSE(markerAlive());
+  EXPECT_EQ(live_count_, 0);
+  runCode("Watched.value = 3\nwatched.__code__ = (lambda: 3).__code__\n");
+}
+
 #endif
 
 TEST_F(InlineCacheTest, LoadTypeMethodCacheLookUp) {

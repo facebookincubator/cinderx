@@ -64,9 +64,6 @@ int compiledfunc_clear(PyObject* self) {
   // able to find their way back here to release what they own.
   cf->releaseFunctionRefs();
   cf->clear();
-  if (auto data = cf->data(); data != nullptr) {
-    data->clearRetiredRuntimeReferences();
-  }
   return 0;
 }
 
@@ -113,6 +110,7 @@ void compiledfuncdata_dealloc(PyObject* self) {
   PyTypeObject* type = Py_TYPE(self);
   CompiledFunctionData* cfd = reinterpret_cast<CompiledFunctionData*>(self);
   PyObject_GC_UnTrack(self);
+  cfd->releaseRuntimeResources();
 
   // Release the code buffer back to the allocator.  For the contiguous
   // (immortal) case this is handled by the CompiledFunction destructor
@@ -152,19 +150,12 @@ int compiledfuncdata_traverse(PyObject* self, visitproc visit, void* arg) {
 #endif
   }
 
-  return cfd->retired_runtime_references.traverse(visit, arg);
-}
-
-int compiledfuncdata_clear(PyObject* self) {
-  auto cfd = reinterpret_cast<CompiledFunctionData*>(self);
-  cfd->clearRetiredRuntimeReferences();
   return 0;
 }
 
 PyType_Slot compiled_function_data_slots[] = {
     {Py_tp_dealloc, reinterpret_cast<void*>(compiledfuncdata_dealloc)},
     {Py_tp_traverse, reinterpret_cast<void*>(compiledfuncdata_traverse)},
-    {Py_tp_clear, reinterpret_cast<void*>(compiledfuncdata_clear)},
     {0, nullptr}};
 
 PyType_Spec CompiledFunction_Spec = {
@@ -219,8 +210,13 @@ BorrowedRef<PyTypeObject> getCompiledFunctionType() {
   return mod_state->compiled_function_type;
 }
 
-CompiledFunction::CompiledFunction(CompiledFunctionData* data, bool contiguous)
-    : data_(data), contiguous_data_(contiguous) {}
+CompiledFunction::CompiledFunction(
+    CompiledFunctionData* data,
+    CompiledFunctionOwner& owner,
+    bool contiguous)
+    : owner_(&owner), data_(data), contiguous_data_(contiguous) {
+  data_->owner = &owner;
+}
 
 std::span<const std::byte> CompiledFunction::codeBuffer() const {
   return data_->code;
@@ -277,10 +273,6 @@ void CompiledFunction::removeProfileEntry(const ProfileLocation& location) {
   data_->profile_collector->remove(location);
 }
 
-void CompiledFunction::setOwner(CompiledFunctionOwner* owner) {
-  owner_ = owner;
-}
-
 bool CompiledFunction::isContiguous() const {
   return contiguous_data_;
 }
@@ -297,6 +289,7 @@ CompiledFunctionData* CompiledFunction::stealData() {
 
 Ref<CompiledFunction> CompiledFunction::create(
     CompiledFunctionData&& compiled_func,
+    CompiledFunctionOwner& owner,
     bool immortal) {
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   JIT_DCHECK(
@@ -318,6 +311,7 @@ Ref<CompiledFunction> CompiledFunction::create(
     PyObject saved_base = cfd->ob_base;
     new (cfd) CompiledFunctionData(std::move(compiled_func));
     cfd->ob_base = saved_base;
+    cfd->owner = &owner;
     PyObject_GC_Track(reinterpret_cast<PyObject*>(cfd));
 
     cf = PyObject_GC_New(CompiledFunction, mod_state->compiled_function_type);
@@ -325,7 +319,7 @@ Ref<CompiledFunction> CompiledFunction::create(
       Py_DECREF(cfd);
       return nullptr;
     }
-    new (cf) CompiledFunction(cfd, false);
+    new (cf) CompiledFunction(cfd, owner, false);
     PyObject_GC_Track(reinterpret_cast<PyObject*>(cf));
   } else {
     // Single contiguous allocation for CompiledFunction + CompiledFunctionData.
@@ -337,7 +331,7 @@ Ref<CompiledFunction> CompiledFunction::create(
     char* raw = static_cast<char*>(::operator new(total_size));
     CompiledFunctionData* cfd =
         new (raw + cfd_offset) CompiledFunctionData(std::move(compiled_func));
-    cf = new (raw) CompiledFunction(cfd, true);
+    cf = new (raw) CompiledFunction(cfd, owner, true);
 
     PyObject_Init(&cf->ob_base, mod_state->compiled_function_type);
 #if PY_VERSION_HEX >= 0x030E0000
@@ -350,22 +344,54 @@ Ref<CompiledFunction> CompiledFunction::create(
   return Ref<CompiledFunction>::steal(cf);
 }
 
-CompiledFunction::~CompiledFunction() {
-  // Capture owner and owning refs to the compilation identity before clear()
-  // nullifies them.  Only safe when the JIT context is still alive — during
-  // shutdown the CodeRuntime slab may already be freed.
-  CompiledFunctionOwner* saved_owner = owner_;
-  Ref<> saved_code;
-  Ref<> saved_builtins;
-  Ref<> saved_globals;
-  cinderx::ModuleState* mod_state = cinderx::getModuleState();
-  if (saved_owner != nullptr && data_ != nullptr && data_->runtime != nullptr &&
-      mod_state != nullptr && mod_state->jit_context != nullptr) {
-    saved_code = Ref<>::create(data_->runtime->code());
-    saved_builtins = Ref<>::create(data_->runtime->builtins());
-    saved_globals = Ref<>::create(data_->runtime->globals());
-  }
+CompiledFunctionData::~CompiledFunctionData() {
+  releaseRuntimeResources();
+}
 
+bool CompiledFunctionData::defer() {
+  FreeThreadedJITEntrypointGuard guard;
+  if (owner == nullptr || runtime == nullptr) {
+    return false;
+  }
+  Ref<> code_ref = Ref<>::create(runtime->code());
+  Ref<> builtins = Ref<>::create(runtime->builtins());
+  Ref<> globals = Ref<>::create(runtime->globals());
+  Py_INCREF(this);
+  owner->deferCompiledData(
+      std::move(code_ref), std::move(builtins), std::move(globals), this);
+  return true;
+}
+
+void CompiledFunctionData::releaseRuntimeResources() {
+  auto* saved_owner = std::exchange(owner, nullptr);
+  if (saved_owner == nullptr) {
+    return;
+  }
+  auto* state = cinderx::getModuleState();
+  if (state == nullptr || state->jit_context == nullptr || runtime == nullptr) {
+    return;
+  }
+  for (auto& patcher : code_patchers) {
+    if (auto typed_patcher = dynamic_cast<TypeDeoptPatcher*>(patcher.get())) {
+      saved_owner->unwatch(typed_patcher);
+    }
+    if (auto func_patcher =
+            dynamic_cast<FuncCodeDeoptPatcher*>(patcher.get())) {
+      saved_owner->unwatchFunc(func_patcher);
+    }
+  }
+  releaseRuntimeReferences();
+}
+
+void CompiledFunctionData::releaseRuntimeReferences() {
+  if (runtime == nullptr) {
+    return;
+  }
+  auto references = runtime->releaseReferences();
+  runtime = nullptr;
+}
+
+CompiledFunction::~CompiledFunction() {
   clear();
 
   if (data_ == nullptr) {
@@ -373,7 +399,7 @@ CompiledFunction::~CompiledFunction() {
   }
 
   // clear() can release the last references to our module during finalization
-  mod_state = cinderx::getModuleState();
+  auto* mod_state = cinderx::getModuleState();
 
   if (contiguous_data_) {
     if (mod_state != nullptr && data_->code.data() != nullptr) {
@@ -383,18 +409,6 @@ CompiledFunction::~CompiledFunction() {
       }
     }
     data_->~CompiledFunctionData();
-  } else if (saved_owner != nullptr && saved_code) {
-    // Check that the Context is still alive via module state rather than
-    // dereferencing saved_owner which may dangle after Context destruction.
-    if (mod_state != nullptr && mod_state->jit_context != nullptr) {
-      saved_owner->deferCompiledData(
-          std::move(saved_code),
-          std::move(saved_builtins),
-          std::move(saved_globals),
-          data_);
-    } else {
-      Py_DECREF(data_);
-    }
   } else {
     Py_DECREF(data_);
   }
@@ -543,42 +557,15 @@ int CompiledFunction::traverse(visitproc visit, void* arg) {
       }
 #endif
     }
-    return data_->retired_runtime_references.traverse(visit, arg);
   }
 
   return 0;
 }
 
 void CompiledFunction::clear(bool context_finalizing) {
-  // A compile can be cleared while its machine code is still running:
-  // forgetCode() and deoptFunc() do exactly that from the bottom of a
-  // recursion, with every outer frame still executing it.  Hand the code to
-  // the deferred map so it survives until those frames unwind;
-  // processDeferredCleanup() frees it once no thread is in it.
-  //
-  // This has to happen here rather than in the destructor.  The destructor
-  // captures owner_ and the runtime before calling clear(), but tp_clear
-  // normally runs first and has already nulled both, so its deferral never
-  // fired and the code was released out from under live frames.  Off Windows
-  // that went unnoticed: the allocator leaves the pages mapped, so returning
-  // through the freed code happens to work.
-  //
-  // The deferred map takes its own reference rather than this one, so every
-  // data_ accessor keeps working for whatever still holds this object.
-  //
-  // This applies during interpreter finalization too: a JIT-compiled __del__
-  // can run from there, so its code has to outlast the clear just the same.
-  if (!contiguous_data_ && !context_finalizing && owner_ != nullptr &&
-      data_ != nullptr && data_->runtime != nullptr) {
-    cinderx::ModuleState* state = cinderx::getModuleState();
-    if (state != nullptr && state->jit_context != nullptr) {
-      Ref<> code = Ref<>::create(data_->runtime->code());
-      Ref<> builtins = Ref<>::create(data_->runtime->builtins());
-      Ref<> globals = Ref<>::create(data_->runtime->globals());
-      Py_INCREF(data_);
-      owner_->deferCompiledData(
-          std::move(code), std::move(builtins), std::move(globals), data_);
-    }
+  FreeThreadedJITEntrypointGuard guard;
+  if (owner_ == nullptr) {
+    return;
   }
 
   // During shutdown the Context and its prefork stable storage may be destroyed
@@ -596,32 +583,26 @@ void CompiledFunction::clear(bool context_finalizing) {
     }
   }
 
-  if (owner_ != nullptr) {
-    if (!context_finalizing) {
-      owner_->forgetCompiledFunction(*this);
-    }
-    if (data_ != nullptr) {
-      // These will be cleared on their own if we're finalizing the context,
-      // let's not complicate the iteration.
-      for (auto& patcher : data_->code_patchers) {
-        if (auto typed_patcher =
-                dynamic_cast<TypeDeoptPatcher*>(patcher.get())) {
-          owner_->unwatch(typed_patcher);
-        }
-        if (auto func_patcher =
-                dynamic_cast<FuncCodeDeoptPatcher*>(patcher.get())) {
-          owner_->unwatchFunc(func_patcher);
-        }
-      }
-    }
-
-    owner_ = nullptr;
+  auto* owner = std::exchange(owner_, nullptr);
+  bool deferred = false;
+  if (!contiguous_data_ && !context_finalizing && owner != nullptr &&
+      data_ != nullptr && data_->runtime != nullptr) {
+    deferred = data_->defer();
   }
 
-  // Clear all references held by the CodeRuntime.
+  if (owner != nullptr && !context_finalizing) {
+    owner->forgetCompiledFunction(*this);
+  }
+
   if (data_ != nullptr && data_->runtime != nullptr) {
-    data_->retired_runtime_references = data_->runtime->releaseReferences();
-    data_->runtime = nullptr;
+    data_->runtime->setCompiledFunction(nullptr);
+  }
+  if (!deferred && data_ != nullptr) {
+    if (owner != nullptr) {
+      data_->releaseRuntimeResources();
+    } else {
+      data_->releaseRuntimeReferences();
+    }
   }
 }
 
@@ -646,13 +627,6 @@ void CompiledFunction::releaseFunctionRefs() {
   for (size_t i = 0; i < count; i++) {
     Py_DECREF(this);
   }
-}
-
-void CompiledFunctionData::clearRetiredRuntimeReferences() {
-  // Dropping these references runs arbitrary Python destructors, which can
-  // re-enter or even destroy this object. Move them to a local first, so
-  // nothing below touches `this` again.
-  auto references = std::move(retired_runtime_references);
 }
 
 } // namespace cinderx::jit

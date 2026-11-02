@@ -29,7 +29,7 @@ class CodePatcherTest : public RuntimeTest {
     data.vectorcall_entry = reinterpret_cast<vectorcallfunc>(entry);
     data.stack_size = stack_size;
     data.spill_stack_size = spill_stack_size;
-    return CompiledFunction::create(std::move(data), false);
+    return CompiledFunction::create(std::move(data), *getContext(), false);
   }
 
  protected:

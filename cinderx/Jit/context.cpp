@@ -179,15 +179,9 @@ Context::~Context() {
     code.second->clear(true /* context_finalizing */);
   }
 
-#ifdef ENABLE_PREFORK_MODEL
-  // Also clear orphaned CFs (from clearForMultithreadedCompileTest) whose
-  // data_ still references CodeRuntimes in context-owned storage.
-  for (auto& cf : orphaned_compiled_codes_) {
-    if (cf->data() != nullptr && cf->data()->runtime != nullptr) {
-      cf->data()->runtime = nullptr;
-    }
+  for (auto& compiled : orphaned_compiled_codes_) {
+    compiled->clear(true /* context_finalizing */);
   }
-#endif
 
   // The deferred map's keys hold owning references to module dicts (the code's
   // globals/builtins captured in OwnedCompilationKey).  During interpreter
@@ -870,11 +864,14 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
       }
       nested_it->second->clearCompiledFunction(&function);
     }
-    compiled_codes_.erase(
+    auto it = compiled_codes_.find(
         CompilationKey{
             function.runtime()->code(),
             function.runtime()->builtins(),
             function.runtime()->globals()});
+    if (it != compiled_codes_.end() && it->second == &function) {
+      compiled_codes_.erase(it);
+    }
   }
 }
 
@@ -950,9 +947,6 @@ void Context::clearForMultithreadedCompileTest() {
     if (compiled == nullptr) {
       return;
     }
-    // Disconnect from Context so clear() on eventual destruction won't call
-    // back into us (e.g., forgetCompiledFunction, unwatch).
-    compiled->setOwner(nullptr);
     // Keep the old CompiledFunction alive via a strong reference.
     orphaned_compiled_codes_.emplace_back(
         Ref<CompiledFunction>::create(compiled));
@@ -1183,12 +1177,11 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
   // kPreforkModel); otherwise they're only immortal if the owning function is.
   bool immortal = kPreforkModel || (func != nullptr && _Py_IsImmortal(func)) ||
       (outer != nullptr && _Py_IsImmortal(outer));
-  auto compiled = CompiledFunction::create(std::move(compiled_func), immortal);
+  auto compiled =
+      CompiledFunction::create(std::move(compiled_func), *this, immortal);
   if (compiled == nullptr) {
     return nullptr;
   }
-
-  compiled->setOwner(this);
 
   BorrowedRef<PyCodeObject> code{key.code};
   if (hasFunctionEntryCache(code)) {

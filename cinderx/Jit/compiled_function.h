@@ -108,6 +108,8 @@ bool isJitCompiled(const PyFunctionObject* func);
 
 namespace cinderx::jit {
 
+class CompiledFunctionOwner;
+
 // Data members extracted from CompiledFunction to enable separate storage.
 // CompiledFunction is a GC tracked object and cannot be constructed during
 // multi-threaded compile because we can't hold the GIL which is required for
@@ -152,12 +154,19 @@ struct CompiledFunctionData {
   // owned by the JIT Context's stable storage; otherwise it is owned by
   // stable_storage above.
   CodeRuntime* runtime{nullptr};
-  // References retained until generated code is no longer executing.
-  CodeRuntime::References retired_runtime_references;
+  // Attached only after the data reaches its final allocation. Published data
+  // is not moved; this owner outlives the CompiledFunction wrapper.
+  CompiledFunctionOwner* owner{nullptr};
 
   CompiledFunctionData() = default;
+  CompiledFunctionData(CompiledFunctionData&&) = default;
+  CompiledFunctionData& operator=(CompiledFunctionData&&) = default;
+  ~CompiledFunctionData();
 
-  void clearRetiredRuntimeReferences();
+  [[nodiscard]] bool defer();
+  void releaseRuntimeResources();
+
+  void releaseRuntimeReferences();
 };
 
 class CompiledFunction;
@@ -209,6 +218,7 @@ class CompiledFunction {
   // factory function to create a new CompiledFunction.
   [[nodiscard]] static Ref<CompiledFunction> create(
       CompiledFunctionData&& data,
+      CompiledFunctionOwner& owner,
       bool immortal);
 
   ~CompiledFunction();
@@ -306,9 +316,6 @@ class CompiledFunction {
   // the definition for why clear() must not do this.
   void releaseFunctionRefs();
 
-  // Set the owner that is notified when this CompiledFunction is destroyed.
-  void setOwner(CompiledFunctionOwner* owner);
-
   // Traverse all GC-reachable objects for the GC.
   int traverse(visitproc visit, void* arg);
 
@@ -330,7 +337,10 @@ class CompiledFunction {
   CompiledFunction& operator=(const CompiledFunction&) = delete;
 
  private:
-  explicit CompiledFunction(CompiledFunctionData* data, bool contiguous);
+  CompiledFunction(
+      CompiledFunctionData* data,
+      CompiledFunctionOwner& owner,
+      bool contiguous);
 
   friend Ref<CompiledFunction>;
 
