@@ -753,8 +753,20 @@ static void init_generator_interpreter_frame(
       nullptr);
 #endif
 #if CINDER_FRAME_HAS_JIT_MARKER
+#ifndef ENABLE_LIGHTWEIGHT_FRAMES
+  footer->frame_header.frame_status = 0;
+#if defined(CINDER_AARCH64)
+  footer->frame_header.tstate = tstate;
+#endif
+#if defined(Py_GIL_DISABLED)
+  footer->frame_header.deopt_idx = 0;
+#endif
+#endif
   reinterpret_cast<uint8_t*>(frame)[lir::kFrameFlagsOffset] =
       lir::kInitialFrameFlags;
+#endif
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+  footer->frame_header.code_runtime = code_rt;
 #endif
 }
 

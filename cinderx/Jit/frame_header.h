@@ -5,12 +5,15 @@
 #include "cinderx/python.h"
 
 #include "cinderx/Common/define.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 
 #include <cstddef>
 #include <cstdint>
 
 namespace cinderx::jit {
+
+class CodeRuntime;
 
 int frameHeaderSize(BorrowedRef<PyCodeObject> code);
 
@@ -23,6 +26,11 @@ struct FrameHeader {
   // from the caller's frame pointer, so recovering the frame's current IP
   // means walking the native stack it lives on. See frame.cpp.
   PyThreadState* tstate;
+#endif
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+  // Identifies the compilation executing this frame, even after its function
+  // is rebound.
+  CodeRuntime* code_runtime;
 #endif
 #if defined(Py_GIL_DISABLED)
   // Index into the CodeRuntime's deopt metadata array, giving GC an exact

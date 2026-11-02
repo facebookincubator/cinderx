@@ -229,6 +229,7 @@ class ActiveCompilationClearTest : public RuntimeTest {
     getContext()->forgetCode(func);
     test->compiled_->clear();
     test->compiled_.reset();
+    PyGC_Collect();
     getContext()->processDeferredCleanup();
     EXPECT_TRUE(test->markerAlive());
     EXPECT_EQ(test->live_count_, 1);

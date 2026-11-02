@@ -5335,6 +5335,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                 }
                 case FrameFieldKind::kThreadState:
                   return env_->asm_tstate;
+                case FrameFieldKind::kCodeRuntime:
+                  return bbb.appendInstr(
+                      OutVReg{dt},
+                      Opcode::kMove,
+                      Imm{reinterpret_cast<uint64_t>(env_->code_rt), dt});
                 case FrameFieldKind::kPrevFrame:
                   return caller_frame;
                 case FrameFieldKind::kInstrPtr: {
@@ -6289,6 +6294,11 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
 #endif
             case FrameFieldKind::kThreadState:
               return env_->asm_tstate;
+            case FrameFieldKind::kCodeRuntime:
+              return bbb.appendInstr(
+                  OutVReg{dt},
+                  Opcode::kMove,
+                  Imm{reinterpret_cast<uint64_t>(env_->code_rt), dt});
             case FrameFieldKind::kInstrPtr: {
               _Py_CODEUNIT* code_start;
               if constexpr (PY_VERSION_HEX >= 0x030E0000) {

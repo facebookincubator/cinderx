@@ -20,10 +20,7 @@ using namespace cinderx::jit;
 // frame the unit is running in saved that address.
 class FrameIPTest : public RuntimeTest {
  public:
-  // Compile through the interpreter's own JIT context: reifying a frame looks
-  // the unit's CodeRuntime up there, and in the prefork model the compiled
-  // function is immortalized rather than recorded on the function object, so a
-  // private context leaves nothing for that lookup to find.
+  // Prefork compilations use the interpreter JIT context's stable storage.
   void compile(const char* name) {
     Ref<PyFunctionObject> func{getGlobal(name)};
     ASSERT_TRUE(PyFunction_Check(func)) << name << " is not a function";
@@ -90,6 +87,50 @@ TEST_F(FrameIPTest, ReifyingRunningJitFrameReportsLineBeingExecuted) {
 
   EXPECT_TRUE(isIntEquals(call("plain"), 1));
 }
+
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+TEST_F(FrameIPTest, ReifyingActiveFrameAfterUnregistrationUsesOriginalRuntime) {
+  runCode(R"(
+def func():
+    probe()
+    return 42
+)");
+  Ref<PyFunctionObject> func{getGlobal("func")};
+  static PyMethodDef probe_def = {
+      "probe",
+      [](PyObject* self, PyObject*) -> PyObject* {
+        auto* func =
+            static_cast<PyFunctionObject*>(PyCapsule_GetPointer(self, nullptr));
+        auto* ctx = static_cast<Context*>(getModuleState()->jit_context.get());
+        Ref<CompiledFunction> compiled =
+            Ref<CompiledFunction>::create(ctx->lookupFunc(func));
+        EXPECT_NE(compiled, nullptr);
+        if (compiled == nullptr) {
+          Py_RETURN_NONE;
+        }
+        CodeRuntime* runtime = compiled->runtime();
+        _PyInterpreterFrame* frame = currentFrame(PyThreadState_Get());
+        EXPECT_EQ(jitFrameGetCodeRuntime(frame), runtime);
+        compiled->removeFunction(func);
+        ctx->forgetCode(func);
+        EXPECT_EQ(ctx->lookupCodeRuntime(func), nullptr);
+        EXPECT_EQ(jitFrameGetCodeRuntime(frame), runtime);
+        Ref<PyFrameObject> reified = Ref<PyFrameObject>::steal(
+            PyThreadState_GetFrame(PyThreadState_Get()));
+        EXPECT_NE(reified, nullptr);
+        Py_RETURN_NONE;
+      },
+      METH_NOARGS,
+      nullptr};
+  Ref<> capsule = Ref<>::steal(PyCapsule_New(func.get(), nullptr, nullptr));
+  ASSERT_NE(capsule, nullptr);
+  Ref<> probe = Ref<>::steal(PyCFunction_New(&probe_def, capsule));
+  ASSERT_NE(probe, nullptr);
+  ASSERT_EQ(PyDict_SetItemString(func->func_globals, "probe", probe), 0);
+  compile("func");
+  EXPECT_TRUE(isIntEquals(call("func"), 42));
+}
+#endif
 
 TEST_F(FrameIPTest, ReifyingRunningJitGeneratorReportsLineBeingExecuted) {
   runCode(kSource);

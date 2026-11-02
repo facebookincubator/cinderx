@@ -54,7 +54,7 @@ struct GenDataFooter {
   // Py_INCREF'd when stored, Py_DECREF'd when the generator is deopted.
   CompiledFunction* compiled_func{nullptr};
 
-#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
   // Frame header used for tracking the current frame.
   FrameHeader frame_header;
 #endif

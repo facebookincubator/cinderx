@@ -30,6 +30,7 @@ enum class FrameFieldKind : uint8_t {
   kGlobals,
   kZero,
   kOwnerThread,
+  kCodeRuntime,
   kFrameHeaderFunc,
   // The thread the frame runs on, recorded in the FrameHeader so that its IP
   // can be recovered later by walking that thread's native stack. AArch64
@@ -61,6 +62,8 @@ constexpr const std::string_view frameFieldKindName(FrameFieldKind kind) {
       return "zero";
     case FrameFieldKind::kOwnerThread:
       return "owner";
+    case FrameFieldKind::kCodeRuntime:
+      return "code_runtime";
     case FrameFieldKind::kFrameHeaderFunc:
       return "frame_header_func";
     case FrameFieldKind::kThreadState:
@@ -148,6 +151,12 @@ consteval FrameInitTable buildFrameInitTable() {
   add(fh + static_cast<int32_t>(offsetof(jit::FrameHeader, tstate)),
       FrameFieldKind::kThreadState,
       DataType::kObject);
+#endif
+
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+  add(fh + static_cast<int32_t>(offsetof(jit::FrameHeader, code_runtime)),
+      FrameFieldKind::kCodeRuntime,
+      DataType::k64bit);
 #endif
 
   add(fh + static_cast<int32_t>(offsetof(jit::FrameHeader, frame_status)),

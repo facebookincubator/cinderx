@@ -59,6 +59,9 @@ bool isInlinedFrame(_PyInterpreterFrame* frame);
 
 FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame);
 
+// Returns the runtime for the compilation that created this JIT frame.
+CodeRuntime* jitFrameGetCodeRuntime(_PyInterpreterFrame* frame);
+
 // Like _PyFrame_ClearExceptCode but will handle partially initialized
 // JIT frames and only clean up the necessary state.
 void jitFrameClearExceptCode(

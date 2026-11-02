@@ -41,15 +41,6 @@ struct FrameAndLoc {
 
 using UnitState = std::vector<FrameAndLoc>;
 
-CodeRuntime* getCodeRuntime(_PyInterpreterFrame* frame) {
-  BorrowedRef<PyFunctionObject> func = jitFrameGetFunction(frame);
-
-  // Frame reification can look up runtime state without entering through a
-  // guarded top-level JIT entrypoint.
-  FreeThreadedJITEntrypointGuard guard;
-  return cinderx::getModuleState()->jit_context->lookupCodeRuntime(func);
-}
-
 #if PY_VERSION_HEX >= 0x030E0000
 
 void updatePrevInstr(_PyInterpreterFrame* frame);
@@ -263,7 +254,7 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
   UnitState unit_state;
   unit_state.reserve(unit_frames.size());
   _PyInterpreterFrame* non_inlined_sf = unit_frames[0];
-  CodeRuntime* code_rt = getCodeRuntime(non_inlined_sf);
+  CodeRuntime* code_rt = jitFrameGetCodeRuntime(non_inlined_sf);
   JIT_CHECK(
       code_rt != nullptr,
       "failed to find code runtime for {}",
@@ -344,7 +335,7 @@ CodeRuntime* lookupCodeRuntimeForOwningFrame(_PyInterpreterFrame* frame) {
   JIT_CHECK(
       !isInlinedFrame(frame),
       "owning frame unexpectedly refers to an inlined frame");
-  return getCodeRuntime(frame);
+  return jitFrameGetCodeRuntime(frame);
 }
 
 struct ActiveDeoptMetadata {
@@ -654,8 +645,21 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
   return new_frame;
 }
 
+CodeRuntime* jitFrameGetCodeRuntime(_PyInterpreterFrame* frame) {
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+  return jitFrameGetHeader(frame)->code_runtime;
+#else
+  BorrowedRef<PyFunctionObject> func = jitFrameGetFunction(frame);
+
+  // Frame reification can look up runtime state without entering through a
+  // guarded top-level JIT entrypoint.
+  FreeThreadedJITEntrypointGuard guard;
+  return cinderx::getModuleState()->jit_context->lookupCodeRuntime(func);
+#endif
+}
+
 FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame) {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
   if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
     PyGenObject* gen = _PyGen_GetGeneratorFromFrame(frame);
     auto footer = jitGenDataFooter(gen);
@@ -840,7 +844,7 @@ void deoptAllJitFramesOnStack() {
         // Only patch non-inlined frames — inlined frames share the outer
         // frame's stack and saved return address.
         if (!isInlined(frame)) {
-          CodeRuntime* code_rt = getCodeRuntime(frame);
+          CodeRuntime* code_rt = jitFrameGetCodeRuntime(frame);
           if (code_rt != nullptr) {
             uintptr_t current_ip = getIP(frame, code_rt->frameSize());
             auto deopt_exit = code_rt->getCallsiteDeoptExit(current_ip);
