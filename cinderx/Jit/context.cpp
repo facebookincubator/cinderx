@@ -19,6 +19,9 @@
 #include "cinderx/module_state.h"
 #include "cinderx/python_runtime.h"
 
+#include <optional>
+#include <utility>
+
 #ifndef WIN32
 #include <dlfcn.h>
 #include <sys/mman.h>
@@ -967,7 +970,15 @@ std::vector<Ref<CompiledFunction>> Context::releaseFunction(
     BorrowedRef<PyFunctionObject> func) {
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   FreeThreadedJITEntrypointGuard guard;
-  JITCompilationLock lock;
+  // This runs every time a JIT-compiled function dies, e.g. for each lambda or
+  // generator expression a compiled function creates.  With a GIL, everything
+  // it touches (the function and code registrations, the deopted-function and
+  // nested-compile maps) is only ever accessed with the GIL held, so the
+  // compilation lock is extra overhead.
+  std::optional<JITCompilationLock> lock;
+  if constexpr (kFreeThreadedBuild) {
+    lock.emplace();
+  }
   std::vector<Ref<CompiledFunction>> compiled_funcs;
   if (Ref<CompiledFunction> compiled = stealFuncRegistration(func)) {
     compiled_funcs.emplace_back(std::move(compiled));

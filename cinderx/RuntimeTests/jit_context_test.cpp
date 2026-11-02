@@ -14,7 +14,11 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <array>
+#include <atomic>
+#include <chrono>
+#include <future>
 #include <memory>
+#include <thread>
 #include <vector>
 
 namespace cinderx {
@@ -200,6 +204,50 @@ foo = "hello"
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto result = Ref<>::steal(PyObject_Call(func, empty_tuple, nullptr));
   ASSERT_EQ(result, Py_None);
+}
+
+// Releasing a dying function's compile only touches state guarded by the GIL,
+// so it must not wait for the compilation lock, which background compiles take
+// without the GIL.
+TEST_F(JITContextTest, ReleaseFunctionDoesNotWaitForCompilationLock) {
+  if constexpr (kFreeThreadedBuild) {
+    SKIP("Free-threaded builds serialize on the compilation lock");
+  }
+
+  runCode(R"(
+import cinderx.jit
+
+def make_adder():
+    return lambda x: x + 1
+
+adder = make_adder()
+assert cinderx.jit.force_compile(adder)
+)");
+  Ref<PyFunctionObject> adder(getGlobal("adder"));
+  ASSERT_NE(adder, nullptr);
+  ASSERT_TRUE(isJitCompiled(adder));
+
+  std::promise<void> locked;
+  std::promise<void> done;
+  std::atomic<bool> holder_timed_out{false};
+  std::thread holder([&] {
+    JITCompilationLock lock;
+    locked.set_value();
+    if (done.get_future().wait_for(std::chrono::seconds(30)) ==
+        std::future_status::timeout) {
+      holder_timed_out = true;
+    }
+  });
+  locked.get_future().wait();
+
+  std::vector<Ref<CompiledFunction>> released =
+      getContext()->releaseFunction(adder);
+  done.set_value();
+  holder.join();
+
+  EXPECT_FALSE(holder_timed_out);
+  EXPECT_EQ(released.size(), 1);
+  EXPECT_FALSE(isJitCompiled(adder));
 }
 
 TEST_F(JITContextTest, ReentrantCompileDuringCleanup) {
