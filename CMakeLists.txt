@@ -524,18 +524,6 @@ if (${MACOS})
   target_link_options(${PROJECT_NAME} PRIVATE -undefined dynamic_lookup)
 endif()
 
-if (NOT WINDOWS)
-  add_custom_command(
-    TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E rm -f
-      $<TARGET_FILE_DIR:${PROJECT_NAME}>/_cinderx.so
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
-      $<TARGET_FILE_NAME:${PROJECT_NAME}>
-      $<TARGET_FILE_DIR:${PROJECT_NAME}>/_cinderx.so
-    COMMENT "Creating _cinderx.so symlink pointing to $<TARGET_FILE_NAME:${PROJECT_NAME}>"
-  )
-endif()
-
 ##############################################################################
 # RuntimeTests/ — opt-in C++ GoogleTest binary.
 
