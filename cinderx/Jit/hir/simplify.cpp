@@ -1706,6 +1706,36 @@ foldOrderedIntCompare(PrimitiveCompareOp op, Type left, Type right) {
   return std::nullopt;
 }
 
+// C++ comparisons follow IEEE 754, as does the generated code.  Every
+// comparison involving a NaN is false except !=.
+std::optional<bool>
+foldDoubleCompare(PrimitiveCompareOp op, Type left, Type right) {
+  if (!left.hasDoubleSpec() || !right.hasDoubleSpec()) {
+    return std::nullopt;
+  }
+  double l = left.doubleSpec();
+  double r = right.doubleSpec();
+  switch (op) {
+    case PrimitiveCompareOp::kEqual:
+      return l == r;
+    case PrimitiveCompareOp::kNotEqual:
+      return l != r;
+    case PrimitiveCompareOp::kLessThan:
+    case PrimitiveCompareOp::kLessThanUnsigned:
+      return l < r;
+    case PrimitiveCompareOp::kLessThanEqual:
+    case PrimitiveCompareOp::kLessThanEqualUnsigned:
+      return l <= r;
+    case PrimitiveCompareOp::kGreaterThan:
+    case PrimitiveCompareOp::kGreaterThanUnsigned:
+      return l > r;
+    case PrimitiveCompareOp::kGreaterThanEqual:
+    case PrimitiveCompareOp::kGreaterThanEqualUnsigned:
+      return l >= r;
+  }
+  return std::nullopt;
+}
+
 Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
   Register* left = instr->getOperand(0);
   Register* right = instr->getOperand(1);
@@ -1713,13 +1743,18 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
   bool commutative =
       op == PrimitiveCompareOp::kEqual || op == PrimitiveCompareOp::kNotEqual;
 
-  // Constant folding.
-  if (std::optional<bool> result =
-          foldOrderedIntCompare(op, left->type(), right->type())) {
+  // Constant fold for ints and doubles.
+  std::optional<bool> result =
+      foldOrderedIntCompare(op, left->type(), right->type());
+  if (!result.has_value()) {
+    result = foldDoubleCompare(op, left->type(), right->type());
+  }
+  if (result.has_value()) {
     env.emit<UseType>(left, left->type());
     env.emit<UseType>(right, right->type());
     return env.emit<LoadConst>(Type::fromCBool(*result));
   }
+
   if (commutative) {
     auto do_cbool = [&](bool value) {
       env.emit<UseType>(left, left->type());

@@ -15126,6 +15126,435 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
+PrimitiveCompareEqualOfZeroAndNegativeZeroEmitsTrue
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<FloatExact[0.0]>
+    v1 = LoadConst<FloatExact[-0.0]>
+    v2 = PrimitiveUnbox<CDouble> v0
+    v3 = PrimitiveUnbox<CDouble> v1
+    v4 = PrimitiveCompare<Equal> v2 v3
+    v5 = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v1:MortalFloatExact[-0] = LoadConst<MortalFloatExact[-0]>
+    v6:CDouble[0] = LoadConst<CDouble[0]>
+    v7:CDouble[-0] = LoadConst<CDouble[-0]>
+    UseType<CDouble[0]> v6
+    UseType<CDouble[-0]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v1:MortalFloatExact[-0] = LoadConst<MortalFloatExact[-0]>
+    v6:CDouble[0] = LoadConst<CDouble[0]>
+    v7:CDouble[-0] = LoadConst<CDouble[-0]>
+    UseType<CDouble[0]> v6
+    UseType<CDouble[-0]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v1:MortalFloatExact[-0] = LoadConst<MortalFloatExact[-0]>
+    v6:CDouble[0] = LoadConst<CDouble[0]>
+    v7:CDouble[-0] = LoadConst<CDouble[-0]>
+    UseType<CDouble[0]> v6
+    UseType<CDouble[-0]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v1:MortalFloatExact[-0] = LoadConst<MortalFloatExact[-0]>
+    v6:CDouble[0] = LoadConst<CDouble[0]>
+    v7:CDouble[-0] = LoadConst<CDouble[-0]>
+    UseType<CDouble[0]> v6
+    UseType<CDouble[-0]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v1:MortalFloatExact[-0] = LoadConst<MortalFloatExact[-0]>
+    v6:CDouble[0] = LoadConst<CDouble[0]>
+    v7:CDouble[-0] = LoadConst<CDouble[-0]>
+    UseType<CDouble[0]> v6
+    UseType<CDouble[-0]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Test Name ---
+PrimitiveCompareNotEqualOfNaNsEmitsTrue
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<FloatExact[nan]>
+    v1 = LoadConst<FloatExact[nan]>
+    v2 = PrimitiveUnbox<CDouble> v0
+    v3 = PrimitiveUnbox<CDouble> v1
+    v4 = PrimitiveCompare<NotEqual> v2 v3
+    v5 = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[nan] = LoadConst<CDouble[nan]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[nan]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[nan] = LoadConst<CDouble[nan]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[nan]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[nan] = LoadConst<CDouble[nan]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[nan]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[nan] = LoadConst<CDouble[nan]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[nan]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[nan] = LoadConst<CDouble[nan]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[nan]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Test Name ---
+PrimitiveCompareUnsignedLessThanOfDoublesEmitsLoadConst
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<FloatExact[1.5]>
+    v1 = LoadConst<FloatExact[2.5]>
+    v2 = PrimitiveUnbox<CDouble> v0
+    v3 = PrimitiveUnbox<CDouble> v1
+    v4 = PrimitiveCompare<LessThanUnsigned> v2 v3
+    v5 = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[1.5] = LoadConst<MortalFloatExact[1.5]>
+    v1:MortalFloatExact[2.5] = LoadConst<MortalFloatExact[2.5]>
+    v6:CDouble[1.5] = LoadConst<CDouble[1.5]>
+    v7:CDouble[2.5] = LoadConst<CDouble[2.5]>
+    UseType<CDouble[1.5]> v6
+    UseType<CDouble[2.5]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[1.5] = LoadConst<MortalFloatExact[1.5]>
+    v1:MortalFloatExact[2.5] = LoadConst<MortalFloatExact[2.5]>
+    v6:CDouble[1.5] = LoadConst<CDouble[1.5]>
+    v7:CDouble[2.5] = LoadConst<CDouble[2.5]>
+    UseType<CDouble[1.5]> v6
+    UseType<CDouble[2.5]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[1.5] = LoadConst<MortalFloatExact[1.5]>
+    v1:MortalFloatExact[2.5] = LoadConst<MortalFloatExact[2.5]>
+    v6:CDouble[1.5] = LoadConst<CDouble[1.5]>
+    v7:CDouble[2.5] = LoadConst<CDouble[2.5]>
+    UseType<CDouble[1.5]> v6
+    UseType<CDouble[2.5]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[1.5] = LoadConst<MortalFloatExact[1.5]>
+    v1:MortalFloatExact[2.5] = LoadConst<MortalFloatExact[2.5]>
+    v6:CDouble[1.5] = LoadConst<CDouble[1.5]>
+    v7:CDouble[2.5] = LoadConst<CDouble[2.5]>
+    UseType<CDouble[1.5]> v6
+    UseType<CDouble[2.5]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[1.5] = LoadConst<MortalFloatExact[1.5]>
+    v1:MortalFloatExact[2.5] = LoadConst<MortalFloatExact[2.5]>
+    v6:CDouble[1.5] = LoadConst<CDouble[1.5]>
+    v7:CDouble[2.5] = LoadConst<CDouble[2.5]>
+    UseType<CDouble[1.5]> v6
+    UseType<CDouble[2.5]> v7
+    v8:CBool[true] = LoadConst<CBool[true]>
+    UseType<CBool[true]> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v9
+  }
+}
+--- Test Name ---
+PrimitiveCompareGreaterThanEqualOfNaNEmitsFalse
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadConst<FloatExact[nan]>
+    v1 = LoadConst<FloatExact[1.0]>
+    v2 = PrimitiveUnbox<CDouble> v0
+    v3 = PrimitiveUnbox<CDouble> v1
+    v4 = PrimitiveCompare<GreaterThanEqual> v2 v3
+    v5 = PrimitiveBoxBool v4
+    Return v5
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[1] = LoadConst<MortalFloatExact[1]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[1] = LoadConst<CDouble[1]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[1]> v7
+    v8:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v8
+    v9:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v9
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[1] = LoadConst<MortalFloatExact[1]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[1] = LoadConst<CDouble[1]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[1]> v7
+    v8:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v8
+    v9:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v9
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[1] = LoadConst<MortalFloatExact[1]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[1] = LoadConst<CDouble[1]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[1]> v7
+    v8:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v8
+    v9:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v9
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[1] = LoadConst<MortalFloatExact[1]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[1] = LoadConst<CDouble[1]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[1]> v7
+    v8:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v8
+    v9:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v9
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:MortalFloatExact[nan] = LoadConst<MortalFloatExact[nan]>
+    v1:MortalFloatExact[1] = LoadConst<MortalFloatExact[1]>
+    v6:CDouble[nan] = LoadConst<CDouble[nan]>
+    v7:CDouble[1] = LoadConst<CDouble[1]>
+    UseType<CDouble[nan]> v6
+    UseType<CDouble[1]> v7
+    v8:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v8
+    v9:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v9
+  }
+}
+--- Test Name ---
+PrimitiveCompareOfDoubleConstantAndArgDoesNotSimplify
+--- Input ---
+# HIR
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0, CDouble>
+    v1 = LoadConst<FloatExact[0.0]>
+    v2 = PrimitiveUnbox<CDouble> v1
+    v3 = PrimitiveCompare<Equal> v0 v2
+    v4 = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v5:CDouble[0] = LoadConst<CDouble[0]>
+    v3:CBool = PrimitiveCompare<Equal> v0 v5
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v5:CDouble[0] = LoadConst<CDouble[0]>
+    v3:CBool = PrimitiveCompare<Equal> v0 v5
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v5:CDouble[0] = LoadConst<CDouble[0]>
+    v3:CBool = PrimitiveCompare<Equal> v0 v5
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v5:CDouble[0] = LoadConst<CDouble[0]>
+    v3:CBool = PrimitiveCompare<Equal> v0 v5
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v0:CDouble = LoadArg<0, CDouble>
+    v1:MortalFloatExact[0] = LoadConst<MortalFloatExact[0]>
+    v5:CDouble[0] = LoadConst<CDouble[0]>
+    v3:CBool = PrimitiveCompare<Equal> v0 v5
+    v4:ImmortalBool = PrimitiveBoxBool v3
+    Return v4
+  }
+}
+--- Test Name ---
 PrimitiveUnaryOpNotIntOfConstantIsConstantFolded
 --- Input ---
 # HIR
