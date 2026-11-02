@@ -527,8 +527,8 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       Ref<> globals,
       CompiledFunctionData* data) override;
 
-  // Walk all thread stacks and free deferred CompiledFunctionData entries
-  // whose code is no longer executing on any thread.
+  // Walk all thread stacks and release deferred compilation data that is no
+  // longer in use.
   void processDeferredCleanup();
 
   // Map of all code objects to the functions that they were found in.
@@ -724,10 +724,7 @@ class CompilerContext : public Context {
   T compiler_;
 };
 
-// Walk all thread stacks and move entries from `pending` whose code is still
-// executing back into `still_active`.  Uses jitFrameGetFunction to correctly
-// identify JIT frames across all Python versions.  Defined in frame.cpp
-// because it needs access to frame internals that context.cpp cannot include.
+// Keep deferred data for generations in JIT frames.
 void retainActiveDeferredData(
     std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>&
         pending,

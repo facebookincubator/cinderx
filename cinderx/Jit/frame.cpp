@@ -794,9 +794,26 @@ void retainActiveDeferredData(
       // whose funcobj is Py_None. Ignore these as they have no code to keep
       // alive.
       if (func != nullptr && func != Py_None) {
-        OwnedCompilationKey key{func};
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+        CodeRuntime* runtime = jitFrameGetCodeRuntime(frame);
+        OwnedCompilationKey key{
+            Ref<>::create(runtime->code()),
+            Ref<>::create(runtime->builtins()),
+            Ref<>::create(runtime->globals())};
+#else
+        OwnedCompilationKey key{
+            Ref<>::create(reinterpret_cast<PyObject*>(frameCode(frame))),
+            Ref<>::create(func->func_builtins),
+            Ref<>::create(func->func_globals)};
+#endif
         auto [it, end] = pending.equal_range(key);
         while (it != end) {
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+          if (it->second->runtime != runtime) {
+            ++it;
+            continue;
+          }
+#endif
           auto active = it++;
           still_active.insert(pending.extract(active));
         }

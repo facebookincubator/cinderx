@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/inline_cache.h"
@@ -216,6 +217,7 @@ class ActiveCompilationClearTest : public RuntimeTest {
  protected:
   void TearDown() override {
     compiled_.reset();
+    inactive_.reset();
     getContext()->processDeferredCleanup();
     marker_.reset();
     RuntimeTest::TearDown();
@@ -225,6 +227,7 @@ class ActiveCompilationClearTest : public RuntimeTest {
     auto* test = static_cast<ActiveCompilationClearTest*>(
         PyCapsule_GetPointer(self, nullptr));
     Ref<PyFunctionObject> func{test->getGlobal("func")};
+    test->inactive_.reset();
     test->compiled_->removeFunction(func);
     getContext()->forgetCode(func);
     test->compiled_->clear();
@@ -236,6 +239,7 @@ class ActiveCompilationClearTest : public RuntimeTest {
     if (test->after_retirement_) {
       test->after_retirement_();
     }
+    EXPECT_EQ(test->inactive_live_count_, 0);
     Py_RETURN_NONE;
   }
 
@@ -250,6 +254,8 @@ class ActiveCompilationClearTest : public RuntimeTest {
   }
 
   Ref<CompiledFunction> compiled_;
+  Ref<CompiledFunction> inactive_;
+  int inactive_live_count_{0};
   Ref<> marker_;
   int live_count_{0};
   std::function<void()> after_retirement_;
@@ -406,6 +412,44 @@ def func():
   EXPECT_FALSE(markerAlive());
   EXPECT_EQ(live_count_, 0);
   runCode("Watched.value = 3\nwatched.__code__ = (lambda: 3).__code__\n");
+}
+
+TEST_F(ActiveCompilationClearTest, CleanupRetainsOnlyTheExecutingGeneration) {
+  runCode(R"(
+class Marker: pass
+def func():
+    probe()
+    return 42
+)");
+  static PyMethodDef probe_def = {"probe", probe, METH_NOARGS, nullptr};
+  Ref<> capsule = Ref<>::steal(PyCapsule_New(this, nullptr, nullptr));
+  Ref<> probe_func = Ref<>::steal(PyCFunction_New(&probe_def, capsule));
+  Ref<PyFunctionObject> func{getGlobal("func")};
+  ASSERT_EQ(PyDict_SetItemString(func->func_globals, "probe", probe_func), 0);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  compiled_ = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled_, nullptr);
+  Ref<> marker = Ref<>::steal(PyObject_CallNoArgs(getGlobal("Marker")));
+  marker_ = Ref<>::steal(PyWeakref_NewRef(marker, nullptr));
+  compiled_->runtime()->addReference(marker);
+  marker.reset();
+  compiled_->data()->stable_storage->allocateForTesting<InlineCacheLifetime>(
+      live_count_);
+
+  auto data = Compiler().compile(func);
+  ASSERT_TRUE(data.has_value());
+  inactive_ = CompiledFunction::create(std::move(*data), *getContext(), false);
+  ASSERT_NE(inactive_, nullptr);
+  inactive_->data()->stable_storage->allocateForTesting<InlineCacheLifetime>(
+      inactive_live_count_);
+  EXPECT_NE(inactive_->runtime(), compiled_->runtime());
+
+  Ref<> result = Ref<>::steal(PyObject_CallNoArgs(func));
+  EXPECT_TRUE(isIntEquals(result, 42));
+  getContext()->processDeferredCleanup();
+  EXPECT_FALSE(markerAlive());
+  EXPECT_EQ(live_count_, 0);
+  EXPECT_EQ(inactive_live_count_, 0);
 }
 
 #endif
