@@ -255,6 +255,77 @@ TEST_F(JITFlagProcessorTest, DebugOverrideLoggingCorrect) {
       true);
 }
 
+TEST_F(JITFlagProcessorTest, SizeTCallback) {
+  auto flag_processor = FlagProcessor();
+  size_t value = 0;
+
+  flag_processor.addOption(
+      "test-size-t-flag",
+      "SIZETFLAG",
+      [&value](size_t flag_value) { value = flag_value; },
+      "test flag");
+
+  // Larger than INT_MAX: must not be truncated through an int code path.
+  try_flag_and_envvar_effect(
+      flag_processor,
+      L"test-size-t-flag=4294967296",
+      "SIZETFLAG=4294967296",
+      [&value]() { value = 0; },
+      [&value]() { ASSERT_EQ(value, size_t{4294967296}); });
+}
+
+TEST_F(JITFlagProcessorTest, SizeTCallbackExceptionPropagates) {
+  auto flag_processor = FlagProcessor();
+
+  flag_processor.addOption(
+      "test-size-t-flag",
+      "SIZETFLAG",
+      [](size_t flag_value) {
+        if (flag_value > 100) {
+          throw std::runtime_error{"value too large"};
+        }
+      },
+      "test flag");
+
+  PyObject* xoptions = PySys_GetXOptions();
+  PyObject* xarg_key = addToXargsDict(L"test-size-t-flag=200");
+  EXPECT_THROW(flag_processor.setFlags(xoptions), std::runtime_error);
+  PyDict_DelItem(xoptions, xarg_key);
+  Py_DECREF(xarg_key);
+}
+
+TEST_F(JITFlagProcessorTest, SizeTCallbackRejectsNegative) {
+  auto flag_processor = FlagProcessor();
+  size_t value = 42;
+
+  flag_processor.addOption(
+      "test-size-t-flag",
+      "SIZETFLAG",
+      [&value](size_t flag_value) { value = flag_value; },
+      "test flag");
+
+  try_flag_and_envvar_effect(
+      flag_processor,
+      L"test-size-t-flag=-5",
+      "SIZETFLAG=-5",
+      [&value]() { value = 42; },
+      [&value]() { ASSERT_EQ(value, size_t{42}); });
+}
+
+TEST_F(JITFlagProcessorTest, SizeTBindingRejectsNegative) {
+  auto flag_processor = FlagProcessor();
+  size_t value = 42;
+
+  flag_processor.addOption("test-size-t-flag", "SIZETFLAG", value, "test flag");
+
+  try_flag_and_envvar_effect(
+      flag_processor,
+      L"test-size-t-flag=-5",
+      "SIZETFLAG=-5",
+      [&value]() { value = 42; },
+      [&value]() { ASSERT_EQ(value, size_t{42}); });
+}
+
 TEST_F(JITFlagProcessorTest, FlagWithNoEnvVar) {
   // some flags have no environment variable associated with them
   auto flag_processor = FlagProcessor();

@@ -16,6 +16,26 @@ constexpr std::string_view indent1 = "         ";
 constexpr std::string_view indent2 = "             ";
 constexpr size_t line_length = 80 - indent1.size();
 
+// Parse a nonnegative integer option value into `value`.  An empty value means
+// 1 (see the `-X foo` convention in the callers below).  Returns false for
+// anything else that is not a nonnegative integer.
+bool parseNonNegativeSizeT(const std::string& flag_value, size_t& value) {
+  if (flag_value.empty()) {
+    value = 1;
+    return true;
+  }
+  size_t first = flag_value.find_first_not_of(" \t\n\v\f\r");
+  if (first != std::string::npos && flag_value[first] == '-') {
+    return false;
+  }
+  try {
+    value = std::stoull(flag_value);
+  } catch (const std::exception&) {
+    return false;
+  }
+  return true;
+}
+
 bool FlagProcessor::hasOptions() {
   return options_.size() > 0;
 }
@@ -35,29 +55,31 @@ Option& FlagProcessor::addOption(
 Option& FlagProcessor::addOption(
     const std::string& cmdline_flag,
     const std::string& environment_variable,
-    const std::function<void(int)>& callback,
+    const std::function<void(size_t)>& callback,
     const std::string& flag_description) {
   assert(!cmdline_flag.empty());
   assert(!flag_description.empty());
 
-  std::function<void(const std::string&)> int_callback =
+  std::function<void(const std::string&)> size_t_callback =
       [=](const std::string& flag_value) {
-        try {
-          // The callback only gets called for empty X-options, not empty
-          // environment variables. This makes `-X foo` equivalent to `-X
-          // foo=1`, but `PYTHONFOO=` is not equivalent to `PYTHONFOO=1`.
-          callback(flag_value == "" ? 1 : std::stoi(flag_value));
-        } catch (std::exception const&) {
+        // The callback only gets called for empty X-options, not empty
+        // environment variables. This makes `-X foo` equivalent to `-X foo=1`,
+        // but `PYTHONFOO=` is not equivalent to `PYTHONFOO=1`.
+        size_t value;
+        if (!parseNonNegativeSizeT(flag_value, value)) {
           JIT_LOG(
-              "Invalid int value for {}/{}: {}",
+              "Invalid unsigned long value for {}/{}: {}",
               cmdline_flag,
               environment_variable,
               flag_value);
+          return;
         }
+        // Callback might raise an exception, that gets passed to the caller.
+        callback(value);
       };
 
   return addOption(
-      cmdline_flag, environment_variable, int_callback, flag_description);
+      cmdline_flag, environment_variable, size_t_callback, flag_description);
 }
 
 Option& FlagProcessor::addOption(
@@ -95,9 +117,10 @@ Option& FlagProcessor::addOption(
     const std::string& environment_variable,
     bool& variable_to_bind_to,
     const std::string& flag_description) {
-  std::function<void(int)> setter = [&variable_to_bind_to](int flag_value) {
-    variable_to_bind_to = static_cast<bool>(flag_value);
-  };
+  std::function<void(size_t)> setter =
+      [&variable_to_bind_to](size_t flag_value) {
+        variable_to_bind_to = static_cast<bool>(flag_value);
+      };
   return addOption(
       cmdline_flag, environment_variable, setter, flag_description);
 }
@@ -107,9 +130,10 @@ Option& FlagProcessor::addOption(
     const std::string& environment_variable,
     int& variable_to_bind_to,
     const std::string& flag_description) {
-  std::function<void(int)> setter = [&variable_to_bind_to](int flag_value) {
-    variable_to_bind_to = flag_value;
-  };
+  std::function<void(size_t)> setter =
+      [&variable_to_bind_to](size_t flag_value) {
+        variable_to_bind_to = static_cast<int>(flag_value);
+      };
   return addOption(
       cmdline_flag, environment_variable, setter, flag_description);
 }
@@ -121,18 +145,19 @@ Option& FlagProcessor::addOption(
     const std::string& flag_description) {
   std::function<void(const std::string&)> setter =
       [=, &variable_to_bind_to](const std::string& flag_value) {
-        try {
-          // The callback only gets called for empty X-options, not empty
-          // environment variables. This makes `-X foo` equivalent to `-X
-          // foo=1`, but `PYTHONFOO=` is not equivalent to `PYTHONFOO=1`.
-          variable_to_bind_to = flag_value == "" ? 1 : std::stoull(flag_value);
-        } catch (std::exception const&) {
+        // The callback only gets called for empty X-options, not empty
+        // environment variables. This makes `-X foo` equivalent to `-X
+        // foo=1`, but `PYTHONFOO=` is not equivalent to `PYTHONFOO=1`.
+        size_t value;
+        if (!parseNonNegativeSizeT(flag_value, value)) {
           JIT_LOG(
               "Invalid unsigned long value for {}/{}: {}",
               cmdline_flag,
               environment_variable,
               flag_value);
+          return;
         }
+        variable_to_bind_to = value;
       };
   return addOption(
       cmdline_flag, environment_variable, setter, flag_description);

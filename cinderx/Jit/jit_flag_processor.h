@@ -78,10 +78,16 @@ struct FlagProcessor {
       const std::string& environment_variable,
       const std::function<void()>& callback_on_match,
       const std::string& flag_description);
+  // Numeric callbacks take `size_t`, all integral options are required to be
+  // nonnegative.  Exceptions thrown by the callback itself (e.g. range
+  // validation with `JIT_THROW_IF`) propagate to the caller instead of being
+  // reported as a parse failure.  Callbacks taking a narrower integer type
+  // (`bool`, `int`, `uint32_t`, ...) bind to this overload and receive the
+  // truncated value.
   Option& addOption(
       const std::string& cmdline_flag,
       const std::string& environment_variable,
-      const std::function<void(int)>& callback_on_match,
+      const std::function<void(size_t)>& callback_on_match,
       const std::string& flag_description);
   Option& addOption(
       const std::string& cmdline_flag,
