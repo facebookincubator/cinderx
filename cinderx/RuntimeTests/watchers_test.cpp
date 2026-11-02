@@ -1,4 +1,5 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/define.h"
@@ -87,7 +88,7 @@ class ReadOnlyCopy {
 
 TEST_F(WatchersTest, RewatchTypeDoesNotWrite) {
   if constexpr (!kPreforkModel) {
-    GTEST_SKIP() << "Only prefork builds skip re-watching";
+    SKIP("Only prefork builds skip re-watching");
   }
   Ref<PyTypeObject> type{compileAndGet("class C: pass", "C")};
   ASSERT_NE(type, nullptr);
