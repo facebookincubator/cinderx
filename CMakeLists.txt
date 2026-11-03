@@ -29,14 +29,12 @@ if(ENABLE_CCACHE)
   set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
 endif()
 
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+if (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+  set(LINUX 1)
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   set(MACOS 1)
-  set(WINDOWS 0)
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-  set(MACOS 0)
+elseif (${CMAKE_SYSTEM_NAME} MATCHES "Windows")
   set(WINDOWS 1)
-else()
-  set(MACOS 0)
 endif()
 
 ##############################################################################
@@ -505,8 +503,20 @@ target_link_libraries(
   cinderx-lib)
 
 # macOS doesn't allow depending on other shared libraries by default.
-if (${MACOS})
+if (MACOS)
   target_link_options(${PROJECT_NAME} PRIVATE -undefined dynamic_lookup)
+endif()
+
+# libstdc++/libc++ headers force default visibility on some template
+# instantiations, typeinfo, and vtables in spite of -fvisibility=hidden.
+# Exclude them to shrink the size of the native extension.
+#
+# The only symbol that needs to be exported by the extension is PyInit__cinderx.
+if (LINUX)
+  target_link_options(${PROJECT_NAME} PRIVATE "LINKER:--exclude-libs,ALL")
+elseif (MACOS)
+  target_link_options(
+    ${PROJECT_NAME} PRIVATE "LINKER:-exported_symbol,_PyInit__cinderx")
 endif()
 
 ##############################################################################
@@ -563,7 +573,7 @@ if (BUILD_RUNTIME_TESTS)
   )
 
   # Exercise allocation from the linker-reserved JIT region on Linux.
-  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  if (LINUX)
     target_link_options(
       RuntimeTests
       PRIVATE
