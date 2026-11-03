@@ -12,7 +12,7 @@
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/context_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
-#include "cinderx/Jit/jit_list_iface.h"
+#include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/symbolizer_iface.h"
 #include "cinderx/async_lazy_value_iface.h"
@@ -66,7 +66,7 @@ struct ModuleState {
   std::unique_ptr<jit::ICodeAllocator> code_allocator;
   std::unique_ptr<jit::ISymbolizer> symbolizer;
   std::unique_ptr<jit::IJitContext> jit_context;
-  std::unique_ptr<jit::IJITList> jit_list;
+  std::unique_ptr<jit::JITList> jit_list;
   std::unique_ptr<PyObjectAllocator> jit_gen_allocator;
 
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value;

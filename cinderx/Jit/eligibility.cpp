@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/eligibility.h"
 
+#include "cinderx/Jit/jit_list.h"
 #include "cinderx/module_state.h"
 
 #include <string_view>

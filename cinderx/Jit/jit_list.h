@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/jit_list_iface.h"
 
 #include <memory>
 #include <string_view>
@@ -18,10 +17,10 @@ namespace cinderx::jit {
 //
 // Leading and trailing whitespace is ignored. Lines that begin with `#` are
 // also ignored.
-class JITList : public IJITList {
+class JITList {
  public:
   static std::unique_ptr<JITList> create();
-  virtual ~JITList() {}
+  virtual ~JITList() = default;
 
   JITList(const JITList&) = delete;
   JITList& operator=(const JITList&) = delete;
@@ -29,25 +28,25 @@ class JITList : public IJITList {
   // Parse a JIT list from a file.
   //
   // Raise an exception on error.
-  void parseFile(const char* filename) override;
+  void parseFile(const char* filename);
 
   // Parse a single entry on the JIT list.
   //
   // Return true on success or false on error.
-  bool parseLine(std::string_view line) override;
+  bool parseLine(std::string_view line);
 
   // Check if function or code object is on the list.
   //
   // Returns 1, 0, -1 if the function was found, not found, or an error
   // occurred, respectively.
-  int lookupFunc(BorrowedRef<PyFunctionObject> function) const override;
-  int lookupCode(BorrowedRef<PyCodeObject> code) const override;
+  virtual int lookupFunc(BorrowedRef<PyFunctionObject> function) const;
+  int lookupCode(BorrowedRef<PyCodeObject> code) const;
   virtual int lookupName(BorrowedRef<> module_name, BorrowedRef<> qualname)
-      const override;
+      const;
 
   // Return a new reference to the dictionary used for matching elements in the
   // JIT list.
-  Ref<> getList() const override;
+  Ref<> getList() const;
 
  protected:
   JITList(Ref<> qualnames, Ref<> name_file_line_no)
