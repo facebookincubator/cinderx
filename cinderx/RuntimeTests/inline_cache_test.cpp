@@ -229,11 +229,11 @@ class ActiveCompilationClearTest : public RuntimeTest {
     Ref<PyFunctionObject> func{test->getGlobal("func")};
     test->inactive_.reset();
     test->compiled_->removeFunction(func);
-    getContext()->forgetCode(func);
+    test->getContext()->forgetCode(func);
     test->compiled_->clear();
     test->compiled_.reset();
     PyGC_Collect();
-    getContext()->processDeferredCleanup();
+    test->getContext()->processDeferredCleanup();
     EXPECT_TRUE(test->markerAlive());
     EXPECT_EQ(test->live_count_, 1);
     if (test->after_retirement_) {
@@ -246,7 +246,7 @@ class ActiveCompilationClearTest : public RuntimeTest {
   static PyObject* resetProbe(PyObject* self, PyObject*) {
     auto* test = static_cast<ActiveCompilationClearTest*>(
         PyCapsule_GetPointer(self, nullptr));
-    getContext()->clearForMultithreadedCompileTest();
+    test->getContext()->clearForMultithreadedCompileTest();
     EXPECT_NE(test->compiled_->runtime(), nullptr);
     EXPECT_TRUE(test->markerAlive());
     EXPECT_EQ(test->live_count_, 1);

@@ -47,6 +47,10 @@ class RefBase {
     return ptr_;
   }
 
+  T& operator*() const {
+    return *ptr_;
+  }
+
   bool operator==(const RefBase<T>& rhs) const {
     return ptr_ == rhs.ptr_;
   }
