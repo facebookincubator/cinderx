@@ -114,9 +114,6 @@ test.test_subprocess.ProcessTestCaseNoPoll.test_executable_without_cwd
 # spewed to stderr on fork.
 test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works_after_fork_with_many_code_objects
 
-# Repeatedly flaky, seems to be an issue with PARs rather than CinderX.
-test.test_zipimport
-
 # Needs a C-with-UTF-8 locale, not available on Meta internal hosts.
 test.test_c_locale_coercion.LocaleConfigurationTests.*
 
