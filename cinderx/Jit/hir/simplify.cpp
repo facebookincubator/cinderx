@@ -1817,16 +1817,18 @@ Register* simplifyPrimitiveCompare(Env& env, const PrimitiveCompare* instr) {
 }
 
 Register* simplifyPrimitiveBox(Env& env, const PrimitiveBox* instr) {
-  Register* input = instr->getOperand(0);
-  Type ty = instr->type();
-
-  if (!ty.hasIntSpec() && !ty.hasDoubleSpec()) {
+  Register* input = instr->value();
+  // Like the generated code, pick the conversion from the value's type rather
+  // than the instruction's declared type.
+  Type ty = input->type();
+  bool is_int = ty.hasIntSpec() && (ty <= TCSigned || ty <= TCUnsigned);
+  if (!is_int && !ty.hasDoubleSpec()) {
     return nullptr;
   }
 
   ThreadedCompileGILHolder lock;
   Ref<> boxed;
-  if (ty.hasIntSpec()) {
+  if (is_int) {
     boxed = Ref<>::steal(
         ty <= TCSigned ? PyLong_FromSsize_t(ty.intSpec())
                        : PyLong_FromSize_t(static_cast<size_t>(ty.intSpec())));

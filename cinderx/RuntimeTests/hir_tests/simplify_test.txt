@@ -26049,4 +26049,200 @@ fun test {
     Return v10
   }
 }
+--- Test Name ---
+LenOfConstantTupleIsFolded
+--- Input ---
+def test():
+    return len((1, 2, 3))
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v7:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v14:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:Nullptr = LoadConst<Nullptr>
+    v10:OptObject = LoadGlobalCached<0; "len">
+    v11:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v10 {
+      Descr 'LOAD_GLOBAL: len'
+    }
+    Snapshot
+    v12:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    UseType<MortalObjectUser[builtin_function_or_method:len:0xdeadbeef]> v11
+    UseType<MortalTupleExact[tuple:0xdeadbeef]> v12
+    v17:CInt64[3] = LoadConst<CInt64[3]>
+    UseType<CInt64[3]> v17
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v7:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v14:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:OptObject = LoadGlobalCached<0; "len">
+    v10:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: len'
+    }
+    v11:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v12:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    UseType<MortalObjectUser[builtin_function_or_method:len:0xdeadbeef]> v10
+    UseType<MortalTupleExact[tuple:0xdeadbeef]> v12
+    v17:CInt64[3] = LoadConst<CInt64[3]>
+    UseType<CInt64[3]> v17
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v7:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v14:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:OptObject = LoadGlobalCached<0; "len">
+    v10:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: len'
+    }
+    v11:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v12:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    UseType<MortalObjectUser[builtin_function_or_method:len:0xdeadbeef]> v10
+    UseType<MortalTupleExact[tuple:0xdeadbeef]> v12
+    v17:CInt64[3] = LoadConst<CInt64[3]>
+    UseType<CInt64[3]> v17
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v7:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v14:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:OptObject = LoadGlobalCached<0; "len">
+    v10:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: len'
+    }
+    v11:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v12:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    UseType<MortalObjectUser[builtin_function_or_method:len:0xdeadbeef]> v10
+    UseType<MortalTupleExact[tuple:0xdeadbeef]> v12
+    v17:CInt64[3] = LoadConst<CInt64[3]>
+    UseType<CInt64[3]> v17
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v7:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    AtQuiescentState
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v14:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:OptObject = LoadGlobalCached<0; "len">
+    v10:MortalObjectUser[builtin_function_or_method:len:0xdeadbeef] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: len'
+    }
+    v11:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v12:ImmortalTupleExact[tuple:0xdeadbeef] = LoadConst<ImmortalTupleExact[tuple:0xdeadbeef]>
+    UseType<MortalObjectUser[builtin_function_or_method:len:0xdeadbeef]> v10
+    UseType<ImmortalTupleExact[tuple:0xdeadbeef]> v12
+    v17:CInt64[3] = LoadConst<CInt64[3]>
+    UseType<CInt64[3]> v17
+    v19:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    Snapshot
+    Return v19
+  }
+}
 --- End ---

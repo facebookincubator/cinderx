@@ -2381,4 +2381,654 @@ fun jittestmodule:test {
     Return<CInt8> v14
   }
 }
+--- Test Name ---
+BoxOfDoubleConstantIsFolded
+--- Input ---
+from __static__ import box, double
+
+def test():
+    d: double = 3.1415
+    return box(d)
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    Snapshot
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CDouble[3.1415] = LoadConst<CDouble[3.1415]>
+    UseType<CDouble[3.1415]> v9
+    v13:MortalFloatExact[3.1415] = LoadConst<MortalFloatExact[3.1415]>
+    Return v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CDouble[3.1415] = LoadConst<CDouble[3.1415]>
+    UseType<CDouble[3.1415]> v9
+    v13:MortalFloatExact[3.1415] = LoadConst<MortalFloatExact[3.1415]>
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CDouble[3.1415] = LoadConst<CDouble[3.1415]>
+    UseType<CDouble[3.1415]> v9
+    v13:MortalFloatExact[3.1415] = LoadConst<MortalFloatExact[3.1415]>
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CDouble[3.1415] = LoadConst<CDouble[3.1415]>
+    UseType<CDouble[3.1415]> v9
+    v13:MortalFloatExact[3.1415] = LoadConst<MortalFloatExact[3.1415]>
+    Return v13
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CDouble[0] = LoadConst<CDouble[0]>
+    Snapshot
+    AtQuiescentState
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CDouble[3.1415] = LoadConst<CDouble[3.1415]>
+    UseType<CDouble[3.1415]> v9
+    v13:MortalFloatExact[3.1415] = LoadConst<MortalFloatExact[3.1415]>
+    Return v13
+  }
+}
+--- Test Name ---
+BoxOfNegativeInt8ConstantIsFolded
+--- Input ---
+from __static__ import box, int8
+
+def test():
+    i: int8 = -5
+    return box(i)
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CInt8[0] = LoadConst<CInt8[0]>
+    Snapshot
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CInt8[-5] = LoadConst<CInt8[-5]>
+    UseType<CInt8[-5]> v9
+    v13:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    Return v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CInt8[0] = LoadConst<CInt8[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CInt8[-5] = LoadConst<CInt8[-5]>
+    UseType<CInt8[-5]> v9
+    v13:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CInt8[0] = LoadConst<CInt8[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CInt8[-5] = LoadConst<CInt8[-5]>
+    UseType<CInt8[-5]> v9
+    v13:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CInt8[0] = LoadConst<CInt8[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CInt8[-5] = LoadConst<CInt8[-5]>
+    UseType<CInt8[-5]> v9
+    v13:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    Return v13
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CInt8[0] = LoadConst<CInt8[0]>
+    Snapshot
+    AtQuiescentState
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CInt8[-5] = LoadConst<CInt8[-5]>
+    UseType<CInt8[-5]> v9
+    v13:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    Return v13
+  }
+}
+--- Test Name ---
+BoxOfUInt8ConstantIsFolded
+--- Input ---
+from __static__ import box, uint8
+
+def test():
+    u: uint8 = 200
+    return box(u)
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CUInt8[0] = LoadConst<CUInt8[0]>
+    Snapshot
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CUInt8[200] = LoadConst<CUInt8[200]>
+    UseType<CUInt8[200]> v9
+    v13:ImmortalLongExact[200] = LoadConst<ImmortalLongExact[200]>
+    Return v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CUInt8[0] = LoadConst<CUInt8[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CUInt8[200] = LoadConst<CUInt8[200]>
+    UseType<CUInt8[200]> v9
+    v13:ImmortalLongExact[200] = LoadConst<ImmortalLongExact[200]>
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CUInt8[0] = LoadConst<CUInt8[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CUInt8[200] = LoadConst<CUInt8[200]>
+    UseType<CUInt8[200]> v9
+    v13:ImmortalLongExact[200] = LoadConst<ImmortalLongExact[200]>
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CUInt8[0] = LoadConst<CUInt8[0]>
+    Snapshot
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CUInt8[200] = LoadConst<CUInt8[200]>
+    UseType<CUInt8[200]> v9
+    v13:ImmortalLongExact[200] = LoadConst<ImmortalLongExact[200]>
+    Return v13
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    v7:CUInt8[0] = LoadConst<CUInt8[0]>
+    Snapshot
+    AtQuiescentState
+    v8:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:CUInt8[200] = LoadConst<CUInt8[200]>
+    UseType<CUInt8[200]> v9
+    v13:ImmortalLongExact[200] = LoadConst<ImmortalLongExact[200]>
+    Return v13
+  }
+}
+--- Test Name ---
+BoxOfDoubleArgIsNotFolded
+--- Input ---
+from __static__ import box, double
+
+def test(d: double):
+    return box(d)
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:CDouble = LoadArg<0; "d", CDouble>
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v5
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:FloatExact = PrimitiveBox<CDouble> v5 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v5
+      }
+    }
+    Return v8
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:CDouble = LoadArg<0; "d", CDouble>
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v5
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:FloatExact = PrimitiveBox<CDouble> v5 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<1> v5
+      }
+    }
+    Return v8
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:CDouble = LoadArg<0; "d", CDouble>
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v5
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:FloatExact = PrimitiveBox<CDouble> v5 {
+      FrameState {
+        CurInstrOffset 8
+        Locals<1> v5
+      }
+    }
+    Return v8
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:CDouble = LoadArg<0; "d", CDouble>
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v5
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:FloatExact = PrimitiveBox<CDouble> v5 {
+      FrameState {
+        CurInstrOffset 8
+        Locals<1> v5
+      }
+    }
+    Return v8
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v5:CDouble = LoadArg<0; "d", CDouble>
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    AtQuiescentState
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v5
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:FloatExact = PrimitiveBox<CDouble> v5 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<1> v5
+      }
+    }
+    Return v8
+  }
+}
 --- End ---

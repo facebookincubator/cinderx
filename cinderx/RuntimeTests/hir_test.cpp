@@ -1353,6 +1353,35 @@ def test():
 #endif
 }
 
+class PrimitiveBoxSimplifyTest : public RuntimeTest {};
+
+TEST_F(PrimitiveBoxSimplifyTest, BoxOfMaxUInt64ConstantHasUnsignedValue) {
+  const char* hir_source = R"(fun test {
+  bb 0 {
+    v0 = LoadConst<CUInt64[-1]>
+    v1 = PrimitiveBox<CUInt64> v0
+    Return v1
+  }
+}
+)";
+  std::unique_ptr<Function> irfunc = HIRParser{}.parseHIR(hir_source);
+  ASSERT_NE(irfunc, nullptr);
+  reflowTypes(*irfunc);
+  Simplify{}.run(*irfunc);
+
+  Type result_type = TBottom;
+  for (const Instr& instr : *irfunc->cfg.entry_block) {
+    if (instr.isReturn()) {
+      result_type = instr.getOperand(0)->type();
+    }
+  }
+  ASSERT_TRUE(result_type.hasObjectSpec()) << result_type;
+  auto expected = Ref<>::steal(PyLong_FromUnsignedLongLong(UINT64_MAX));
+  ASSERT_NE(expected, nullptr);
+  EXPECT_EQ(
+      PyObject_RichCompareBool(result_type.objectSpec(), expected, Py_EQ), 1);
+}
+
 void expectInlinedMethodRewrite(
     const Function& irfunc,
     bool has_instance_dict_guard = false) {

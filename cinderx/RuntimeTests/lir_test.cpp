@@ -1675,8 +1675,7 @@ TEST_F(LIRGeneratorTest, StaticBoxDouble) {
   const char* pycode = R"(
 from __static__ import double, box
 
-def f() -> float:
-  d: double = 3.1415
+def f(d: double) -> float:
   return box(d)
 )";
 
@@ -1686,10 +1685,9 @@ def f() -> float:
   auto lir_func = getLIRFunction(pyfunc.get());
 
   EXPECT_LIR(Query(*lir_func)
-                 .opcode(Opcode::kMove)
-                 .outType(DataType::k64bit)
-                 .inImm(0, 4614256447914709615ULL));
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kCall).outType(DataType::kObject));
+                 .opcode(Opcode::kCall)
+                 .inAddr(0, reinterpret_cast<uint64_t>(PyFloat_FromDouble))
+                 .outType(DataType::kObject));
 }
 
 TEST_F(LIRGeneratorTest, StaticAddDouble) {
