@@ -15,6 +15,10 @@
 #include <set>
 #include <unordered_map>
 
+namespace cinderx {
+class WatcherState;
+}
+
 namespace cinderx::jit {
 
 // Identifies a cached global Python value.
@@ -74,6 +78,7 @@ class GlobalCache {
 // Manages all memory and data structures for global cache values.
 class GlobalCacheManager : public IGlobalCacheManager {
  public:
+  explicit GlobalCacheManager(WatcherState& watcher_state);
   ~GlobalCacheManager() override;
 
   // Create or look up a cache for the global with the given name, in the
@@ -179,6 +184,8 @@ class GlobalCacheManager : public IGlobalCacheManager {
 
   // Arena where all the global value caches are allocated.
   SlabArena<PyObject*> arena_;
+
+  WatcherState& watcher_state_;
 
   // Only needed in free-threaded builds; kept unconditional so callers can use
   // kFreeThreadedBuild instead of #ifdefs.

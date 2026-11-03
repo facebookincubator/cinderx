@@ -6,7 +6,6 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/threaded_compile.h"
-#include "cinderx/module_state.h"
 
 #ifndef ENABLE_LAZY_IMPORTS
 #ifdef PyLazyImport_CheckExact
@@ -69,6 +68,9 @@ void GlobalCache::store(PyObject* value) const {
 bool GlobalCache::operator<(const GlobalCache& other) const {
   return pair_ < other.pair_;
 }
+
+GlobalCacheManager::GlobalCacheManager(WatcherState& watcher_state)
+    : watcher_state_{watcher_state} {}
 
 GlobalCacheManager::~GlobalCacheManager() {
   clear();
@@ -196,7 +198,7 @@ void GlobalCacheManager::clear() {
     // so we need to make sure each dictionary is still being watched
     if (watch_map_.contains(dict)) {
       notifyDictUnwatch(dict);
-      cinderx::getModuleState()->watcher_state.unwatchDict(dict);
+      watcher_state_.unwatchDict(dict);
     }
   }
 }
@@ -225,7 +227,7 @@ void GlobalCacheManager::watchDictKey(
   bool inserted = watchers.emplace(cache).second;
   JIT_CHECK(inserted, "cache was already watching key");
   JIT_CHECK(
-      cinderx::getModuleState()->watcher_state.watchDict(dict) == 0,
+      watcher_state_.watchDict(dict) == 0,
       "Failed to watch globals or builtins dict");
 }
 
@@ -247,7 +249,7 @@ void GlobalCacheManager::unwatchDictKey(
     if (dict_keys.empty()) {
       watch_map_.erase(dict_it);
       JIT_CHECK(
-          cinderx::getModuleState()->watcher_state.unwatchDict(dict) == 0,
+          watcher_state_.unwatchDict(dict) == 0,
           "Failed to unwatch globals or builtins dictionary");
     }
   }

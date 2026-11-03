@@ -1141,7 +1141,8 @@ int _cinderx_exec_impl(PyObject* m) {
 
   cinderx::setModuleState(m);
 
-  auto cache_manager = new (std::nothrow) jit::GlobalCacheManager();
+  auto cache_manager =
+      new (std::nothrow) jit::GlobalCacheManager(state->watcher_state);
   if (cache_manager == nullptr) {
     return -1;
   }
