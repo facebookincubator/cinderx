@@ -504,6 +504,58 @@ class CmdLineTest(unittest.TestCase):
             "CINDERX_JIT_BATCH_COMPILE_WORKERS",
         )
 
+    # Generator allocation options.
+
+    def test_gen_free_list_entry_count(self) -> None:
+        self._check_acknowledged(
+            "cinderx-jit-gen-free-list-entry-count=16",
+            "CINDERX_JIT_GEN_FREE_LIST_ENTRY_COUNT=16",
+            "cinderx-jit-gen-free-list-entry-count",
+            "CINDERX_JIT_GEN_FREE_LIST_ENTRY_COUNT",
+        )
+
+    def test_gen_free_list_entry_size(self) -> None:
+        self._check_acknowledged(
+            "cinderx-jit-gen-free-list-entry-size=1024",
+            "CINDERX_JIT_GEN_FREE_LIST_ENTRY_SIZE=1024",
+            "cinderx-jit-gen-free-list-entry-size",
+            "CINDERX_JIT_GEN_FREE_LIST_ENTRY_SIZE",
+        )
+
+    def test_gen_free_list_entry_count_limit(self) -> None:
+        def check(proc: subprocess.CompletedProcess[str]) -> None:
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn(
+                "Number of free-list entries for generators (10001) "
+                "is too high (max: 10000)",
+                proc.stderr,
+            )
+            self.assertNotIn(_OK, proc.stdout)
+
+        self._check_both_forms(
+            "cinderx-jit-gen-free-list-entry-count=10001",
+            "CINDERX_JIT_GEN_FREE_LIST_ENTRY_COUNT=10001",
+            ["-c", _HELLO],
+            check,
+        )
+
+    def test_gen_free_list_entry_size_limit(self) -> None:
+        def check(proc: subprocess.CompletedProcess[str]) -> None:
+            self.assertNotEqual(proc.returncode, 0)
+            self.assertIn(
+                "Size of a free-list entry for generators (65537) "
+                "is too high (max: 65536)",
+                proc.stderr,
+            )
+            self.assertNotIn(_OK, proc.stdout)
+
+        self._check_both_forms(
+            "cinderx-jit-gen-free-list-entry-size=65537",
+            "CINDERX_JIT_GEN_FREE_LIST_ENTRY_SIZE=65537",
+            ["-c", _HELLO],
+            check,
+        )
+
     def test_all_static_functions(self) -> None:
         self._check_acknowledged(
             "jit-all-static-functions",

@@ -899,6 +899,36 @@ FlagProcessor initFlagProcessor() {
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
   flag_processor.addOption(
+      "cinderx-jit-gen-free-list-entry-count",
+      "CINDERX_JIT_GEN_FREE_LIST_ENTRY_COUNT",
+      [](size_t count) {
+        constexpr size_t kLimit = 10'000;
+        JIT_THROW_IF(
+            count > kLimit,
+            "Number of free-list entries for generators ({}) is too high (max: "
+            "{})",
+            count,
+            kLimit);
+        getMutableConfig().gen_free_list_entry_count = count;
+      },
+      "Set the number of free-list entries for JIT generator objects");
+
+  flag_processor.addOption(
+      "cinderx-jit-gen-free-list-entry-size",
+      "CINDERX_JIT_GEN_FREE_LIST_ENTRY_SIZE",
+      [](size_t size) {
+        constexpr size_t kLimit = 65536;
+        JIT_THROW_IF(
+            size > kLimit,
+            "Size of a free-list entry for generators ({}) is too high (max: "
+            "{})",
+            size,
+            kLimit);
+        getMutableConfig().gen_free_list_entry_size = size;
+      },
+      "Set the size of free-list entries for JIT generator objects");
+
+  flag_processor.addOption(
       "cinderx-jit-support-instrumentation",
       "CINDERX_JIT_SUPPORT_INSTRUMENTATION",
       getMutableConfig().support_instrumentation,

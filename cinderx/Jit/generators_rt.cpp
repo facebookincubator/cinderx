@@ -9,6 +9,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py_object_allocator.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
@@ -1130,16 +1131,11 @@ void init_jit_genobject_type() {
     state->jit_gen_allocator =
         std::make_unique<PyObjectAllocator>(PyObjectAllocatorConfig{});
   } else {
-    // These values were determined experimentally on IG's webservers.  The
-    // number of outstanding generators seems to burst up to ~60k on startup
-    // but then quickly settles down to around 1-2k, so 2048 entries should
-    // be enough.  The average size seems to be ~400 bytes with the max
-    // being about 10x that.  Performance experiments showed an entry size
-    // of 512 was a greater improvement compared to 1024.  Presumably the
-    // trade-off in extra fixed memory allocation cost on workers isn't
-    // worth it for greater sizes.
-    state->jit_gen_allocator = std::make_unique<PyObjectAllocator>(
-        PyObjectAllocatorConfig{.entry_count = 2048, .entry_size = 512});
+    auto const& config = getConfig();
+    state->jit_gen_allocator =
+        std::make_unique<PyObjectAllocator>(PyObjectAllocatorConfig{
+            .entry_count = config.gen_free_list_entry_count,
+            .entry_size = config.gen_free_list_entry_size});
     state->jit_gen_allocator->setKeepAlive(state->cinderx_module);
   }
 
