@@ -41,11 +41,17 @@ class PyObjectAllocator {
   PyObjectAllocator& operator=(PyObjectAllocator&&) = delete;
 
   // Set an object to be reference-counted once per object allocated from this
-  // allocator.
+  // allocator, from allocation until free() or releaseKeepAlive().
   //
   // Used to ensure the CinderX module outlives any objects allocated from this
   // allocator.  Ideally we would not need this.
   void setKeepAlive(BorrowedRef<> obj);
+
+  // Drop the keep-alive reference held for `ptr` before it is freed, if it was
+  // allocated from the CPython heap; internal storage holds its reference until
+  // free().  May release the last reference to the keep-alive object, which can
+  // destroy this allocator.
+  void releaseKeepAlive(PyObject* ptr);
 
   // Allocate a Python object with a variable number of item slots (like
   // `PyObject_GC_NewVar`).  Return the object and its size in bytes, as

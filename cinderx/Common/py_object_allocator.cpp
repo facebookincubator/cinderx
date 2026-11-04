@@ -67,7 +67,9 @@ std::pair<PyObject*, size_t> PyObjectAllocator::allocateVar(
   const size_t total_size = sizeof(PyGC_Head) + size;
 
   if (head_ == nullptr || total_size > config_.entry_size) {
-    return allocateFromHeap(tp, nitems);
+    auto result = allocateFromHeap(tp, nitems);
+    Py_XINCREF(keep_alive_);
+    return result;
   }
 
   // The pooled path hands out raw storage with the GC header layout below,
@@ -112,6 +114,13 @@ void PyObjectAllocator::free(PyObject* ptr) {
       "Incorrect pointer calculation");
   entry->next = head_;
   head_ = entry;
+  Py_XDECREF(keep_alive_);
+}
+
+void PyObjectAllocator::releaseKeepAlive(PyObject* ptr) {
+  if (fromThisArena(ptr)) {
+    return;
+  }
   Py_XDECREF(keep_alive_);
 }
 

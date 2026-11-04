@@ -11,7 +11,12 @@ import unittest
 import weakref
 
 import cinderx.test_support as cinder_support
-from cinderx.jit import _deopt_gen, get_compiled_spill_stack_size, is_jit_compiled
+from cinderx.jit import (
+    _deopt_gen,
+    get_compiled_spill_stack_size,
+    is_jit_compiled,
+    jit_suppress,
+)
 
 from .common import with_globals
 
@@ -316,6 +321,48 @@ class GeneratorsTest(unittest.TestCase):
         self.assertEqual(sys.getrefcount(o), base_count + 1)
         del g
         self.assertEqual(sys.getrefcount(o), base_count)
+
+    @cinder_support.failUnlessJITCompiled
+    def _large_frame_gen(self, x):
+        # The deep value stack makes the generator too big for a free-list
+        # entry, so it is allocated from the CPython heap instead.
+        # fmt: off
+        yield [x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x,
+               x, x, x, x, x, x, x, x, x, x, x, x, x, x, x, x]
+        # fmt: on
+
+    # The _cinderx module must outlive every JIT generator.  Freeing one after
+    # the module state is gone crashes, e.g. in the last GC pass at shutdown.
+    @cinder_support.skip_unless_jit("Only JIT generators reference _cinderx")
+    def test_heap_allocated_generator_keeps_cinderx_alive(self):
+        import _cinderx
+
+        base_count = sys.getrefcount(_cinderx)
+        gens = [self._large_frame_gen(0) for _ in range(4)]
+        self.assertEqual(sys.getrefcount(_cinderx), base_count + len(gens))
+        del gens
+        self.assertEqual(sys.getrefcount(_cinderx), base_count)
+
+    @jit_suppress
+    @cinder_support.skip_unless_jit("Exercises the patched generator deallocator")
+    def test_plain_generator_dealloc_does_not_reference_cinderx(self):
+        import _cinderx
+
+        counts = []
+
+        @jit_suppress
+        def gen():
+            try:
+                yield
+            finally:
+                counts.append(sys.getrefcount(_cinderx))
+
+        g = gen()
+        self.assertFalse(is_jit_compiled(gen))
+        next(g)
+        base_count = sys.getrefcount(_cinderx)
+        del g
+        self.assertEqual(counts, [base_count])
 
     @cinder_support.failUnlessJITCompiled
     def _f11(self, obj):

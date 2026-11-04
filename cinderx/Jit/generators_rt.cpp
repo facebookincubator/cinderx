@@ -184,6 +184,10 @@ void gen_dealloc_with_custom_free(
 
 void jitgen_dealloc(PyObject* self) {
   ModuleState* state = cinderx::getModuleState();
+  // Deopting a JIT generator can drop the last reference to the CinderX module,
+  // whose state the rest of this function uses.
+  Ref<> module =
+      JitGen_CheckAny(self) ? Ref<>::create(state->cinderx_module) : Ref<>{};
   GenDataFooter* footer = neverResumedGeneratorFooter(self, state);
   bool clear_never_resumed = footer != nullptr;
   if (!clear_never_resumed && !deopt_jit_gen(self)) {
@@ -966,6 +970,8 @@ void deopt_jit_gen_object_only(
   }
 #endif
   Py_CLEAR(footer->compiled_func);
+  // Can free the CinderX module, so nothing may use `state` after this.
+  state->jit_gen_allocator->releaseKeepAlive(reinterpret_cast<PyObject*>(gen));
 }
 
 bool deopt_jit_gen(PyObject* obj) {
@@ -1136,8 +1142,9 @@ void init_jit_genobject_type() {
         std::make_unique<PyObjectAllocator>(PyObjectAllocatorConfig{
             .entry_count = config.gen_free_list_entry_count,
             .entry_size = config.gen_free_list_entry_size});
-    state->jit_gen_allocator->setKeepAlive(state->cinderx_module);
   }
+  // Freeing a JIT generator needs the module state.
+  state->jit_gen_allocator->setKeepAlive(state->cinderx_module);
 
   // Override dealloc so our allocator can reclaim our objects.
   JIT_CHECK(
