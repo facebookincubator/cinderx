@@ -66,7 +66,9 @@ std::string string_error(int errnum) {
 
 // Following definitions are for the JIT dump file format.
 
+#ifdef PERF_USE_RDTSC
 constexpr int JITDUMP_FLAGS_ARCH_TIMESTAMP = 1;
+#endif
 
 struct FileHeader {
   uint32_t magic;
