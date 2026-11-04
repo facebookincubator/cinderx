@@ -56,16 +56,25 @@ class ApiTests(CompilerTest):
         self.assertInBytecode(code, subscr)
 
     def test_compile_unoptimized(self) -> None:
-        src_code = "assert True"
-        code = compile_code(src_code, "foo", "single", optimize=0)
-        self.assertNotInBytecode(code, "LOAD_GLOBAL", "AssertionError")
-        self.assertNotInBytecode(code, "RAISE_VARARGS")
+        for value in (True, False):
+            with self.subTest(value=value):
+                code = compile_code(f"assert {value}", "foo", "single", optimize=0)
+                if value:
+                    self.assertNotInBytecode(code, "LOAD_GLOBAL", "AssertionError")
+                    self.assertNotInBytecode(code, "RAISE_VARARGS")
+                    self.assertIsNone(exec(code, {}))
+                else:
+                    self.assertInBytecode(code, "RAISE_VARARGS", 1)
+                    with self.assertRaises(AssertionError):
+                        exec(code, {})
 
     def test_compile_optimized(self) -> None:
-        src_code = "assert True"
-        code = compile_code(src_code, "foo", "single", optimize=1)
-        self.assertNotInBytecode(code, "LOAD_GLOBAL", "AssertionError")
-        self.assertNotInBytecode(code, "RAISE_VARARGS")
+        for value in (True, False):
+            with self.subTest(value=value):
+                code = compile_code(f"assert {value}", "foo", "single", optimize=1)
+                self.assertNotInBytecode(code, "LOAD_GLOBAL", "AssertionError")
+                self.assertNotInBytecode(code, "RAISE_VARARGS")
+                self.assertIsNone(exec(code, {}))
 
     def test_compile_optimized_docstrings(self) -> None:
         """
