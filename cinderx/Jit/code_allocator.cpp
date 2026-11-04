@@ -175,6 +175,12 @@ uint8_t* allocPages(size_t size) {
 // however much the previous one was short of a boundary.
 constexpr size_t kCodeAlignment = 16;
 
+// Bytes left unused at the start of every chunk, so that no code begins at the
+// very start of a mapping.  Indirect calls built with -fsanitize=function read
+// the 8 bytes in front of their target, which would otherwise be unmapped for
+// the first function in a chunk.
+constexpr size_t kChunkHeaderSize = kCodeAlignment;
+
 // Step a bump pointer up to the next boundary, charging the padding to the
 // same free counter the allocation was taken from.  Callers reserve the
 // rounded-up size, so the counter always has room for it.
@@ -297,16 +303,18 @@ void CodeAllocatorCinder::ensureSpace(
 
   lost_bytes_.fetch_add(alloc_free, std::memory_order_relaxed);
 
-  size_t chunk_size = ((size / kAllocSize) + 1) * kAllocSize;
+  size_t chunk_size =
+      (((size + kChunkHeaderSize) / kAllocSize) + 1) * kAllocSize;
   uint8_t* res = allocPages(chunk_size);
   if (use_huge_pages && setHugePages(res, chunk_size)) {
     huge_allocs_.fetch_add(1, std::memory_order_relaxed);
   } else {
     fragmented_allocs_.fetch_add(1, std::memory_order_relaxed);
   }
-  alloc = res;
   allocations_.emplace_back(res, chunk_size);
-  alloc_free = chunk_size;
+  lost_bytes_.fetch_add(kChunkHeaderSize, std::memory_order_relaxed);
+  alloc = res + kChunkHeaderSize;
+  alloc_free = chunk_size - kChunkHeaderSize;
 }
 
 void CodeAllocatorCinder::ensureSplitSpace(
@@ -327,7 +335,8 @@ void CodeAllocatorCinder::ensureSplitSpace(
       hot_alloc_free_ + cold_alloc_free_, std::memory_order_relaxed);
 
   size_t total_needed = hot_needed + cold_needed;
-  size_t chunk_size = ((total_needed / kAllocSize) + 1) * kAllocSize;
+  size_t chunk_size =
+      (((total_needed + kChunkHeaderSize) / kAllocSize) + 1) * kAllocSize;
   uint8_t* res = allocPages(chunk_size);
   if (setHugePages(res, chunk_size)) {
     huge_allocs_.fetch_add(1, std::memory_order_relaxed);
@@ -335,16 +344,18 @@ void CodeAllocatorCinder::ensureSplitSpace(
     fragmented_allocs_.fetch_add(1, std::memory_order_relaxed);
   }
   allocations_.emplace_back(res, chunk_size);
+  lost_bytes_.fetch_add(kChunkHeaderSize, std::memory_order_relaxed);
 
   // Hot code grows forward from the start, cold code grows forward from a
   // split point. Split proportionally so each side gets at least what it
   // requested, distributing any surplus evenly.
-  size_t surplus = chunk_size - total_needed;
+  size_t usable_size = chunk_size - kChunkHeaderSize;
+  size_t surplus = usable_size - total_needed;
   size_t hot_share = hot_needed + surplus / 2;
-  hot_alloc_ = res;
+  hot_alloc_ = res + kChunkHeaderSize;
   hot_alloc_free_ = hot_share;
-  cold_alloc_ = res + hot_share;
-  cold_alloc_free_ = chunk_size - hot_share;
+  cold_alloc_ = hot_alloc_ + hot_share;
+  cold_alloc_free_ = usable_size - hot_share;
 }
 
 AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {

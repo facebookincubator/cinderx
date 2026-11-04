@@ -89,4 +89,58 @@ TEST_F(CodeAllocatorTest, AddSplitCodeCopiesHotAndColdSections) {
       0);
 }
 
+// Indirect calls built with -fsanitize=function read the 8 bytes in front of
+// their target, so the memory there has to belong to the allocator.
+void expectReadablePrefix(const ICodeAllocator& allocator, const void* addr) {
+  EXPECT_TRUE(allocator.contains(static_cast<const uint8_t*>(addr) - 8))
+      << "code at " << addr << " starts at the beginning of a mapping";
+}
+
+TEST_F(CodeAllocatorTest, AddSplitCodeLeavesReadablePrefix) {
+  asmjit::CodeHolder code;
+  code.init(code_allocator_->asmJitEnvironment());
+
+  asmjit::Section* coldtext = nullptr;
+  ASSERT_EQ(
+      code.newSection(
+          &coldtext,
+          codeSectionName(CodeSection::kCold),
+          SIZE_MAX,
+          code.textSection()->flags(),
+          code.textSection()->alignment()),
+      asmjit::kErrorOk);
+
+  arch::Builder as(&code);
+  constexpr std::array<uint8_t, 3> kText{{0x11, 0x12, 0x13}};
+  ASSERT_EQ(as.section(code.textSection()), asmjit::kErrorOk);
+  ASSERT_EQ(as.embed(kText.data(), kText.size()), asmjit::kErrorOk);
+  ASSERT_EQ(as.section(coldtext), asmjit::kErrorOk);
+  ASSERT_EQ(as.embed(kText.data(), kText.size()), asmjit::kErrorOk);
+  ASSERT_EQ(as.finalize(), asmjit::kErrorOk);
+
+  AllocateResult result = code_allocator_->addCode(&code);
+  ASSERT_EQ(result.error, asmjit::kErrorOk);
+  expectReadablePrefix(*code_allocator_, result.addr);
+  expectReadablePrefix(
+      *code_allocator_, addressAtOffset(result.addr, coldtext->offset()));
+}
+
+TEST_F(CodeAllocatorTest, AddCodeLeavesReadablePrefix) {
+  code_allocator_.reset();
+  getMutableConfig().mem.multiple_code_sections = false;
+  code_allocator_ = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
+
+  asmjit::CodeHolder code;
+  code.init(code_allocator_->asmJitEnvironment());
+  arch::Builder as(&code);
+  constexpr std::array<uint8_t, 3> kText{{0x11, 0x12, 0x13}};
+  ASSERT_EQ(as.embed(kText.data(), kText.size()), asmjit::kErrorOk);
+  ASSERT_EQ(as.finalize(), asmjit::kErrorOk);
+
+  AllocateResult result = code_allocator_->addCode(&code);
+  ASSERT_EQ(result.error, asmjit::kErrorOk);
+  ASSERT_NE(result.addr, nullptr);
+  expectReadablePrefix(*code_allocator_, result.addr);
+}
+
 } // namespace
