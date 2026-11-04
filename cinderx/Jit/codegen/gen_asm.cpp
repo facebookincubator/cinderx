@@ -27,6 +27,7 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_rt.h"
+#include "cinderx/Jit/jit_unwind.h"
 #include "cinderx/Jit/lir/dce.h"
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/linear_scan.h"
@@ -510,6 +511,35 @@ PyObject* resumeInInterpreter(
   return result;
 }
 
+// Register .eh_frame info for every executable section of finalized
+// code.  Sections are registered individually because, with split code
+// sections, the cold section lives in a separate allocation from the hot
+// section and the code buffer as a whole is not one contiguous range.
+// Registration failures are non-fatal: the returned vector is empty for
+// sections that could not be registered.
+std::vector<std::unique_ptr<JitUnwindRegistration>> registerUnwindInfo(
+    asmjit::CodeHolder& code,
+    void* code_base,
+    bool permanent = false) {
+  std::vector<std::pair<void*, std::size_t>> sections;
+  populateCodeSections(sections, code, code_base);
+  std::vector<std::unique_ptr<JitUnwindRegistration>> registrations;
+  for (auto& [addr, size] : sections) {
+    // Permanent registrations are owned by the registry; the returned
+    // non-owning pointer is not kept.
+    if (permanent) {
+      registerPermanentJitUnwindInfo(addr, size);
+      continue;
+    }
+    std::unique_ptr<JitUnwindRegistration> registration =
+        registerJitUnwindInfo(addr, size);
+    if (registration != nullptr) {
+      registrations.push_back(std::move(registration));
+    }
+  }
+  return registrations;
+}
+
 void* finalizeCode(arch::Builder& builder, std::string_view name) {
   if (auto err = builder.finalize(); err != kErrorOk) {
     throw std::runtime_error{fmt::format(
@@ -653,6 +683,10 @@ static void* emitAndRegisterTrampoline(
 
   auto symbol_name = fmt::format("{}:{}", perf::kInternalSymbolPrefix, name);
   emitPerfEvents(code, result, symbol_name.c_str());
+
+  // Trampolines are created once and never freed, so their registrations
+  // are intentionally kept for the lifetime of the process.
+  (void)registerUnwindInfo(code, result, /*permanent=*/true);
 
   return result;
 }
@@ -802,6 +836,15 @@ NativeGenerator::NativeGenerator(
       inline_stack_size_{calcInlineStackSize(func)},
       factory_(factory) {
   env_.has_inlined_functions = inline_stack_size_ > 0;
+}
+
+NativeGenerator::~NativeGenerator() {
+  if (as_ != nullptr) {
+    delete as_;
+  }
+  for (std::unique_ptr<JitUnwindRegistration>& registration : unwind_handles_) {
+    unregisterJitUnwindInfo(std::move(registration));
+  }
 }
 
 #ifdef __ASM_DEBUG
@@ -1708,6 +1751,12 @@ void NativeGenerator::generateCode(
   auto symbol_name =
       fmt::format("{}:{}", perf::kFuncSymbolPrefix, func->fullname);
   emitPerfEvents(codeholder, code_start_, symbol_name.c_str());
+
+  // Register unwind info last: the code addresses are final, and the
+  // registrations transfer to the `CompiledFunctionData` with
+  // `takeUnwindHandles()`.  If compilation fails after this point the
+  // generator's destructor unregisters them again.
+  unwind_handles_ = registerUnwindInfo(codeholder, code_start_);
 }
 
 #ifdef __ASM_DEBUG

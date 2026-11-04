@@ -4,6 +4,8 @@
 
 #include "cinderx/Common/log.h"
 
+#include <cstdint>
+
 namespace cinderx::jit::codegen {
 const char* codeSectionName(CodeSection section) {
   switch (section) {
@@ -35,7 +37,14 @@ void populateCodeSections(
         section->realSize() == 0) {
       continue;
     }
-    auto section_start = static_cast<char*>(code_base_ptr) + section->offset();
+    // Section offsets are relative to the code base.  With split code
+    // sections the cold offset is the (possibly negative) displacement
+    // between two separate allocations, stored as an unsigned value, so
+    // adding it to the base as pointer arithmetic overflows even though
+    // the wrapped result is the cold section's address.  Do the
+    // arithmetic on integers, where wraparound is defined, instead.
+    auto section_start = reinterpret_cast<void*>(
+        reinterpret_cast<uintptr_t>(code_base_ptr) + section->offset());
     code_sections.emplace_back(
         reinterpret_cast<void*>(section_start), section->realSize());
   }

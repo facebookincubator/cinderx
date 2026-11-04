@@ -25,6 +25,10 @@
 #include <unordered_set>
 #include <vector>
 
+namespace cinderx::jit {
+struct JitUnwindRegistration;
+} // namespace cinderx::jit
+
 namespace cinderx::jit::codegen {
 
 // Returns a cached trampoline (Windows x64 only) that bridges the Microsoft x64
@@ -39,11 +43,9 @@ class NativeGenerator {
  public:
   NativeGenerator(const hir::Function* func, NativeGeneratorFactory& factory);
 
-  ~NativeGenerator() {
-    if (as_ != nullptr) {
-      delete as_;
-    }
-  }
+  // Unregisters any unwind info that was registered but not transferred
+  // out with `takeUnwindHandles()` (e.g. when code generation throws).
+  ~NativeGenerator();
 
   std::string getFunctionName() const;
 
@@ -88,6 +90,12 @@ class NativeGenerator {
     return env_.takeProfileCollector();
   }
 
+  // Transfer ownership of the unwind-info registrations for this
+  // function's code sections to the caller (see `CompiledFunctionData`).
+  std::vector<std::unique_ptr<JitUnwindRegistration>> takeUnwindHandles() {
+    return std::move(unwind_handles_);
+  }
+
   bool isGen() const {
     return func_->code->co_flags & kCoFlagsAnyGenerator;
   }
@@ -105,6 +113,10 @@ class NativeGenerator {
   size_t compiled_size_{0};
   int spill_stack_size_{-1};
   int inline_stack_size_;
+
+  // Unwind-info registrations for this function's code, until they are
+  // transferred to the `CompiledFunctionData` with `takeUnwindHandles()`.
+  std::vector<std::unique_ptr<JitUnwindRegistration>> unwind_handles_;
 
   bool hasStaticEntry() const;
   int calcInlineStackSize(const hir::Function* func);

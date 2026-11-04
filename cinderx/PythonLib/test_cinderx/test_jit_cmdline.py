@@ -287,6 +287,16 @@ class CmdLineTest(unittest.TestCase):
             check,
         )
 
+    def test_unwind_libgcc_frame_registration(self) -> None:
+        # The flag has no Python-observable effect of its own, so check
+        # only that both forms are recognized by the flag processor.
+        self._check_acknowledged(
+            "cinderx-jit-unwind-libgcc-frame-registration",
+            "CINDERX_JIT_UNWIND_LIBGCC_FRAME_REGISTRATION",
+            "cinderx-jit-unwind-libgcc-frame-registration",
+            "CINDERX_JIT_UNWIND_LIBGCC_FRAME_REGISTRATION",
+        )
+
     def test_dump_stats(self) -> None:
         def check(proc: subprocess.CompletedProcess[str]) -> None:
             self._assert_ok(proc)

@@ -344,10 +344,15 @@ std::optional<CompiledFunctionData> Compiler::compile(
   hir::Function::InlineFunctionStats inline_stats =
       std::move(irfunc->inline_function_stats);
   std::span<const std::byte> code = ngen->getCodeBuffer();
+  // Transfer unwind registrations before the generator is destroyed; the
+  // compiled data owns them from here on.
+  std::vector<std::unique_ptr<JitUnwindRegistration>> unwind_registrations =
+      ngen->takeUnwindHandles();
   auto code_runtime = ngen->codeRuntime();
 
   CompiledFunctionData compiled_data;
   compiled_data.code = code;
+  compiled_data.unwind_registrations = std::move(unwind_registrations);
   compiled_data.vectorcall_entry = entry;
   compiled_data.stack_size = stack_size;
   compiled_data.spill_stack_size = spill_stack_size;

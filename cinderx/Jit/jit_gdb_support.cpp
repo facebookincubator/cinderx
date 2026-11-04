@@ -7,6 +7,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/Jit/jit_unwind.h"
 
 #include <fcntl.h>
 #include <fmt/format.h>
@@ -198,6 +199,7 @@ enum {
 enum {
   ELF_SECT_NULL,
   ELF_SECT_text,
+  ELF_SECT_eh_frame,
   ELF_SECT_shstrtab,
   ELF_SECT_strtab,
   ELF_SECT_symtab,
@@ -245,7 +247,11 @@ const ELFHeader elfhdr_template = {
     .eabiversion = 0,
     .epad = {0, 0, 0, 0, 0, 0, 0},
     .type = 1,
-    .machine = 62,
+#if defined(__aarch64__)
+    .machine = 183, /* EM_AARCH64 */
+#else
+    .machine = 62, /* EM_X86_64 */
+#endif
     .version = 1,
     .entry = 0,
     .phofs = 0,
@@ -383,8 +389,11 @@ void elf_secthdr(ELFObjectContext* ctx) {
   sect->ofs = 0;
   sect->size = ctx->code_size;
 
-  /*SECTDEF(eh_frame, PROGBITS, sizeof(uintptr_t));
-  sect->flags = ELFSECT_FLAGS_ALLOC;*/
+  SECTDEF(eh_frame, PROGBITS, sizeof(uintptr_t));
+  sect->flags = ELFSECT_FLAGS_ALLOC;
+  // The frame data follows the code in the address space the debugger
+  // reconstructs, mirroring upstream's GDB JIT object layout.
+  sect->addr = ctx->code_addr + roundUp(ctx->code_size, sizeof(uintptr_t));
 
   SECTDEF(shstrtab, STRTAB, 1);
   SECTDEF(strtab, STRTAB, 1);
@@ -507,6 +516,21 @@ void elf_init_debugline(ELFObjectContext* ctx) {
   ctx->p = p;
 }
 
+/* Initialize the .eh_frame section with the same frame data registered
+ * with the unwinders, so GDB can unwind through JIT code too.  An empty
+ * section is emitted when no frame can be built (unsupported target or
+ * no room left in the object). */
+void elf_init_ehframe(ELFObjectContext* ctx) {
+  uint8_t* p = ctx->p;
+  size_t remaining = sizeof(ctx->obj.space) - (size_t)(p - ctx->obj.space);
+  size_t written = buildJitUnwindEhFrame(
+      p,
+      remaining,
+      reinterpret_cast<const void*>(ctx->code_addr),
+      ctx->code_size);
+  ctx->p = p + written;
+}
+
 #undef DWRF_LINE
 
 /* Undef shortcuts. */
@@ -549,6 +573,7 @@ void elfctx_build_object(ELFObjectContext* ctx) {
   elf_init_section(ctx, ELF_SECT_debug_info, elf_init_debuginfo);
   elf_init_section(ctx, ELF_SECT_debug_abbrev, elf_init_debugabbrev);
   elf_init_section(ctx, ELF_SECT_debug_line, elf_init_debugline);
+  elf_init_section(ctx, ELF_SECT_eh_frame, elf_init_ehframe);
   ALIGN_SECTION(ctx->p, sizeof(uintptr_t));
   ctx->objsize = (size_t)((char*)ctx->p - (char*)obj);
   JIT_DCHECK(

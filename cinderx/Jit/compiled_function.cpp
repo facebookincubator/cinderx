@@ -112,6 +112,10 @@ void compiledfuncdata_dealloc(PyObject* self) {
   PyObject_GC_UnTrack(self);
   cfd->releaseRuntimeResources();
 
+  // Deregister unwind info before releasing the code buffer: unwinders
+  // must never resolve a reused address through a stale frame.
+  cfd->unregisterUnwindInfo();
+
   // Release the code buffer back to the allocator.  For the contiguous
   // (immortal) case this is handled by the CompiledFunction destructor
   // instead.
@@ -346,6 +350,7 @@ Ref<CompiledFunction> CompiledFunction::create(
 
 CompiledFunctionData::~CompiledFunctionData() {
   releaseRuntimeResources();
+  unregisterUnwindInfo();
 }
 
 bool CompiledFunctionData::defer() {
@@ -402,6 +407,7 @@ CompiledFunction::~CompiledFunction() {
   auto* mod_state = cinderx::getModuleState();
 
   if (contiguous_data_) {
+    data_->unregisterUnwindInfo();
     if (mod_state != nullptr && data_->code.data() != nullptr) {
       auto code_allocator = mod_state->code_allocator.get();
       if (code_allocator != nullptr) {
@@ -627,6 +633,14 @@ void CompiledFunction::releaseFunctionRefs() {
   for (size_t i = 0; i < count; i++) {
     Py_DECREF(this);
   }
+}
+
+void CompiledFunctionData::unregisterUnwindInfo() {
+  for (std::unique_ptr<JitUnwindRegistration>& registration :
+       unwind_registrations) {
+    unregisterJitUnwindInfo(std::move(registration));
+  }
+  unwind_registrations.clear();
 }
 
 } // namespace cinderx::jit

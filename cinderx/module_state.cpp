@@ -21,6 +21,17 @@ namespace cinderx {
 
 ModuleState* s_cinderx_state;
 
+namespace jit {
+
+// Defined here, next to `ModuleState`, so `jit_unwind.h` does not depend
+// on `ModuleState` and no target cycle is introduced.
+JitUnwindPermanentRegistry* jitUnwindPermanentRegistry() noexcept {
+  ModuleState* state = getModuleState();
+  return state == nullptr ? nullptr : &state->permanent_unwind_registrations;
+}
+
+} // namespace jit
+
 namespace {
 
 #if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)

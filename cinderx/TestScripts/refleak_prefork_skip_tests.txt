@@ -23,3 +23,7 @@ test_cinderx.test_compiler.test_static.test_invoke.*
 # never be freed.  Measured at 2 references per specialize() under prefork and 0
 # without it.
 test_cinderx.test_jit_specialization.*
+
+# Uncompiles and recompiles a function, so each repetition allocates another
+# immortal CompiledFunction that can never be freed.
+test_cinderx.test_jit_unwind.TestJitUnwind.test_backtrace_after_uncompile_and_gc

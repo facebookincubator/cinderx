@@ -552,6 +552,14 @@ FlagProcessor initFlagProcessor() {
       "Debugging aid, GDB support with ELF output");
 
   flag_processor.addOption(
+      "cinderx-jit-unwind-libgcc-frame-registration",
+      "CINDERX_JIT_UNWIND_LIBGCC_FRAME_REGISTRATION",
+      getMutableConfig().unwind.libgcc_frame_registration,
+      "Register each JIT function section with libgcc via __register_frame "
+      "(off by default; enable for glibc backtrace() through JIT frames). "
+      "HP libunwind registration is unaffected");
+
+  flag_processor.addOption(
       "cinderx-jit-dump-stats",
       "CINDERX_JIT_DUMP_STATS",
       getMutableConfig().log.dump_stats,

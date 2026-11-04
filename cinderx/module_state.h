@@ -13,6 +13,7 @@
 #include "cinderx/Jit/context_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/jit_list.h"
+#include "cinderx/Jit/jit_unwind.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/symbolizer_iface.h"
 #include "cinderx/async_lazy_value_iface.h"
@@ -68,6 +69,12 @@ struct ModuleState {
   std::unique_ptr<jit::IJitContext> jit_context;
   std::unique_ptr<jit::JITList> jit_list;
   std::unique_ptr<PyObjectAllocator> jit_gen_allocator;
+
+  // Permanent unwind registrations for standalone JIT trampolines
+  // (deopt exits), whose code is never freed.  Owned here rather than
+  // in a process-global so the frames are deregistered when the module
+  // state is torn down; see `JitUnwindPermanentRegistry`.
+  jit::JitUnwindPermanentRegistry permanent_unwind_registrations;
 
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value;
 
