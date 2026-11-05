@@ -6,7 +6,6 @@
 
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_runtime.h"
-#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/frame_header.h"
 
 namespace cinderx::jit {
@@ -50,9 +49,9 @@ struct GenDataFooter {
   // Associated generator object
   PyGenObject* gen{};
 
-  // The CompiledFunction whose code this generator is executing.
+  // The runtime whose code this generator is executing. Its compiled data is
   // Py_INCREF'd when stored, Py_DECREF'd when the generator is deopted.
-  CompiledFunction* compiled_func{nullptr};
+  CodeRuntime* code_runtime{nullptr};
 
 #if CINDER_CAN_IDENTIFY_JIT_FRAMES
   // Frame header used for tracking the current frame.

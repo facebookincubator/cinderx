@@ -157,7 +157,7 @@ class DeferredCleanupTest(unittest.TestCase):
         Unlike a plain function, a generator can be suspended at a yield point
         with a JIT frame that is NOT on any thread's stack -- so the deferred
         cleanup stack-walk cannot protect it.  Instead the suspended generator
-        holds a strong reference to the CompiledFunction, so uncompiling the
+        holds a strong reference to the CompiledFunctionData, so uncompiling the
         function does NOT free the code.  Resuming the generator afterwards must
         run the still-live code and produce correct results without crashing.
         """
@@ -182,7 +182,7 @@ class DeferredCleanupTest(unittest.TestCase):
             assert next(g) == 0
 
             # Deopt the function, dropping its reference to the
-            # CompiledFunction.  The suspended generator still holds one, so the
+            # CompiledFunction.  The suspended generator retains its data, so the
             # machine code stays alive even though the function itself deopts --
             # that is the guarantee that makes resuming safe.
             cinderx.jit.disable(deopt_all=True)
@@ -197,7 +197,7 @@ class DeferredCleanupTest(unittest.TestCase):
             # the right values, proving the code stayed alive.
             assert list(g) == [1, 3, 6, 10]
 
-            # Once the generator is gone the CompiledFunction is released for
+            # Once the generator is gone the compiled data is released for
             # real -- still no crash.
             del g
             gc.collect()
@@ -210,7 +210,7 @@ class DeferredCleanupTest(unittest.TestCase):
 
     def test_many_suspended_generators_survive_gc(self) -> None:
         """
-        Many generators suspended at once all share a single CompiledFunction.
+        Many generators suspended at once all share the same compiled data.
         After uncompiling the function, repeated full collections must not free
         the code out from under any of the live suspended frames, and every
         generator must resume to completion without crashing.

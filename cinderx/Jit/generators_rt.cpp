@@ -9,6 +9,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py_object_allocator.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
@@ -17,6 +18,7 @@
 #include "cinderx/module_state.h"
 
 #include <string_view>
+#include <utility>
 
 namespace cinderx::jit {
 
@@ -83,8 +85,7 @@ void clearNeverResumedGenerator(
     ModuleState* state) {
   JIT_DCHECK(footer->yieldPoint != nullptr, "Missing initial yield point");
   const DeoptMetadata& deopt_meta =
-      footer->compiled_func->runtime()->getDeoptMetadata(
-          footer->yieldPoint->deoptIdx());
+      footer->code_runtime->getDeoptMetadata(footer->yieldPoint->deoptIdx());
   JIT_DCHECK(
       deopt_meta.inline_depth() == 0,
       "inline functions not supported for generators");
@@ -201,9 +202,11 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
   JitGenObject* jit_gen = JitGenObject::cast(obj);
   if (jit_gen != nullptr) {
     const GenDataFooter* gen_footer = jit_gen->genDataFooter();
-    if (!_Py_IsImmortal(gen_footer->compiled_func)) {
+    BorrowedRef<CompiledFunctionData> compiled_data =
+        gen_footer->code_runtime->compilationData();
+    if (!_Py_IsImmortal(compiled_data)) {
       // If we immortalized it then we didn't allocate the GC header either.
-      Py_VISIT(gen_footer->compiled_func);
+      Py_VISIT(compiled_data.get());
     }
     // Only visit JIT-specific live values if we have a valid yield point.
     // If yieldPoint is null, the generator hasn't yielded yet or has completed,
@@ -212,7 +215,7 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
     if (gen_footer->yieldPoint != nullptr) {
       size_t deopt_idx = gen_footer->yieldPoint->deoptIdx();
       const DeoptMetadata& meta =
-          gen_footer->compiled_func->runtime()->getDeoptMetadata(deopt_idx);
+          gen_footer->code_runtime->getDeoptMetadata(deopt_idx);
       for (const LiveValue& value : meta.live_values) {
         if (value.ref_kind != hir::RefKind::kOwned) {
           continue;
@@ -528,8 +531,7 @@ PyObject* jitgen_sizeof(PyObject* obj, PyObject*) {
   // +1 word for storing the GenDataFooter pointer
   // +size of the GenDataFooter
   // +the size of the JIT register spill area.
-  uint32_t spill_size =
-      jit_gen->genDataFooter()->compiled_func->runtime()->spillSize();
+  uint32_t spill_size = jit_gen->genDataFooter()->code_runtime->spillSize();
   return PyLong_FromSsize_t(
       base_size_int + sizeof(GenDataFooter*) + sizeof(GenDataFooter) +
       spill_size);
@@ -934,8 +936,6 @@ void deopt_jit_gen_object_only(
     JitGenObject* gen,
     GenDataFooter* footer,
     ModuleState* state) {
-  // Release the strong reference to the CompiledFunction that was taken
-  // when the generator was allocated.
   [[maybe_unused]] bool has_cached_footer = footer != nullptr;
   if (footer == nullptr) {
     footer = gen->genDataFooter();
@@ -969,7 +969,8 @@ void deopt_jit_gen_object_only(
     }
   }
 #endif
-  Py_CLEAR(footer->compiled_func);
+  CodeRuntime* code_runtime = std::exchange(footer->code_runtime, nullptr);
+  Py_DECREF(code_runtime->compilationData().get());
   // Can free the CinderX module, so nothing may use `state` after this.
   state->jit_gen_allocator->releaseKeepAlive(reinterpret_cast<PyObject*>(gen));
 }
@@ -1004,7 +1005,7 @@ bool deopt_jit_gen(PyObject* obj) {
     // for this it might be misleading as the "cause" will not be an
     // executed instruction.
     const DeoptMetadata& deopt_meta =
-        gen_footer->compiled_func->runtime()->getDeoptMetadata(
+        gen_footer->code_runtime->getDeoptMetadata(
             gen_footer->yieldPoint->deoptIdx());
     JIT_CHECK(
         deopt_meta.inline_depth() == 0,

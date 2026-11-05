@@ -265,6 +265,11 @@ uintptr_t prepareForDeopt(
     CodeRuntime* code_runtime,
     std::size_t deopt_idx) {
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
+  auto* ctx = getContext();
+#ifndef ENABLE_PREFORK_MODEL
+  auto compilation_data = code_runtime->compilationData();
+  Py_XINCREF(compilation_data.get());
+#endif
   const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
   PyThreadState* tstate = PyThreadState_GetUnchecked();
   bool is_instrumentation_deopt = false;
@@ -344,7 +349,6 @@ uintptr_t prepareForDeopt(
     // TODO(T262342844): Add USDT support for instrumentation-related deopts.
     deopt_obj = profileDeopt(deopt_meta, mem);
   }
-  auto ctx = getContext();
   ctx->recordDeopt(code_runtime, deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
   if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
@@ -411,6 +415,19 @@ PyObject* resumeInInterpreter(
     std::size_t deopt_idx,
     [[maybe_unused]] bool is_instrumentation_deopt) {
   JIT_CHECK(code_runtime != nullptr, "CodeRuntime cannot be a nullptr");
+
+#ifndef ENABLE_PREFORK_MODEL
+  auto compilation_data =
+      Ref<CompiledFunctionData>::steal(code_runtime->compilationData());
+  SCOPE_EXIT({
+    FreeThreadedJITEntrypointGuard guard;
+    if (compilation_data != nullptr && compilation_data->retired &&
+        !_Py_IsImmortal(compilation_data.get())) {
+      static_cast<void>(compilation_data->defer());
+    }
+    compilation_data.reset();
+  });
+#endif
 
   PyThreadState* tstate = PyThreadState_Get();
 

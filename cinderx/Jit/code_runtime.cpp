@@ -209,13 +209,13 @@ BorrowedRef<> CodeRuntime::reifier() {
 #endif
 }
 
-void CodeRuntime::setCompiledFunction(
-    BorrowedRef<CompiledFunction> compiled_func) {
-  compiled_function_ = compiled_func;
+void CodeRuntime::setCompilationData(BorrowedRef<CompiledFunctionData> data) {
+  JIT_DCHECK(compilation_data_ == nullptr, "Compilation data is immutable");
+  compilation_data_ = data;
 }
 
-BorrowedRef<CompiledFunction> CodeRuntime::compiledFunction() const {
-  return compiled_function_;
+BorrowedRef<CompiledFunctionData> CodeRuntime::compilationData() const {
+  return compilation_data_;
 }
 
 } // namespace cinderx::jit

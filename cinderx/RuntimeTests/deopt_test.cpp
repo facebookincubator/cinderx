@@ -26,6 +26,7 @@
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
+#include "cinderx/Jit/pyjit.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <algorithm>
@@ -36,6 +37,133 @@ namespace cinderx {
 using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 using namespace cinderx::jit::codegen;
+
+#if CINDER_FRAME_HAS_JIT_MARKER && !defined(ENABLE_PREFORK_MODEL)
+class CompilationHandoffTest : public RuntimeTest {
+ protected:
+  void TearDown() override {
+    getContext()->clearGuardFailureCallback();
+    compiled_.reset();
+    getContext()->processDeferredCleanup();
+    marker_.reset();
+    RuntimeTest::TearDown();
+  }
+
+  bool markerAlive() {
+    Ref<> marker = Ref<>::steal(PyObject_CallNoArgs(marker_));
+    EXPECT_NE(marker, nullptr);
+    return marker != nullptr && marker != Py_None;
+  }
+
+  static PyObject* retire(PyObject* self, PyObject*) {
+    auto* test = static_cast<CompilationHandoffTest*>(
+        PyCapsule_GetPointer(self, nullptr));
+    Ref<PyFunctionObject> func{test->getGlobal("func")};
+    EXPECT_TRUE(frameJITMarker(currentFrame(PyThreadState_Get())));
+    if (PyDict_SetItemString(
+            func->func_globals, "len", test->getGlobal("collect")) < 0) {
+      return nullptr;
+    }
+    test->compiled_->removeFunction(func);
+    test->getContext()->forgetCode(func);
+    test->compiled_->clear();
+    test->compiled_.reset();
+    Py_RETURN_NONE;
+  }
+
+  static PyObject* collect(PyObject* self, PyObject*) {
+    auto* test = static_cast<CompilationHandoffTest*>(
+        PyCapsule_GetPointer(self, nullptr));
+    EXPECT_FALSE(frameJITMarker(currentFrame(PyThreadState_Get())));
+    PyGC_Collect();
+    test->getContext()->processDeferredCleanup();
+    EXPECT_TRUE(test->markerAlive());
+    test->collections_++;
+    return PyLong_FromLong(42);
+  }
+
+  Ref<CompiledFunction> compiled_;
+  Ref<> marker_;
+  int collections_{0};
+};
+
+TEST_F(CompilationHandoffTest, LiveGenerationDeoptsDoNotAddDeferredReferences) {
+  runCode(R"(
+import gc
+gc_was_enabled = gc.isenabled()
+gc.disable()
+def func():
+    return len([])
+)");
+  SCOPE_EXIT({ runCode("if gc_was_enabled: gc.enable()"); });
+  Ref<PyFunctionObject> func{getGlobal("func")};
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  compiled_ = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled_, nullptr);
+  runCode("len = lambda value: 42");
+
+  int handoffs = 0;
+  getContext()->setGuardFailureCallback(
+      [&](const DeoptMetadata&) { handoffs++; });
+  const Py_ssize_t initial_refcount = Py_REFCNT(compiled_->data());
+  for (int i = 0; i < 3; ++i) {
+    Ref<> result = Ref<>::steal(compiled_->invoke(func, nullptr, 0));
+    EXPECT_TRUE(isIntEquals(result, 42));
+    EXPECT_FALSE(compiled_->data()->retired);
+    EXPECT_EQ(Py_REFCNT(compiled_->data()), initial_refcount);
+  }
+  EXPECT_EQ(handoffs, 3);
+  getContext()->clearGuardFailureCallback();
+}
+
+TEST_F(
+    CompilationHandoffTest,
+    RetiredGenerationSurvivesGCInInterpreterContinuation) {
+  runCode(R"(
+class Marker: pass
+def func():
+    retire()
+    return len([])
+)");
+  Ref<> capsule = Ref<>::steal(PyCapsule_New(this, nullptr, nullptr));
+  ASSERT_NE(capsule, nullptr);
+  static PyMethodDef retire_def = {"retire", retire, METH_NOARGS, nullptr};
+  static PyMethodDef collect_def = {"collect", collect, METH_O, nullptr};
+  Ref<> retire_func = Ref<>::steal(PyCFunction_New(&retire_def, capsule));
+  Ref<> collect_func = Ref<>::steal(PyCFunction_New(&collect_def, capsule));
+  ASSERT_NE(retire_func, nullptr);
+  ASSERT_NE(collect_func, nullptr);
+  Ref<PyFunctionObject> func{getGlobal("func")};
+  ASSERT_EQ(PyDict_SetItemString(func->func_globals, "retire", retire_func), 0);
+  ASSERT_EQ(
+      PyDict_SetItemString(func->func_globals, "collect", collect_func), 0);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  compiled_ = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled_, nullptr);
+  Ref<> marker = Ref<>::steal(PyObject_CallNoArgs(getGlobal("Marker")));
+  ASSERT_NE(marker, nullptr);
+  marker_ = Ref<>::steal(PyWeakref_NewRef(marker, nullptr));
+  ASSERT_NE(marker_, nullptr);
+  compiled_->runtime()->addReference(marker);
+  marker.reset();
+
+  int handoffs = 0;
+  getContext()->setGuardFailureCallback([&](const DeoptMetadata&) {
+    EXPECT_FALSE(frameJITMarker(currentFrame(PyThreadState_Get())));
+    PyGC_Collect();
+    getContext()->processDeferredCleanup();
+    EXPECT_TRUE(markerAlive());
+    handoffs++;
+  });
+  Ref<> result = Ref<>::steal(PyObject_CallNoArgs(func));
+  getContext()->clearGuardFailureCallback();
+  EXPECT_TRUE(isIntEquals(result, 42));
+  EXPECT_EQ(handoffs, 1);
+  EXPECT_EQ(collections_, 1);
+  getContext()->processDeferredCleanup();
+  EXPECT_FALSE(markerAlive());
+}
+#endif
 
 class ReifyFrameTest : public RuntimeTest {};
 

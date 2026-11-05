@@ -118,8 +118,7 @@ class CompiledFunctionOwner;
 // we get the full object constructed.
 struct CompiledFunctionData {
   // If the resulting CompiledFunction object is immortal, then this data object
-  // will be reallocated inline to the CompiledFunction and we will not use it
-  // as a PyObject.
+  // will be reallocated inline to the CompiledFunction and immortalized too.
   //
   // If the CompiledFunction is not immortal, then this data object will be
   // refcounted and have its lifetime managed by the Python runtime.  This is
@@ -158,6 +157,7 @@ struct CompiledFunctionData {
   // Attached only after the data reaches its final allocation. Published data
   // is not moved; this owner outlives the CompiledFunction wrapper.
   CompiledFunctionOwner* owner{nullptr};
+  bool retired{false};
 
   CompiledFunctionData() = default;
   CompiledFunctionData(CompiledFunctionData&&) = default;

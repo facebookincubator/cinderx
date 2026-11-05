@@ -879,13 +879,13 @@ std::pair<_PyInterpreterFrame*, GenDataFooter*> allocateGenAndInterpreterFrame(
   footer->resumeEntry = resume_func;
   footer->yieldPoint = nullptr;
   footer->gen = static_cast<PyGenObject*>(gen);
-  BorrowedRef<CompiledFunction> compiled_func = code_rt->compiledFunction();
+  BorrowedRef<CompiledFunctionData> compiled_data = code_rt->compilationData();
   JIT_DCHECK(
-      compiled_func != nullptr,
-      "CodeRuntime has no associated CompiledFunction: {}",
+      compiled_data != nullptr,
+      "CodeRuntime has no associated compiled data: {}",
       PyUnicode_AsUTF8(co->co_qualname));
-  Py_INCREF(compiled_func.get());
-  footer->compiled_func = compiled_func.get();
+  Py_INCREF(compiled_data.get());
+  footer->code_runtime = code_rt;
   footer->originalFramePointer = original_frame_pointer;
   footer->linkAddress =
       *reinterpret_cast<uint64_t*>( // NOLINT performance-no-int-to-ptr

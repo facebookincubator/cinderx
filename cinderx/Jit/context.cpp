@@ -1189,10 +1189,6 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
     *indirect = compiled->staticEntry();
   }
 
-  if (compiled->runtime() != nullptr) {
-    compiled->runtime()->setCompiledFunction(compiled);
-  }
-
   // The function can change while a batch/background worker compiles its
   // snapshot. Preserve the replacement's entrypoint in that case.
   if (func != nullptr && CompilationKey{func} == key && !isJitCompiled(func)) {

@@ -338,13 +338,19 @@ Ref<CompiledFunction> CompiledFunction::create(
     cf = new (raw) CompiledFunction(cfd, owner, true);
 
     PyObject_Init(&cf->ob_base, mod_state->compiled_function_type);
+    PyObject_Init(&cfd->ob_base, mod_state->compiled_function_data_type);
 #if PY_VERSION_HEX >= 0x030E0000
     _Py_SetImmortalUntracked(&cf->ob_base);
+    _Py_SetImmortalUntracked(&cfd->ob_base);
 #else
     _Py_SetImmortal(&cf->ob_base);
+    _Py_SetImmortal(&cfd->ob_base);
 #endif
   }
 
+  if (cf->runtime() != nullptr) {
+    cf->runtime()->setCompilationData(cf->data());
+  }
   return Ref<CompiledFunction>::steal(cf);
 }
 
@@ -590,6 +596,9 @@ void CompiledFunction::clear(bool context_finalizing) {
   }
 
   auto* owner = std::exchange(owner_, nullptr);
+  if (data_ != nullptr) {
+    data_->retired = true;
+  }
   bool deferred = false;
   if (!contiguous_data_ && !context_finalizing && owner != nullptr &&
       data_ != nullptr && data_->runtime != nullptr) {
@@ -600,9 +609,6 @@ void CompiledFunction::clear(bool context_finalizing) {
     owner->forgetCompiledFunction(*this);
   }
 
-  if (data_ != nullptr && data_->runtime != nullptr) {
-    data_->runtime->setCompiledFunction(nullptr);
-  }
   if (!deferred && data_ != nullptr) {
     if (owner != nullptr) {
       data_->releaseRuntimeResources();

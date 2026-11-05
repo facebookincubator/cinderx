@@ -18,7 +18,7 @@
 
 namespace cinderx::jit {
 
-class CompiledFunction;
+struct CompiledFunctionData;
 
 constexpr ptrdiff_t kInvalidYieldFromOffset =
     std::numeric_limits<ptrdiff_t>::max();
@@ -137,9 +137,11 @@ class alignas(16) CodeRuntime {
 
   BorrowedRef<> reifier();
 
-  void setCompiledFunction(BorrowedRef<CompiledFunction> compiled_func);
+  void setCompilationData(BorrowedRef<CompiledFunctionData> data);
 
-  BorrowedRef<CompiledFunction> compiledFunction() const;
+  // Borrowed compilation data; survives wrapper retirement.
+  // Null for standalone native generators.
+  BorrowedRef<CompiledFunctionData> compilationData() const;
 
  private:
   BorrowedRef<PyCodeObject> code_;
@@ -167,9 +169,8 @@ class alignas(16) CodeRuntime {
   // Built during codegen, used by deoptAllJitFramesOnStack().
   SortedVecMap<uintptr_t, uintptr_t> callsite_deopt_exits_;
 
-  // Backpointer to the CompiledFunction that owns this CodeRuntime.
-  // Set after CompiledFunction::create() in makeCompiledFunction().
-  BorrowedRef<CompiledFunction> compiled_function_;
+  // Fixed before entrypoint publication; survives CompiledFunction retirement.
+  BorrowedRef<CompiledFunctionData> compilation_data_;
 
   GenResumeFunc gen_resume_entry_{nullptr};
 

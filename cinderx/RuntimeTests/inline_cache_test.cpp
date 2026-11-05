@@ -168,6 +168,35 @@ TEST_F(InlineCacheTest, DeferredCleanupReclaimsGarbageCollectedCompilation) {
   EXPECT_EQ(live_count, 0);
 }
 
+TEST_F(InlineCacheTest, SuspendedGeneratorRetainsRetiredRuntimeData) {
+  runCode(R"(
+def func():
+    yield 41
+    yield 42
+)");
+  Ref<PyFunctionObject> func{getGlobal("func")};
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  Ref<CompiledFunction> compiled =
+      Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled, nullptr);
+  int live_count = 0;
+  compiled->data()->stable_storage->allocateForTesting<InlineCacheLifetime>(
+      live_count);
+  runCode("g = func()\nassert next(g) == 41\n");
+
+  compiled->removeFunction(func);
+  getContext()->forgetCode(func);
+  compiled.reset();
+  getContext()->processDeferredCleanup();
+  PyGC_Collect();
+  ASSERT_EQ(live_count, 1);
+
+  runCode("assert list(g) == [42]\ndel g\n");
+  getContext()->processDeferredCleanup();
+  PyGC_Collect();
+  EXPECT_EQ(live_count, 0);
+}
+
 TEST_F(InlineCacheTest, DeferredGenerationsContributeSeparateInlineCacheStats) {
   Ref<PyFunctionObject> func(compileStockAndGet("def func(): pass\n", "func"));
   for (const char* name : {"first", "second"}) {
