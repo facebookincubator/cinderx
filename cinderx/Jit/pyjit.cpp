@@ -118,6 +118,26 @@ CompilerContext<Compiler>* jitCtx() {
   return nullptr;
 }
 
+Ref<> retainModuleOwner() {
+  FreeThreadedJITEntrypointGuard guard;
+  auto* state = cinderx::getModuleState();
+  BorrowedRef<> module = state == nullptr ? nullptr : state->cinderx_module;
+  if (module == nullptr) {
+    return nullptr;
+  }
+#if PY_VERSION_HEX >= 0x030E0000
+  if (!PyUnstable_TryIncRef(module)) {
+    return nullptr;
+  }
+  return Ref<>::steal(module);
+#else
+  if (Py_REFCNT(module) == 0) {
+    return nullptr;
+  }
+  return Ref<>::create(module);
+#endif
+}
+
 // Simple wrapper functions to turn nullptr or -1 return values from C-API
 // functions into a thrown exception. Meant for repetitive runs of C-API calls
 // and not intended for use in public APIs.
@@ -158,9 +178,11 @@ PyObject* forcedJitVectorcall(
   auto code = Ref<PyCodeObject>::create(func->func_code);
 
   // Compile the function.
+  Ref<> owner;
   Result result;
   try {
-    result = compileFunction(func);
+    owner = retainModuleOwner();
+    result = owner != nullptr ? compileFunction(func) : Result::NOT_INITIALIZED;
   } catch (const std::exception& exn) {
     // Gently fall back to the interpreter when C++ exceptions happen.
     JIT_DLOG("{}", exn.what());
@@ -247,7 +269,10 @@ PyObject* jitVectorcall(
   // runs concurrently with most of the compilation work.
   try {
     if (getConfig().background_compile) {
-      scheduleBackgroundCompile(func);
+      Ref<> owner = retainModuleOwner();
+      if (owner != nullptr) {
+        scheduleBackgroundCompile(func);
+      }
       auto entry = getInterpretedVectorcall(func);
       return entry(func_obj, stack, nargsf, kwnames);
     }
@@ -2153,6 +2178,60 @@ bool toggleJitBasedOnInstrumentationState() {
   return enable_jit_impl();
 }
 
+PyObject* callInstrumentedSysFunction(
+    PyObject* original,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  Ref<> owner = retainModuleOwner();
+  Ref<> result =
+      Ref<>::steal(PyObject_Vectorcall(original, args, nargs, nullptr));
+  if (result == nullptr) {
+    return nullptr;
+  }
+  if (owner != nullptr && !toggleJitBasedOnInstrumentationState()) {
+    return nullptr;
+  }
+  return result.release();
+}
+
+Ref<> makeInstrumentedSysFunction(PyMethodDef& def, BorrowedRef<> original) {
+  Ref<> module = Ref<>::steal(PyObject_GetAttrString(original, "__module__"));
+  if (module == nullptr) {
+    return nullptr;
+  }
+  // sys keeps the original function alive; only an active call retains the JIT
+  // owner, so installed hooks do not delay module teardown.
+  return Ref<>::steal(PyCFunction_NewEx(&def, original, module));
+}
+
+PyMethodDef instrumented_sys_monitoring_register_callback_def = {
+    "register_callback",
+    reinterpret_cast<PyCFunction>(
+        reinterpret_cast<void (*)(void)>(callInstrumentedSysFunction)),
+    METH_FASTCALL,
+    nullptr};
+
+PyMethodDef instrumented_sys_monitoring_free_tool_id_def = {
+    "free_tool_id",
+    reinterpret_cast<PyCFunction>(
+        reinterpret_cast<void (*)(void)>(callInstrumentedSysFunction)),
+    METH_FASTCALL,
+    nullptr};
+
+PyMethodDef instrumented_sys_setprofile_def = {
+    "setprofile",
+    reinterpret_cast<PyCFunction>(
+        reinterpret_cast<void (*)(void)>(callInstrumentedSysFunction)),
+    METH_FASTCALL,
+    nullptr};
+
+PyMethodDef instrumented_sys_settrace_def = {
+    "settrace",
+    reinterpret_cast<PyCFunction>(
+        reinterpret_cast<void (*)(void)>(callInstrumentedSysFunction)),
+    METH_FASTCALL,
+    nullptr};
+
 // Patched version of sys.monitoring.register_callback().
 // Intercepts callback registration/deregistration to disable/enable the JIT
 // This is to handle debuggers/profilers attaching or detaching.
@@ -3609,7 +3688,7 @@ PyObject* release_fork_locks(PyObject* imp) {
 
 // Patch sys.monitoring.register_callback to intercept debugger/profiler
 // attachment.
-void patchSysMonitoringFunctions(PyObject* cinderx_module) {
+void patchSysMonitoringFunctions() {
   BorrowedRef<> monitoring = PySys_GetObject("monitoring");
   if (monitoring == nullptr) {
     JIT_DLOG("sys.monitoring not found, skipping JIT monitoring integration");
@@ -3629,12 +3708,10 @@ void patchSysMonitoringFunctions(PyObject* cinderx_module) {
   auto mod_state = cinderx::getModuleState();
   mod_state->orig_sys_monitoring_register_callback = Ref<>::create(original);
 
-  Ref<> patched_func = Ref<>::steal(PyObject_GetAttrString(
-      cinderx_module, "patched_sys_monitoring_register_callback"));
+  Ref<> patched_func = makeInstrumentedSysFunction(
+      instrumented_sys_monitoring_register_callback_def, original);
   if (patched_func == nullptr) {
-    JIT_LOG(
-        "Failed to get patched_sys_monitoring_register_callback from _cinderx "
-        "module");
+    JIT_LOG("Failed to create sys.monitoring.register_callback wrapper");
     PyErr_Clear();
     return;
   }
@@ -3657,8 +3734,8 @@ void patchSysMonitoringFunctions(PyObject* cinderx_module) {
     mod_state->orig_sys_monitoring_free_tool_id =
         Ref<>::create(orig_free_tool_id);
 
-    Ref<> patched_free_tool_id = Ref<>::steal(PyObject_GetAttrString(
-        cinderx_module, "patched_sys_monitoring_free_tool_id"));
+    Ref<> patched_free_tool_id = makeInstrumentedSysFunction(
+        instrumented_sys_monitoring_free_tool_id_def, orig_free_tool_id);
     if (patched_free_tool_id != nullptr) {
       if (PyObject_SetAttrString(
               monitoring, "free_tool_id", patched_free_tool_id) < 0) {
@@ -3668,9 +3745,7 @@ void patchSysMonitoringFunctions(PyObject* cinderx_module) {
         JIT_DLOG("Successfully patched sys.monitoring.free_tool_id");
       }
     } else {
-      JIT_LOG(
-          "Failed to get patched_sys_monitoring_free_tool_id from _cinderx "
-          "module");
+      JIT_LOG("Failed to create sys.monitoring.free_tool_id wrapper");
       PyErr_Clear();
     }
   } else {
@@ -3683,7 +3758,7 @@ void patchSysMonitoringFunctions(PyObject* cinderx_module) {
 
 // Patch sys.setprofile and sys.settrace to intercept profiler/debugger
 // attachment.
-void patchSysSetProfileAndSetTrace(PyObject* cinderx_module) {
+void patchSysSetProfileAndSetTrace() {
   Ref<> sys = Ref<>::steal(PyImport_ImportModule("sys"));
   if (sys == nullptr) {
     PyErr_Clear();
@@ -3695,7 +3770,7 @@ void patchSysSetProfileAndSetTrace(PyObject* cinderx_module) {
 
   auto patchSysFunc =
       [&](const char* attr_name,
-          const char* patched_attr_name,
+          PyMethodDef& def,
           const std::function<void(BorrowedRef<>)>& storeOriginal) {
         Ref<> original = Ref<>::steal(PyObject_GetAttrString(sys, attr_name));
         if (original == nullptr) {
@@ -3705,10 +3780,9 @@ void patchSysSetProfileAndSetTrace(PyObject* cinderx_module) {
         }
         storeOriginal(original);
 
-        Ref<> patched = Ref<>::steal(
-            PyObject_GetAttrString(cinderx_module, patched_attr_name));
+        Ref<> patched = makeInstrumentedSysFunction(def, original);
         if (patched == nullptr) {
-          JIT_LOG("Failed to get {} from _cinderx module", patched_attr_name);
+          JIT_LOG("Failed to create sys.{} wrapper", attr_name);
           PyErr_Clear();
           return;
         }
@@ -3720,12 +3794,14 @@ void patchSysSetProfileAndSetTrace(PyObject* cinderx_module) {
         }
       };
 
-  patchSysFunc("setprofile", "patched_sys_setprofile", [&](BorrowedRef<> func) {
-    mod_state->orig_sys_setprofile = Ref<>::create(func);
-  });
-  patchSysFunc("settrace", "patched_sys_settrace", [&](BorrowedRef<> func) {
-    mod_state->orig_sys_settrace = Ref<>::create(func);
-  });
+  patchSysFunc(
+      "setprofile", instrumented_sys_setprofile_def, [&](BorrowedRef<> func) {
+        mod_state->orig_sys_setprofile = Ref<>::create(func);
+      });
+  patchSysFunc(
+      "settrace", instrumented_sys_settrace_def, [&](BorrowedRef<> func) {
+        mod_state->orig_sys_settrace = Ref<>::create(func);
+      });
 }
 
 void restoreSysMonitoringRegisterCallback() {
@@ -4873,8 +4949,8 @@ int initialize(BorrowedRef<> cinderx_module) {
   }
 
   if (getConfig().support_instrumentation) {
-    patchSysMonitoringFunctions(cinderx_module);
-    patchSysSetProfileAndSetTrace(cinderx_module);
+    patchSysMonitoringFunctions();
+    patchSysSetProfileAndSetTrace();
   }
 
   // Set up perf event writers.

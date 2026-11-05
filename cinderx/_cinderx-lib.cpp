@@ -13,6 +13,7 @@
 #include "cinderx/Immortalize/immortalize.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/anextawaitable.h"
+#include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
@@ -870,12 +871,20 @@ int module_clear(PyObject* mod) {
 void module_free(void* raw_mod) {
   auto mod = reinterpret_cast<PyObject*>(raw_mod);
   auto state = cinderx::getModuleState(mod);
-  // If the module was never fully initialized (e.g. subinterpreter), just
-  // destroy the state object and return. Skip all global cleanup since it
-  // belongs to the main interpreter.
-  if (!state->fully_initialized) {
-    state->cinderx::ModuleState::~ModuleState();
-    return;
+  {
+    jit::FreeThreadedJITEntrypointGuard guard;
+    state->cinderx_module = nullptr;
+    // If the module was never fully initialized (e.g. subinterpreter), just
+    // destroy the state object and return. Skip all global cleanup since it
+    // belongs to the main interpreter.
+    if (!state->fully_initialized) {
+      bool published = state == cinderx::getModuleState();
+      state->cinderx::ModuleState::~ModuleState();
+      if (published) {
+        cinderx::removeModuleState();
+      }
+      return;
+    }
   }
 
   _PyClassLoader_ClearCache();
@@ -904,8 +913,11 @@ void module_free(void* raw_mod) {
 
   // Running the module state's destructor will access the global singleton, so
   // reset the singleton afterwards.
-  state->cinderx::ModuleState::~ModuleState();
-  cinderx::removeModuleState();
+  {
+    jit::FreeThreadedJITEntrypointGuard guard;
+    state->cinderx::ModuleState::~ModuleState();
+    cinderx::removeModuleState();
+  }
 }
 
 // Called when the interpreter is shutting down, allows us to do some aggressive
@@ -1139,7 +1151,13 @@ int _cinderx_exec_impl(PyObject* m) {
   // initialization.
   ensurePyFunctionVectorcall();
 
-  cinderx::setModuleState(m);
+#if PY_VERSION_HEX >= 0x030E0000
+  PyUnstable_EnableTryIncRef(m);
+#endif
+  {
+    jit::FreeThreadedJITEntrypointGuard guard;
+    cinderx::setModuleState(m);
+  }
 
   auto cache_manager =
       new (std::nothrow) jit::GlobalCacheManager(state->watcher_state);
