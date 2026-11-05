@@ -904,24 +904,29 @@ TEST_F(LIRTargetSelectTest, DoesNotSelectBranchBitSetWithoutFlagProducer) {
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBranchBitSetForPythonRefcountSignTest) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %2
-  %1:Object = Move 1
-  %2:32bit = Move [%1:Object]:Object
-  Test32 %2, %2
-  BranchS BB%1
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %1
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+  Instruction* object = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{}, Imm{1, DataType::kObject});
+  Instruction* refcount = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k32bit}, Ind{object});
+  entry->allocateInstr(
+      Opcode::kTest32, nullptr, VReg{refcount}, VReg{refcount});
+  entry->allocateInstr(
+      Opcode::kBranchCC, nullptr, Condition::kSign, Lbl{true_block});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{object});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{object});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kBranchBitSet).inImm(1, 31));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kTest32));
+  EXPECT_LIR(Query(function).opcode(Opcode::kBranchBitSet).inImm(1, 31));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kTest32));
   EXPECT_NO_LIR(
-      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
+      Query(function).opcode(Opcode::kBranchCC).condition(Condition::kSign));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsBitTestForPythonCompareBranch) {
