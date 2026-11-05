@@ -1245,6 +1245,9 @@ void Context::deferCompiledData(
     deferred_compiled_data_.emplace(
         std::move(key), Ref<CompiledFunctionData>::steal(data));
   });
+  if (Py_IsFinalizing()) {
+    processDeferredCleanup();
+  }
 }
 
 void Context::processDeferredCleanup() {
