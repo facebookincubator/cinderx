@@ -93,6 +93,9 @@ std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   if (const auto* cache = std::get_if<BinaryOpCache*>(&source)) {
     return binaryOpPayload(**cache);
   }
+  if constexpr (kFreeThreadedBuild) {
+    return std::nullopt;
+  }
   if (const auto* cache = std::get_if<CompareCache*>(&source)) {
     return comparePayload(**cache);
   }
@@ -160,7 +163,7 @@ void ProfileCollector::remove(const ProfileLocation& location) {
 }
 
 Profile ProfileCollector::snapshot() const {
-#if defined(ENABLE_PREFORK_MODEL) || defined(Py_GIL_DISABLED)
+#ifdef ENABLE_PREFORK_MODEL
   return Profile{};
 #else
   std::lock_guard<std::mutex> guard(mutex_);
@@ -173,7 +176,15 @@ Profile ProfileCollector::snapshot() const {
     std::vector<ProfileEntry> observed;
     observed.reserve(sources.size());
     for (const auto& source : sources) {
+      if constexpr (kFreeThreadedBuild) {
+        if (!std::holds_alternative<BinaryOpProfile>(source)) {
+          continue;
+        }
+      }
       observed.push_back(source);
+    }
+    if (observed.empty()) {
+      continue;
     }
     if (auto merged = mergePayloads(observed)) {
       entries.insert_or_assign(location, std::move(merged.value()));

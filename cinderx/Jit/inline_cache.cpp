@@ -3194,6 +3194,22 @@ enum class BinaryOpCache::Specialization : uint8_t {
 BinaryOpCache::BinaryOpCache(hir::BinaryOpKind op)
     : specialization_{selectInitialSpecialization(op)} {}
 
+BinaryOpCache::Specialization BinaryOpCache::getSpecialization() const {
+  return specialization_.load(std::memory_order_relaxed);
+}
+
+void BinaryOpCache::setSpecialization(
+    Specialization expected,
+    Specialization desired) {
+  if constexpr (kFreeThreadedBuild) {
+    // A delayed population or fallback must not overwrite a newer fallback.
+    specialization_.compare_exchange_strong(
+        expected, desired, std::memory_order_relaxed);
+  } else {
+    specialization_.store(desired, std::memory_order_relaxed);
+  }
+}
+
 BinaryOpCache::Specialization BinaryOpCache::selectInitialSpecialization(
     hir::BinaryOpKind op) {
   switch (op) {
@@ -3298,6 +3314,7 @@ consteval bool returnNeedsCheck(SpecializedType ret) {
 // When the operands stop matching it sets the specialization to Fallback and
 // re-dispatches through ReDispatch (the matching add()/multiply()).
 template <
+    auto Current,
     auto LhsKind,
     auto RhsKind,
     auto ReturnKind,
@@ -3317,7 +3334,7 @@ PyObject* BinaryOpCache::invokeSpecialized(
       // produce; if the result doesn't match, step specialization_ down to
       // the (wider) Fallback but still return the already-correct result.
       if (result != nullptr && !checkFor(ReturnKind)(result)) {
-        cache->specialization_ = Fallback;
+        cache->setSpecialization(Current, Fallback);
       }
     }
     return result;
@@ -3325,7 +3342,7 @@ PyObject* BinaryOpCache::invokeSpecialized(
 
   // The operands no longer match; step down to the Fallback specialization so
   // future calls skip this type guard, then re-dispatch.
-  cache->specialization_ = Fallback;
+  cache->setSpecialization(Current, Fallback);
   return ReDispatch(lhs, rhs, cache);
 }
 
@@ -3334,21 +3351,24 @@ PyObject* BinaryOpCache::invokeSpecialized(
 // DISPATCH (add/multiply), which runs it.  The ADD/MULTIPLY wrappers bind
 // DISPATCH so the same body serves both ops.
 #define POPULATE_BINARY_SPECIALIZATION(                               \
-    DISPATCH, NAME, LHS, RHS, RET, OP, FALLBACK)                      \
+    DISPATCH, INITIAL, NAME, LHS, RHS, RET, OP, FALLBACK)             \
   if (constexpr CheckFn lhsCheck = checkFor(SpecializedType::k##LHS), \
       rhsCheck = checkFor(SpecializedType::k##RHS);                   \
       lhsCheck(lhs) && rhsCheck(rhs)) {                               \
-    cache->specialization_ = BinaryOpCache::Specialization::k##NAME;  \
+    cache->setSpecialization(                                         \
+        BinaryOpCache::Specialization::INITIAL,                       \
+        BinaryOpCache::Specialization::k##NAME);                      \
     return DISPATCH(lhs, rhs, cache);                                 \
   }
 #define POPULATE_ADD_SPECIALIZATION(...) \
-  POPULATE_BINARY_SPECIALIZATION(add, __VA_ARGS__)
+  POPULATE_BINARY_SPECIALIZATION(add, kUninitializedAdd, __VA_ARGS__)
 #define POPULATE_MULTIPLY_SPECIALIZATION(...) \
-  POPULATE_BINARY_SPECIALIZATION(multiply, __VA_ARGS__)
+  POPULATE_BINARY_SPECIALIZATION(multiply, kUninitializedMultiply, __VA_ARGS__)
 #define POPULATE_SUBTRACT_SPECIALIZATION(...) \
-  POPULATE_BINARY_SPECIALIZATION(subtract, __VA_ARGS__)
+  POPULATE_BINARY_SPECIALIZATION(subtract, kUninitializedSubtract, __VA_ARGS__)
 #define POPULATE_TRUEDIVIDE_SPECIALIZATION(...) \
-  POPULATE_BINARY_SPECIALIZATION(trueDivide, __VA_ARGS__)
+  POPULATE_BINARY_SPECIALIZATION(               \
+      trueDivide, kUninitializedTrueDivide, __VA_ARGS__)
 
 // Emits one dispatch-switch arm that runs the specialization directly via
 // invokeSpecialized<>, threading the Fallback value and the matching
@@ -3357,6 +3377,7 @@ PyObject* BinaryOpCache::invokeSpecialized(
     DISPATCH, NAME, LHS, RHS, RET, OP, FALLBACK) \
   case BinaryOpCache::Specialization::k##NAME:   \
     return invokeSpecialized<                    \
+        Specialization::k##NAME,                 \
         SpecializedType::k##LHS,                 \
         SpecializedType::k##RHS,                 \
         SpecializedType::k##RET,                 \
@@ -3586,7 +3607,8 @@ PyObject* BinaryOpCache::populateAndInvokeAdd(
     BinaryOpCache* cache) {
   FOREACH_ADD_SPECIALIZATION(POPULATE_ADD_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kAddGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedAdd, Specialization::kAddGeneric);
   return addGeneric(lhs, rhs, cache);
 }
 
@@ -3596,7 +3618,8 @@ PyObject* BinaryOpCache::populateAndInvokeMultiply(
     BinaryOpCache* cache) {
   FOREACH_MULTIPLY_SPECIALIZATION(POPULATE_MULTIPLY_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kMultiplyGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedMultiply, Specialization::kMultiplyGeneric);
   return multiplyGeneric(lhs, rhs, cache);
 }
 
@@ -3606,7 +3629,8 @@ PyObject* BinaryOpCache::populateAndInvokeSubtract(
     BinaryOpCache* cache) {
   FOREACH_SUBTRACT_SPECIALIZATION(POPULATE_SUBTRACT_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kSubtractGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedSubtract, Specialization::kSubtractGeneric);
   return subtractGeneric(lhs, rhs, cache);
 }
 
@@ -3616,7 +3640,9 @@ PyObject* BinaryOpCache::populateAndInvokeTrueDivide(
     BinaryOpCache* cache) {
   FOREACH_TRUEDIVIDE_SPECIALIZATION(POPULATE_TRUEDIVIDE_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kTrueDivideGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedTrueDivide,
+      Specialization::kTrueDivideGeneric);
   return trueDivideGeneric(lhs, rhs, cache);
 }
 
@@ -3626,7 +3652,7 @@ PyObject* BinaryOpCache::populateAndInvokeTrueDivide(
 // states never reach here because codegen calls add() only for kAdd caches.
 PyObject*
 BinaryOpCache::add(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedAdd:
       return populateAndInvokeAdd(lhs, rhs, cache);
     case Specialization::kAddGeneric:
@@ -3641,7 +3667,7 @@ BinaryOpCache::add(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
 // multiply subset of the enum (FOREACH_MULTIPLY_SPECIALIZATION).
 PyObject*
 BinaryOpCache::multiply(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedMultiply:
       return populateAndInvokeMultiply(lhs, rhs, cache);
     case Specialization::kMultiplyGeneric:
@@ -3656,7 +3682,7 @@ BinaryOpCache::multiply(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
 // subtract subset of the enum (FOREACH_SUBTRACT_SPECIALIZATION).
 PyObject*
 BinaryOpCache::subtract(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedSubtract:
       return populateAndInvokeSubtract(lhs, rhs, cache);
     case Specialization::kSubtractGeneric:
@@ -3671,7 +3697,7 @@ BinaryOpCache::subtract(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
 // true-divide subset of the enum (FOREACH_TRUEDIVIDE_SPECIALIZATION).
 PyObject*
 BinaryOpCache::trueDivide(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedTrueDivide:
       return populateAndInvokeTrueDivide(lhs, rhs, cache);
     case Specialization::kTrueDivideGeneric:
@@ -3683,7 +3709,7 @@ BinaryOpCache::trueDivide(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache) {
 }
 
 BinaryOpCache::BinarySpecialization BinaryOpCache::specializedTypes() const {
-  switch (specialization_) {
+  switch (getSpecialization()) {
     case Specialization::kUninitializedAdd:
     case Specialization::kUninitializedMultiply:
     case Specialization::kUninitializedSubtract:

@@ -22,6 +22,11 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#ifdef Py_GIL_DISABLED
+#include <barrier>
+#include <thread>
+#endif
+
 namespace cinderx {
 
 using namespace cinderx::jit;
@@ -47,7 +52,7 @@ class BinaryOpCacheCodegenTest : public RuntimeTest {
   Config saved_config_;
 };
 
-#if defined(ENABLE_PREFORK_MODEL) || defined(Py_GIL_DISABLED)
+#ifdef ENABLE_PREFORK_MODEL
 TEST_F(BinaryOpCacheCodegenTest, ProfileCollectionDisabled) {
   ProfileCollector collector;
   const BCOffset offset{24};
@@ -327,6 +332,7 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileDeoptedLocationsSuppressFindAndMerge) {
       profile.entries().find(stale_location) == profile.entries().end());
 }
 
+#ifndef Py_GIL_DISABLED
 TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesComparesByLocation) {
   ProfileCollector collector;
   const BCOffset long_offset{24};
@@ -402,9 +408,120 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesComparesByLocation) {
 }
 
 #endif
+#endif
 
-#if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED) && \
-    defined(ENABLE_LIGHTWEIGHT_FRAMES) &&                          \
+#if defined(Py_GIL_DISABLED) && !defined(ENABLE_PREFORK_MODEL)
+TEST_F(BinaryOpCacheCodegenTest, ProfileExcludesOtherCacheKinds) {
+  ProfileCollector collector;
+  const ProfileLocation binary_location{nullptr, BCOffset{8}};
+  collector.add(binary_location, BinaryOpProfile{TLong, TLong, TLong});
+
+  CompareCache compare_cache{CompareOp::kEqual};
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  ASSERT_NE(
+      Ref<>::steal(CompareCache::equal(one, one, &compare_cache)), nullptr);
+  collector.add(nullptr, BCOffset{16}, &compare_cache);
+  collector.add(
+      ProfileLocation{nullptr, BCOffset{24}},
+      CompareProfile{TLong, TLong, TBool});
+  collector.add(
+      ProfileLocation{nullptr, BCOffset{32}},
+      LoadAttrProfile{&PyLong_Type, std::nullopt, false});
+  collector.add(
+      ProfileLocation{nullptr, BCOffset{40}},
+      StoreAttrProfile{&PyLong_Type, std::nullopt, false});
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  EXPECT_NE(profile.find<BinaryOpProfile>(binary_location), nullptr);
+}
+
+TEST_F(BinaryOpCacheCodegenTest, ConcurrentSnapshotsPreserveGenericFallback) {
+  struct Operation {
+    BinaryOpKind kind;
+    PyObject* (*invoke)(PyObject*, PyObject*, BinaryOpCache*);
+    double expected;
+  };
+  const Operation operations[] = {
+      {BinaryOpKind::kAdd, BinaryOpCache::add, 8.0},
+      {BinaryOpKind::kMultiply, BinaryOpCache::multiply, 12.0},
+      {BinaryOpKind::kSubtract, BinaryOpCache::subtract, 4.0},
+      {BinaryOpKind::kTrueDivide, BinaryOpCache::trueDivide, 3.0}};
+  auto six = Ref<>::steal(PyLong_FromLong(6));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  auto six_float = Ref<>::steal(PyFloat_FromDouble(6.0));
+  auto two_float = Ref<>::steal(PyFloat_FromDouble(2.0));
+  ASSERT_NE(six, nullptr);
+  ASSERT_NE(two, nullptr);
+  ASSERT_NE(six_float, nullptr);
+  ASSERT_NE(two_float, nullptr);
+
+  for (const Operation& op : operations) {
+    PerCompilationStableStorage storage;
+    ProfileCollector collector;
+    std::vector<BinaryOpCache*> caches;
+    for (int i = 0; i < 32; ++i) {
+      BinaryOpCache* cache = storage.allocateBinaryOpCache(op.kind);
+      caches.push_back(cache);
+      collector.add(nullptr, BCOffset{i * 2}, cache);
+    }
+    std::barrier start{3};
+    std::atomic<bool> correct{true};
+    auto invoke = [&](PyObject* left, PyObject* right) {
+      PyGILState_STATE state = PyGILState_Ensure();
+      PyThreadState* tstate = PyEval_SaveThread();
+      start.arrive_and_wait();
+      PyEval_RestoreThread(tstate);
+      for (BinaryOpCache* cache : caches) {
+        for (int i = 0; i < 32; ++i) {
+          auto result = Ref<>::steal(op.invoke(left, right, cache));
+          if (result == nullptr || PyFloat_AsDouble(result) != op.expected) {
+            correct.store(false, std::memory_order_relaxed);
+            PyErr_Clear();
+          }
+        }
+      }
+      PyGILState_Release(state);
+    };
+    std::thread ints(invoke, six.get(), two.get());
+    std::thread floats(invoke, six_float.get(), two_float.get());
+    PyThreadState* tstate = PyEval_SaveThread();
+    start.arrive_and_wait();
+    PyEval_RestoreThread(tstate);
+    for (int i = 0; i < 128; ++i) {
+      Profile profile = collector.snapshot();
+      for (const auto& [location, entry] : profile.entries()) {
+        const auto& binary = std::get<BinaryOpProfile>(entry);
+        EXPECT_EQ(binary.left_type, binary.right_type);
+        EXPECT_TRUE(
+            binary.left_type == TLongCompact ||
+            binary.left_type == TLongExact || binary.left_type == TFloatExact);
+        if (op.kind == BinaryOpKind::kTrueDivide) {
+          EXPECT_EQ(binary.res_type, TFloatExact);
+        } else if (binary.left_type == TLongCompact) {
+          EXPECT_TRUE(
+              binary.res_type == TLongCompact || binary.res_type == TLongExact);
+        } else {
+          EXPECT_EQ(binary.res_type, binary.left_type);
+        }
+      }
+    }
+    tstate = PyEval_SaveThread();
+    ints.join();
+    floats.join();
+    PyEval_RestoreThread(tstate);
+    EXPECT_TRUE(correct.load(std::memory_order_relaxed));
+    for (BinaryOpCache* cache : caches) {
+      EXPECT_EQ(cache->specializedTypes().lhs, SpecializedType::kGeneric);
+      EXPECT_EQ(cache->specializedTypes().rhs, SpecializedType::kGeneric);
+      EXPECT_EQ(cache->specializedTypes().ret, SpecializedType::kGeneric);
+    }
+    EXPECT_TRUE(collector.snapshot().entries().empty());
+  }
+}
+#endif
+
+#if !defined(ENABLE_PREFORK_MODEL) && defined(ENABLE_LIGHTWEIGHT_FRAMES) && \
     (defined(__APPLE__) || defined(__linux__))
 TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesFromBinaryOpProfile) {
   const char* src = R"(
@@ -446,6 +563,7 @@ def test(a, b):
   EXPECT_EQ(PyLong_AsLong(recompiled_result), 3);
 }
 
+#ifndef Py_GIL_DISABLED
 TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesFromCompareProfile) {
   const char* src = R"(
 def test(a, b):
@@ -487,6 +605,8 @@ def test(a, b):
   ASSERT_NE(recompiled_result, nullptr);
   EXPECT_EQ(recompiled_result.get(), Py_False);
 }
+
+#endif
 
 TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedPayloads) {
   PerCompilationStableStorage storage;
@@ -552,6 +672,7 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedPayloads) {
   EXPECT_EQ(conflicting->right_type, TFloatExact);
 }
 
+#ifndef Py_GIL_DISABLED
 TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedComparePayloads) {
   ProfileCollector collector;
 
@@ -616,6 +737,8 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedComparePayloads) {
   EXPECT_EQ(conflicting->res_type, TBool);
 }
 
+#endif
+
 TEST_F(BinaryOpCacheCodegenTest, RecompilePersistsProfileAcrossRecompiles) {
   const char* src = R"(
 def test(a, b):
@@ -678,6 +801,7 @@ def test(a, b):
   EXPECT_EQ(PyLong_AsLong(rerecompiled_result), 3);
 }
 
+#ifndef Py_GIL_DISABLED
 TEST_F(
     BinaryOpCacheCodegenTest,
     RecompilePersistsCompareProfileAcrossRecompiles) {
@@ -744,6 +868,8 @@ def test(a, b):
   ASSERT_NE(rerecompiled_result, nullptr);
   EXPECT_EQ(rerecompiled_result.get(), Py_False);
 }
+
+#endif
 
 TEST_F(BinaryOpCacheCodegenTest, ProfileDropsEntryOnGuardFailure) {
   const char* src = R"(

@@ -12,6 +12,7 @@
 #include "cinderx/StaticPython/typed-args-info.h"
 
 #include <array>
+#include <atomic>
 #include <memory>
 #include <optional>
 #include <span>
@@ -1124,6 +1125,7 @@ class BinaryOpCache {
   // Fallback is the next Specialization in the chain and ReDispatch is the
   // op's matching entry point.
   template <
+      auto Current,
       auto LhsKind,
       auto RhsKind,
       auto ReturnKind,
@@ -1133,7 +1135,10 @@ class BinaryOpCache {
   static PyObject*
   invokeSpecialized(PyObject* lhs, PyObject* rhs, BinaryOpCache* cache);
 
-  Specialization specialization_;
+  Specialization getSpecialization() const;
+  void setSpecialization(Specialization expected, Specialization desired);
+
+  std::atomic<Specialization> specialization_;
 };
 
 // A cache for an individual Compare instruction.

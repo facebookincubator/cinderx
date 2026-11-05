@@ -240,9 +240,9 @@ class ProfileCollector {
   // Record a profile used in a re-compile where we're not necessarily
   // emitting an inline cache.
   void add(ProfileLocation location, ProfileEntry payload);
-  // Snapshot the observed inline-cache states. Must be called with the GIL
-  // held: profiling attribute/method caches takes strong references to the
-  // observed receiver types.
+  // Snapshot the observed inline-cache states. Free-threaded builds only
+  // snapshot binary-op feedback. Other builds require the GIL: profiling
+  // attribute/method caches takes strong references to receiver types.
   Profile snapshot() const;
   // Drop all state for a location whose profile guard deopted: the profile
   // entry that produced the guard is stale. Erases from both live and

@@ -195,7 +195,7 @@ TEST_F(RecompileBackgroundTest, ThresholdPublishesToTriggeringFunction) {
   EXPECT_FALSE(getContext()->hasActiveCompile(CompilationKey{func}));
 }
 
-#if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED)
+#ifndef ENABLE_PREFORK_MODEL
 TEST_F(RecompileBackgroundTest, SpecializesAndCarriesBinaryOpProfile) {
   getMutableConfig().binary_op_caches = true;
   getMutableConfig().specialized_opcodes = false;
