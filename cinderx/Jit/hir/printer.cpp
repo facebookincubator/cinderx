@@ -324,6 +324,7 @@ static std::string format_immediates(
     case Opcode::kLoadCellItem:
     case Opcode::kLoadCurrentFunc:
     case Opcode::kLoadFrame:
+    case Opcode::kLoadRecompileCounterAddr:
     case Opcode::kLoadEvalBreaker:
     case Opcode::kMaterializeRef:
     case Opcode::kAtQuiescentState:

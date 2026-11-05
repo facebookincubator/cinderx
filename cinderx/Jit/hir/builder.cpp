@@ -4,6 +4,7 @@
 
 #include "ceval.h"
 
+#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/python_runtime.h"
 
 extern "C" {
@@ -389,6 +390,38 @@ struct HIRBuilder::TranslationContext {
   FrameState frame;
 };
 
+void HIRBuilder::emitRecompileCheck(CFG& cfg, TranslationContext& tc) {
+  Register* counter = allocateTemp();
+  tc.emit<LoadRecompileCounterAddr>(counter);
+  Register* count = allocateTemp();
+  tc.emit<LoadField>(count, counter, "recompile_counter", 0, TCUInt64);
+  Register* one = allocateTemp();
+  tc.emit<LoadConst>(one, Type::fromCUInt(1, TCUInt64));
+  Register* next = allocateTemp();
+  tc.emit<IntBinaryOp>(next, BinaryOpKind::kAdd, count, one);
+  Register* threshold = allocateTemp();
+  tc.emit<LoadConst>(
+      threshold, Type::fromCUInt(recompile_threshold_, TCUInt64));
+  Register* reached = allocateTemp();
+  tc.emit<PrimitiveCompare>(
+      reached, PrimitiveCompareOp::kGreaterThanEqualUnsigned, next, threshold);
+  BasicBlock* continuation = cfg.allocateBlock();
+  TranslationContext below_threshold(cfg.allocateBlock(), tc.frame);
+  TranslationContext slow(cfg.allocateBlock(), tc.frame);
+  tc.emit<CondBranch>(reached, slow.block, below_threshold.block);
+  Register* previous = allocateTemp();
+  below_threshold.emit<LoadConst>(previous, TNullptr);
+  below_threshold.emit<StoreField>(
+      counter, "recompile_counter", 0, next, TCUInt64, previous);
+  below_threshold.emit<Branch>(continuation);
+  slow.emitSnapshot();
+  auto* call = slow.emit<CallStaticRetVoid>(
+      1, reinterpret_cast<void*>(rt::checkRecompile), "checkRecompile");
+  call->setOperand(0, func_);
+  slow.emit<Branch>(continuation);
+  tc.block = continuation;
+}
+
 void HIRBuilder::addInitialYield(TranslationContext& tc) {
   auto out = allocateTemp();
   tc.emit<InitialYield>(out, tc.frame);
@@ -619,14 +652,17 @@ bool HIRBuilder::isSimpleLeafFunction(BorrowedRef<PyCodeObject> code) {
   return true;
 }
 
-std::unique_ptr<Function> buildHIR(const Preloader& preloader) {
-  return HIRBuilder{preloader}.buildHIR();
+std::unique_ptr<Function> buildHIR(
+    const Preloader& preloader,
+    uint64_t recompile_threshold) {
+  return HIRBuilder{preloader, recompile_threshold}.buildHIR();
 }
 
 std::unique_ptr<Function> buildHIR(
     const Preloader& preloader,
-    const Profile& profile) {
-  return HIRBuilder{preloader, profile}.buildHIR();
+    const Profile& profile,
+    uint64_t recompile_threshold) {
+  return HIRBuilder{preloader, profile, recompile_threshold}.buildHIR();
 }
 
 // This performs an abstract interpretation over the bytecode for func in order
@@ -713,15 +749,25 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   BytecodeInstructionBlock bc_instrs{code_};
   block_map_ = createBlocks(*irfunc, bc_instrs);
 
+  const bool is_root_function = frame_state == nullptr;
+  bool has_separate_entry_block = false;
+  bool emit_recompile_check = is_root_function && recompile_threshold_ != 0 &&
+      !(code_->co_flags & (CI_CO_STATICALLY_COMPILED | kCoFlagsAnyGenerator));
+
   // Ensure that the entry block isn't a loop header
   BasicBlock* entry_block = getBlockAtOff(BCOffset{0});
   for (const auto& bci : bc_instrs) {
     if (bci.isBranch() && bci.getJumpTarget() == 0) {
       entry_block = irfunc->cfg.allocateBlock();
+      has_separate_entry_block = true;
       break;
     }
   }
-  if (frame_state == nullptr) {
+
+  if (emit_recompile_check && !has_separate_entry_block) {
+    entry_block = irfunc->cfg.allocateBlock();
+  }
+  if (is_root_function) {
     // Function is not being inlined (irfunc matches code) so set the whole
     // CFG's entry block.
     irfunc->cfg.entry_block = entry_block;
@@ -740,7 +786,7 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 
   addLoadArgs(entry_tc, preloader_.numArgs());
 
-  if (frame_state == nullptr) {
+  if (is_root_function) {
     func_ = allocateTemp();
     entry_tc.emit<LoadCurrentFunc>(func_);
   } else if (inlined_ != nullptr) {
@@ -753,7 +799,7 @@ BasicBlock* HIRBuilder::buildHIRImpl(
     entry_tc.emit<LoadConst>(func_, func_type);
   }
 
-  if (frame_state == nullptr) {
+  if (is_root_function) {
     entry_tc.emit<LoadFrame>();
   }
 
@@ -766,12 +812,17 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 
   emitTypeAnnotationGuards(entry_tc);
 
+  if (emit_recompile_check) {
+    entry_tc.frame.cur_instr_offs = BCOffset{0};
+    emitRecompileCheck(irfunc->cfg, entry_tc);
+  }
+
   // "Initial Yield" has an explicit bytecode instruction in
   // "RETURN_GENERATOR" and so is emitted at the appropriate time.
 
   BasicBlock* first_block = getBlockAtOff(BCOffset{0});
-  if (entry_block != first_block) {
-    entry_block->appendWithOff<Branch>(BCOffset{0}, first_block);
+  if (entry_tc.block != first_block) {
+    entry_tc.block->appendWithOff<Branch>(BCOffset{0}, first_block);
   }
 
   entry_tc.block = first_block;

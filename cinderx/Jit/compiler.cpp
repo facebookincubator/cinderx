@@ -199,14 +199,15 @@ void Compiler::runPassesImpl(
 }
 
 std::optional<CompiledFunctionData> Compiler::compile(
-    BorrowedRef<PyFunctionObject> func) {
+    BorrowedRef<PyFunctionObject> func,
+    CompileMode mode) {
   JIT_CHECK(PyFunction_Check(func), "Expected PyFunctionObject");
   JIT_CHECK(
       !ThreadedCompileContext::compileRunning(),
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
       hir::Preloader::make(func, makeFrameReifier(func->func_code));
-  return preloader ? compile(*preloader) : std::nullopt;
+  return preloader ? compile(*preloader, mode) : std::nullopt;
 }
 
 PassConfig createConfig() {
@@ -238,6 +239,7 @@ PassConfig createConfig() {
 
 std::optional<CompiledFunctionData> Compiler::compile(
     const jit::hir::Preloader& preloader,
+    CompileMode mode,
     Profile* profile) {
   const std::string& fullname = preloader.fullname();
   if (!PyDict_CheckExact(preloader.globals())) {
@@ -270,7 +272,14 @@ std::optional<CompiledFunctionData> Compiler::compile(
   Profile& hir_profile = profile != nullptr ? *profile : empty_profile;
 
   Timer timer;
-  std::unique_ptr<hir::Function> irfunc(hir::buildHIR(preloader, hir_profile));
+  uint64_t recompile_threshold = 0;
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+  if (mode == CompileMode::kInitial) {
+    recompile_threshold = getConfig().recompile_threshold;
+  }
+#endif
+  std::unique_ptr<hir::Function> irfunc(
+      hir::buildHIR(preloader, hir_profile, recompile_threshold));
 
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();

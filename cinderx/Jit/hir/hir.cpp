@@ -522,6 +522,7 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadEvalBreaker:
     case Opcode::kLoadField:
     case Opcode::kLoadFieldAddress:
+    case Opcode::kLoadRecompileCounterAddr:
     case Opcode::kLoadFunctionIndirect:
     case Opcode::kLoadGlobalCached:
     case Opcode::kLoadSplitDictItem:
@@ -855,6 +856,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
+    case Opcode::kLoadRecompileCounterAddr:
     case Opcode::kCallStaticRetVoid:
     case Opcode::kCheckSequenceBounds:
     case Opcode::kCIntToCBool:

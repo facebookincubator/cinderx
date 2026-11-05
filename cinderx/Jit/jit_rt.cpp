@@ -61,6 +61,8 @@ void* getStaticReentryTrampoline(bool fp);
 
 namespace cinderx::jit::rt {
 
+void checkRecompile(PyFunctionObject*) {}
+
 static int bindKeywords(
     PyObject** args,
     PyObject* kwnames,

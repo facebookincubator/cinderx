@@ -13,6 +13,7 @@
 #include "cinderx/Jit/profile.h"
 
 #include <array>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -1413,7 +1414,7 @@ DEFINE_SIMPLE_INSTR(CheckField, (TOptObject), Operands<1>, CheckBaseWithName);
 
 DEFINE_SIMPLE_INSTR(IsNegativeAndErrOccurred, (TCInt), Operands<1>, DeoptBase);
 
-class INSTR_CLASS(LoadField, (TOptObject), Operands<1>) {
+class INSTR_CLASS(LoadField, (TOptObject | TCPtr), Operands<1>) {
  public:
   LoadField(
       Register* dst,
@@ -1457,7 +1458,10 @@ class INSTR_CLASS(LoadField, (TOptObject), Operands<1>) {
   bool borrowed_;
 };
 
-class INSTR_CLASS(StoreField, (TObject, TTop, TOptObject), Operands<3>) {
+class INSTR_CLASS(
+    StoreField,
+    (TObject | TCPtr, TTop, TOptObject),
+    Operands<3>) {
  public:
   StoreField(
       Register* receiver,
@@ -3343,6 +3347,9 @@ class INSTR_CLASS(InvokeIterNext, (TObject), Operands<1>, DeoptBase) {
 // (e.g. signal handlers).  Returns 0 otherwise. This is intended to be
 // followed immediately by a CondBranch.
 DEFINE_SIMPLE_INSTR(LoadEvalBreaker, (), Operands<0>);
+
+// Address of the counter shared by this compiled generation.
+DEFINE_SIMPLE_INSTR(LoadRecompileCounterAddr, (), Operands<0>);
 
 // Called when reaching a quiescent state for free-threading QSBR.
 DEFINE_SIMPLE_INSTR(AtQuiescentState, (), Operands<0>);

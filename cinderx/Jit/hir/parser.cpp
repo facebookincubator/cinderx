@@ -994,6 +994,10 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = AtQuiescentState::create();
       break;
     }
+    case Opcode::kLoadRecompileCounterAddr: {
+      instruction = LoadRecompileCounterAddr::create(dst);
+      break;
+    }
     case Opcode::kRunPeriodicTasks: {
       instruction = newInstr<RunPeriodicTasks>(dst);
       break;

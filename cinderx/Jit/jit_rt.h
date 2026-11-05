@@ -36,6 +36,8 @@ struct StaticCallFPReturn {
   double xmm1;
 };
 
+void checkRecompile(PyFunctionObject* func);
+
 PyThreadState* allocateAndLinkInterpreterFrame_Debug(
     PyFunctionObject* func,
     PyCodeObject* jit_code_object);

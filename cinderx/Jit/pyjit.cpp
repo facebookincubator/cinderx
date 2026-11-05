@@ -659,6 +659,25 @@ FlagProcessor initFlagProcessor() {
       "When compiling a function, set the number of dependent functions that "
       "can be compiled along with it.");
 
+  flag_processor
+      .addOption(
+          "cinderx-jit-recompile-threshold",
+          "CINDERX_JIT_RECOMPILE_THRESHOLD",
+          [](const std::string& value) {
+            auto threshold = parseNumber<uint64_t>(
+                value.empty() ? std::string_view{"0"}
+                              : std::string_view{value});
+            if (threshold.has_value()) {
+              getMutableConfig().recompile_threshold = *threshold;
+            } else {
+              JIT_LOG("Invalid recompilation threshold: {}", value);
+            }
+          },
+          "Check for background recompilation after <calls> calls; zero "
+          "disables "
+          "checks")
+      .withFlagParamName("calls");
+
   // HIR optimizations.
 
 #define HIR_OPTIMIZATION_OPTION(NAME, OPT, CLI, ENV) \
@@ -5549,7 +5568,8 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
 
   std::optional<CompiledFunctionData> compiled_func;
   try {
-    compiled_func = jit_ctx->compiler().compile(preloader, profile);
+    compiled_func =
+        jit_ctx->compiler().compile(preloader, CompileMode::kInitial, profile);
   } catch (const std::exception& exn) {
     JIT_DLOG("{}", exn.what());
   }

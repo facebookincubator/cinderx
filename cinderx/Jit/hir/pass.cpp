@@ -378,6 +378,8 @@ Type outputType(
     case Opcode::kDictMerge:
     case Opcode::kRunPeriodicTasks:
       return TCInt32;
+    case Opcode::kLoadRecompileCounterAddr:
+      return TCPtr;
 
     // These wrap C functions that return 0 for success and -1 for an error,
     // which is converted into Py_None or nullptr, respectively. At some point

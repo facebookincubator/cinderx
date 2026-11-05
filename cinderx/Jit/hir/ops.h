@@ -107,6 +107,7 @@ namespace cinderx::jit::hir {
   V(LoadConst)                     \
   V(LoadCurrentFunc)               \
   V(LoadFrame)                     \
+  V(LoadRecompileCounterAddr)      \
   V(LoadEvalBreaker)               \
   V(AtQuiescentState)              \
   V(LoadField)                     \
@@ -323,6 +324,7 @@ constexpr size_t numOutputs(Opcode op) {
     case Opcode::kLoadGlobal:
     case Opcode::kLoadGlobalCached:
     case Opcode::kLoadModuleAttrCached:
+    case Opcode::kLoadRecompileCounterAddr:
     case Opcode::kLoadSplitDictItem:
     case Opcode::kLoadTupleItem:
     case Opcode::kLoadTypeAttrCacheEntryType:

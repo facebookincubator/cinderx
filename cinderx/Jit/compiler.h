@@ -48,6 +48,11 @@ enum PassConfig : uint64_t {
   kAllExceptInliner = kAll & ~kInliner,
 };
 
+enum class CompileMode {
+  kInitial,
+  kRecompile,
+};
+
 // The high-level interface for translating Python functions into native code.
 class Compiler {
  public:
@@ -59,12 +64,14 @@ class Compiler {
   // inliner merges callees' own profiles into it; the caller keeps ownership.
   std::optional<CompiledFunctionData> compile(
       const hir::Preloader& preloader,
+      CompileMode mode = CompileMode::kInitial,
       Profile* profile = nullptr);
 
   // Convenience wrapper to create and compile a preloader from a
   // PyFunctionObject.
   std::optional<CompiledFunctionData> compile(
-      BorrowedRef<PyFunctionObject> func);
+      BorrowedRef<PyFunctionObject> func,
+      CompileMode mode = CompileMode::kInitial);
 
   // Runs all the compiler passes on the HIR function.
   static void runPasses(hir::Function&, PassConfig config);

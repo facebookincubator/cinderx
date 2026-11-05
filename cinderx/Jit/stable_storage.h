@@ -9,6 +9,8 @@
 #include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/inline_cache.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -49,6 +51,10 @@ struct InlineCacheSite {
 // compilation. All allocations remain stable until the storage is destroyed.
 class PerCompilationStableStorage final {
  public:
+  uint64_t* allocateRecompileCounter() {
+    return arena_.allocate<uint64_t>(0);
+  }
+
   template <typename... Args>
   CodeRuntime* allocateCodeRuntime(Args&&... args) {
     return arena_.allocate<CodeRuntime>(std::forward<Args>(args)...);
@@ -94,6 +100,11 @@ class PerCompilationStableStorage final {
 // context. Used by the prefork model, where allocations are grouped into slabs.
 class ContextStableStorage final {
  public:
+  uint64_t* allocateRecompileCounter() {
+    JITCompilationLock lock;
+    return recompile_counters_.allocate(0);
+  }
+
   template <typename... Args>
   CodeRuntime* allocateCodeRuntime(Args&&... args) {
     JITCompilationLock lock;
@@ -128,6 +139,7 @@ class ContextStableStorage final {
 
  private:
   SlabArena<CodeRuntime> code_runtimes_;
+  SlabArena<uint64_t> recompile_counters_;
   SlabArena<LoadAttrCache, AttributeCacheSizeTrait> load_attr_caches_;
   SlabArena<LoadTypeAttrCache> load_type_attr_caches_;
   SlabArena<LoadMethodCache> load_method_caches_;

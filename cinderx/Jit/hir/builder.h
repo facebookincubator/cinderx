@@ -10,6 +10,7 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/preload.h"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <unordered_map>
@@ -78,10 +79,13 @@ class BlockCanonicalizer {
 // refcount operations or types flowed through it. Later passes will transform
 // to SSA, flow types, optimize, and insert refcount operations using liveness
 // analysis.
-std::unique_ptr<Function> buildHIR(const Preloader& preloader);
 std::unique_ptr<Function> buildHIR(
     const Preloader& preloader,
-    const Profile& profile);
+    uint64_t recompile_threshold = 0);
+std::unique_ptr<Function> buildHIR(
+    const Preloader& preloader,
+    const Profile& profile,
+    uint64_t recompile_threshold = 0);
 
 // Inlining merges all of the different callee Returns (which terminate blocks,
 // leading to a bunch of distinct exit blocks) into Branches to one Return
@@ -94,12 +98,25 @@ struct InlineResult {
 
 class HIRBuilder {
  public:
-  explicit HIRBuilder(const Preloader& preloader)
-      : code_(preloader.code()), preloader_(preloader) {}
-  HIRBuilder(const Preloader& preloader, const Profile& profile)
-      : HIRBuilder(preloader, &profile) {}
-  HIRBuilder(const Preloader& preloader, const Profile* profile)
-      : code_(preloader.code()), preloader_(preloader), profile_(profile) {}
+  explicit HIRBuilder(
+      const Preloader& preloader,
+      uint64_t recompile_threshold = 0)
+      : code_(preloader.code()),
+        preloader_(preloader),
+        recompile_threshold_(recompile_threshold) {}
+  HIRBuilder(
+      const Preloader& preloader,
+      const Profile& profile,
+      uint64_t recompile_threshold = 0)
+      : HIRBuilder(preloader, &profile, recompile_threshold) {}
+  HIRBuilder(
+      const Preloader& preloader,
+      const Profile* profile,
+      uint64_t recompile_threshold = 0)
+      : code_(preloader.code()),
+        preloader_(preloader),
+        profile_(profile),
+        recompile_threshold_(recompile_threshold) {}
 
   HIRBuilder(const HIRBuilder&) = delete;
   HIRBuilder& operator=(const HIRBuilder&) = delete;
@@ -535,6 +552,7 @@ class HIRBuilder {
       BasicBlock* check_block,
       BasicBlock* succ,
       const FrameState& frame);
+  void emitRecompileCheck(CFG& cfg, TranslationContext& tc);
   void addInitialYield(TranslationContext& tc);
   void addTagIfDeferredArgs(TranslationContext& tc, int num_args);
   void addLoadArgs(TranslationContext& tc, int num_args);
@@ -590,6 +608,7 @@ class HIRBuilder {
   BlockMap block_map_;
   const Preloader& preloader_;
   const Profile* profile_{nullptr};
+  uint64_t recompile_threshold_{0};
 
   // The function's register Environment, set in buildHIRImpl.
   Environment* env_{nullptr};

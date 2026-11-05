@@ -248,6 +248,8 @@ struct Config {
   // thread keeps running through the interpreter until the background
   // compilation finishes and swaps in the JIT-compiled entry point.
   bool background_compile{true};
+  // Calls before checking for a replacement compilation; zero disables checks.
+  uint64_t recompile_threshold{0};
   // When a function is being compiled, this is the maximum number of dependent
   // functions called by it that can be compiled along with it.
   size_t preload_dependent_limit{99};

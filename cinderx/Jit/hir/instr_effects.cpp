@@ -48,6 +48,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kIsCompactLong:
     case Opcode::kIsNegativeAndErrOccurred:
     case Opcode::kLoadEvalBreaker:
+    case Opcode::kLoadRecompileCounterAddr:
     case Opcode::kLoadVarObjectSize:
     case Opcode::kLongCompare:
     case Opcode::kMakeCell:
@@ -244,7 +245,11 @@ MemoryEffects memoryEffects(const Instr& inst) {
 
     case Opcode::kStoreField:
       JIT_DCHECK(inst.numOperands() == 3, "Unexpected number of operands");
-      return {false, AEmpty, {3, 2}, AInObjectAttr};
+      return {
+          false,
+          AEmpty,
+          {3, 2},
+          inst.getOperand(0)->isA(TCPtr) ? AOther : AInObjectAttr};
 
     case Opcode::kLoadArg:
     case Opcode::kLoadCurrentFunc:
@@ -265,7 +270,8 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kLoadField: {
       auto& ldfld = static_cast<const LoadField&>(inst);
       if (ldfld.borrowed()) {
-        return borrowFrom(inst, AInObjectAttr);
+        return borrowFrom(
+            inst, ldfld.receiver()->isA(TCPtr) ? AOther : AInObjectAttr);
       }
       return commonEffects(inst, AEmpty);
     }
@@ -499,6 +505,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kAtQuiescentState:
     case Opcode::kBeginInlinedFunction:
     case Opcode::kBitCast:
+    case Opcode::kLoadRecompileCounterAddr:
     case Opcode::kBranch:
     case Opcode::kBuildSlice:
     case Opcode::kBuildString:

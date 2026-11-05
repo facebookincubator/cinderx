@@ -84,8 +84,8 @@ jit::CompiledFunctionData RuntimeTest::recompileWithProfile(
   auto* ctx =
       static_cast<jit::CompilerContext<jit::Compiler>*>(jit::getContext());
   JIT_CHECK(ctx != nullptr, "JIT context was not initialized");
-  std::optional<jit::CompiledFunctionData> data =
-      ctx->compiler().compile(*preloader, &profile);
+  std::optional<jit::CompiledFunctionData> data = ctx->compiler().compile(
+      *preloader, jit::CompileMode::kRecompile, &profile);
   JIT_CHECK(data.has_value(), "Failed to recompile function");
   // Codegen registered this data's patchers on the Context, but the data is
   // never installed, so unregister them: destroying the data would otherwise

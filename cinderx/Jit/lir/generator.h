@@ -83,6 +83,14 @@ class LIRGenerator {
 
   jit::codegen::Environ* env_{nullptr};
   StableStorage& stable_storage_;
+  uint64_t* recompile_counter_{nullptr};
+
+  uint64_t* recompileCounter() {
+    if (recompile_counter_ == nullptr) {
+      recompile_counter_ = stable_storage_.allocateRecompileCounter();
+    }
+    return recompile_counter_;
+  }
 
   bool is_gen_{false};
 

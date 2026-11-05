@@ -5196,6 +5196,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         }
         break;
       }
+      case hir::Opcode::kLoadRecompileCounterAddr: {
+        bbb.appendInstr(
+            i.output(),
+            Opcode::kMove,
+            Imm{reinterpret_cast<uint64_t>(recompileCounter())});
+        break;
+      }
       case hir::Opcode::kRunPeriodicTasks: {
         auto helper = _Py_HandlePending;
         bbb.appendCallInstruction(i.output(), helper, env_->asm_tstate);
