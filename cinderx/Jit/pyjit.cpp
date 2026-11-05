@@ -68,6 +68,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
+#include <exception>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -1071,7 +1072,7 @@ AdmitResult admitCompile(
       PyThreadState_GetUnchecked() != nullptr,
       "admitCompile reads compiled_codes_ and needs the GIL");
 
-  if (code == nullptr) {
+  if (isJitFinalizing() || code == nullptr) {
     return {CompileAdmission::kIneligible, std::move(func)};
   }
   constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
@@ -1270,6 +1271,10 @@ hir::Preloader* findPreloader(BorrowedRef<> unit) {
 hir::Preloader* preload(
     BorrowedRef<> unit,
     BorrowedRef<PyFunctionObject> outer_func = nullptr) {
+  if (isJitFinalizing()) {
+    PyErr_SetString(PyExc_RuntimeError, "Cannot preload during JIT shutdown");
+    return nullptr;
+  }
   auto [func, borrowed_code] = splitUnit(unit);
   auto code = Ref<PyCodeObject>::create(borrowed_code);
   hir::Preloader* existing = findPreloader(unit);
@@ -1440,19 +1445,34 @@ bool multithread_compile_units_preloaded(
   // them to finish (e.g. during finalization) if we don't get to join them
   // here.
   auto* mod_state = cinderx::getModuleState();
+  lockWithThreadStateDetachment(mod_state->compile_worker_mutex);
+  std::unique_lock worker_lock{
+      mod_state->compile_worker_mutex, std::adopt_lock};
+  if (!isJitUsable()) {
+    PyErr_SetString(PyExc_RuntimeError, "JIT stopped before worker creation");
+    return false;
+  }
   std::vector<std::thread>& worker_threads = mod_state->compile_worker_threads;
-  for (size_t i = 0; i < worker_count; i++) {
-    worker_threads.emplace_back(
-        compile_worker_thread, i, interp, compilation, isolated);
+  std::exception_ptr creation_error;
+  try {
+    for (size_t i = 0; i < worker_count; i++) {
+      worker_threads.emplace_back(
+          compile_worker_thread, i, interp, compilation, isolated);
+    }
+  } catch (...) {
+    creation_error = std::current_exception();
   }
   // Keep the coordinator attached until every worker is launched in case
   // thread creation has been hooked to run arbitrary code. In GIL builds,
   // workers wait in PyEval_AcquireThread() until this point.
   compilation->releaseGil();
 
-  mod_state->joinCompileWorkers();
+  mod_state->joinCompileWorkers(std::move(worker_lock));
 
   auto retry_list = compilation->finalizeCompile();
+  while (auto unit = compilation->nextUnit()) {
+    retry_list.emplace_back(std::move(unit).value());
+  }
 
   jitCtx()->finalizePendingCompiles();
 
@@ -1460,6 +1480,9 @@ bool multithread_compile_units_preloaded(
       "multithread_compile_units_preloaded retrying {} units serially",
       retry_list.size());
   compile_units_preloaded(std::move(retry_list));
+  if (creation_error) {
+    std::rethrow_exception(creation_error);
+  }
   return true;
 }
 
@@ -1571,6 +1594,10 @@ std::vector<Ref<>> discoverCompilationUnits(UnorderedSet<BorrowedRef<>>& seen) {
 // Compile all functions registered via a JIT list that haven't been executed
 // yet.
 bool compile_all(size_t workers = 0) {
+  if (!isJitUsable()) {
+    PyErr_SetString(PyExc_RuntimeError, "JIT is not available for compilation");
+    return false;
+  }
   JIT_CHECK(jitCtx(), "JIT not initialized");
 
   if (workers == 0) {
@@ -1702,6 +1729,10 @@ bool compile_all(size_t workers = 0) {
   // Workers use the admitted preloader even if func_code later changes.
   {
     FreeThreadedJITEntrypointGuard guard;
+    if (!isJitUsable()) {
+      PyErr_SetString(PyExc_RuntimeError, "JIT stopped during preloading");
+      return false;
+    }
     compilation_units.reserve(owned_units.size());
     for (const auto& target : owned_units) {
       const hir::Preloader* preloader = findPreloader(target.unit);
@@ -1806,6 +1837,9 @@ bool canCompileFunctionLater() {
 
 bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
+  if (isJitFinalizing()) {
+    return false;
+  }
 
   // Attempt to attach already-compiled code even if the JIT is disabled, as
   // long as it hasn't been finalized.
@@ -1822,6 +1856,11 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
     if (!getConfig().multithreaded_compile_test) {
       PyErr_SetString(
           PyExc_NotImplementedError, "multithreaded_compile_test not enabled");
+      return nullptr;
+    }
+    if (!isJitUsable()) {
+      PyErr_SetString(
+          PyExc_RuntimeError, "JIT is not available for compilation");
       return nullptr;
     }
     cinderx::getModuleState()->compile_workers_attempted = 0;
@@ -1969,7 +2008,7 @@ void disable_jit_impl(bool deopt_all) {
   }
 
   if (isJitUsable()) {
-    getMutableConfig().state = State::kPaused;
+    std::atomic_ref{getMutableConfig().state}.store(State::kPaused);
 #ifdef ENABLE_PREFORK_MODEL
     Ci_code_counters_frozen = true;
 #endif
@@ -1994,6 +2033,10 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
 
 bool enable_jit_impl() {
   FreeThreadedJITEntrypointGuard guard;
+  if (isJitFinalizing()) {
+    PyErr_SetString(PyExc_RuntimeError, "Cannot enable JIT during shutdown");
+    return false;
+  }
   if (jitCtx() == nullptr) {
     PyErr_SetString(
         PyExc_RuntimeError,
@@ -2034,7 +2077,7 @@ bool enable_jit_impl() {
       "{} functions still parked after re-enabling the JIT",
       jitCtx()->deoptedFuncs().size());
 
-  getMutableConfig().state = State::kRunning;
+  std::atomic_ref{getMutableConfig().state}.store(State::kRunning);
 #ifdef ENABLE_PREFORK_MODEL
   Ci_code_counters_frozen = false;
 #endif
@@ -2094,6 +2137,10 @@ bool isInstrumentationActive() {
 
 // Returns false only if enable_jit_impl() fails (with Python exception set).
 bool toggleJitBasedOnInstrumentationState() {
+  FreeThreadedJITEntrypointGuard guard;
+  if (!isJitInitialized() || isJitFinalizing()) {
+    return true;
+  }
   if (isInstrumentationActive()) {
     if (!isJitPaused()) {
       disable_jit_impl(true /* deopt_all */);
@@ -2214,6 +2261,10 @@ PyObject* patched_sys_settrace(
 }
 
 int compile_after_n_calls_impl(uint32_t calls) {
+  if (isJitFinalizing()) {
+    PyErr_SetString(PyExc_RuntimeError, "Cannot configure JIT during shutdown");
+    return -1;
+  }
   if (Ci_InitFrameEvalFunc() < 0) {
     return -1;
   }
@@ -2233,6 +2284,10 @@ int compile_after_n_calls_impl(uint32_t calls) {
 }
 
 int compile_after_n_bytecodes_impl(uint32_t bytecodes) {
+  if (isJitFinalizing()) {
+    PyErr_SetString(PyExc_RuntimeError, "Cannot configure JIT during shutdown");
+    return -1;
+  }
   if (Ci_InitFrameEvalFunc() < 0) {
     return -1;
   }
@@ -4711,9 +4766,11 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
 namespace cinderx::jit {
 
 int initialize(BorrowedRef<> cinderx_module) {
-  JIT_CHECK(
-      getConfig().state != State::kFinalizing,
-      "Trying to re-initialize the JIT as it is finalizing");
+  if (isJitFinalizing()) {
+    PyErr_SetString(
+        PyExc_RuntimeError, "Cannot initialize JIT during shutdown");
+    return -1;
+  }
   if (isJitInitialized()) {
     return 0;
   }
@@ -4830,7 +4887,7 @@ int initialize(BorrowedRef<> cinderx_module) {
         perf::makeJitDumpWriter(getConfig().perf_map.jit_dump_dir));
   }
 
-  getMutableConfig().state = State::kRunning;
+  std::atomic_ref{getMutableConfig().state}.store(State::kRunning);
 #ifdef ENABLE_PREFORK_MODEL
   Ci_code_counters_frozen = false;
 #endif
@@ -4917,25 +4974,33 @@ void cancelBackgroundCompiles() {
   // Python code that runs during the rest of shutdown start a fresh worker.
 }
 
-void finalize() {
-  if (!isJitInitialized()) {
-    return;
+void beginShutdown() {
+  {
+    FreeThreadedJITEntrypointGuard guard;
+    if (!isJitInitialized()) {
+      return;
+    }
+    std::atomic_ref{getMutableConfig().state}.store(State::kFinalizing);
   }
-
-  // Disable the JIT first so nothing we do in here ends up attempting to invoke
-  // the JIT while we're finalizing our data structures.  Setting the state to
-  // kFinalizing makes isJitUsable() false, so no new background compiles will
-  // be scheduled.
-  getMutableConfig().state = State::kFinalizing;
 
   // Wait for any multi-threaded compile worker threads to finish before tearing
   // down the JIT state they depend on.
-  cinderx::getModuleState()->joinCompileWorkers();
+  {
+    PyBeginAllowThreads allow_threads;
+    auto* state = cinderx::getModuleState();
+    state->joinCompileWorkers(std::unique_lock{state->compile_worker_mutex});
+  }
 
   // Drain any in-flight background compiles before tearing down JIT state they
   // depend on.
   cancelBackgroundCompiles();
+}
 
+void finalize() {
+  if (!isJitInitialized()) {
+    return;
+  }
+  beginShutdown();
   FreeThreadedJITEntrypointGuard guard;
 
   // Deopt all JIT generators, since JIT generators reference code and other
@@ -4994,7 +5059,7 @@ void finalize() {
   restoreSysMonitoringRegisterCallback();
   restoreSysSetProfileAndSetTrace();
 
-  getMutableConfig().state = State::kNotInitialized;
+  std::atomic_ref{getMutableConfig().state}.store(State::kNotInitialized);
 }
 
 bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
@@ -5057,7 +5122,7 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   // Re-entrant creation during a threaded compile (e.g. a worker preloading
   // a callee runs Python that defines new functions) must not touch shared
   // JIT state. Leave new functions interpreted; they compile later.
-  if (ThreadedCompileContext::compileRunning()) {
+  if (ThreadedCompileContext::compileRunning() || isJitFinalizing()) {
     return false;
   }
 
@@ -5147,16 +5212,14 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   }
 
   FreeThreadedJITEntrypointGuard guard;
-  if constexpr (kFreeThreadedBuild) {
-    if (!isJitInitialized()) {
-      return Result::NOT_INITIALIZED;
-    }
-    if (isJitPaused()) {
-      return Result::PAUSED;
-    }
-    if (!isJitUsable()) {
-      return Result::UNKNOWN_ERROR;
-    }
+  if (!isJitInitialized()) {
+    return Result::NOT_INITIALIZED;
+  }
+  if (isJitPaused()) {
+    return Result::PAUSED;
+  }
+  if (!isJitUsable()) {
+    return Result::UNKNOWN_ERROR;
   }
 
   if (targets.size() > 1) {

@@ -27,8 +27,14 @@ void createMutexMetadataAfterReinit([[maybe_unused]] std::mutex& mutex) {
 #endif
 }
 
-void resetMutexAfterFork(std::mutex& mutex) {
-  destroyMutexMetadataBeforeReinit(mutex);
+void resetMutexAfterFork(std::mutex& mutex, bool locked_by_prepare) {
+  if (locked_by_prepare) {
+    destroyMutexMetadataBeforeReinit(mutex);
+  } else {
+#if CINDER_TSAN_ENABLED
+    __tsan_mutex_destroy(mutex.native_handle(), 0);
+#endif
+  }
 
   new (&mutex) std::mutex{};
 

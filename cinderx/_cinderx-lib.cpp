@@ -917,7 +917,7 @@ PyObject* clear_strict_modules(PyObject*, PyObject*) {
   // If we waited until jit::finalize() (during module teardown) the runtime has
   // already set `finalizing`, after which a worker re-acquiring the GIL is hung
   // forever, deadlocking the drain.
-  jit::cancelBackgroundCompiles();
+  jit::beginShutdown();
 
   BorrowedRef<> modules = PyImport_GetModuleDict();
   Ref<> clearing;

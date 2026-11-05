@@ -319,6 +319,9 @@ bool isJitInitialized();
 // Check that the JIT is initialized and is currently usable.
 bool isJitUsable();
 
+// Check whether JIT or interpreter shutdown has begun.
+bool isJitFinalizing();
+
 // Check that the JIT is initialized but currently paused and unusable.
 bool isJitPaused();
 

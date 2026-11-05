@@ -36,6 +36,10 @@ int initialize(BorrowedRef<> cinderx_module);
  */
 void finalize();
 
+// Stop new compilation and drain workers while they can still acquire the GIL.
+// Keep runtime resources alive until finalize().
+void beginShutdown();
+
 /*
  * Stop the background-compilation worker (if any) and cancel all in-flight
  * background compiles to finish.

@@ -202,9 +202,16 @@ void ModuleState::atForkChild() {
     symbolizer->atForkChild();
   }
   resetMutexAfterFork(mutex_);
+  resetMutexAfterFork(compile_worker_mutex, /* locked_by_prepare */ false);
+  // The parent's worker threads do not exist in the child. Their inherited
+  // std::thread handles cannot be joined or destroyed while joinable.
+  new (&compile_worker_threads) std::vector<std::thread>();
 }
 
-void ModuleState::joinCompileWorkers() {
+void ModuleState::joinCompileWorkers(std::unique_lock<std::mutex> lock) {
+  JIT_DCHECK(
+      lock.owns_lock() && lock.mutex() == &compile_worker_mutex,
+      "Compile workers must be locked while joining");
   for (std::thread& worker : compile_worker_threads) {
     if (worker.joinable()) {
       worker.join();

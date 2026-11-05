@@ -2,20 +2,32 @@
 
 #include "cinderx/Jit/config.h"
 
+#include "cinderx/Common/py-portability.h"
+
+#include <atomic>
+
 namespace cinderx::jit {
 
 Config s_jit_config;
 
 bool isJitInitialized() {
-  return getConfig().state != State::kNotInitialized;
+  return std::atomic_ref{getMutableConfig().state}.load() !=
+      State::kNotInitialized;
 }
 
 bool isJitUsable() {
-  return getConfig().state == State::kRunning;
+  return std::atomic_ref{getMutableConfig().state}.load() == State::kRunning &&
+      !Py_IsFinalizing();
+}
+
+bool isJitFinalizing() {
+  return std::atomic_ref{getMutableConfig().state}.load() ==
+      State::kFinalizing ||
+      Py_IsFinalizing();
 }
 
 bool isJitPaused() {
-  return getConfig().state == State::kPaused;
+  return std::atomic_ref{getMutableConfig().state}.load() == State::kPaused;
 }
 
 } // namespace cinderx::jit

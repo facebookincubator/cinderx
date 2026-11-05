@@ -56,8 +56,9 @@ struct ModuleState {
   void atForkChild();
 
   // Wait for any background multi-threaded compile worker threads to finish
-  // and drop them.  Safe to call when no compile is in progress (no-op).
-  void joinCompileWorkers();
+  // and drop them. The caller holds the worker lock with its thread state
+  // detached. Safe to call when no compile is in progress (no-op).
+  void joinCompileWorkers(std::unique_lock<std::mutex> lock);
 
   // State for dict/type/code/func watchers registered with CPython.
   WatcherState watcher_state;
@@ -180,6 +181,7 @@ struct ModuleState {
   // Background worker threads spawned for the current multi-threaded compile.
   // Tracked here so the runtime can wait for them to finish before finalizing
   // JIT state they depend on.
+  std::mutex compile_worker_mutex;
   std::vector<std::thread> compile_worker_threads;
 
   // Collection of writers of Linux perf events.

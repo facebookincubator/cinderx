@@ -7,9 +7,10 @@
 
 namespace cinderx {
 
-// Replace a mutex locked by an atfork prepare handler with a fresh, unlocked
-// mutex in the child, including resetting ThreadSanitizer's mutex metadata.
-void resetMutexAfterFork(std::mutex& mutex);
+// Replace an inherited mutex with a fresh, unlocked mutex in the child,
+// including resetting ThreadSanitizer's mutex metadata. locked_by_prepare
+// indicates whether the prepare handler acquired it on the forking thread.
+void resetMutexAfterFork(std::mutex& mutex, bool locked_by_prepare = true);
 void resetMutexAfterFork(std::recursive_mutex& mutex);
 void resetMutexAfterFork(std::shared_mutex& mutex);
 
