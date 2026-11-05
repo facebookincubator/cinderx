@@ -828,24 +828,32 @@ TEST_F(
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectBranchBitSetAcrossFlagClobber) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %2
-  %1:64bit = Move 1
-  Test32 %1, %1
-  %2:64bit = Add %1, %1
-  BranchS BB%1
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %2
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+  Instruction* tested = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  entry->allocateInstr(Opcode::kTest32, nullptr, VReg{tested}, VReg{tested});
+  Instruction* add = entry->allocateInstr(
+      Opcode::kAdd,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{tested},
+      VReg{tested});
+  entry->allocateInstr(
+      Opcode::kBranchCC, nullptr, Condition::kSign, Lbl{true_block});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{tested});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{add});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest32));
+  EXPECT_LIR(Query(function).opcode(Opcode::kTest32));
   EXPECT_LIR(
-      Query(*lir_func).opcode(Opcode::kBranchCC).condition(Condition::kSign));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kBranchBitSet));
+      Query(function).opcode(Opcode::kBranchCC).condition(Condition::kSign));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kBranchBitSet));
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectBranchBitSetFromEarlierTest32) {
