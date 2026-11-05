@@ -2721,7 +2721,7 @@ obj = C()
   PyErr_Clear();
 }
 
-#ifndef ENABLE_PREFORK_MODEL
+#if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED)
 TEST_F(InlineCacheTest, LoadAttrProfileMonomorphic) {
   getMutableConfig().attr_cache_size = 4;
   auto locals = runToLocals(this, R"(
@@ -3326,7 +3326,7 @@ d = D()
   EXPECT_TRUE(disagreeing->polymorphic);
 }
 
-#endif // ENABLE_PREFORK_MODEL
+#endif
 
 #if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED) && \
     defined(ENABLE_LIGHTWEIGHT_FRAMES) &&                          \

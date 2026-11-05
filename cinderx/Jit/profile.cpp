@@ -160,7 +160,7 @@ void ProfileCollector::remove(const ProfileLocation& location) {
 }
 
 Profile ProfileCollector::snapshot() const {
-#ifdef ENABLE_PREFORK_MODEL
+#if defined(ENABLE_PREFORK_MODEL) || defined(Py_GIL_DISABLED)
   return Profile{};
 #else
   std::lock_guard<std::mutex> guard(mutex_);

@@ -47,7 +47,18 @@ class BinaryOpCacheCodegenTest : public RuntimeTest {
   Config saved_config_;
 };
 
-#ifndef ENABLE_PREFORK_MODEL
+#if defined(ENABLE_PREFORK_MODEL) || defined(Py_GIL_DISABLED)
+TEST_F(BinaryOpCacheCodegenTest, ProfileCollectionDisabled) {
+  ProfileCollector collector;
+  const BCOffset offset{24};
+  collector.add(
+      ProfileLocation{nullptr, offset}, BinaryOpProfile{TLong, TLong, TLong});
+  collector.remove(ProfileLocation{nullptr, BCOffset{48}});
+  Profile profile = collector.snapshot();
+  EXPECT_TRUE(profile.entries().empty());
+  EXPECT_FALSE(profile.isDeopted(ProfileLocation{nullptr, BCOffset{48}}));
+}
+#else
 TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesBinaryOpsByLocation) {
   PerCompilationStableStorage storage;
   ProfileCollector collector;
