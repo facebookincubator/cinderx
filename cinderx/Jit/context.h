@@ -40,6 +40,13 @@
 
 namespace cinderx::jit {
 
+// Identifies the path that reserved an active compilation. Background
+// reservations are discarded in the child after fork.
+enum class CompilationOrigin {
+  kForeground,
+  kBackground,
+};
+
 // State handed off to the background compilation worker. Holds Python
 // references (via the preloaders, func, and code) that must be released while
 // attached to the interpreter.
@@ -49,6 +56,8 @@ struct BackgroundCompileTask {
   Ref<PyCodeObject> code;
   Ref<PyDictObject> builtins;
   Ref<PyDictObject> globals;
+  Ref<CompiledFunction> expected;
+  std::unique_ptr<CompiledFunctionData> replacement;
   Profile profile;
 };
 
@@ -74,6 +83,9 @@ struct BackgroundCompileRegistry {
   // How many background compiles are scheduled but not yet finished (covers
   // both queued and in-progress tasks).
   size_t in_flight_count{0};
+  // Changes when fork discards inherited tasks, including surviving preload
+  // calls.
+  std::size_t generation{0};
   // The single worker thread, and whether it has been started.
   std::thread worker;
   bool worker_started{false};
@@ -159,12 +171,17 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * compiled. This is used to prevent multiple threads from compiling the same
    * function at the same time.
    */
-  bool addActiveCompile(const CompilationKey& key);
+  bool addActiveCompile(
+      const CompilationKey& key,
+      CompilationOrigin origin = CompilationOrigin::kForeground);
 
   /*
    * Indicates that the specified function is no longer being compiled.
    */
   void removeActiveCompile(const CompilationKey& key);
+
+  // Discard background reservations whose tasks do not survive fork.
+  void removeBackgroundActiveCompiles();
 
   /*
    * Whether the specified compilation is currently registered as in progress.
@@ -266,8 +283,8 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * back on the interpreter entry point, releasing the reference it owns.
    *
    * A JIT-compiled function's reference to its CompiledFunction is held
-   * logically, and lookupFunc() - i.e. compiled_codes_ - is the only way back
-   * to it.  Once this Context is gone nothing can find those references again,
+   * logically, and lookupFunc() uses its vectorcall entry to find its owner.
+   * Once this Context is gone nothing can find those references again,
    * so they have to be handed back while it is still intact.
    *
    * Normally a no-op: jit::finalize() deopts every compiled function before
@@ -497,6 +514,11 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Publish completed worker compiles and finalize waiting functions after
   // either serial or multithreaded compilation.
   void finalizePendingCompiles();
+  void completeRecompile(BackgroundCompileTask& task);
+  void adoptRecompile(
+      BorrowedRef<PyFunctionObject> func,
+      BorrowedRef<CompiledFunction> expected,
+      BorrowedRef<CompiledFunction> compiled);
 
   // Notifies that a compilation is complete. If we're not in multi-threaded
   // compile the CompiledFunction will immediately be created, otherwise the
@@ -618,6 +640,16 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   std::vector<hir::Type> common_constant_types_;
 
  private:
+  template <typename F>
+  void forEachCompiledFunction(F&& visit) {
+    for (auto& [_, compiled] : compiled_codes_) {
+      visit(compiled);
+    }
+    for (auto& [_, compiled] : retired_compiled_codes_) {
+      visit(compiled);
+    }
+  }
+
   /* Deopts a function but doesn't touch deopted_funcs_. */
   bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func);
 
@@ -642,6 +674,10 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * builtins and globals objects.
    */
   UnorderedMap<CompilationKey, BorrowedRef<CompiledFunction>> compiled_codes_;
+  // Borrowed index for functions still using an older generation. Its owners
+  // keep the wrapper alive; destruction hands native data to deferred cleanup.
+  UnorderedMap<vectorcallfunc, BorrowedRef<CompiledFunction>>
+      retired_compiled_codes_;
 
   /* Set of which functions were JIT-compiled but have since been deopted.
    *
@@ -663,9 +699,10 @@ class Context : public IJitContext, public CompiledFunctionOwner {
       nested_compile_anchors_;
 
   /*
-   * Set of compilations that are currently active, across all threads.
+   * Compilations that are currently active, with compilation origins so fork
+   * cleanup can discard background work while preserving foreground work.
    */
-  UnorderedSet<CompilationKey> active_compiles_;
+  UnorderedMap<CompilationKey, CompilationOrigin> active_compiles_;
 
   /*
    * Compilations which have been finished but we haven't created the

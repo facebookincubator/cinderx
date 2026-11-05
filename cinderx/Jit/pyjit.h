@@ -73,6 +73,12 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func);
  */
 Result compileFunction(BorrowedRef<PyFunctionObject> func);
 
+// Adopt the current compilation or request a background replacement for the
+// generation executing func. Completion publishes to the triggering function.
+void scheduleRecompile(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<CompiledFunction> expected);
+
 /*
  * Preload a function, along with any functions that it calls that we might want
  * to compile afterwards as well.  This is to support inlining and faster
@@ -113,7 +119,10 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func,
+    std::unique_ptr<CompiledFunctionData>* replacement = nullptr,
+    bool keep_reservation = false,
     Profile* profile = nullptr);
+
 bool isPreforkCompilationEnabled();
 
 } // namespace cinderx::jit

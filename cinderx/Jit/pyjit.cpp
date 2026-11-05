@@ -44,6 +44,7 @@
 #include "cinderx/Jit/jit_flag_processor.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
+#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/nested_compile.h"
@@ -159,10 +160,11 @@ bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
 // in this file; forward-declared here so jitVectorcall() and finalize() can use
 // them.
 //
-// Schedule func to be compiled on a background thread without holding the GIL.
-// Must be called with the GIL held.  A no-op if the function is already
-// compiled, already being background-compiled, or the JIT isn't usable.
-void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func);
+// Must be called while attached. A non-null expected requests a replacement
+// for that generation; null requests the first compilation.
+void scheduleBackgroundCompile(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<CompiledFunction> expected = nullptr);
 
 // Like jitVectorcall(), but ignores any call count requirements.
 PyObject* forcedJitVectorcall(
@@ -1111,7 +1113,8 @@ AdmitResult admitCompile(
     BorrowedRef<PyCodeObject> code,
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals,
-    Ref<PyFunctionObject>&& func) {
+    Ref<PyFunctionObject>&& func,
+    CompilationOrigin origin = CompilationOrigin::kForeground) {
   JIT_DCHECK(
       PyThreadState_GetUnchecked() != nullptr,
       "admitCompile reads compiled_codes_ and needs the GIL");
@@ -1157,7 +1160,7 @@ AdmitResult admitCompile(
     // CompiledFunctionData and will create the CompiledFunction at the end.
     return {CompileAdmission::kAlreadyCompiled, std::move(func)};
   }
-  if (!jit_ctx->addActiveCompile(key)) {
+  if (!jit_ctx->addActiveCompile(key, origin)) {
     // The compilation is in-flight on another thread.
     return {CompileAdmission::kInFlight, std::move(func)};
   }
@@ -1167,13 +1170,15 @@ AdmitResult admitCompile(
 // admitCompile() for a function whose preloader hasn't been built yet.
 AdmitResult admitCompile(
     CompilerContext<Compiler>* jit_ctx,
-    BorrowedRef<PyFunctionObject> func) {
+    BorrowedRef<PyFunctionObject> func,
+    CompilationOrigin origin = CompilationOrigin::kForeground) {
   return admitCompile(
       jit_ctx,
       BorrowedRef<PyCodeObject>{func->func_code},
       BorrowedRef<PyDictObject>{func->func_builtins},
       BorrowedRef<PyDictObject>{func->func_globals},
-      Ref<PyFunctionObject>::create(func));
+      Ref<PyFunctionObject>::create(func),
+      origin);
 }
 
 // Compile a preloader that its caller has ALREADY admitted (see admitCompile).
@@ -2495,8 +2500,8 @@ bool reclaimQueuedBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
         reg.queue.begin(),
         reg.queue.end(),
         [&key](const std::unique_ptr<BackgroundCompileTask>& task) {
-          return CompilationKey{task->code, task->builtins, task->globals} ==
-              key;
+          return task->expected == nullptr &&
+              CompilationKey{task->code, task->builtins, task->globals} == key;
         });
     if (it == reg.queue.end()) {
       return false;
@@ -4482,17 +4487,16 @@ int register_gc_callback() {
 // (e.g. JIT finalization) that is draining in-flight compiles.
 // Uses the registry member of the JIT Context; if context is null (e.g.
 // during fork child handling when JIT not initialized), no-op.
-//
-// The compile's admission has already been released by
-// processBackgroundCompile(), and must not be released again here.  The worker
-// only gets here after waiting for the GIL, and in that window the main thread
-// may have admitted the same key for a new task.
-void finishBackgroundCompile() {
+void finishBackgroundCompile(std::unique_ptr<BackgroundCompileTask> task) {
   auto* ctx = getContext();
   if (ctx == nullptr) {
     return;
   }
+  CompilationKey key{task->code, task->builtins, task->globals};
+  ctx->removeActiveCompile(key);
   auto& reg = ctx->backgroundCompileRegistry();
+  // Draining includes releasing the task's Python references while attached.
+  task.reset();
   std::lock_guard<std::mutex> guard(reg.mutex);
   if (reg.in_flight_count) {
     reg.in_flight_count--;
@@ -4583,8 +4587,11 @@ void jitAtForkChild() {
   // effects.  Whatever it owned is leaked, but it is a private copy of the
   // parent's heap that this handler cannot safely release.
   auto* reg = &ctx->backgroundCompileRegistry();
+  ctx->removeBackgroundActiveCompiles();
+  std::size_t generation = reg->generation + 1;
   destroyMutexMetadataBeforeReinit(reg->mutex);
   new (reg) BackgroundCompileRegistry();
+  reg->generation = generation;
   createMutexMetadataAfterReinit(reg->mutex);
 }
 
@@ -4617,27 +4624,28 @@ void processBackgroundCompile(
 
   hir::Preloader* preloader =
       hir::preloaderManager().find(code, task->builtins, task->globals);
-  if (preloader == nullptr || isOverMaxCodeSize()) {
-    // Nothing is going to compile this, so give the admission back here.
-    // compilePreloaderImpl() releases it on every other path.
-    jit_ctx->removeActiveCompile(
-        CompilationKey{task->code, task->builtins, task->globals});
-    return;
-  }
-
-  // Hand the task's reference to the function down into the compile so
-  // whatever ends up owning the function can take it over rather than
-  // creating one here, which would race the interpreter's refcount.  If
-  // nothing claims it, it comes back and the task releases it once the
-  // worker is back under the GIL.
-  auto [result, unclaimed] =
-      compilePreloaderImpl(jit_ctx, *preloader, std::move(task->func));
-  task->func = std::move(unclaimed);
-  if (result != Result::OK) {
-    JIT_DLOG(
-        "Background compile failed: {} for {}",
-        static_cast<int>(result),
-        preloader->fullname());
+  if (preloader != nullptr && !isOverMaxCodeSize()) {
+    {
+      // Hand the task's reference to the function down into the compile so
+      // whatever ends up owning the function can take it over rather than
+      // creating one here, which would race the interpreter's refcount.  If
+      // nothing claims it, it comes back and the task releases it once the
+      // worker is back under the GIL.
+      auto [result, unclaimed] = compilePreloaderImpl(
+          jit_ctx,
+          *preloader,
+          std::move(task->func),
+          task->expected == nullptr ? nullptr : &task->replacement,
+          true);
+      task->func = std::move(unclaimed);
+      if (result != Result::OK) {
+        JIT_DLOG(
+            "Background compile failed: {} for {}",
+            static_cast<int>(result),
+            preloader->fullname());
+        return;
+      }
+    }
   }
 }
 
@@ -4655,29 +4663,35 @@ void backgroundCompileWorkerLoop(
   BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
   for (;;) {
     std::unique_ptr<BackgroundCompileTask> task;
-    hir::IsolatedPreloaders isolated_preloaders;
     {
-      PyBeginAllowThreads allow_threads;
+      hir::IsolatedPreloaders isolated_preloaders;
       {
-        std::unique_lock<std::mutex> lock(reg.mutex);
-        reg.queue_cv.wait(
-            lock, [&reg] { return !reg.queue.empty() || reg.shutdown; });
-        if (!reg.shutdown && !reg.queue.empty()) {
-          task = std::move(reg.queue.front());
-          reg.queue.pop_front();
+        PyBeginAllowThreads allow_threads;
+        {
+          std::unique_lock<std::mutex> lock(reg.mutex);
+          reg.queue_cv.wait(
+              lock, [&reg] { return !reg.queue.empty() || reg.shutdown; });
+          if (!reg.shutdown && !reg.queue.empty()) {
+            task = std::move(reg.queue.front());
+            reg.queue.pop_front();
+          }
         }
+        if (!task) {
+          // Stop requested and queue empty.
+          JIT_DCHECK(reg.shutdown, "we should be shutting down");
+          break;
+        }
+        hir::preloaderManager().install(std::move(task->preloaders));
+        processBackgroundCompile(jit_ctx, task);
       }
-      if (!task) {
-        // Stop requested and queue empty.
-        JIT_DCHECK(reg.shutdown, "we should be shutting down");
-        break;
-      }
-      hir::preloaderManager().install(std::move(task->preloaders));
-      processBackgroundCompile(jit_ctx, task);
-    }
 
-    jitCtx()->finalizePendingCompiles();
-    finishBackgroundCompile();
+      jit_ctx->finalizePendingCompiles();
+      // First compilations are published through finalizePendingCompiles().
+      if (task->expected != nullptr) {
+        jit_ctx->completeRecompile(*task);
+      }
+    }
+    finishBackgroundCompile(std::move(task));
   }
 
   JIT_DLOG(
@@ -4719,18 +4733,22 @@ bool startBackgroundWorkerThread(
   return true;
 }
 
-void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
+void scheduleBackgroundCompile(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<CompiledFunction> expected) {
+  Ref<CompiledFunction> expected_ref;
   CompilerContext<Compiler>* jit_ctx;
   Ref<PyCodeObject> code;
   CompilationKey key{nullptr, nullptr, nullptr};
   BackgroundCompileRegistry* reg;
+  std::size_t generation;
   hir::IsolatedPreloaders isolated_preloaders;
   {
     // Hold the entry lock only while checking initial state; release before
     // preloading to avoid deadlocks.
     FreeThreadedJITEntrypointGuard guard;
 
-    if (!isJitUsable() || isJitCompiled(func)) {
+    if (!isJitUsable() || (expected == nullptr && isJitCompiled(func))) {
       return;
     }
     code = Ref<PyCodeObject>::create(func->func_code);
@@ -4763,10 +4781,24 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
         return;
       }
     }
-    trackEligibleCodeObjects(func, code);
-    auto admitted = admitCompile(jit_ctx, func);
-    if (admitted.admission != CompileAdmission::kCompile) {
-      return;
+    if (expected != nullptr) {
+      if (!hasRequiredCodeFlags(code) ||
+          (code->co_flags & CI_CO_SUPPRESS_JIT) ||
+          (code->co_flags & CI_CO_STATICALLY_COMPILED) ||
+          jit_ctx->lookupFunc(func) != expected ||
+          expected->runtime() == nullptr ||
+          func->vectorcall != expected->vectorcallEntry() ||
+          !jit_ctx->addActiveCompile(key, CompilationOrigin::kBackground)) {
+        return;
+      }
+      expected_ref = Ref<CompiledFunction>::create(expected);
+    } else {
+      trackEligibleCodeObjects(func, code);
+      auto admitted =
+          admitCompile(jit_ctx, func, CompilationOrigin::kBackground);
+      if (admitted.admission != CompileAdmission::kCompile) {
+        return;
+      }
     }
     {
       std::lock_guard<std::mutex> lock(reg->mutex);
@@ -4775,6 +4807,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
         return;
       }
       reg->in_flight_count++;
+      generation = reg->generation;
     }
   }
 
@@ -4786,12 +4819,14 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   bool reservation_released = false;
   SCOPE_EXIT({
     if (!reservation_released) {
-      jit_ctx->removeActiveCompile(key);
       std::lock_guard<std::mutex> lock(reg->mutex);
-      if (reg->in_flight_count) {
-        reg->in_flight_count--;
+      if (reg->generation == generation) {
+        jit_ctx->removeActiveCompile(key);
+        if (reg->in_flight_count) {
+          reg->in_flight_count--;
+        }
+        reg->drain_cv.notify_all();
       }
-      reg->drain_cv.notify_all();
     }
   });
 
@@ -4806,7 +4841,7 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
       // Target was invalidated during preload; ignore if no exception occurred.
       if (PyErr_Occurred()) {
         FreeThreadedJITEntrypointGuard guard;
-        if (func->func_code == code.getObj()) {
+        if (expected == nullptr && func->func_code == code.getObj()) {
           setVectorcall(func, getInterpretedVectorcall(func));
         }
         throw CAPIError();
@@ -4821,7 +4856,9 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
       std::move(preloaders),
       Ref<PyCodeObject>::create(code),
       Ref<PyDictObject>::create(key.builtins),
-      Ref<PyDictObject>::create(key.globals));
+      Ref<PyDictObject>::create(key.globals),
+      std::move(expected_ref),
+      nullptr);
 
   // Enqueue the task and lazily start the single worker thread.  If the worker
   // can't be started, release the task's Python references under the guard we
@@ -4831,15 +4868,19 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
     // Re-check state after preloading: the JIT may have been disabled,
     // shutdown requested, or the function's code replaced.
     CompilationKey current{func};
-    if (reg->shutdown || !isJitUsable() || !(current == key) ||
-        !jit_ctx->hasActiveCompile(key)) {
+    if (!isJitUsable() || !(current == key) ||
+        !jit_ctx->hasActiveCompile(key) ||
+        (expected != nullptr &&
+         (jit_ctx->lookupFunc(func) != expected ||
+          expected->runtime() == nullptr ||
+          func->vectorcall != expected->vectorcallEntry()))) {
       return;
     }
     std::lock_guard<std::mutex> lock(reg->mutex);
     // Re-check for shutdown: preloading above ran without the registry lock, so
     // a drain could have completed in the meantime.  Starting a worker now
     // would resurrect the thread that drain just joined.
-    if (reg->shutdown) {
+    if (reg->shutdown || reg->generation != generation) {
       return;
     }
     if (!reg->worker_started && !startBackgroundWorkerThread(jit_ctx, *reg)) {
@@ -4852,7 +4893,9 @@ void scheduleBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
     reg->queue_cv.notify_one();
 
     // Just interpret the function until the compile succeeds
-    setVectorcall(func, getInterpretedVectorcall(func));
+    if (expected == nullptr) {
+      setVectorcall(func, getInterpretedVectorcall(func));
+    }
   }
 }
 
@@ -5017,6 +5060,55 @@ int initialize(BorrowedRef<> cinderx_module) {
   return 0;
 }
 
+void rt::checkRecompile(PyFunctionObject* func) {
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
+  CodeRuntime* runtime =
+      jitFrameGetCodeRuntime(currentFrame(PyThreadState_Get()));
+  try {
+    Ref<CompiledFunction> expected;
+    {
+      FreeThreadedJITEntrypointGuard guard;
+      Context* ctx = getContext();
+      BorrowedRef<CompiledFunction> current =
+          ctx == nullptr ? nullptr : ctx->lookupFunc(func);
+      if (current == nullptr || current->runtime() != runtime) {
+        return;
+      }
+      expected = Ref<CompiledFunction>::create(current);
+    }
+    scheduleRecompile(func, expected);
+  } catch (const std::exception& exn) {
+    JIT_DLOG("Recompilation request failed: {}", exn.what());
+    PyErr_Clear();
+  }
+#endif
+}
+
+void scheduleRecompile(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<CompiledFunction> expected) {
+  {
+    FreeThreadedJITEntrypointGuard guard;
+    Context* ctx = getContext();
+    // Only proceed while the JIT is usable and func still calls the generation
+    // that reached this helper; it may have been deopted or rebound meanwhile.
+    if (expected == nullptr || ctx == nullptr || !isJitUsable() ||
+        ctx->lookupFunc(func) != expected ||
+        func->vectorcall != expected->vectorcallEntry()) {
+      return;
+    }
+    BorrowedRef<CompiledFunction> current = ctx->lookupCode(
+        func->func_code, func->func_builtins, func->func_globals);
+    // Another function sharing this code and environment may have published a
+    // replacement already. Adopt it for future calls instead of recompiling.
+    if (current != nullptr && current != expected) {
+      ctx->adoptRecompile(func, expected, current);
+      return;
+    }
+  }
+  scheduleBackgroundCompile(func, expected);
+}
+
 void cancelBackgroundCompiles() {
   auto* ctx = getContext();
   if (ctx == nullptr) {
@@ -5063,6 +5155,10 @@ void cancelBackgroundCompiles() {
       std::unique_lock<std::mutex> lock(reg.mutex);
       reg.drain_cv.wait(lock, [&reg] { return reg.in_flight_count == 0; });
     }
+  }
+  for (auto& task : abandoned) {
+    ctx->removeActiveCompile(
+        CompilationKey{task->code, task->builtins, task->globals});
   }
   // `shutdown` deliberately stays set: this only runs while the interpreter
   // is going away, and re-enabling background compilation here would let the
@@ -5535,6 +5631,8 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
     jit::CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func,
+    std::unique_ptr<CompiledFunctionData>* replacement,
+    bool keep_reservation,
     Profile* profile) {
   // The admitted preloader owns the code and its environment. A nested
   // code's outer registration may have disappeared since admission.
@@ -5562,20 +5660,27 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
       preloader.fullname());
 
   if (!hasCompilableCodeFlags(preloader)) {
-    jit_ctx->removeActiveCompile(key);
+    if (!keep_reservation) {
+      jit_ctx->removeActiveCompile(key);
+    }
     return {Result::CANNOT_SPECIALIZE, std::move(func)};
   }
 
   std::optional<CompiledFunctionData> compiled_func;
   try {
-    compiled_func =
-        jit_ctx->compiler().compile(preloader, CompileMode::kInitial, profile);
+    compiled_func = jit_ctx->compiler().compile(
+        preloader,
+        replacement == nullptr ? CompileMode::kInitial
+                               : CompileMode::kRecompile,
+        profile);
   } catch (const std::exception& exn) {
     JIT_DLOG("{}", exn.what());
   }
 
   JITCompilationLock lock;
-  jit_ctx->removeActiveCompile(key);
+  if (!keep_reservation) {
+    jit_ctx->removeActiveCompile(key);
+  }
   if (!compiled_func.has_value()) {
     return {Result::UNKNOWN_ERROR, std::move(func)};
   }
@@ -5583,6 +5688,11 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloaderImpl(
   register_pycode_debug_symbol(
       preloader.code(), preloader.fullname().c_str(), *compiled_func);
 
+  if (replacement != nullptr) {
+    *replacement =
+        std::make_unique<CompiledFunctionData>(std::move(*compiled_func));
+    return {Result::OK, std::move(func)};
+  }
   return {
       Result::OK,
       jit_ctx->codeCompiled(key, std::move(*compiled_func), std::move(func))};

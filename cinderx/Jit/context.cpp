@@ -175,9 +175,9 @@ Context::~Context() {
   // Clear all of the CompiledFunctions before destroying context-owned stable
   // storage.
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
-  for (auto& code : compiled_codes_) {
-    code.second->clear(true /* context_finalizing */);
-  }
+  forEachCompiledFunction([](BorrowedRef<CompiledFunction> compiled) {
+    compiled->clear(true /* context_finalizing */);
+  });
 
   for (auto& compiled : orphaned_compiled_codes_) {
     compiled->clear(true /* context_finalizing */);
@@ -244,16 +244,16 @@ Ref<> Context::pageInProfilerDependencies() {
       qualname_refs.push_back(Ref<>::create(qualname));
     }
 #else
-    for (auto& [_, compiled] : compiled_codes_) {
+    forEachCompiledFunction([&](BorrowedRef<CompiledFunction> compiled) {
       CodeRuntime* code_rt = compiled->runtime();
       if (code_rt == nullptr || code_rt->isCleared()) {
-        continue;
+        return;
       }
       BorrowedRef<> qualname = code_rt->code()->co_qualname;
       if (qualname != nullptr) {
         qualname_refs.push_back(Ref<>::create(qualname));
       }
-    }
+    });
 #endif
   }
 
@@ -418,12 +418,12 @@ InlineCacheStats Context::getAndClearInlineCacheStats(
           stats, data->stable_storage->inlineCacheSites(), kind);
     }
   };
-  for (auto& [_, compiled] : compiled_codes_) {
+  forEachCompiledFunction([&](BorrowedRef<CompiledFunction> compiled) {
     if (compiled->runtime() == nullptr || compiled->runtime()->isCleared()) {
-      continue;
+      return;
     }
     collect(compiled->data());
-  }
+  });
   for (auto& compiled : orphaned_compiled_codes_) {
     if (compiled->runtime() == nullptr || compiled->runtime()->isCleared()) {
       continue;
@@ -503,10 +503,12 @@ void Context::releaseReferences() {
   std::vector<OwnedCompilationKey> compilation_keys;
   std::vector<Ref<CompiledFunction>> compiled_functions;
   compilation_keys.reserve(
-      compiled_codes_.size() + orphaned_compiled_codes_.size());
+      compiled_codes_.size() + retired_compiled_codes_.size() +
+      orphaned_compiled_codes_.size());
   compiled_functions.reserve(
-      compiled_codes_.size() + orphaned_compiled_codes_.size());
-  for (auto& [_, compiled] : compiled_codes_) {
+      compiled_codes_.size() + retired_compiled_codes_.size() +
+      orphaned_compiled_codes_.size());
+  forEachCompiledFunction([&](BorrowedRef<CompiledFunction> compiled) {
     CodeRuntime* runtime = compiled->runtime();
     if (runtime != nullptr && !runtime->isCleared()) {
       compilation_keys.emplace_back(
@@ -515,7 +517,7 @@ void Context::releaseReferences() {
           Ref<>::create(runtime->globals()));
     }
     compiled_functions.emplace_back(Ref<CompiledFunction>::create(compiled));
-  }
+  });
   for (auto& compiled : orphaned_compiled_codes_) {
     CodeRuntime* runtime = compiled->runtime();
     if (runtime != nullptr && !runtime->isCleared()) {
@@ -779,6 +781,60 @@ void Context::finalizePendingCompiles() {
   }
 }
 
+void Context::completeRecompile(BackgroundCompileTask& task) {
+  FreeThreadedJITEntrypointGuard guard;
+  // A failed or skipped recompile has no replacement to publish.
+  if (!task.replacement) {
+    return;
+  }
+  // Code generation has already registered type/function watches. Give the
+  // result an owner so a discarded candidate unregisters those watches when
+  // its deferred data is released.
+  auto replacement = std::move(task.replacement);
+  auto compiled =
+      CompiledFunction::create(std::move(*replacement), *this, false);
+  if (compiled == nullptr) {
+    PyErr_Clear();
+    return;
+  }
+  addCompileTime(compiled->compileTime());
+  CompilationKey key{task.code, task.builtins, task.globals};
+  {
+    std::lock_guard<std::mutex> lock(background_compile_registry_.mutex);
+    // The atexit drain stops the worker before the JIT becomes unusable. An
+    // in-flight compile may finish during that drain, but must not publish.
+    if (background_compile_registry_.shutdown) {
+      return;
+    }
+  }
+  // Adopt only if the JIT is still usable and the triggering function still
+  // has the captured code/environment and calls the expected live generation.
+  if (!isJitUsable() || CompilationKey{task.func} != key ||
+      lookupFunc(task.func) != task.expected ||
+      task.expected->runtime() == nullptr ||
+      task.func->vectorcall != task.expected->vectorcallEntry()) {
+    return;
+  }
+  adoptRecompile(task.func, task.expected, compiled);
+}
+
+void Context::adoptRecompile(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<CompiledFunction> expected,
+    BorrowedRef<CompiledFunction> compiled) {
+  FreeThreadedJITEntrypointGuard guard;
+  if (lookupFunc(func) != expected ||
+      func->vectorcall != expected->vectorcallEntry()) {
+    return;
+  }
+  retired_compiled_codes_.try_emplace(expected->vectorcallEntry(), expected);
+  Ref<CompiledFunction> old = expected->stealFunction(func);
+  // Cache the replacement before publishing its entrypoint so function GC
+  // traversal can recover the function's reference to it.
+  compiled_codes_.insert_or_assign(CompilationKey{func}, compiled);
+  finalizeFunc(func, compiled);
+}
+
 void Context::finalizeFunc(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> compiled) {
@@ -853,9 +909,15 @@ void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
 }
 
 void Context::forgetCompiledFunction(CompiledFunction& function) {
+  FreeThreadedJITEntrypointGuard guard;
   // tp_clear() can reach here from GC without going through a guarded
   // top-level JIT entrypoint, so this path has to take a lock.
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
+  auto retired = retired_compiled_codes_.find(function.vectorcallEntry());
+  if (retired != retired_compiled_codes_.end() &&
+      retired->second == &function) {
+    retired_compiled_codes_.erase(retired);
+  }
   if (function.runtime() != nullptr) {
     auto nested_it = nested_compile_data_.find(function.runtime()->code());
     if (nested_it != nested_compile_data_.end()) {
@@ -877,7 +939,16 @@ void Context::forgetCompiledFunction(CompiledFunction& function) {
 
 BorrowedRef<CompiledFunction> Context::lookupFunc(
     BorrowedRef<PyFunctionObject> func) {
-  return lookupCode(func->func_code, func->func_builtins, func->func_globals);
+  BorrowedRef<CompiledFunction> current =
+      lookupCode(func->func_code, func->func_builtins, func->func_globals);
+  if (current != nullptr && current->vectorcallEntry() == func->vectorcall) {
+    return current;
+  }
+  auto it = retired_compiled_codes_.find(func->vectorcall);
+  if (it != retired_compiled_codes_.end()) {
+    return it->second;
+  }
+  return current;
 }
 
 CodeRuntime* Context::lookupCodeRuntime(BorrowedRef<PyFunctionObject> func) {
@@ -952,6 +1023,11 @@ void Context::clearForMultithreadedCompileTest() {
         Ref<CompiledFunction>::create(compiled));
     compiled->removeFunction(func);
   }
+  for (auto& [_, compiled] : retired_compiled_codes_) {
+    orphaned_compiled_codes_.emplace_back(
+        Ref<CompiledFunction>::create(compiled));
+  }
+  retired_compiled_codes_.clear();
   compiled_codes_.clear();
   nested_compile_anchors_.clear();
   for (auto& [_, data] : nested_compile_data_) {
@@ -1003,18 +1079,18 @@ Ref<CompiledFunction> Context::stealFuncRegistration(
 void Context::releaseFunctionCompileRefs() {
   JIT_DCHECK(PyThreadState_GetUnchecked() != nullptr, "GIL should be held");
   UnorderedMap<vectorcallfunc, BorrowedRef<CompiledFunction>> by_entry;
-  for (auto& [key, compiled] : compiled_codes_) {
+  forEachCompiledFunction([&](BorrowedRef<CompiledFunction> compiled) {
     if (compiled->numFunctions() > 0) {
       by_entry.emplace(compiled->vectorcallEntry(), compiled);
     }
-  }
+  });
   if (by_entry.empty()) {
     return;
   }
 
   FreeThreadedJITEntrypointGuard guard;
   // removeFunction() can drop the last reference to a compile, which re-enters
-  // forgetCompiledFunction() and erases it from compiled_codes_.  That's why
+  // forgetCompiledFunction() and erases it from compiled_codes_. That's why
   // the index above is built up front instead of walking compiled_codes_ here.
   for (auto& func : getCompiledFunctions()) {
     auto it = by_entry.find(func->vectorcall);
@@ -1148,14 +1224,27 @@ BorrowedRef<CompiledFunction> Context::deoptedCompile(
   return it == deopted_funcs_.end() ? nullptr : it->second;
 }
 
-bool Context::addActiveCompile(const CompilationKey& key) {
+bool Context::addActiveCompile(
+    const CompilationKey& key,
+    CompilationOrigin origin) {
   JITCompilationLock lock;
-  return active_compiles_.insert(key).second;
+  return active_compiles_.emplace(key, origin).second;
 }
 
 void Context::removeActiveCompile(const CompilationKey& key) {
   JITCompilationLock lock;
   active_compiles_.erase(key);
+}
+
+void Context::removeBackgroundActiveCompiles() {
+  JITCompilationLock lock;
+  for (auto it = active_compiles_.begin(); it != active_compiles_.end();) {
+    if (it->second == CompilationOrigin::kBackground) {
+      active_compiles_.erase(it++);
+    } else {
+      ++it;
+    }
+  }
 }
 
 bool Context::hasActiveCompile(const CompilationKey& key) {
@@ -1189,18 +1278,19 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
     *indirect = compiled->staticEntry();
   }
 
-  // The function can change while a batch/background worker compiles its
-  // snapshot. Preserve the replacement's entrypoint in that case.
-  if (func != nullptr && CompilationKey{func} == key && !isJitCompiled(func)) {
-    finalizeFunc(func, compiled);
-  }
-
   // Borrowed; the compile is kept alive by the function objects using it.
   auto pair = compiled_codes_.emplace(key, compiled);
   JIT_CHECK(
       pair.second,
       "CompilationKey already present {}",
       PyUnicode_AsUTF8(reinterpret_cast<PyCodeObject*>(key.code)->co_qualname));
+
+  // The function can change while a batch/background worker compiles its
+  // snapshot. Preserve the replacement's entrypoint in that case.
+  if (func != nullptr && CompilationKey{func} == key && !isJitCompiled(func)) {
+    finalizeFunc(func, compiled);
+  }
+
   // The nested-compile entry is what carries the compile across the gaps
   // between instances of a nested function, anchored on the function the code
   // was found in.  The compile is cached even when `func` has been renamed away
@@ -1241,6 +1331,11 @@ void Context::deferCompiledData(
     deferred_compiled_data_.emplace(
         std::move(key), Ref<CompiledFunctionData>::steal(data));
   });
+  // Deferred data keeps its runtime's references, which can include functions
+  // of the _cinderx module that owns this Context.  Nothing drains the map
+  // before that module is freed, so during finalization holding them would
+  // keep the module (and the JIT) alive forever.  Release whatever no frame is
+  // still executing right away.
   if (Py_IsFinalizing()) {
     processDeferredCleanup();
   }
