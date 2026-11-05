@@ -15,7 +15,6 @@
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/target_select.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
 #include <bit>
@@ -85,15 +84,6 @@ class LIRTargetSelectTest : public RuntimeTest {
   std::vector<std::unique_ptr<hir::Function>> hir_funcs_;
   std::vector<std::unique_ptr<CodeRuntime>> runtimes_;
 };
-
-#if defined(CINDER_AARCH64) || defined(CINDER_X86_64)
-static std::unique_ptr<Function> runTargetSelectFunc(
-    const char* lir_input_str) {
-  std::unique_ptr<Function> func = Parser().parse(lir_input_str);
-  selectTargetOpcodes(func.get());
-  return func;
-}
-#endif
 
 #if defined(CINDER_X86_64)
 TEST_F(LIRTargetSelectTest, SelectsRegInputForLargeConstantStore) {
@@ -523,52 +513,89 @@ TEST_F(LIRTargetSelectTest, SelectsA64GuardCCThroughFlagPreservingInstrs) {
 }
 
 TEST_F(LIRTargetSelectTest, SelectsA64GuardCCAcrossFlagClobber) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:64bit = Move 1
-  %2:64bit = Move 2
-  %3:8bit = LessThanUnsigned %1, %2
-  %4:64bit = Add %1, %2
-  Guard 4, 0, %3, 0
-  Return %1
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* left = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* right = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{2});
+  Instruction* comparison = block->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kUnsignedLT,
+      OutVReg{DataType::k8bit},
+      VReg{left},
+      VReg{right});
+  Instruction* add = block->allocateInstr(
+      Opcode::kAdd,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{left},
+      VReg{right});
+  block->allocateInstr(
+      Opcode::kGuard, nullptr, Imm{kNotZero}, Imm{0}, VReg{comparison}, Imm{0});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{left});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
   EXPECT_LIR_SEQUENCE(
-      *lir_func,
-      Query(*lir_func).opcode(Opcode::kAdd).outVreg(4),
-      Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2),
-      Query(*lir_func).opcode(Opcode::kA64GuardCC));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kGuard));
+      function,
+      Query(function).opcode(Opcode::kAdd).outVreg(add->id()),
+      Query(function)
+          .opcode(Opcode::kCmp)
+          .inVreg(0, left->id())
+          .inVreg(1, right->id()),
+      Query(function).opcode(Opcode::kA64GuardCC));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kCompare));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kGuard));
 }
 
 TEST_F(LIRTargetSelectTest, SelectsA64SelectCCAcrossFlagClobber) {
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:64bit = Move 1
-  %2:64bit = Move 2
-  %3:8bit = LessThanUnsigned %1, %2
-  %4:64bit = Add %1, %2
-  %5:64bit = Select %3, %1, %2
-  Return %5
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* left = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* right = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{2});
+  Instruction* comparison = block->allocateInstr(
+      Opcode::kCompare,
+      nullptr,
+      Condition::kUnsignedLT,
+      OutVReg{DataType::k8bit},
+      VReg{left},
+      VReg{right});
+  Instruction* add = block->allocateInstr(
+      Opcode::kAdd,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{left},
+      VReg{right});
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{comparison},
+      VReg{left},
+      VReg{right});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
   EXPECT_LIR_SEQUENCE(
-      *lir_func,
-      Query(*lir_func).opcode(Opcode::kAdd).outVreg(4),
-      Query(*lir_func).opcode(Opcode::kCmp).inVreg(0, 1).inVreg(1, 2),
-      Query(*lir_func)
+      function,
+      Query(function).opcode(Opcode::kAdd).outVreg(add->id()),
+      Query(function)
+          .opcode(Opcode::kCmp)
+          .inVreg(0, left->id())
+          .inVreg(1, right->id()),
+      Query(function)
           .opcode(Opcode::kA64SelectCC)
-          .outVreg(5)
+          .outVreg(selected->id())
           .inImm(0, static_cast<uint64_t>(Condition::kUnsignedLT))
-          .inVreg(1, 1)
-          .inVreg(2, 2));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kSelect));
+          .inVreg(1, left->id())
+          .inVreg(2, right->id()));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kCompare));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kSelect));
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesGuardFPInputToGPInput) {
@@ -638,168 +665,177 @@ TEST_F(LIRTargetSelectTest, SelectsBranchBitNotSetForTest32BranchNS) {
       Query(function).opcode(Opcode::kBranchCC).condition(Condition::kNotSign));
 }
 
+static std::unique_ptr<Function>
+makeTestBranch(DataType type, Opcode test_opcode, Condition condition) {
+  auto function = std::make_unique<Function>();
+  BasicBlock* entry = function->allocateBasicBlock();
+  BasicBlock* true_block = function->allocateBasicBlock();
+  BasicBlock* false_block = function->allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+  Instruction* value =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{type}, Imm{1});
+  entry->allocateInstr(test_opcode, nullptr, VReg{value}, VReg{value});
+  entry->allocateInstr(Opcode::kBranchCC, nullptr, condition, Lbl{true_block});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{value});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{value});
+  return function;
+}
+
 TEST_F(LIRTargetSelectTest, SelectsCmpBranchForTestSupportedTypes) {
-  for (const char* type : {"32bit", "64bit", "Object", "ObjectUntagged"}) {
-    auto func = runTargetSelectFunc(
-        fmt::format(
-            R"(Function:
-BB %0 - succs: %1 %2
-  %1:{} = Move 1
-  Test %1, %1
-  BranchNZ BB%1
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %1
-)",
-            type)
-            .c_str());
-    EXPECT_LIR(Query(*func).opcode(Opcode::kCmpBranchNonZero).inVreg(0, 1));
-    EXPECT_NO_LIR(Query(*func).opcode(Opcode::kTest));
+  for (DataType type :
+       {DataType::k32bit,
+        DataType::k64bit,
+        DataType::kObject,
+        DataType::kObjectUntagged}) {
+    auto function = makeTestBranch(type, Opcode::kTest, Condition::kNotZero);
+    selectTargetOpcodes(function.get());
+    EXPECT_LIR(
+        Query(*function).opcode(Opcode::kCmpBranchNonZero).inDefImm(0, 0, 1));
+    EXPECT_NO_LIR(Query(*function).opcode(Opcode::kTest));
   }
 }
 
 TEST_F(LIRTargetSelectTest, SelectsCmpBranchForTest32OnlyWhen32Bit) {
-  constexpr const char* pattern = R"(Function:
-BB %0 - succs: %1 %2
-  %1:{} = Move 1
-  Test32 %1, %1
-  BranchNZ BB%1
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %1
-)";
-
-  auto f32 = runTargetSelectFunc(fmt::format(pattern, "32bit").c_str());
-  EXPECT_LIR(Query(*f32).opcode(Opcode::kCmpBranchNonZero).inVreg(0, 1));
+  auto f32 =
+      makeTestBranch(DataType::k32bit, Opcode::kTest32, Condition::kNotZero);
+  selectTargetOpcodes(f32.get());
+  EXPECT_LIR(Query(*f32).opcode(Opcode::kCmpBranchNonZero).inDefImm(0, 0, 1));
   EXPECT_NO_LIR(Query(*f32).opcode(Opcode::kTest32));
 
-  auto f64 = runTargetSelectFunc(fmt::format(pattern, "64bit").c_str());
+  auto f64 =
+      makeTestBranch(DataType::k64bit, Opcode::kTest32, Condition::kNotZero);
+  selectTargetOpcodes(f64.get());
   EXPECT_LIR(Query(*f64).opcode(Opcode::kTest32));
   EXPECT_NO_LIR(Query(*f64).opcode(Opcode::kCmpBranchNonZero));
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectCmpBranchForNarrowTest) {
-  for (const char* type : {"8bit", "16bit"}) {
-    auto func = runTargetSelectFunc(
-        fmt::format(
-            R"(Function:
-BB %0 - succs: %1 %2
-  %1:{} = Move 1
-  Test %1, %1
-  BranchNZ BB%1
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %1
-)",
-            type)
-            .c_str());
-    EXPECT_LIR(Query(*func).opcode(Opcode::kTest));
-    EXPECT_NO_LIR(Query(*func).opcode(Opcode::kCmpBranchNonZero));
+  for (DataType type : {DataType::k8bit, DataType::k16bit}) {
+    auto function = makeTestBranch(type, Opcode::kTest, Condition::kNotZero);
+    selectTargetOpcodes(function.get());
+    EXPECT_LIR(Query(*function).opcode(Opcode::kTest));
+    EXPECT_NO_LIR(Query(*function).opcode(Opcode::kCmpBranchNonZero));
   }
 }
 
 TEST_F(LIRTargetSelectTest, SelectsCmpBranchForZeroAndNonZeroPolarities) {
   struct {
-    const char* test;
-    const char* branch;
+    Opcode test;
+    Condition branch;
     Opcode expected;
   } cases[] = {
-      {"Test", "BranchZ", Opcode::kCmpBranchZero},
-      {"Test", "BranchE", Opcode::kCmpBranchZero},
-      {"Test", "BranchNZ", Opcode::kCmpBranchNonZero},
-      {"Test", "BranchNE", Opcode::kCmpBranchNonZero},
-      {"Test32", "BranchZ", Opcode::kCmpBranchZero},
-      {"Test32", "BranchE", Opcode::kCmpBranchZero},
-      {"Test32", "BranchNZ", Opcode::kCmpBranchNonZero},
-      {"Test32", "BranchNE", Opcode::kCmpBranchNonZero},
+      {Opcode::kTest, Condition::kZero, Opcode::kCmpBranchZero},
+      {Opcode::kTest, Condition::kEqual, Opcode::kCmpBranchZero},
+      {Opcode::kTest, Condition::kNotZero, Opcode::kCmpBranchNonZero},
+      {Opcode::kTest, Condition::kNotEqual, Opcode::kCmpBranchNonZero},
+      {Opcode::kTest32, Condition::kZero, Opcode::kCmpBranchZero},
+      {Opcode::kTest32, Condition::kEqual, Opcode::kCmpBranchZero},
+      {Opcode::kTest32, Condition::kNotZero, Opcode::kCmpBranchNonZero},
+      {Opcode::kTest32, Condition::kNotEqual, Opcode::kCmpBranchNonZero},
   };
 
   for (const auto& [test, branch, expected] : cases) {
-    auto func = runTargetSelectFunc(
-        fmt::format(
-            R"(Function:
-BB %0 - succs: %1 %2
-  %1:32bit = Move 1
-  {} %1, %1
-  {} BB%1
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %1
-)",
-            test,
-            branch)
-            .c_str());
-    EXPECT_LIR(Query(*func).opcode(expected).inVreg(0, 1));
-    EXPECT_NO_LIR(Query(*func).opcode(
-        test == std::string_view("Test") ? Opcode::kTest : Opcode::kTest32));
+    auto function = makeTestBranch(DataType::k32bit, test, branch);
+    selectTargetOpcodes(function.get());
+    EXPECT_LIR(Query(*function).opcode(expected).inDefImm(0, 0, 1));
+    EXPECT_NO_LIR(Query(*function).opcode(test));
   }
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectCmpBranchWhenNotAdjacent) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %2
-  %1:64bit = Move 0
-  %2:64bit = Move 1
-  Test %1, %1
-  %3:64bit = Move 2
-  BranchNZ BB%1
-BB %1 - preds: %0
-  Return %1
-BB %2 - preds: %0
-  Return %1
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+  Instruction* value = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{0});
+  entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  entry->allocateInstr(Opcode::kTest, nullptr, VReg{value}, VReg{value});
+  entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{2});
+  entry->allocateInstr(
+      Opcode::kBranchCC, nullptr, Condition::kNotZero, Lbl{true_block});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{value});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{value});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCmpBranchNonZero));
+  EXPECT_LIR(Query(function).opcode(Opcode::kTest));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kCmpBranchNonZero));
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectBranchWhenFlagsReadLater) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %2
-  %1:64bit = Move 0
-  %2:64bit = Move 1
-  %3:64bit = Move 0
-  Test %1, %1
-  BranchNZ BB%1
-  %4:64bit = A64SelectCC 0, %2, %3
-BB %1 - preds: %0
-  Return %2
-BB %2 - preds: %0
-  Return %3
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+  Instruction* tested = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{0});
+  Instruction* left = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* right = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{0});
+  entry->allocateInstr(Opcode::kTest, nullptr, VReg{tested}, VReg{tested});
+  entry->allocateInstr(
+      Opcode::kBranchCC, nullptr, Condition::kNotZero, Lbl{true_block});
+  entry->allocateInstr(
+      Opcode::kA64SelectCC,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      Imm{0},
+      VReg{left},
+      VReg{right});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{left});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{right});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCmpBranchNonZero));
+  EXPECT_LIR(Query(function).opcode(Opcode::kTest));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kCmpBranchNonZero));
 }
 
 TEST_F(LIRTargetSelectTest, DoesNotSelectBranchWhenFlagsReadAfterArithmetic) {
-  const char* lir_input_str = R"(Function:
-BB %0 - succs: %1 %2
-  %1:64bit = Move 0
-  %2:64bit = Move 1
-  %3:64bit = Move 0
-  Test %1, %1
-  BranchNZ BB%1
-  %5:64bit = Mul %2, %3
-  %4:64bit = A64SelectCC 0, %2, %3
-BB %1 - preds: %0
-  Return %2
-BB %2 - preds: %0
-  Return %3
-)";
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* true_block = function.allocateBasicBlock();
+  BasicBlock* false_block = function.allocateBasicBlock();
+  entry->addSuccessor(true_block);
+  entry->addSuccessor(false_block);
+  Instruction* tested = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{0});
+  Instruction* left = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* right = entry->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{0});
+  entry->allocateInstr(Opcode::kTest, nullptr, VReg{tested}, VReg{tested});
+  entry->allocateInstr(
+      Opcode::kBranchCC, nullptr, Condition::kNotZero, Lbl{true_block});
+  entry->allocateInstr(
+      Opcode::kMul,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{left},
+      VReg{right});
+  entry->allocateInstr(
+      Opcode::kA64SelectCC,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      Imm{0},
+      VReg{left},
+      VReg{right});
+  true_block->allocateInstr(Opcode::kReturn, nullptr, VReg{left});
+  false_block->allocateInstr(Opcode::kReturn, nullptr, VReg{right});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kTest));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCmpBranchNonZero));
+  EXPECT_LIR(Query(function).opcode(Opcode::kTest));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kCmpBranchNonZero));
 }
 
 TEST_F(
@@ -1155,16 +1191,22 @@ TEST_F(LIRTargetSelectTest, SelectsXorForLargeConstantPair) {
   ASSERT_FALSE(testFitsInSingleMov(kV2, 64));
   ASSERT_TRUE(asmjit::arm::Utils::isLogicalImm(kDiff, 64));
 
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:8bit = Move 1
-  %2:64bit = Select %1, 1311768467463790320, 1311768467463790224
-  Return %2
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* condition = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, Imm{1});
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{condition},
+      Imm{kV1, DataType::k64bit},
+      Imm{kV2, DataType::k64bit});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kSelect)
                  .with([&](const Instruction* select) {
                    const Operand* in = select->getInput(1);
@@ -1176,11 +1218,11 @@ BB %0
                        flip->getInput(1)->isImm() &&
                        flip->getInput(1)->getConstant() == kDiff;
                  }));
-  EXPECT_NO_LIR(Query(*lir_func)
+  EXPECT_NO_LIR(Query(function)
                     .opcode(Opcode::kMove)
                     .outType(DataType::k64bit)
                     .inImm(0, kV1));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, kV2));
@@ -1195,23 +1237,31 @@ TEST_F(LIRTargetSelectTest, DoesNotSelectXorForMoveConstants) {
   ASSERT_FALSE(testFitsInSingleMov(kV2, 64));
   ASSERT_TRUE(asmjit::arm::Utils::isLogicalImm(kV1 ^ kV2, 64));
 
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:64bit = Move 1311768467463790320
-  %2:64bit = Move 1311768467463790224
-  %3:8bit = Move 1
-  %4:64bit = Select %3, %1, %2
-  Return %4
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* left = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{kV1});
+  Instruction* right = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{kV2});
+  Instruction* condition = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, Imm{1});
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{condition},
+      VReg{left},
+      VReg{right});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kXor));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kXor));
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, kV1));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, kV2));
@@ -1222,21 +1272,27 @@ TEST_F(LIRTargetSelectTest, DoesNotSelectXorWhenConstantsFitSingleMov) {
   ASSERT_TRUE(testFitsInSingleMov(2, 64));
   ASSERT_TRUE(asmjit::arm::Utils::isLogicalImm(1 ^ 2, 64));
 
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:8bit = Move 1
-  %2:64bit = Select %1, 1, 2
-  Return %2
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* condition = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, Imm{1});
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{condition},
+      Imm{1, DataType::k64bit},
+      Imm{2, DataType::k64bit});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kXor));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kXor));
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, 1));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, 2));
@@ -1251,21 +1307,27 @@ TEST_F(LIRTargetSelectTest, DoesNotSelectXorWhenDiffNotLogicalImm) {
   ASSERT_FALSE(testFitsInSingleMov(kV2, 64));
   ASSERT_FALSE(asmjit::arm::Utils::isLogicalImm(kDiff, 64));
 
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:8bit = Move 1
-  %2:64bit = Select %1, 1311768467463790320, 1311768467463855857
-  Return %2
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* condition = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, Imm{1});
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{condition},
+      Imm{kV1, DataType::k64bit},
+      Imm{kV2, DataType::k64bit});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kXor));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kXor));
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, kV1));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k64bit)
                  .inImm(0, kV2));
@@ -1280,24 +1342,30 @@ TEST_F(LIRTargetSelectTest, SelectsXorFor32BitLargeConstants) {
   ASSERT_FALSE(testFitsInSingleMov(kV2, 32));
   ASSERT_TRUE(asmjit::arm::Utils::isLogicalImm(kDiff, 32));
 
-  const char* lir_input_str = R"(Function:
-BB %0
-  %1:8bit = Move 1
-  %2:32bit = Select %1, 305419896:32bit, 305419800:32bit
-  Return %2
-)";
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* condition = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k8bit}, Imm{1});
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k32bit},
+      VReg{condition},
+      Imm{kV1, DataType::k32bit},
+      Imm{kV2, DataType::k32bit});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
 
-  auto lir_func = runTargetSelectFunc(lir_input_str);
+  selectTargetOpcodes(&function);
 
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kXor)
                  .outType(DataType::k32bit)
                  .inImm(1, kDiff));
-  EXPECT_NO_LIR(Query(*lir_func)
+  EXPECT_NO_LIR(Query(function)
                     .opcode(Opcode::kMove)
                     .outType(DataType::k32bit)
                     .inImm(0, kV1));
-  EXPECT_LIR(Query(*lir_func)
+  EXPECT_LIR(Query(function)
                  .opcode(Opcode::kMove)
                  .outType(DataType::k32bit)
                  .inImm(0, kV2));
