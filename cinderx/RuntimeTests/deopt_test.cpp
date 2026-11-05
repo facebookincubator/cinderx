@@ -1051,4 +1051,75 @@ TEST_F(DeoptTest, FrameMetadataTagBits) {
   EXPECT_TRUE(meta.profile_cause().has_value());
 }
 
+#if CINDER_FRAME_HAS_JIT_MARKER
+class StackDeoptTest : public RuntimeTest {
+ public:
+  void compile(const char* name) {
+    Ref<PyFunctionObject> func{getGlobal(name)};
+    ASSERT_EQ(compileFunction(func), Result::OK);
+  }
+
+  Ref<> call(const char* name) {
+    Ref<> func{getGlobal(name)};
+    return Ref<>::steal(PyObject_CallNoArgs(func));
+  }
+};
+#endif
+
+#if CINDER_FRAME_HAS_JIT_MARKER
+namespace {
+
+PyObject* currentFrameIsJitted(PyObject*, PyObject*) {
+  return PyBool_FromLong(frameJITMarker(currentFrame(PyThreadState_Get())));
+}
+
+PyMethodDef current_frame_is_jitted = {
+    "current_frame_is_jitted",
+    currentFrameIsJitted,
+    METH_NOARGS,
+    nullptr};
+
+} // namespace
+
+PyObject* deoptStack(PyObject*, PyObject*) {
+  deoptAllJitFramesOnStack();
+  Py_RETURN_NONE;
+}
+
+PyMethodDef deopt_stack = {"deopt_stack", deoptStack, METH_NOARGS, nullptr};
+
+TEST_F(StackDeoptTest, StackDeoptTransitionsJitCallersToInterpreter) {
+  Ref<> probe =
+      Ref<>::steal(PyCFunction_New(&current_frame_is_jitted, nullptr));
+  Ref<> deopt = Ref<>::steal(PyCFunction_New(&deopt_stack, nullptr));
+  ASSERT_NE(probe, nullptr);
+  ASSERT_NE(deopt, nullptr);
+  runCode(R"(
+def trigger():
+    deopt_stack()
+    return 7
+
+def inner():
+    assert is_jitted()
+    result = trigger()
+    assert not is_jitted()
+    return result
+
+def outer():
+    assert is_jitted()
+    result = 10 + inner()
+    assert not is_jitted()
+    return result
+)");
+  Ref<PyFunctionObject> outer{getGlobal("outer")};
+  ASSERT_EQ(PyDict_SetItemString(outer->func_globals, "is_jitted", probe), 0);
+  ASSERT_EQ(PyDict_SetItemString(outer->func_globals, "deopt_stack", deopt), 0);
+  compile("inner");
+  compile("outer");
+
+  EXPECT_TRUE(isIntEquals(call("outer"), 17));
+  EXPECT_TRUE(isJitCompiled(outer));
+}
+#endif
+
 } // namespace cinderx

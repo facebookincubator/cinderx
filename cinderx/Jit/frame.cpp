@@ -99,7 +99,7 @@ uintptr_t getFrameBaseFromOnStackFrame(_PyInterpreterFrame* frame) {
       sizeof(PyObject*) * _PyFrame_GetCode(frame)->co_framesize;
 }
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
 
 #if defined(CINDER_X86_64)
 
@@ -204,7 +204,7 @@ bool setIP(_PyInterpreterFrame* frame, int frame_size, uintptr_t new_ip) {
   return true;
 }
 
-#endif // ENABLE_LIGHTWEIGHT_FRAMES
+#endif // CINDER_CAN_IDENTIFY_JIT_FRAMES
 
 // Collect all the frames in the unit, with the frame for the
 // non-inlined function as the first element in the return vector.
@@ -691,7 +691,7 @@ BorrowedRef<PyFunctionObject> jitFrameGetFunction(_PyInterpreterFrame* frame) {
 }
 
 bool isInlinedFrame(_PyInterpreterFrame* frame) {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
   return jitFrameGetHeader(frame)->frame_status & JIT_FRAME_INLINED;
 #else
   return false;
@@ -829,7 +829,7 @@ void retainActiveDeferredData(
 }
 
 void deoptAllJitFramesOnStack() {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
   PyInterpreterState* interp = PyInterpreterState_Get();
 
   // In free-threaded builds, other threads are actively running and may be
@@ -866,6 +866,7 @@ void deoptAllJitFramesOnStack() {
             uintptr_t current_ip = getIP(frame, code_rt->frameSize());
             auto deopt_exit = code_rt->getCallsiteDeoptExit(current_ip);
             if (deopt_exit.has_value()) {
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
               // Set prev_instr/instr_ptr BEFORE patching the IP — after
               // patching, the IP points to a deopt exit with no debug info.
               // Use innermost_inlined if present so updatePrevInstr walks
@@ -876,7 +877,7 @@ void deoptAllJitFramesOnStack() {
               } else {
                 updatePrevInstr(frame);
               }
-
+#endif
               jitFramePopulateFrame(frame);
               if (setIP(frame, code_rt->frameSize(), deopt_exit.value())) {
                 // Mark frame so updatePrevInstr skips it (deopt exit IP

@@ -281,7 +281,7 @@ uintptr_t prepareForDeopt(
 
   // Check JIT_FRAME_DEOPT_PATCHED on the outermost frame's header before
   // reification destroys it.
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+#if CINDER_CAN_IDENTIFY_JIT_FRAMES
   {
     _PyInterpreterFrame* outer = frame;
     for (size_t i = 0; i < linked; i++) {

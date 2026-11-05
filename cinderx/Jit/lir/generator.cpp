@@ -639,7 +639,7 @@ void PopulateResumeEntryBlock(BasicBlock* bb, Py_ssize_t gi_jit_data_offset) {
   bb->allocateInstr(
       Opcode::kMove, nullptr, OutPhyReg(fp_reg), PhyReg(jit_data_reg));
 
-#if defined(CINDER_AARCH64) && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+#if defined(CINDER_AARCH64) && CINDER_CAN_IDENTIFY_JIT_FRAMES
   // footer->frame_header.tstate = tstate.  A generator can be resumed on a
   // different thread than the one it last ran on, so this has to be refreshed
   // on every resume rather than just at frame setup.
