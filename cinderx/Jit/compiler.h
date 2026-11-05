@@ -71,7 +71,8 @@ class Compiler {
   // PyFunctionObject.
   std::optional<CompiledFunctionData> compile(
       BorrowedRef<PyFunctionObject> func,
-      CompileMode mode = CompileMode::kInitial);
+      CompileMode mode = CompileMode::kInitial,
+      Profile* profile = nullptr);
 
   // Runs all the compiler passes on the HIR function.
   static void runPasses(hir::Function&, PassConfig config);
@@ -82,7 +83,8 @@ class Compiler {
   static void runPasses(
       hir::Function& irfunc,
       PassConfig config,
-      PostPassFunction callback);
+      PostPassFunction callback,
+      Profile* profile = nullptr);
 
   Compiler(const Compiler&) = delete;
   Compiler& operator=(const Compiler&) = delete;

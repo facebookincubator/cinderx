@@ -654,8 +654,9 @@ bool HIRBuilder::isSimpleLeafFunction(BorrowedRef<PyCodeObject> code) {
 
 std::unique_ptr<Function> buildHIR(
     const Preloader& preloader,
-    uint64_t recompile_threshold) {
-  return HIRBuilder{preloader, recompile_threshold}.buildHIR();
+    uint64_t recompile_threshold,
+    const Profile* profile) {
+  return HIRBuilder{preloader, recompile_threshold, profile}.buildHIR();
 }
 
 std::unique_ptr<Function> buildHIR(

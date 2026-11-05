@@ -195,6 +195,102 @@ TEST_F(RecompileBackgroundTest, ThresholdPublishesToTriggeringFunction) {
   EXPECT_FALSE(getContext()->hasActiveCompile(CompilationKey{func}));
 }
 
+#if !defined(ENABLE_PREFORK_MODEL) && !defined(Py_GIL_DISABLED)
+TEST_F(RecompileBackgroundTest, SpecializesAndCarriesBinaryOpProfile) {
+  getMutableConfig().binary_op_caches = true;
+  getMutableConfig().specialized_opcodes = false;
+  getMutableConfig().recompile_threshold = 3;
+  Ref<PyFunctionObject> func =
+      compileAndGet("def func(a, b): return a + b", "func");
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  auto initial = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(initial, nullptr);
+  EXPECT_EQ(
+      initial->hirOpcodeCounts()[static_cast<size_t>(Opcode::kBinaryOp)], 1);
+  EXPECT_EQ(
+      initial->hirOpcodeCounts()[static_cast<size_t>(Opcode::kLongBinaryOp)],
+      0);
+  auto args = Ref<>::steal(Py_BuildValue("(ii)", 1, 2));
+  for (int i = 0; i < 2; ++i) {
+    EXPECT_TRUE(isIntEquals(Ref<>::steal(PyObject_CallObject(func, args)), 3));
+  }
+  drain();
+  EXPECT_EQ(getContext()->lookupFunc(func), initial);
+  EXPECT_TRUE(isIntEquals(Ref<>::steal(PyObject_CallObject(func, args)), 3));
+  drain();
+
+  auto compiled = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled, nullptr);
+  ASSERT_NE(compiled, initial);
+  EXPECT_EQ(func->vectorcall, compiled->vectorcallEntry());
+  EXPECT_EQ(initial->numFunctions(), 0);
+  EXPECT_EQ(compiled->numFunctions(), 1);
+  EXPECT_FALSE(getContext()->hasActiveCompile(CompilationKey{func}));
+  for (int generation = 0; generation < 2; ++generation) {
+    const auto& counts = compiled->hirOpcodeCounts();
+    EXPECT_EQ(counts[static_cast<size_t>(Opcode::kBinaryOp)], 0);
+    EXPECT_EQ(counts[static_cast<size_t>(Opcode::kLongBinaryOp)], 1);
+    EXPECT_EQ(
+        counts[static_cast<size_t>(Opcode::kLoadRecompileCounterAddr)], 0);
+    auto profile = compiled->snapshotProfile();
+    ASSERT_EQ(profile.entries().size(), 1);
+    const auto* payload =
+        profile.find<BinaryOpProfile>(profile.entries().begin()->first);
+    ASSERT_NE(payload, nullptr);
+    EXPECT_EQ(payload->left_type, TLongCompact);
+    EXPECT_EQ(payload->right_type, TLongCompact);
+    EXPECT_TRUE(isIntEquals(Ref<>::steal(PyObject_CallObject(func, args)), 3));
+    if (generation == 0) {
+      scheduleRecompile(func, compiled);
+      drain();
+      auto next = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+      ASSERT_NE(next, compiled);
+      compiled = std::move(next);
+    }
+  }
+
+  auto strings = Ref<>::steal(Py_BuildValue("(ss)", "left", "right"));
+  auto result = Ref<>::steal(PyObject_CallObject(func, strings));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(PyUnicode_CompareWithASCIIString(result, "leftright"), 0);
+}
+
+TEST_F(RecompileBackgroundTest, SpecializesInlinedBinaryOpFromProfile) {
+  getMutableConfig().binary_op_caches = true;
+  getMutableConfig().specialized_opcodes = false;
+  getMutableConfig().recompile_threshold = 3;
+  Ref<PyFunctionObject> func = compileAndGet(
+      "def add(a, b): return a + b\ndef func(a, b): return add(a, b)", "func");
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  auto initial = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_EQ(initial->inlinedFunctionsStats().num_inlined_functions, 1);
+  auto args = Ref<>::steal(Py_BuildValue("(dd)", 1.5, 2.5));
+  for (int i = 0; i < 3; ++i) {
+    auto result = Ref<>::steal(PyObject_CallObject(func, args));
+    ASSERT_NE(result, nullptr);
+    EXPECT_DOUBLE_EQ(PyFloat_AsDouble(result), 4.0);
+  }
+  drain();
+  auto compiled = Ref<CompiledFunction>::create(getContext()->lookupFunc(func));
+  ASSERT_NE(compiled, initial);
+  EXPECT_EQ(compiled->inlinedFunctionsStats().num_inlined_functions, 1);
+  EXPECT_EQ(
+      compiled->hirOpcodeCounts()[static_cast<size_t>(Opcode::kBinaryOp)], 0);
+  EXPECT_EQ(
+      compiled->hirOpcodeCounts()[static_cast<size_t>(Opcode::kDoubleBinaryOp)],
+      1);
+  auto result = Ref<>::steal(PyObject_CallObject(func, args));
+  ASSERT_NE(result, nullptr);
+  EXPECT_DOUBLE_EQ(PyFloat_AsDouble(result), 4.0);
+  auto strings = Ref<>::steal(Py_BuildValue("(ss)", "left", "right"));
+  result = Ref<>::steal(PyObject_CallObject(func, strings));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(PyUnicode_CompareWithASCIIString(result, "leftright"), 0);
+}
+#endif
+
 // Prefork compilations are immortal, so their runtime references are not
 // reclaimed.
 #ifndef ENABLE_PREFORK_MODEL

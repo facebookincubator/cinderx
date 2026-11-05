@@ -81,7 +81,8 @@ class BlockCanonicalizer {
 // analysis.
 std::unique_ptr<Function> buildHIR(
     const Preloader& preloader,
-    uint64_t recompile_threshold = 0);
+    uint64_t recompile_threshold = 0,
+    const Profile* profile = nullptr);
 std::unique_ptr<Function> buildHIR(
     const Preloader& preloader,
     const Profile& profile,
@@ -100,23 +101,17 @@ class HIRBuilder {
  public:
   explicit HIRBuilder(
       const Preloader& preloader,
-      uint64_t recompile_threshold = 0)
+      uint64_t recompile_threshold = 0,
+      const Profile* profile = nullptr)
       : code_(preloader.code()),
         preloader_(preloader),
+        profile_(profile),
         recompile_threshold_(recompile_threshold) {}
   HIRBuilder(
       const Preloader& preloader,
       const Profile& profile,
       uint64_t recompile_threshold = 0)
-      : HIRBuilder(preloader, &profile, recompile_threshold) {}
-  HIRBuilder(
-      const Preloader& preloader,
-      const Profile* profile,
-      uint64_t recompile_threshold = 0)
-      : code_(preloader.code()),
-        preloader_(preloader),
-        profile_(profile),
-        recompile_threshold_(recompile_threshold) {}
+      : HIRBuilder(preloader, recompile_threshold, &profile) {}
 
   HIRBuilder(const HIRBuilder&) = delete;
   HIRBuilder& operator=(const HIRBuilder&) = delete;

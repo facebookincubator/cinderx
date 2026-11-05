@@ -29,6 +29,7 @@
 
 #include <chrono>
 #include <iostream>
+#include <utility>
 
 namespace cinderx::jit {
 
@@ -67,7 +68,7 @@ void checkHirSize(const hir::Function& func) {
 }
 
 template <typename T>
-bool runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
+bool runPass(T&& pass, hir::Function& func, const PostPassFunction& callback) {
   bool changed = false;
   COMPILE_TIMER(func.compilation_phase_timer,
                 pass.name(),
@@ -109,9 +110,7 @@ bool runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
 } // namespace
 
 void Compiler::runPasses(jit::hir::Function& irfunc, PassConfig config) {
-  PostPassFunction callback =
-      [](hir::Function&, std::string_view, std::size_t) {};
-  runPassesImpl(irfunc, config, callback, nullptr);
+  runPasses(irfunc, config, static_cast<Profile*>(nullptr));
 }
 
 void Compiler::runPasses(
@@ -120,14 +119,15 @@ void Compiler::runPasses(
     Profile* profile) {
   PostPassFunction callback =
       [](hir::Function&, std::string_view, std::size_t) {};
-  runPassesImpl(irfunc, config, callback, profile);
+  runPassesImpl(irfunc, config, std::move(callback), profile);
 }
 
 void Compiler::runPasses(
     jit::hir::Function& irfunc,
     PassConfig config,
-    PostPassFunction callback) {
-  runPassesImpl(irfunc, config, std::move(callback), nullptr);
+    PostPassFunction callback,
+    Profile* profile) {
+  runPassesImpl(irfunc, config, std::move(callback), profile);
 }
 
 void Compiler::runPassesImpl(
@@ -200,14 +200,15 @@ void Compiler::runPassesImpl(
 
 std::optional<CompiledFunctionData> Compiler::compile(
     BorrowedRef<PyFunctionObject> func,
-    CompileMode mode) {
+    CompileMode mode,
+    Profile* profile) {
   JIT_CHECK(PyFunction_Check(func), "Expected PyFunctionObject");
   JIT_CHECK(
       !ThreadedCompileContext::compileRunning(),
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
       hir::Preloader::make(func, makeFrameReifier(func->func_code));
-  return preloader ? compile(*preloader, mode) : std::nullopt;
+  return preloader ? compile(*preloader, mode, profile) : std::nullopt;
 }
 
 PassConfig createConfig() {
@@ -268,9 +269,6 @@ std::optional<CompiledFunctionData> Compiler::compile(
     compilation_phase_timer->start("Lowering into HIR");
   }
 
-  Profile empty_profile;
-  Profile& hir_profile = profile != nullptr ? *profile : empty_profile;
-
   Timer timer;
   uint64_t recompile_threshold = 0;
 #if CINDER_CAN_IDENTIFY_JIT_FRAMES
@@ -279,7 +277,7 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 #endif
   std::unique_ptr<hir::Function> irfunc(
-      hir::buildHIR(preloader, hir_profile, recompile_threshold));
+      hir::buildHIR(preloader, recompile_threshold, profile));
 
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
@@ -296,11 +294,6 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 
   PassConfig config = createConfig();
-  // The caller's profile, not `hir_profile`: the inliner merges into what it is
-  // given, and the merged entries hold strong references to Python types.  The
-  // caller knows to destroy its profile with the GIL held; `empty_profile` is
-  // a local that would be destroyed wherever this compile happens to end,
-  // which on a worker thread is with the GIL released.
   COMPILE_TIMER(
       irfunc->compilation_phase_timer,
       "HIR transformations",

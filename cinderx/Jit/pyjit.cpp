@@ -4636,7 +4636,8 @@ void processBackgroundCompile(
           *preloader,
           std::move(task->func),
           task->expected == nullptr ? nullptr : &task->replacement,
-          true);
+          true,
+          &task->profile);
       task->func = std::move(unclaimed);
       if (result != Result::OK) {
         JIT_DLOG(
@@ -4830,6 +4831,15 @@ void scheduleBackgroundCompile(
     }
   });
 
+  Profile profile;
+  if (expected_ref != nullptr) {
+    FreeThreadedJITEntrypointGuard guard;
+    // Acquiring the entry lock can detach under FT, allowing A to be retired.
+    if (jit_ctx->lookupFunc(func) != expected_ref) {
+      return;
+    }
+    profile = expected_ref->snapshotProfile();
+  }
   // Preload on this (GIL-holding) thread, then take ownership of the resulting
   // preloaders so they outlive this call.
   hir::PreloaderMap preloaders;
@@ -4858,7 +4868,8 @@ void scheduleBackgroundCompile(
       Ref<PyDictObject>::create(key.builtins),
       Ref<PyDictObject>::create(key.globals),
       std::move(expected_ref),
-      nullptr);
+      nullptr,
+      std::move(profile));
 
   // Enqueue the task and lazily start the single worker thread.  If the worker
   // can't be started, release the task's Python references under the guard we
