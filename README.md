@@ -26,7 +26,7 @@ However these features are not compatible with the stock CPython runtime yet.
 
 ## Requirements
 
-- Python 3.14
+- Python ≥3.14.5,<3.16
 - GCC 13+ or Clang 18+
 
 |         |        Linux       |        macOS       |       Windows      |
