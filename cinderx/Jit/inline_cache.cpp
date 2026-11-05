@@ -3851,6 +3851,21 @@ enum class CompareCache::Specialization : uint8_t {
 CompareCache::CompareCache(hir::CompareOp op)
     : specialization_{selectInitialSpecialization(op)} {}
 
+CompareCache::Specialization CompareCache::getSpecialization() const {
+  return specialization_.load(std::memory_order_relaxed);
+}
+
+void CompareCache::setSpecialization(
+    Specialization expected,
+    Specialization desired) {
+  if constexpr (kFreeThreadedBuild) {
+    specialization_.compare_exchange_strong(
+        expected, desired, std::memory_order_relaxed);
+  } else {
+    specialization_.store(desired, std::memory_order_relaxed);
+  }
+}
+
 CompareCache::Specialization CompareCache::selectInitialSpecialization(
     hir::CompareOp op) {
   switch (op) {
@@ -3874,6 +3889,7 @@ CompareCache::Specialization CompareCache::selectInitialSpecialization(
 }
 
 template <
+    auto Current,
     auto LhsKind,
     auto RhsKind,
     auto ReturnKind,
@@ -3890,41 +3906,47 @@ PyObject* CompareCache::invokeSpecialized(
     PyObject* result = Op(lhs, rhs);
     if constexpr (returnNeedsCheck(ReturnKind)) {
       if (result != nullptr && !checkFor(ReturnKind)(result)) {
-        cache->specialization_ = Fallback;
+        cache->setSpecialization(Current, Fallback);
       }
     }
     return result;
   }
 
-  cache->specialization_ = Fallback;
+  cache->setSpecialization(Current, Fallback);
   return ReDispatch(lhs, rhs, cache);
 }
 
 #define POPULATE_COMPARE_SPECIALIZATION(                              \
-    DISPATCH, NAME, LHS, RHS, RET, OP, FALLBACK)                      \
+    DISPATCH, INITIAL, NAME, LHS, RHS, RET, OP, FALLBACK)             \
   if (constexpr CheckFn lhsCheck = checkFor(SpecializedType::k##LHS), \
       rhsCheck = checkFor(SpecializedType::k##RHS);                   \
       lhsCheck(lhs) && rhsCheck(rhs)) {                               \
-    cache->specialization_ = CompareCache::Specialization::k##NAME;   \
+    cache->setSpecialization(                                         \
+        CompareCache::Specialization::INITIAL,                        \
+        CompareCache::Specialization::k##NAME);                       \
     return DISPATCH(lhs, rhs, cache);                                 \
   }
 #define POPULATE_EQUAL_SPECIALIZATION(...) \
-  POPULATE_COMPARE_SPECIALIZATION(equal, __VA_ARGS__)
+  POPULATE_COMPARE_SPECIALIZATION(equal, kUninitializedEqual, __VA_ARGS__)
 #define POPULATE_NOTEQUAL_SPECIALIZATION(...) \
-  POPULATE_COMPARE_SPECIALIZATION(notEqual, __VA_ARGS__)
+  POPULATE_COMPARE_SPECIALIZATION(notEqual, kUninitializedNotEqual, __VA_ARGS__)
 #define POPULATE_LESSTHAN_SPECIALIZATION(...) \
-  POPULATE_COMPARE_SPECIALIZATION(lessThan, __VA_ARGS__)
+  POPULATE_COMPARE_SPECIALIZATION(lessThan, kUninitializedLessThan, __VA_ARGS__)
 #define POPULATE_LESSTHANEQUAL_SPECIALIZATION(...) \
-  POPULATE_COMPARE_SPECIALIZATION(lessThanEqual, __VA_ARGS__)
+  POPULATE_COMPARE_SPECIALIZATION(                 \
+      lessThanEqual, kUninitializedLessThanEqual, __VA_ARGS__)
 #define POPULATE_GREATERTHAN_SPECIALIZATION(...) \
-  POPULATE_COMPARE_SPECIALIZATION(greaterThan, __VA_ARGS__)
+  POPULATE_COMPARE_SPECIALIZATION(               \
+      greaterThan, kUninitializedGreaterThan, __VA_ARGS__)
 #define POPULATE_GREATERTHANEQUAL_SPECIALIZATION(...) \
-  POPULATE_COMPARE_SPECIALIZATION(greaterThanEqual, __VA_ARGS__)
+  POPULATE_COMPARE_SPECIALIZATION(                    \
+      greaterThanEqual, kUninitializedGreaterThanEqual, __VA_ARGS__)
 
 #define DISPATCH_COMPARE_SPECIALIZATION(         \
     DISPATCH, NAME, LHS, RHS, RET, OP, FALLBACK) \
   case CompareCache::Specialization::k##NAME:    \
     return invokeSpecialized<                    \
+        Specialization::k##NAME,                 \
         SpecializedType::k##LHS,                 \
         SpecializedType::k##RHS,                 \
         SpecializedType::k##RET,                 \
@@ -4083,7 +4105,8 @@ PyObject* CompareCache::populateAndInvokeEqual(
     CompareCache* cache) {
   FOREACH_EQUAL_SPECIALIZATION(POPULATE_EQUAL_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kEqualGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedEqual, Specialization::kEqualGeneric);
   return equalGeneric(lhs, rhs, cache);
 }
 
@@ -4093,7 +4116,8 @@ PyObject* CompareCache::populateAndInvokeNotEqual(
     CompareCache* cache) {
   FOREACH_NOTEQUAL_SPECIALIZATION(POPULATE_NOTEQUAL_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kNotEqualGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedNotEqual, Specialization::kNotEqualGeneric);
   return notEqualGeneric(lhs, rhs, cache);
 }
 
@@ -4103,7 +4127,8 @@ PyObject* CompareCache::populateAndInvokeLessThan(
     CompareCache* cache) {
   FOREACH_LESSTHAN_SPECIALIZATION(POPULATE_LESSTHAN_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kLessThanGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedLessThan, Specialization::kLessThanGeneric);
   return lessThanGeneric(lhs, rhs, cache);
 }
 
@@ -4113,7 +4138,9 @@ PyObject* CompareCache::populateAndInvokeLessThanEqual(
     CompareCache* cache) {
   FOREACH_LESSTHANEQUAL_SPECIALIZATION(POPULATE_LESSTHANEQUAL_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kLessThanEqualGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedLessThanEqual,
+      Specialization::kLessThanEqualGeneric);
   return lessThanEqualGeneric(lhs, rhs, cache);
 }
 
@@ -4123,7 +4150,9 @@ PyObject* CompareCache::populateAndInvokeGreaterThan(
     CompareCache* cache) {
   FOREACH_GREATERTHAN_SPECIALIZATION(POPULATE_GREATERTHAN_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kGreaterThanGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedGreaterThan,
+      Specialization::kGreaterThanGeneric);
   return greaterThanGeneric(lhs, rhs, cache);
 }
 
@@ -4134,13 +4163,15 @@ PyObject* CompareCache::populateAndInvokeGreaterThanEqual(
   FOREACH_GREATERTHANEQUAL_SPECIALIZATION(
       POPULATE_GREATERTHANEQUAL_SPECIALIZATION)
 
-  cache->specialization_ = Specialization::kGreaterThanEqualGeneric;
+  cache->setSpecialization(
+      Specialization::kUninitializedGreaterThanEqual,
+      Specialization::kGreaterThanEqualGeneric);
   return greaterThanEqualGeneric(lhs, rhs, cache);
 }
 
 PyObject*
 CompareCache::equal(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedEqual:
       return populateAndInvokeEqual(lhs, rhs, cache);
     case Specialization::kEqualGeneric:
@@ -4153,7 +4184,7 @@ CompareCache::equal(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
 
 PyObject*
 CompareCache::notEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedNotEqual:
       return populateAndInvokeNotEqual(lhs, rhs, cache);
     case Specialization::kNotEqualGeneric:
@@ -4166,7 +4197,7 @@ CompareCache::notEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
 
 PyObject*
 CompareCache::lessThan(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedLessThan:
       return populateAndInvokeLessThan(lhs, rhs, cache);
     case Specialization::kLessThanGeneric:
@@ -4179,7 +4210,7 @@ CompareCache::lessThan(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
 
 PyObject*
 CompareCache::lessThanEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedLessThanEqual:
       return populateAndInvokeLessThanEqual(lhs, rhs, cache);
     case Specialization::kLessThanEqualGeneric:
@@ -4193,7 +4224,7 @@ CompareCache::lessThanEqual(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
 
 PyObject*
 CompareCache::greaterThan(PyObject* lhs, PyObject* rhs, CompareCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedGreaterThan:
       return populateAndInvokeGreaterThan(lhs, rhs, cache);
     case Specialization::kGreaterThanGeneric:
@@ -4208,7 +4239,7 @@ PyObject* CompareCache::greaterThanEqual(
     PyObject* lhs,
     PyObject* rhs,
     CompareCache* cache) {
-  switch (cache->specialization_) {
+  switch (cache->getSpecialization()) {
     case Specialization::kUninitializedGreaterThanEqual:
       return populateAndInvokeGreaterThanEqual(lhs, rhs, cache);
     case Specialization::kGreaterThanEqualGeneric:
@@ -4221,7 +4252,7 @@ PyObject* CompareCache::greaterThanEqual(
 }
 
 CompareCache::CompareSpecialization CompareCache::specializedTypes() const {
-  switch (specialization_) {
+  switch (getSpecialization()) {
     case Specialization::kUninitializedEqual:
     case Specialization::kUninitializedNotEqual:
     case Specialization::kUninitializedLessThan:

@@ -1227,6 +1227,7 @@ class CompareCache {
   greaterThanEqualGeneric(PyObject* lhs, PyObject* rhs, CompareCache* cache);
 
   template <
+      auto Current,
       auto LhsKind,
       auto RhsKind,
       auto ReturnKind,
@@ -1236,7 +1237,10 @@ class CompareCache {
   static PyObject*
   invokeSpecialized(PyObject* lhs, PyObject* rhs, CompareCache* cache);
 
-  Specialization specialization_;
+  Specialization getSpecialization() const;
+  void setSpecialization(Specialization expected, Specialization desired);
+
+  std::atomic<Specialization> specialization_;
 };
 
 // Invalidate all load/store attr caches for type

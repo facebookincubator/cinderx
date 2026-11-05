@@ -49,6 +49,89 @@ class BinaryOpCacheCodegenTest : public RuntimeTest {
     RuntimeTest::TearDown();
   }
 
+#if defined(Py_GIL_DISABLED) && !defined(ENABLE_PREFORK_MODEL)
+  template <typename CacheT, typename ProfileT, typename OpKind>
+  void checkConcurrentSnapshots(
+      OpKind kind,
+      PyObject* (*invoke)(PyObject*, PyObject*, CacheT*),
+      double expected,
+      std::optional<Type> result_type = std::nullopt) {
+    auto six = Ref<>::steal(PyLong_FromLong(6));
+    auto two = Ref<>::steal(PyLong_FromLong(2));
+    auto six_float = Ref<>::steal(PyFloat_FromDouble(6.0));
+    auto two_float = Ref<>::steal(PyFloat_FromDouble(2.0));
+    ASSERT_NE(six, nullptr);
+    ASSERT_NE(two, nullptr);
+    ASSERT_NE(six_float, nullptr);
+    ASSERT_NE(two_float, nullptr);
+    ProfileCollector collector;
+    std::vector<std::unique_ptr<CacheT>> caches;
+    for (int i = 0; i < 32; ++i) {
+      caches.push_back(std::make_unique<CacheT>(kind));
+      collector.add(nullptr, BCOffset{i * 2}, caches.back().get());
+    }
+    std::barrier start{3};
+    std::atomic<bool> correct{true};
+    auto work = [&](PyObject* left, PyObject* right) {
+      const PyGILState_STATE state = PyGILState_Ensure();
+      PyThreadState* tstate = PyEval_SaveThread();
+      start.arrive_and_wait();
+      PyEval_RestoreThread(tstate);
+      for (const auto& cache : caches) {
+        for (int i = 0; i < 32; ++i) {
+          auto result = Ref<>::steal(invoke(left, right, cache.get()));
+          if (result == nullptr || PyFloat_AsDouble(result) != expected) {
+            correct.store(false, std::memory_order_relaxed);
+            PyErr_Clear();
+          }
+        }
+      }
+      PyGILState_Release(state);
+    };
+    std::thread ints(work, six.get(), two.get());
+    std::thread floats(work, six_float.get(), two_float.get());
+    PyThreadState* tstate = PyEval_SaveThread();
+    start.arrive_and_wait();
+    PyEval_RestoreThread(tstate);
+    for (int i = 0; i < 128; ++i) {
+      Profile profile = collector.snapshot();
+      for (const auto& [location, entry] : profile.entries()) {
+        const auto& observed = std::get<ProfileT>(entry);
+        EXPECT_EQ(observed.left_type, observed.right_type);
+        EXPECT_TRUE(
+            observed.left_type == TLongCompact ||
+            observed.left_type == TLongExact ||
+            observed.left_type == TFloatExact);
+        if (!result_type.has_value() && observed.left_type == TLongCompact) {
+          EXPECT_TRUE(
+              observed.res_type == TLongCompact ||
+              observed.res_type == TLongExact);
+        } else {
+          EXPECT_EQ(
+              observed.res_type, result_type.value_or(observed.left_type));
+        }
+      }
+    }
+    tstate = PyEval_SaveThread();
+    ints.join();
+    floats.join();
+    PyEval_RestoreThread(tstate);
+    EXPECT_TRUE(correct.load(std::memory_order_relaxed));
+    using Specialization = decltype(caches.front()->specializedTypes());
+    std::vector<Specialization> observed;
+    for (const auto& cache : caches) {
+      observed.push_back(cache->specializedTypes());
+    }
+    const std::vector<Specialization> generic(
+        caches.size(),
+        {SpecializedType::kGeneric,
+         SpecializedType::kGeneric,
+         SpecializedType::kGeneric});
+    EXPECT_EQ(observed, generic);
+    EXPECT_TRUE(collector.snapshot().entries().empty());
+  }
+#endif
+
   Config saved_config_;
 };
 
@@ -332,7 +415,6 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileDeoptedLocationsSuppressFindAndMerge) {
       profile.entries().find(stale_location) == profile.entries().end());
 }
 
-#ifndef Py_GIL_DISABLED
 TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesComparesByLocation) {
   ProfileCollector collector;
   const BCOffset long_offset{24};
@@ -408,10 +490,9 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesComparesByLocation) {
 }
 
 #endif
-#endif
 
 #if defined(Py_GIL_DISABLED) && !defined(ENABLE_PREFORK_MODEL)
-TEST_F(BinaryOpCacheCodegenTest, ProfileExcludesOtherCacheKinds) {
+TEST_F(BinaryOpCacheCodegenTest, ProfileExcludesAttributeCacheKinds) {
   ProfileCollector collector;
   const ProfileLocation binary_location{nullptr, BCOffset{8}};
   collector.add(binary_location, BinaryOpProfile{TLong, TLong, TLong});
@@ -432,8 +513,10 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileExcludesOtherCacheKinds) {
       StoreAttrProfile{&PyLong_Type, std::nullopt, false});
 
   Profile profile = collector.snapshot();
-  ASSERT_EQ(profile.entries().size(), 1);
+  ASSERT_EQ(profile.entries().size(), 3);
   EXPECT_NE(profile.find<BinaryOpProfile>(binary_location), nullptr);
+  EXPECT_NE(profile.find<CompareProfile>(nullptr, BCOffset{16}), nullptr);
+  EXPECT_NE(profile.find<CompareProfile>(nullptr, BCOffset{24}), nullptr);
 }
 
 TEST_F(BinaryOpCacheCodegenTest, ConcurrentSnapshotsPreserveGenericFallback) {
@@ -447,76 +530,34 @@ TEST_F(BinaryOpCacheCodegenTest, ConcurrentSnapshotsPreserveGenericFallback) {
       {BinaryOpKind::kMultiply, BinaryOpCache::multiply, 12.0},
       {BinaryOpKind::kSubtract, BinaryOpCache::subtract, 4.0},
       {BinaryOpKind::kTrueDivide, BinaryOpCache::trueDivide, 3.0}};
-  auto six = Ref<>::steal(PyLong_FromLong(6));
-  auto two = Ref<>::steal(PyLong_FromLong(2));
-  auto six_float = Ref<>::steal(PyFloat_FromDouble(6.0));
-  auto two_float = Ref<>::steal(PyFloat_FromDouble(2.0));
-  ASSERT_NE(six, nullptr);
-  ASSERT_NE(two, nullptr);
-  ASSERT_NE(six_float, nullptr);
-  ASSERT_NE(two_float, nullptr);
-
   for (const Operation& op : operations) {
-    PerCompilationStableStorage storage;
-    ProfileCollector collector;
-    std::vector<BinaryOpCache*> caches;
-    for (int i = 0; i < 32; ++i) {
-      BinaryOpCache* cache = storage.allocateBinaryOpCache(op.kind);
-      caches.push_back(cache);
-      collector.add(nullptr, BCOffset{i * 2}, cache);
-    }
-    std::barrier start{3};
-    std::atomic<bool> correct{true};
-    auto invoke = [&](PyObject* left, PyObject* right) {
-      PyGILState_STATE state = PyGILState_Ensure();
-      PyThreadState* tstate = PyEval_SaveThread();
-      start.arrive_and_wait();
-      PyEval_RestoreThread(tstate);
-      for (BinaryOpCache* cache : caches) {
-        for (int i = 0; i < 32; ++i) {
-          auto result = Ref<>::steal(op.invoke(left, right, cache));
-          if (result == nullptr || PyFloat_AsDouble(result) != op.expected) {
-            correct.store(false, std::memory_order_relaxed);
-            PyErr_Clear();
-          }
-        }
-      }
-      PyGILState_Release(state);
-    };
-    std::thread ints(invoke, six.get(), two.get());
-    std::thread floats(invoke, six_float.get(), two_float.get());
-    PyThreadState* tstate = PyEval_SaveThread();
-    start.arrive_and_wait();
-    PyEval_RestoreThread(tstate);
-    for (int i = 0; i < 128; ++i) {
-      Profile profile = collector.snapshot();
-      for (const auto& [location, entry] : profile.entries()) {
-        const auto& binary = std::get<BinaryOpProfile>(entry);
-        EXPECT_EQ(binary.left_type, binary.right_type);
-        EXPECT_TRUE(
-            binary.left_type == TLongCompact ||
-            binary.left_type == TLongExact || binary.left_type == TFloatExact);
-        if (op.kind == BinaryOpKind::kTrueDivide) {
-          EXPECT_EQ(binary.res_type, TFloatExact);
-        } else if (binary.left_type == TLongCompact) {
-          EXPECT_TRUE(
-              binary.res_type == TLongCompact || binary.res_type == TLongExact);
-        } else {
-          EXPECT_EQ(binary.res_type, binary.left_type);
-        }
-      }
-    }
-    tstate = PyEval_SaveThread();
-    ints.join();
-    floats.join();
-    PyEval_RestoreThread(tstate);
-    EXPECT_TRUE(correct.load(std::memory_order_relaxed));
-    for (BinaryOpCache* cache : caches) {
-      EXPECT_EQ(cache->specializedTypes().lhs, SpecializedType::kGeneric);
-      EXPECT_EQ(cache->specializedTypes().rhs, SpecializedType::kGeneric);
-      EXPECT_EQ(cache->specializedTypes().ret, SpecializedType::kGeneric);
-    }
-    EXPECT_TRUE(collector.snapshot().entries().empty());
+    checkConcurrentSnapshots<BinaryOpCache, BinaryOpProfile>(
+        op.kind,
+        op.invoke,
+        op.expected,
+        op.kind == BinaryOpKind::kTrueDivide ? std::optional<Type>{TFloatExact}
+                                             : std::nullopt);
+  }
+}
+
+TEST_F(
+    BinaryOpCacheCodegenTest,
+    ConcurrentCompareSnapshotsPreserveGenericFallback) {
+  struct Operation {
+    CompareOp kind;
+    PyObject* (*invoke)(PyObject*, PyObject*, CompareCache*);
+    bool expected;
+  };
+  const Operation operations[] = {
+      {CompareOp::kEqual, CompareCache::equal, false},
+      {CompareOp::kNotEqual, CompareCache::notEqual, true},
+      {CompareOp::kLessThan, CompareCache::lessThan, false},
+      {CompareOp::kLessThanEqual, CompareCache::lessThanEqual, false},
+      {CompareOp::kGreaterThan, CompareCache::greaterThan, true},
+      {CompareOp::kGreaterThanEqual, CompareCache::greaterThanEqual, true}};
+  for (const Operation& op : operations) {
+    checkConcurrentSnapshots<CompareCache, CompareProfile>(
+        op.kind, op.invoke, op.expected, TBool);
   }
 }
 #endif
@@ -563,7 +604,6 @@ def test(a, b):
   EXPECT_EQ(PyLong_AsLong(recompiled_result), 3);
 }
 
-#ifndef Py_GIL_DISABLED
 TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesFromCompareProfile) {
   const char* src = R"(
 def test(a, b):
@@ -605,8 +645,6 @@ def test(a, b):
   ASSERT_NE(recompiled_result, nullptr);
   EXPECT_EQ(recompiled_result.get(), Py_False);
 }
-
-#endif
 
 TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedPayloads) {
   PerCompilationStableStorage storage;
@@ -672,7 +710,6 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedPayloads) {
   EXPECT_EQ(conflicting->right_type, TFloatExact);
 }
 
-#ifndef Py_GIL_DISABLED
 TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedComparePayloads) {
   ProfileCollector collector;
 
@@ -737,8 +774,6 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedComparePayloads) {
   EXPECT_EQ(conflicting->res_type, TBool);
 }
 
-#endif
-
 TEST_F(BinaryOpCacheCodegenTest, RecompilePersistsProfileAcrossRecompiles) {
   const char* src = R"(
 def test(a, b):
@@ -801,7 +836,6 @@ def test(a, b):
   EXPECT_EQ(PyLong_AsLong(rerecompiled_result), 3);
 }
 
-#ifndef Py_GIL_DISABLED
 TEST_F(
     BinaryOpCacheCodegenTest,
     RecompilePersistsCompareProfileAcrossRecompiles) {
@@ -868,8 +902,6 @@ def test(a, b):
   ASSERT_NE(rerecompiled_result, nullptr);
   EXPECT_EQ(rerecompiled_result.get(), Py_False);
 }
-
-#endif
 
 TEST_F(BinaryOpCacheCodegenTest, ProfileDropsEntryOnGuardFailure) {
   const char* src = R"(

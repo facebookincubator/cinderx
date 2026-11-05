@@ -93,11 +93,11 @@ std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   if (const auto* cache = std::get_if<BinaryOpCache*>(&source)) {
     return binaryOpPayload(**cache);
   }
-  if constexpr (kFreeThreadedBuild) {
-    return std::nullopt;
-  }
   if (const auto* cache = std::get_if<CompareCache*>(&source)) {
     return comparePayload(**cache);
+  }
+  if constexpr (kFreeThreadedBuild) {
+    return std::nullopt;
   }
   if (const auto* cache = std::get_if<LoadAttrCache*>(&source)) {
     return loadAttrPayload(**cache);
@@ -177,7 +177,8 @@ Profile ProfileCollector::snapshot() const {
     observed.reserve(sources.size());
     for (const auto& source : sources) {
       if constexpr (kFreeThreadedBuild) {
-        if (!std::holds_alternative<BinaryOpProfile>(source)) {
+        if (!std::holds_alternative<BinaryOpProfile>(source) &&
+            !std::holds_alternative<CompareProfile>(source)) {
           continue;
         }
       }
