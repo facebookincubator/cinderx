@@ -844,14 +844,6 @@ void deoptAllJitFramesOnStack() {
   while (ts != nullptr) {
     _PyInterpreterFrame* frame = currentFrame(ts);
 
-    // Only skip the topmost frame for the current thread — it's the
-    // instrumentation-activation call (e.g. register_callback), not a
-    // frame we need to deopt. Other threads' topmost frames may be
-    // looping JIT code stopped at the eval breaker.
-    if (ts == PyThreadState_Get() && frame != nullptr) {
-      frame = frame->previous;
-    }
-
     // Track innermost inlined frame. updatePrevInstr must be called on
     // the innermost frame so it walks back and updates all inlined frames.
     _PyInterpreterFrame* innermost_inlined = nullptr;

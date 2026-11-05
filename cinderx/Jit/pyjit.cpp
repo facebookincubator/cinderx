@@ -2030,6 +2030,8 @@ void disable_jit_impl(bool deopt_all) {
       }
     }
     JIT_DLOG("Deopted {} compiled functions", success);
+    patchJitGenAmSendForDeopt();
+    deoptAllJitFramesOnStack();
   }
 
   if (isJitUsable()) {
@@ -2102,6 +2104,7 @@ bool enable_jit_impl() {
       "{} functions still parked after re-enabling the JIT",
       jitCtx()->deoptedFuncs().size());
 
+  unpatchJitGenAmSendForDeopt();
   std::atomic_ref{getMutableConfig().state}.store(State::kRunning);
 #ifdef ENABLE_PREFORK_MODEL
   Ci_code_counters_frozen = false;
@@ -2169,12 +2172,9 @@ bool toggleJitBasedOnInstrumentationState() {
   if (isInstrumentationActive()) {
     if (!isJitPaused()) {
       disable_jit_impl(true /* deopt_all */);
-      patchJitGenAmSendForDeopt();
-      deoptAllJitFramesOnStack();
     }
     return true;
   }
-  unpatchJitGenAmSendForDeopt();
   return enable_jit_impl();
 }
 

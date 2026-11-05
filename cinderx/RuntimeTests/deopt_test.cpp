@@ -1120,6 +1120,101 @@ def outer():
   EXPECT_TRUE(isIntEquals(call("outer"), 17));
   EXPECT_TRUE(isJitCompiled(outer));
 }
+
+TEST_F(StackDeoptTest, DisableDeoptAllTransitionsActiveCallersToInterpreter) {
+  Ref<> probe =
+      Ref<>::steal(PyCFunction_New(&current_frame_is_jitted, nullptr));
+  ASSERT_NE(probe, nullptr);
+  runCode(R"(
+from cinderx.jit import disable, enable
+
+def inner():
+    assert is_jitted()
+    disable(deopt_all=True)
+    assert not is_jitted()
+    disable(deopt_all=True)
+    return 7
+
+def outer():
+    assert is_jitted()
+    result = 10 + inner()
+    assert not is_jitted()
+    return result
+
+def test():
+    try:
+        return outer()
+    finally:
+        enable()
+)");
+  Ref<PyFunctionObject> outer{getGlobal("outer")};
+  ASSERT_EQ(PyDict_SetItemString(outer->func_globals, "is_jitted", probe), 0);
+  compile("inner");
+  compile("outer");
+
+  EXPECT_TRUE(isIntEquals(call("test"), 17));
+  EXPECT_TRUE(isJitCompiled(outer));
+}
+
+TEST_F(
+    StackDeoptTest,
+    DisableDeoptAllTransitionsSuspendedGeneratorToInterpreter) {
+  runCode(R"(
+from cinderx.jit import disable, enable
+
+def generator():
+    yield 1
+    yield 2
+)");
+  compile("generator");
+  Ref<> gen = call("generator");
+  ASSERT_NE(gen, nullptr);
+  auto* frame = generatorFrame(reinterpret_cast<PyGenObject*>(gen.get()));
+  EXPECT_TRUE(isIntEquals(Ref<>::steal(PyIter_Next(gen)), 1));
+  EXPECT_TRUE(frameJITMarker(frame));
+
+  runCode("disable(deopt_all=True)");
+  EXPECT_TRUE(isIntEquals(Ref<>::steal(PyIter_Next(gen)), 2));
+  EXPECT_FALSE(frameJITMarker(frame));
+  runCode("enable()");
+  Ref<PyFunctionObject> func{getGlobal("generator")};
+  EXPECT_TRUE(isJitCompiled(func));
+}
+
+TEST_F(StackDeoptTest, DisableDeoptAllTransitionsRunningGeneratorAndCaller) {
+  Ref<> probe =
+      Ref<>::steal(PyCFunction_New(&current_frame_is_jitted, nullptr));
+  ASSERT_NE(probe, nullptr);
+  runCode(R"(
+from cinderx.jit import disable, enable
+
+def generator():
+    assert is_jitted()
+    disable(deopt_all=True)
+    assert not is_jitted()
+    yield 7
+
+def caller():
+    assert is_jitted()
+    gen = generator()
+    result = next(gen)
+    assert not is_jitted()
+    gen.close()
+    return result
+
+def test():
+    try:
+        return caller()
+    finally:
+        enable()
+)");
+  Ref<PyFunctionObject> caller{getGlobal("caller")};
+  ASSERT_EQ(PyDict_SetItemString(caller->func_globals, "is_jitted", probe), 0);
+  compile("generator");
+  compile("caller");
+
+  EXPECT_TRUE(isIntEquals(call("test"), 7));
+}
 #endif
 
 } // namespace cinderx

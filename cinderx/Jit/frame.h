@@ -82,9 +82,7 @@ void jitFrameInit(
 Ref<> makeFrameReifier(BorrowedRef<PyCodeObject> code);
 
 // Walk all thread stacks and patch JIT frame return addresses to their
-// per-callsite deopt exit stubs. Skips the topmost frame on the current
-// thread (the instrumentation-activation call). Used when instrumentation is
-// enabled to cause frames to deopt on return.
+// per-callsite deopt exit stubs, causing frames to deopt on return.
 // Requires lightweight frames or the JIT frame marker.
 void deoptAllJitFramesOnStack();
 

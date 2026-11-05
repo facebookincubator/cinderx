@@ -8,13 +8,17 @@ import unittest
 from types import CodeType, FrameType
 from typing import Callable, Generator
 
-from cinderx.jit import force_compile, is_jit_compiled
+from cinderx.jit import _has_lightweight_frames, force_compile, is_jit_compiled
 from cinderx.test_support import (
     can_read_cross_thread_frames,
     passUnless,
     run_in_fresh_process,
     skip_unless_jit,
-    skip_unless_lightweight_frames,
+)
+
+skip_unless_stack_deopt = passUnless(
+    sys.version_info >= (3, 14, 5) or _has_lightweight_frames(),
+    "JIT frame marker or lightweight frames needed for OSR",
 )
 
 
@@ -511,7 +515,7 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         can_read_cross_thread_frames(),
         "Cross-thread stack walking requires process_vm_readv",
     )
-    @skip_unless_lightweight_frames("Lightweight frames needed for OSR")
+    @skip_unless_stack_deopt
     @run_with_instrumentation
     def test_looping_thread_deopted_on_instrumentation(self) -> None:
         # A worker thread in a tight JIT loop should have its topmost frame
@@ -767,7 +771,7 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
 
 
 @skip_unless_jit("Tests functionality on the JIT")
-@skip_unless_lightweight_frames("Lightweight frames needed for OSR")
+@skip_unless_stack_deopt
 class JitStackFrameDeoptTest(unittest.TestCase):
     """
     Test that JIT frames on the stack are deopted when instrumentation attaches.
@@ -820,12 +824,19 @@ class JitStackFrameDeoptTest(unittest.TestCase):
         force_compile(register_monitoring)
         force_compile(parent)
         force_compile(grandparent)
+        self.assertTrue(is_jit_compiled(register_monitoring))
         self.assertTrue(is_jit_compiled(grandparent))
         self.assertTrue(is_jit_compiled(parent))
 
         result = grandparent()
 
         self.assertEqual(result, 611)
+
+        self.assertIn(
+            "register_monitoring",
+            [name for name, _ in line_events],
+            "The frame activating monitoring should receive LINE events after registration",
+        )
 
         # Both parent and grandparent should receive LINE events after deopt.
         # parent is the direct caller of register_monitoring — its return
@@ -950,12 +961,20 @@ class JitStackFrameDeoptTest(unittest.TestCase):
         def grandparent() -> int:
             return parent() + 100
 
+        force_compile(register_return_monitoring)
         force_compile(parent)
         force_compile(grandparent)
+        self.assertTrue(is_jit_compiled(register_return_monitoring))
 
         result = grandparent()
 
         self.assertEqual(result, 143)
+
+        self.assertIn(
+            "register_return_monitoring",
+            return_events,
+            "The frame activating monitoring should receive PY_RETURN after registration",
+        )
 
         # Both parent and grandparent should trigger PY_RETURN when they
         # return through the deopt trampoline via multi-frame chaining.
@@ -1247,7 +1266,10 @@ class JitStackFrameDeoptTest(unittest.TestCase):
         line_events: list[tuple[str, str]] = []
 
         def trace_func(frame: FrameType, event: str, arg: object):
-            if frame.f_code.co_name == "grandparent" and event == "line":
+            if (
+                frame.f_code.co_name in ("activate_tracing", "grandparent")
+                and event == "line"
+            ):
                 line_events.append((frame.f_code.co_name, event))
             return trace_func
 
@@ -1270,14 +1292,22 @@ class JitStackFrameDeoptTest(unittest.TestCase):
             z = 200  # LINE event expected here
             return x + y + z
 
+        force_compile(activate_tracing)
         force_compile(parent)
         force_compile(grandparent)
+        self.assertTrue(is_jit_compiled(activate_tracing))
         self.assertTrue(is_jit_compiled(grandparent))
         self.assertTrue(is_jit_compiled(parent))
 
         result = grandparent()
 
         self.assertEqual(result, 311)
+
+        self.assertIn(
+            ("activate_tracing", "line"),
+            line_events,
+            "The frame activating tracing should receive LINE events after settrace",
+        )
 
         # Grandparent should receive LINE events after parent returns
         # through the deopt trampoline via multi-frame deopt chaining.
