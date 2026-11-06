@@ -110,6 +110,74 @@ bool safeReadUnchecked(const StackFrame* addr, StackFrame* out) {
 
 constexpr const char* kSafeReadMechanism = "ReadProcessMemory";
 
+// Advances a suspended thread's context to its caller. False when the function
+// has no unwind data, or the advance makes no progress.
+bool unwindOne(CONTEXT* context) {
+#if defined(_M_ARM64) || defined(__aarch64__)
+  const DWORD64 control_pc = context->Pc;
+  const uintptr_t stack_pointer = context->Sp;
+#else
+  const DWORD64 control_pc = context->Rip;
+  const uintptr_t stack_pointer = context->Rsp;
+#endif
+  if (control_pc == 0) {
+    return false;
+  }
+  DWORD64 image_base = 0;
+  const PRUNTIME_FUNCTION entry =
+      ::RtlLookupFunctionEntry(control_pc, &image_base, nullptr);
+  if (entry == nullptr) {
+    return false;
+  }
+  CONTEXT next = *context;
+  PVOID handler_data = nullptr;
+  ULONG64 establisher = 0;
+  ::RtlVirtualUnwind(
+      UNW_FLAG_NHANDLER,
+      image_base,
+      control_pc,
+      entry,
+      &next,
+      &handler_data,
+      &establisher,
+      nullptr);
+#if defined(_M_ARM64) || defined(__aarch64__)
+  const uintptr_t next_pc = next.Pc;
+  const uintptr_t next_sp = next.Sp;
+#else
+  const uintptr_t next_pc = next.Rip;
+  const uintptr_t next_sp = next.Rsp;
+#endif
+  if (next_pc == 0 || next_pc == control_pc || next_sp < stack_pointer) {
+    return false;
+  }
+  *context = next;
+  return true;
+}
+
+// Advances a suspended thread's context one frame at a time until the
+// frame-pointer register names a caller, or the chain runs out. Win64 code
+// keeps a frame pointer only where it needs one, so a thread stopped in
+// frameless code reports a null frame pointer; the unwind data for the
+// frames above it still names the first caller that keeps one, and the
+// context that caller runs in is the one a frame-pointer walk starts from.
+bool unwindToFramePointer(CONTEXT* context) {
+  for (int steps = 0; steps < 256; steps++) {
+    if (!unwindOne(context)) {
+      return false;
+    }
+#if defined(_M_ARM64) || defined(__aarch64__)
+    const uintptr_t fp = context->Fp;
+#else
+    const uintptr_t fp = context->Rbp;
+#endif
+    if (fp != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 #else
 
 // Our own pid, for the self-reads below. Cached because getpid() is a real
@@ -671,8 +739,9 @@ StackWalk::SuspendedThread::SuspendedThread(ThreadId thread) {
   // Rsp, but the frame pointer is Rbp, which counts as an integer register.
   // Asking for control state alone is the classic way to end up walking an
   // uninitialised frame pointer. On AArch64 all three are control registers and
-  // the extra flag costs nothing.
-  context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+  // the extra flag costs nothing. The full context is what the unwind below
+  // restores registers from.
+  context.ContextFlags = CONTEXT_FULL;
   if (!::GetThreadContext(handle, &context)) {
     return;
   }
@@ -690,6 +759,27 @@ StackWalk::SuspendedThread::SuspendedThread(ThreadId thread) {
 #else
 #error "StackWalk supports x86-64 and AArch64 only"
 #endif
+
+  // A null frame pointer means the thread stopped in frameless code, not that
+  // it has no stack: unwind to the first caller that keeps a frame pointer
+  // and start from there, losing only the frameless frames below it. If no
+  // such caller exists there is no chain to walk, and the walk fails.
+  if (frame_ == nullptr) {
+    if (!unwindToFramePointer(&context)) {
+      return;
+    }
+#if defined(_M_ARM64) || defined(__aarch64__)
+    frame_ =
+        reinterpret_cast<const StackFrame*>(static_cast<uintptr_t>(context.Fp));
+    pc_ = reinterpret_cast<const void*>(static_cast<uintptr_t>(context.Pc));
+    sp_ = static_cast<uintptr_t>(context.Sp);
+#elif defined(_M_X64) || defined(__x86_64__)
+    frame_ = reinterpret_cast<const StackFrame*>(
+        static_cast<uintptr_t>(context.Rbp));
+    pc_ = reinterpret_cast<const void*>(static_cast<uintptr_t>(context.Rip));
+    sp_ = static_cast<uintptr_t>(context.Rsp);
+#endif
+  }
 
   // Nothing more is asked of the frame pointer than that it be a plausible
   // starting point, which matters more here than anywhere else: Windows x64

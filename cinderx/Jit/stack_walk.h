@@ -168,9 +168,10 @@ enum class WalkResult {
 // restriction.
 //
 // Windows carries one caveat the other two do not. Its x64 code keeps a frame
-// pointer only where it needs one, so a thread stopped in frameless code cannot
-// be walked at all, and one stopped in code that does keep a frame pointer
-// still stops as soon as the chain reaches a caller that does not. That is the
+// pointer only where it needs one, so a thread stopped in frameless code is
+// walked through the unwind data to the first caller that keeps one, losing
+// the frameless frames below it, and fails if no caller does. A chain still
+// stops as soon as it reaches a caller that does not keep one. That is the
 // ordinary end-of-chain the cursor already recognises, so it costs short walks
 // rather than wrong ones.
 class StackWalk {
@@ -589,14 +590,17 @@ class StackWalk {
 
     // Whether the thread was stopped and its registers read, which is the only
     // state in which the accessors below mean anything. False covers a thread
-    // that could not be suspended and one whose registers could not be read;
-    // the destructor resumes it either way, so the difference matters only to
-    // the walk.
+    // that could not be suspended, one whose registers could not be read, and
+    // on Windows one stopped in frameless code with no caller keeping a frame
+    // pointer; the destructor resumes it either way, so the difference matters
+    // only to the walk.
     bool valid() const {
       return valid_;
     }
 
-    // The frame-pointer register, which is where the chain starts.
+    // The frame-pointer register, which is where the chain starts. On
+    // Windows, the first caller that keeps one when the thread stopped in
+    // frameless code.
     const StackFrame* framePointer() const {
       return frame_;
     }
