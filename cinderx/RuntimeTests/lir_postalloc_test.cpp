@@ -125,31 +125,37 @@ BB %4 - preds: %1 %2
 TEST_F(
     LIRPostAllocRewriteTest,
     TestInsertBranchForSuccessorsInCondBranchDifferentSection) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %1 %2 - section: .text
-       CondBranch {}:Object, BB%1, BB%2
-BB %1 - preds: %0 - section: .coldtext
-       {}:Object = Move {}:Object
-BB %2 - preds: %0
-       {}:Object = Move {}:Object
-)",
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{13, 64},
-      PhyLocation{0, 64},
-      PhyLocation{5, 64});
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-  parsed_func->sortBasicBlocks();
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* cold_block = function.allocateBasicBlock();
+  BasicBlock* hot_block = function.allocateBasicBlock();
+  cold_block->setSection(CodeSection::kCold);
+  entry->addSuccessor(cold_block);
+  entry->addSuccessor(hot_block);
+  entry->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      PhyReg{PhyLocation{0}},
+      Lbl{cold_block},
+      Lbl{hot_block});
+  cold_block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{PhyLocation{0}},
+      PhyReg{PhyLocation{13}});
+  hot_block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{PhyLocation{0}},
+      PhyReg{PhyLocation{5}});
+  function.sortBasicBlocks();
 
   jit::codegen::Environ env_;
-  PostRegAllocRewrite post_rewrite(parsed_func.get(), &env_);
+  PostRegAllocRewrite post_rewrite(&function, &env_);
   post_rewrite.run();
 
   std::stringstream ss;
-  ss << *parsed_func;
+  ss << function;
 #if defined(CINDER_AARCH64)
   auto expected_lir_str = fmt::format(
       R"(Function:
@@ -192,7 +198,7 @@ BB %2 - preds: %0
       PhyLocation{5, 64});
 #endif
   ASSERT_EQ(expected_lir_str, ss.str());
-  ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
+  ASSERT_TRUE(verifyPostRegAllocInvariants(&function, std::cout));
 }
 
 TEST_F(LIRPostAllocRewriteTest, TestInsertBranchInDifferentSection) {
