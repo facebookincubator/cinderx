@@ -31,7 +31,8 @@ class JITContextTest : public RuntimeTest {
  public:
   void SetUp() override {
     RuntimeTest::SetUp();
-    jit_ctx_ = std::make_unique<CompilerContext<Compiler>>();
+    jit_ctx_ = std::make_unique<CompilerContext<Compiler>>(
+        moduleState()->watcher_state);
     ASSERT_NE(jit_ctx_, nullptr) << "Failed creating jit context";
   }
 

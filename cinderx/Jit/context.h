@@ -8,6 +8,7 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/slab_arena.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/compilation_key.h"
@@ -131,7 +132,7 @@ class Builtins {
  */
 class Context : public IJitContext, public CompiledFunctionOwner {
  public:
-  Context();
+  explicit Context(WatcherState& watcher_state);
 
   ~Context() override;
 
@@ -640,6 +641,8 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   std::vector<hir::Type> common_constant_types_;
 
  private:
+  WatcherState& watcher_state_;
+
   template <typename F>
   void forEachCompiledFunction(F&& visit) {
     for (auto& [_, compiled] : compiled_codes_) {
@@ -753,6 +756,9 @@ class Context : public IJitContext, public CompiledFunctionOwner {
 template <typename T>
 class CompilerContext : public Context {
  public:
+  explicit CompilerContext(WatcherState& watcher_state)
+      : Context{watcher_state} {}
+
   T& compiler() {
     return compiler_;
   }

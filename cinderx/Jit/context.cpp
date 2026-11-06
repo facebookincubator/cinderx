@@ -9,6 +9,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/elf/reader.h"
@@ -151,7 +152,9 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
   return result->second;
 }
 
-Context::Context() : str_build_class_(Ref<>::create(&_Py_ID(__build_class__))) {
+Context::Context(WatcherState& watcher_state)
+    : str_build_class_(Ref<>::create(&_Py_ID(__build_class__))),
+      watcher_state_{watcher_state} {
 #if PY_VERSION_HEX >= 0x030E0000
   for (int i = 0; i < NUM_COMMON_CONSTANTS; i++) {
     JIT_CHECK(Ci_common_consts[i] != nullptr, "common_consts[{}] is null", i);
@@ -589,7 +592,7 @@ void Context::watchType(
   }
 
   JIT_CHECK(
-      cinderx::getModuleState()->watcher_state.watchType(type) == 0,
+      watcher_state_.watchType(type) == 0,
       "Failed to watch type {}",
       type->tp_name);
 }
@@ -625,7 +628,7 @@ void Context::watchPendingTypes() {
       continue;
     }
     JIT_CHECK(
-        cinderx::getModuleState()->watcher_state.watchType(type) == 0,
+        watcher_state_.watchType(type) == 0,
         "Failed to watch pending type {}",
         type->tp_name);
   }

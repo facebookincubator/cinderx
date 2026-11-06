@@ -5021,7 +5021,8 @@ int initialize(BorrowedRef<> cinderx_module) {
 
   // Initialize the main compiler object and its context.  This will throw if
   // asmjit cannot initialize.
-  mod_state->jit_context.reset(new CompilerContext<Compiler>());
+  mod_state->jit_context.reset(
+      new CompilerContext<Compiler>(mod_state->watcher_state));
 
   if (initJitMethods(cinderx_module) < 0) {
     return -1;
