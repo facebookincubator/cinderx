@@ -6,8 +6,10 @@
 
 namespace cinderx::jit {
 
+class ISymbolizer;
+
 struct Disassembler {
-  Disassembler(const char* buf, size_t size);
+  Disassembler(ISymbolizer* symbolizer, const char* buf, size_t size);
 
   // Disassemble a single instruction.
   void disassembleOne(std::ostream& os);
@@ -26,6 +28,7 @@ struct Disassembler {
   const char* const buf_;
   size_t start_{0};
   size_t const size_;
+  ISymbolizer* symbolizer_;
   size_t addr_len_{16};
   bool print_addr_{true};
   bool print_instr_bytes_{true};

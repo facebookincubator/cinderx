@@ -61,6 +61,9 @@ class Symbolizer : public ISymbolizer {
 
 std::optional<std::string> demangle(const std::string& mangled_name);
 
+// Symbolize and demangle the given function with the supplied symbolizer.
+std::optional<std::string> symbolize(ISymbolizer* symbolizer, const void* func);
+
 // Symbolize and demangle the given function.
 std::optional<std::string> symbolize(const void* func);
 

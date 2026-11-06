@@ -284,10 +284,14 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
       unit_state.emplace_back(unit_frames[i], locs->at(i));
     }
   } else {
+    auto* module_state = getModuleState();
+    auto* symbolizer =
+        module_state != nullptr ? module_state->symbolizer.get() : nullptr;
     JIT_LOG(
         "No debug info for addr {:x} {}",
         ip,
-        symbolize(reinterpret_cast<void*>(ip)).value_or("no symbol"));
+        symbolize(symbolizer, reinterpret_cast<void*>(ip))
+            .value_or("no symbol"));
     logUnitFrames();
     JIT_DABORT("No debug info for addr {:x}", ip);
     for (_PyInterpreterFrame* unit_frame : unit_frames) {

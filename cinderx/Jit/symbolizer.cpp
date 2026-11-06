@@ -308,25 +308,42 @@ std::optional<std::string> demangle(const std::string& mangled_name) {
 #endif
 }
 
-std::optional<std::string> symbolize(const void* func) {
-#ifdef ENABLE_SYMBOLIZER
-  if (!getConfig().log.symbolize_funcs) {
-    return std::nullopt;
-  }
-  auto module_state = cinderx::getModuleState();
-  if (module_state == nullptr || module_state->symbolizer.get() == nullptr) {
+namespace {
+
+std::optional<std::string> symbolizeAndDemangle(
+    ISymbolizer* symbolizer,
+    const void* func) {
+  if (symbolizer == nullptr) {
     return std::nullopt;
   }
 
-  std::optional<std::string_view> mangled_name =
-      module_state->symbolizer.get()->symbolize(func);
+  std::optional<std::string_view> mangled_name = symbolizer->symbolize(func);
   if (!mangled_name.has_value()) {
     return std::nullopt;
   }
   return demangle(std::string{*mangled_name});
-#else
-  return std::nullopt;
-#endif
+}
+
+} // namespace
+
+std::optional<std::string> symbolize(
+    ISymbolizer* symbolizer,
+    const void* func) {
+  if (!getConfig().log.symbolize_funcs) {
+    return std::nullopt;
+  }
+  return symbolizeAndDemangle(symbolizer, func);
+}
+
+std::optional<std::string> symbolize(const void* func) {
+  if (!getConfig().log.symbolize_funcs) {
+    return std::nullopt;
+  }
+  auto module_state = cinderx::getModuleState();
+  if (module_state == nullptr) {
+    return std::nullopt;
+  }
+  return symbolizeAndDemangle(module_state->symbolizer.get(), func);
 }
 
 } // namespace cinderx::jit

@@ -12,6 +12,8 @@
 #include <vector>
 
 namespace cinderx::jit {
+class ISymbolizer;
+
 namespace hir {
 class Instr;
 }
@@ -61,7 +63,10 @@ class Annotations {
   }
 
   // Return an annotated disassembly of the given code.
-  std::string disassemble(void* entry, const asmjit::CodeHolder& code);
+  std::string disassemble(
+      ISymbolizer* symbolizer,
+      void* entry,
+      const asmjit::CodeHolder& code);
 
  private:
   // Annotations mapping Label ranges to either an LIR instruction or a string
@@ -76,6 +81,7 @@ class Annotations {
   }
 
   std::string disassembleSection(
+      ISymbolizer* symbolizer,
       void* entry,
       const asmjit::CodeHolder& code,
       CodeSection section);

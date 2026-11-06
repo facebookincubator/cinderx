@@ -430,7 +430,10 @@ CompiledFunction::~CompiledFunction() {
 
 void CompiledFunction::disassemble() const {
   auto start = reinterpret_cast<const char*>(codeBuffer().data());
-  Disassembler dis{start, codeSize()};
+  auto* module_state = cinderx::getModuleState();
+  auto* symbolizer =
+      module_state != nullptr ? module_state->symbolizer.get() : nullptr;
+  Disassembler dis{symbolizer, start, codeSize()};
   dis.disassembleAll(std::cout);
 }
 

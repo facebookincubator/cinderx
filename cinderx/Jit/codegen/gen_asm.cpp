@@ -694,7 +694,7 @@ static void* emitAndRegisterTrampoline(
       getConfig().log.dump_asm,
       "Disassembly for {}\n{}",
       name,
-      env.annotations.disassemble(result, code));
+      env.annotations.disassemble(mod_state->symbolizer.get(), result, code));
 
   auto code_size = code.codeSize();
   register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
@@ -1757,7 +1757,10 @@ void NativeGenerator::generateCode(
       getConfig().log.dump_asm,
       "Disassembly for {}\n{}",
       getFunction()->fullname,
-      env_.annotations.disassemble(code_start_, codeholder));
+      env_.annotations.disassemble(
+          cinderx::getModuleState()->symbolizer.get(),
+          code_start_,
+          codeholder));
   {
     for (auto& x : env_.function_indirections) {
       *x.second.indirect = factory_.failedDeferredCompileTrampoline();

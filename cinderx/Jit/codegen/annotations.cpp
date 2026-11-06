@@ -12,6 +12,7 @@
 namespace cinderx::jit::codegen {
 
 std::string Annotations::disassembleSection(
+    ISymbolizer* symbolizer,
     void* entry,
     const asmjit::CodeHolder& code,
     CodeSection section) {
@@ -49,7 +50,7 @@ std::string Annotations::disassembleSection(
   const char* annot_end = nullptr;
 
   std::stringstream result;
-  Disassembler dis(section_start, size);
+  Disassembler dis(symbolizer, section_start, size);
   if (dis.cursor() == nullptr) {
     // Should already be handled by ENABLE_DISASSEMBLER ifdefs, but putting this
     // defensive check here just in case.
@@ -110,12 +111,13 @@ std::string Annotations::disassembleSection(
 }
 
 std::string Annotations::disassemble(
+    ISymbolizer* symbolizer,
     void* entry,
     const asmjit::CodeHolder& code) {
   JIT_CHECK(code.hasBaseAddress(), "code not generated!");
   std::string result;
-  result += disassembleSection(entry, code, CodeSection::kHot);
-  result += disassembleSection(entry, code, CodeSection::kCold);
+  result += disassembleSection(symbolizer, entry, code, CodeSection::kHot);
+  result += disassembleSection(symbolizer, entry, code, CodeSection::kCold);
   return result;
 }
 
