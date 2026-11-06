@@ -976,33 +976,33 @@ TEST_F(LIRPostAllocRewriteTest, MemoryInputRewriteSignedCmpWidensSubWordToK32) {
 }
 
 TEST_F(LIRPostAllocRewriteTest, VectorCallArgsUseStorePairForRegisterPairs) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0
-{:>9}:Object = VectorCallTstate 123456789, 0, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, 0
-)",
-      X0,
-      X1,
-      X2,
-      X3,
-      X4,
-      X5,
-      X6);
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  block->allocateInstr(
+      Opcode::kVectorCallTstate,
+      nullptr,
+      OutPhyReg{X0},
+      Imm{123456789},
+      Imm{0},
+      PhyReg{X1},
+      PhyReg{X2},
+      PhyReg{X3},
+      PhyReg{X4},
+      PhyReg{X5},
+      PhyReg{X6},
+      Imm{0});
 
   jit::codegen::Environ env;
-  PostRegAllocRewrite rewrite(parsed_func.get(), &env);
+  PostRegAllocRewrite rewrite(&function, &env);
   rewrite.run();
 
   size_t store_pairs = 0;
-  for (auto& instr : parsed_func->basicBlocks().front()->instructions()) {
+  for (auto& instr : block->instructions()) {
     store_pairs += instr->isStorePair() ? 1 : 0;
   }
 
   EXPECT_EQ(store_pairs, 2);
-  ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
+  ASSERT_TRUE(verifyPostRegAllocInvariants(&function, std::cout));
 }
 
 TEST_F(LIRPostAllocRewriteTest, RegularCallArgsUseStorePairForRegisterPairs) {
