@@ -12,7 +12,7 @@
 #include <vector>
 
 namespace cinderx::jit {
-class ISymbolizer;
+class Symbolizer;
 
 namespace hir {
 class Instr;
@@ -64,7 +64,7 @@ class Annotations {
 
   // Return an annotated disassembly of the given code.
   std::string disassemble(
-      ISymbolizer* symbolizer,
+      Symbolizer* symbolizer,
       void* entry,
       const asmjit::CodeHolder& code);
 
@@ -81,7 +81,7 @@ class Annotations {
   }
 
   std::string disassembleSection(
-      ISymbolizer* symbolizer,
+      Symbolizer* symbolizer,
       void* entry,
       const asmjit::CodeHolder& code,
       CodeSection section);

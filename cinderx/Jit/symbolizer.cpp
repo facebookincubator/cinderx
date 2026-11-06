@@ -5,7 +5,6 @@
 #include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/module_state.h"
 
 #ifndef WIN32
 
@@ -311,7 +310,7 @@ std::optional<std::string> demangle(const std::string& mangled_name) {
 namespace {
 
 std::optional<std::string> symbolizeAndDemangle(
-    ISymbolizer* symbolizer,
+    Symbolizer* symbolizer,
     const void* func) {
   if (symbolizer == nullptr) {
     return std::nullopt;
@@ -326,24 +325,11 @@ std::optional<std::string> symbolizeAndDemangle(
 
 } // namespace
 
-std::optional<std::string> symbolize(
-    ISymbolizer* symbolizer,
-    const void* func) {
+std::optional<std::string> symbolize(Symbolizer* symbolizer, const void* func) {
   if (!getConfig().log.symbolize_funcs) {
     return std::nullopt;
   }
   return symbolizeAndDemangle(symbolizer, func);
-}
-
-std::optional<std::string> symbolize(const void* func) {
-  if (!getConfig().log.symbolize_funcs) {
-    return std::nullopt;
-  }
-  auto module_state = cinderx::getModuleState();
-  if (module_state == nullptr) {
-    return std::nullopt;
-  }
-  return symbolizeAndDemangle(module_state->symbolizer.get(), func);
 }
 
 } // namespace cinderx::jit

@@ -13,7 +13,7 @@
 #ifndef ENABLE_DISASSEMBLER
 namespace cinderx::jit {
 
-Disassembler::Disassembler(ISymbolizer*, const char*, size_t) {}
+Disassembler::Disassembler(Symbolizer*, const char*, size_t) {}
 
 void Disassembler::disassembleOne(std::ostream&) {}
 void Disassembler::disassembleAll(std::ostream&) {}
@@ -40,10 +40,7 @@ void Disassembler::setPrintInstBytes(bool) {}
 
 namespace cinderx::jit {
 
-Disassembler::Disassembler(
-    ISymbolizer* symbolizer,
-    const char* buf,
-    size_t size)
+Disassembler::Disassembler(Symbolizer* symbolizer, const char* buf, size_t size)
     : buf_(buf), size_{size}, symbolizer_{symbolizer} {}
 
 void Disassembler::disassembleOne(std::ostream& os) {

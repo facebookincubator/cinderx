@@ -7,6 +7,7 @@
 #include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/code_allocator.h"
+#include "cinderx/Jit/symbolizer.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
 #include "internal/pycore_pystate.h"

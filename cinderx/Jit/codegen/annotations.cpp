@@ -12,7 +12,7 @@
 namespace cinderx::jit::codegen {
 
 std::string Annotations::disassembleSection(
-    ISymbolizer* symbolizer,
+    Symbolizer* symbolizer,
     void* entry,
     const asmjit::CodeHolder& code,
     CodeSection section) {
@@ -111,7 +111,7 @@ std::string Annotations::disassembleSection(
 }
 
 std::string Annotations::disassemble(
-    ISymbolizer* symbolizer,
+    Symbolizer* symbolizer,
     void* entry,
     const asmjit::CodeHolder& code) {
   JIT_CHECK(code.hasBaseAddress(), "code not generated!");

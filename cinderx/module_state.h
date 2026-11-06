@@ -15,7 +15,7 @@
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/jit_unwind.h"
 #include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Jit/symbolizer_iface.h"
+#include "cinderx/Jit/symbolizer.h"
 #include "cinderx/async_lazy_value_iface.h"
 
 #include <atomic>
@@ -69,7 +69,7 @@ struct ModuleState {
   // Assorted JIT state.
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager;
   std::unique_ptr<jit::CodeAllocator> code_allocator;
-  std::unique_ptr<jit::ISymbolizer> symbolizer;
+  std::unique_ptr<jit::Symbolizer> symbolizer;
   std::unique_ptr<jit::IJitContext> jit_context;
   std::unique_ptr<jit::JITList> jit_list;
   std::unique_ptr<PyObjectAllocator> jit_gen_allocator;

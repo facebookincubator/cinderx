@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Jit/mmap_file.h"
-#include "cinderx/Jit/symbolizer_iface.h"
 
 #include <fcntl.h>
 #ifndef WIN32
@@ -21,19 +20,25 @@
 
 namespace cinderx::jit {
 
-class Symbolizer : public ISymbolizer {
+class Symbolizer {
  public:
   Symbolizer(const char* exe_path = "/proc/self/exe");
+  ~Symbolizer();
+
+  Symbolizer(const Symbolizer&) = delete;
+  Symbolizer& operator=(const Symbolizer&) = delete;
+  Symbolizer(Symbolizer&&) = delete;
+  Symbolizer& operator=(Symbolizer&&) = delete;
 
   bool isInitialized() const;
 
-  ~Symbolizer() override;
+  // Return a string view tied to this symbolizer's lifetime on success, or
+  // std::nullopt on failure.
+  std::optional<std::string_view> symbolize(const void* func);
 
-  std::optional<std::string_view> symbolize(const void* func) override;
-
-  void atForkPrepare() override;
-  void atForkParent() override;
-  void atForkChild() override;
+  void atForkPrepare();
+  void atForkParent();
+  void atForkChild();
 
  private:
   void deinit();
@@ -62,9 +67,6 @@ class Symbolizer : public ISymbolizer {
 std::optional<std::string> demangle(const std::string& mangled_name);
 
 // Symbolize and demangle the given function with the supplied symbolizer.
-std::optional<std::string> symbolize(ISymbolizer* symbolizer, const void* func);
-
-// Symbolize and demangle the given function.
-std::optional<std::string> symbolize(const void* func);
+std::optional<std::string> symbolize(Symbolizer* symbolizer, const void* func);
 
 } // namespace cinderx::jit
