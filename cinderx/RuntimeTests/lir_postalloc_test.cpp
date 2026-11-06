@@ -1006,31 +1006,29 @@ TEST_F(LIRPostAllocRewriteTest, VectorCallArgsUseStorePairForRegisterPairs) {
 }
 
 TEST_F(LIRPostAllocRewriteTest, RegularCallArgsUseStorePairForRegisterPairs) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0
-                   Call 123456789, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object, {:>9}:Object
-)",
-      X0,
-      X1,
-      X2,
-      X3,
-      X4,
-      X5,
-      X6,
-      X7,
-      X8,
-      X9);
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  block->allocateInstr(
+      Opcode::kCall,
+      nullptr,
+      Imm{123456789},
+      PhyReg{X0},
+      PhyReg{X1},
+      PhyReg{X2},
+      PhyReg{X3},
+      PhyReg{X4},
+      PhyReg{X5},
+      PhyReg{X6},
+      PhyReg{X7},
+      PhyReg{X8},
+      PhyReg{X9});
 
   jit::codegen::Environ env;
-  PostRegAllocRewrite rewrite(parsed_func.get(), &env);
+  PostRegAllocRewrite rewrite(&function, &env);
   rewrite.run();
 
   const Instruction* store_pair = nullptr;
-  for (auto& instr : parsed_func->basicBlocks().front()->instructions()) {
+  for (auto& instr : block->instructions()) {
     if (instr->isStorePair()) {
       ASSERT_EQ(store_pair, nullptr);
       store_pair = instr.get();
@@ -1040,7 +1038,7 @@ BB %0
   ASSERT_NE(store_pair, nullptr);
   EXPECT_EQ(
       store_pair->getInput(1)->getPhyRegister(), arch::reg_stack_pointer_loc);
-  ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
+  ASSERT_TRUE(verifyPostRegAllocInvariants(&function, std::cout));
 }
 
 TEST_F(LIRPostAllocRewriteTest, AdjacentFrameSlotStoresBecomeStorePair) {
