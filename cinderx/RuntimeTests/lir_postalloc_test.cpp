@@ -26,37 +26,54 @@ namespace cinderx::jit::lir {
 class LIRPostAllocRewriteTest : public RuntimeTest {};
 
 TEST_F(LIRPostAllocRewriteTest, TestInsertBranchForSuccessorsInCondBranch) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %1 %2
-       CondBranch {}:Object, BB%1, BB%2
-BB %1 - preds: %0 - succs: %3 %4
-       CondBranch {}:Object, BB%3, BB%4
-BB %2 - preds: %0 - succs: %3 %4
-       CondBranch {}:Object, BB%3, BB%4
-BB %3 - preds: %1 %2
-       {} = Move {}:Object
-BB %4 - preds: %1 %2
-       {} = Move {}:Object
-)",
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{5, 64},
-      PhyLocation{0, 64},
-      PhyLocation{13, 64});
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-  parsed_func->sortBasicBlocks();
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* left = function.allocateBasicBlock();
+  BasicBlock* right = function.allocateBasicBlock();
+  BasicBlock* first_exit = function.allocateBasicBlock();
+  BasicBlock* second_exit = function.allocateBasicBlock();
+  entry->addSuccessor(left);
+  entry->addSuccessor(right);
+  left->addSuccessor(first_exit);
+  left->addSuccessor(second_exit);
+  right->addSuccessor(first_exit);
+  right->addSuccessor(second_exit);
+  entry->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      PhyReg{PhyLocation{0}},
+      Lbl{left},
+      Lbl{right});
+  left->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      PhyReg{PhyLocation{0}},
+      Lbl{first_exit},
+      Lbl{second_exit});
+  right->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      PhyReg{PhyLocation{0}},
+      Lbl{first_exit},
+      Lbl{second_exit});
+  first_exit->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{PhyLocation{0}},
+      PhyReg{PhyLocation{5}});
+  second_exit->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{PhyLocation{0}},
+      PhyReg{PhyLocation{13}});
+  function.sortBasicBlocks();
 
   jit::codegen::Environ env_;
-  PostRegAllocRewrite post_rewrite(parsed_func.get(), &env_);
+  PostRegAllocRewrite post_rewrite(&function, &env_);
   post_rewrite.run();
 
   std::stringstream ss;
-  ss << *parsed_func;
+  ss << function;
 #if defined(CINDER_AARCH64)
   auto expected_lir_str = fmt::format(
       R"(Function:
@@ -119,7 +136,7 @@ BB %4 - preds: %1 %2
       PhyLocation{13, 64});
 #endif
   ASSERT_EQ(expected_lir_str, ss.str());
-  ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
+  ASSERT_TRUE(verifyPostRegAllocInvariants(&function, std::cout));
 }
 
 TEST_F(
