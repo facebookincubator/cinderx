@@ -9,7 +9,6 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/write_protect.h"
-#include "cinderx/module_state.h"
 
 #ifdef WIN32
 #include <Windows.h>
@@ -536,35 +535,23 @@ void CodeAllocatorCinder::atForkChild() {
   CodeAllocator::atForkChild();
 }
 
-void codeAllocatorAtForkPrepare() {
-  ModuleState* state = cinderx::getModuleState();
-  if (state != nullptr && state->code_allocator != nullptr) {
-    state->code_allocator->atForkPrepare();
-  }
+void codeAllocatorRegionAtForkPrepare() {
 #if defined(__linux__)
   // Innermost: ensureSpace() reaches this while holding allocator_mutex_.
   cinder_jit_region_mutex_.lock();
 #endif
 }
 
-void codeAllocatorAtForkParent() {
+void codeAllocatorRegionAtForkParent() {
 #if defined(__linux__)
   cinder_jit_region_mutex_.unlock();
 #endif
-  ModuleState* state = cinderx::getModuleState();
-  if (state != nullptr && state->code_allocator != nullptr) {
-    state->code_allocator->atForkParent();
-  }
 }
 
-void codeAllocatorAtForkChild() {
+void codeAllocatorRegionAtForkChild() {
 #if defined(__linux__)
   resetMutexAfterFork(cinder_jit_region_mutex_);
 #endif
-  ModuleState* state = cinderx::getModuleState();
-  if (state != nullptr && state->code_allocator != nullptr) {
-    state->code_allocator->atForkChild();
-  }
 }
 
 } // namespace cinderx::jit

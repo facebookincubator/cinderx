@@ -4522,6 +4522,7 @@ void finishBackgroundCompile(std::unique_ptr<BackgroundCompileTask> task) {
 void jitAtForkPrepare() {
   // before_fork() covers os.fork(); keep this for direct calls to fork().
   freeThreadedJITEntrypointAtForkPrepare();
+  ModuleState* state = getModuleState();
   // Quiesce the background compile registry so the child snapshots it at a
   // consistent point.  The registry lives inside the JIT Context, so if JIT is
   // not initialized there is nothing to quiesce.
@@ -4530,11 +4531,14 @@ void jitAtForkPrepare() {
     ctx->backgroundCompileRegistry().mutex.lock();
   }
   jitCompilationAtForkPrepare();
-  codeAllocatorAtForkPrepare();
+  if (state != nullptr && state->code_allocator != nullptr) {
+    state->code_allocator->atForkPrepare();
+  }
+  codeAllocatorRegionAtForkPrepare();
   SlabArenaForkRegistry::get().atForkPrepare();
   // Innermost: SlabArena::allocate() reaches the module state and, through it,
   // the shared HugePageArena while holding its own lock.
-  if (auto* state = getModuleState(); state != nullptr) {
+  if (state != nullptr) {
     state->atForkPrepare();
   }
   deoptAtForkPrepare();
@@ -4544,11 +4548,15 @@ void jitAtForkPrepare() {
 void jitAtForkParent() {
   logAtForkParent();
   deoptAtForkParent();
-  if (auto* state = getModuleState(); state != nullptr) {
+  ModuleState* state = getModuleState();
+  if (state != nullptr) {
     state->atForkParent();
   }
   SlabArenaForkRegistry::get().atForkParent();
-  codeAllocatorAtForkParent();
+  codeAllocatorRegionAtForkParent();
+  if (state != nullptr && state->code_allocator != nullptr) {
+    state->code_allocator->atForkParent();
+  }
   jitCompilationAtForkParent();
   auto* ctx = getContext();
   if (ctx != nullptr) {
@@ -4561,11 +4569,15 @@ void jitAtForkChild() {
   logAtForkChild();
   deoptAtForkChild();
   freeThreadedJITEntrypointAtForkChild();
-  if (auto* state = getModuleState(); state != nullptr) {
+  ModuleState* state = getModuleState();
+  if (state != nullptr) {
     state->atForkChild();
   }
   SlabArenaForkRegistry::get().atForkChild();
-  codeAllocatorAtForkChild();
+  codeAllocatorRegionAtForkChild();
+  if (state != nullptr && state->code_allocator != nullptr) {
+    state->code_allocator->atForkChild();
+  }
   jitCompilationAtForkChild();
 
   auto* ctx = getContext();

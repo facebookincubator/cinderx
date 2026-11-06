@@ -129,11 +129,10 @@ class CodeAllocatorCinder : public CodeAllocator {
   std::atomic<size_t> fragmented_allocs_{0};
 };
 
-// pthread_atfork() handlers covering both the process-global code-allocation
-// state and the current ICodeAllocator, if one exists.
-void codeAllocatorAtForkPrepare();
-void codeAllocatorAtForkParent();
-void codeAllocatorAtForkChild();
+// pthread_atfork() handlers for the process-global linker-reserved code region.
+void codeAllocatorRegionAtForkPrepare();
+void codeAllocatorRegionAtForkParent();
+void codeAllocatorRegionAtForkChild();
 
 void populateCodeSections(
     std::vector<std::pair<void*, std::size_t>>& output_vector,
