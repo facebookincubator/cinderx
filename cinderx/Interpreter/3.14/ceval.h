@@ -260,9 +260,9 @@ lltrace_resume_frame(_PyInterpreterFrame *frame)
     }
     PyFunctionObject *f = (PyFunctionObject *)fobj;
     PyObject *exc = PyErr_GetRaisedException();
-    PyObject *name = f->func_qualname;
+    PyObject *name = Py_XNewRef(FT_ATOMIC_LOAD_PTR_ACQUIRE(f->func_qualname));
     if (name == NULL) {
-        name = f->func_name;
+        name = Py_XNewRef(FT_ATOMIC_LOAD_PTR_ACQUIRE(f->func_name));
     }
     printf("\nResuming frame");
     if (name) {
@@ -270,12 +270,15 @@ lltrace_resume_frame(_PyInterpreterFrame *frame)
         if (PyObject_Print(name, stdout, 0) < 0) {
             PyErr_Clear();
         }
+        Py_DECREF(name);
     }
-    if (f->func_module) {
+    PyObject *module = Py_XNewRef(FT_ATOMIC_LOAD_PTR_ACQUIRE(f->func_module));
+    if (module) {
         printf(" in module ");
-        if (PyObject_Print(f->func_module, stdout, 0) < 0) {
+        if (PyObject_Print(module, stdout, 0) < 0) {
             PyErr_Clear();
         }
+        Py_DECREF(module);
     }
     printf("\n");
     fflush(stdout);
@@ -569,7 +572,7 @@ too_many_positional(PyThreadState *tstate, PyCodeObject *co,
 static int
 positional_only_passed_as_keyword(PyThreadState *tstate, PyCodeObject *co,
                                   Py_ssize_t kwcount, PyObject* kwnames,
-                                  PyObject *qualname)
+                                  PyFunctionObject *func)
 {
     int posonly_conflicts = 0;
     PyObject* posonly_names = PyList_New(0);
@@ -616,7 +619,8 @@ positional_only_passed_as_keyword(PyThreadState *tstate, PyCodeObject *co,
         _PyErr_Format(tstate, PyExc_TypeError,
                       "%U() got some positional-only arguments passed"
                       " as keyword arguments: '%U'",
-                      qualname, error_names);
+                      FT_ATOMIC_LOAD_PTR_ACQUIRE(func->func_qualname),
+                      error_names);
         Py_DECREF(error_names);
         goto fail;
     }
@@ -771,8 +775,8 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
 
             if (keyword == NULL || !PyUnicode_Check(keyword)) {
                 _PyErr_Format(tstate, PyExc_TypeError,
-                            "%U() keywords must be strings",
-                          func->func_qualname);
+                              "%U() keywords must be strings",
+                              FT_ATOMIC_LOAD_PTR_ACQUIRE(func->func_qualname));
                 goto kw_fail;
             }
 
@@ -804,7 +808,7 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
                 if (co->co_posonlyargcount
                     && positional_only_passed_as_keyword(tstate, co,
                                                         kwcount, kwnames,
-                                                        func->func_qualname))
+                                                        func))
                 {
                     goto kw_fail;
                 }
@@ -825,15 +829,16 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
                     }
                 }
 
+                PyObject *qualname = FT_ATOMIC_LOAD_PTR_ACQUIRE(func->func_qualname);
                 if (suggestion_keyword) {
                     _PyErr_Format(tstate, PyExc_TypeError,
                                 "%U() got an unexpected keyword argument '%S'. Did you mean '%S'?",
-                                func->func_qualname, keyword, suggestion_keyword);
+                                qualname, keyword, suggestion_keyword);
                     Py_DECREF(suggestion_keyword);
                 } else {
                     _PyErr_Format(tstate, PyExc_TypeError,
                                 "%U() got an unexpected keyword argument '%S'",
-                                func->func_qualname, keyword);
+                                qualname, keyword);
                 }
 
                 goto kw_fail;
@@ -854,8 +859,9 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
         kw_found:
             if (PyStackRef_AsPyObjectBorrow(localsplus[j]) != NULL) {
                 _PyErr_Format(tstate, PyExc_TypeError,
-                            "%U() got multiple values for argument '%S'",
-                          func->func_qualname, keyword);
+                              "%U() got multiple values for argument '%S'",
+                              FT_ATOMIC_LOAD_PTR_ACQUIRE(func->func_qualname),
+                              keyword);
                 goto kw_fail;
             }
             localsplus[j] = value_stackref;
@@ -865,7 +871,7 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
     /* Check the number of positional arguments */
     if ((argcount > co->co_argcount) && !(co->co_flags & CO_VARARGS)) {
         too_many_positional(tstate, co, argcount, func->func_defaults, localsplus,
-                            func->func_qualname);
+                            FT_ATOMIC_LOAD_PTR_ACQUIRE(func->func_qualname));
         goto fail_post_args;
     }
 
@@ -881,7 +887,7 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
         }
         if (missing) {
             missing_arguments(tstate, co, missing, defcount, localsplus,
-                              func->func_qualname);
+                              FT_ATOMIC_LOAD_PTR_ACQUIRE(func->func_qualname));
             goto fail_post_args;
         }
         if (n > m)
@@ -920,7 +926,7 @@ initialize_locals(PyThreadState *tstate, PyFunctionObject *func,
         }
         if (missing) {
             missing_arguments(tstate, co, missing, -1, localsplus,
-                              func->func_qualname);
+                              FT_ATOMIC_LOAD_PTR_ACQUIRE(func->func_qualname));
             goto fail_post_args;
         }
     }
