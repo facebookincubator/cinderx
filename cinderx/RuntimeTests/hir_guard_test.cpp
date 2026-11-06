@@ -1,6 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
+#include "cinderx/Jit/hir/analysis.h"
+#include "cinderx/Jit/hir/guard_removal.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -13,6 +15,34 @@ namespace cinderx {
 class GuardTest : public RuntimeTest {};
 
 using namespace cinderx::jit::hir;
+
+TEST_F(GuardTest, RemovingChainedTypeGuardsPreservesLongConstraint) {
+  auto func = HIRParser{}.parseHIR(R"(
+fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = GuardType<LongExact> v0
+    v2 = GuardType<LongCompact> v1
+    UseType<LongExact> v2
+    Return v2
+  }
+}
+)");
+  ASSERT_NE(func, nullptr);
+  reflowTypes(*func);
+  ASSERT_TRUE(GuardTypeRemoval{}.run(*func));
+  EXPECT_TRUE(funcTypeChecks(*func, std::cerr));
+  size_t guards = 0;
+  for (const auto& block : func->cfg.blocks) {
+    for (const auto& instr : block) {
+      if (instr.isGuardType()) {
+        ++guards;
+        EXPECT_EQ(static_cast<const GuardType&>(instr).target(), TLongCompact);
+      }
+    }
+  }
+  EXPECT_EQ(guards, 1);
+}
 
 static void testFillGuards(const char* hir_source, const char* expected) {
   auto func = HIRParser().parseHIR(hir_source);

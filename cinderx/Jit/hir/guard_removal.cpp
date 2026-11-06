@@ -101,7 +101,11 @@ bool GuardTypeRemoval::run(Function& func) {
         auto assign = Assign::create(guard_out, guard_in);
         assign->copyBytecodeOffset(instr);
         instr.replaceWith(*assign);
+        auto& in_uses = reg_uses[guard_in];
+        in_uses.erase(&instr);
+        in_uses.insert(assign);
         removed_guards.emplace_back(&instr);
+        reflowTypes(func);
       }
     }
   }
