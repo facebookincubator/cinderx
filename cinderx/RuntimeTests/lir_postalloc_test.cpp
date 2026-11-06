@@ -196,44 +196,33 @@ BB %2 - preds: %0
 }
 
 TEST_F(LIRPostAllocRewriteTest, TestInsertBranchInDifferentSection) {
-  auto lir_input_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %1 - section: .text
-{:>9}:Object = Move {}:Object
-BB %1 - preds: %0 - section: .coldtext
-{:>9}:Object = Move {}:Object
-)",
-      PhyLocation{0, 64},
-      PhyLocation{13, 64},
-      PhyLocation{0, 64},
-      PhyLocation{7, 64});
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_input_str);
-  parsed_func->sortBasicBlocks();
+  Function function;
+  BasicBlock* hot_block = function.allocateBasicBlock();
+  BasicBlock* cold_block = function.allocateBasicBlock();
+  cold_block->setSection(CodeSection::kCold);
+  hot_block->addSuccessor(cold_block);
+  hot_block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{PhyLocation{0}},
+      PhyReg{PhyLocation{13}});
+  cold_block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{PhyLocation{0}},
+      PhyReg{PhyLocation{7}});
+  function.sortBasicBlocks();
 
   jit::codegen::Environ env_;
-  PostRegAllocRewrite post_rewrite(parsed_func.get(), &env_);
+  PostRegAllocRewrite post_rewrite(&function, &env_);
   post_rewrite.run();
 
-  std::stringstream ss;
-  ss << *parsed_func;
-  auto expected_lir_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %1
-{:>9}:Object = Move {}:Object
-                   Branch BB%1
-
-BB %1 - preds: %0 - section: .coldtext
-{:>9}:Object = Move {}:Object
-
-)",
-      PhyLocation{0, 64},
-      PhyLocation{13, 64},
-      PhyLocation{0, 64},
-      PhyLocation{7, 64});
-  ASSERT_EQ(expected_lir_str, ss.str());
-  ASSERT_TRUE(verifyPostRegAllocInvariants(parsed_func.get(), std::cout));
+  ASSERT_EQ(hot_block->getNumInstrs(), 2);
+  Instruction* branch = hot_block->getLastInstr();
+  ASSERT_TRUE(branch->isBranch());
+  ASSERT_EQ(branch->getNumInputs(), 1);
+  EXPECT_EQ(branch->getInput(0)->getBasicBlock(), cold_block);
+  ASSERT_TRUE(verifyPostRegAllocInvariants(&function, std::cout));
 }
 
 // Helper to collect instructions from a block into a vector for easy indexing.
