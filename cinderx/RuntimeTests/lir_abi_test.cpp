@@ -43,8 +43,7 @@ class LIRABITest : public RuntimeTest {
         hirFunction.builtins.get(),
         hirFunction.globals.get());
 
-    auto code_allocator =
-        std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
+    std::unique_ptr<CodeAllocator> code_allocator{CodeAllocator::make()};
 
     CodeHolder code;
     code.init(code_allocator->asmJitEnvironment());
@@ -211,7 +210,7 @@ TEST_F(LIRABITest, TestkStorePair_SPBase) {
       hir_function.builtins.get(),
       hir_function.globals.get());
 
-  auto code_allocator = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
+  std::unique_ptr<CodeAllocator> code_allocator{CodeAllocator::make()};
 
   CodeHolder code;
   code.init(code_allocator->asmJitEnvironment());
@@ -252,7 +251,7 @@ TEST_F(LIRABITest, TestkCall_FillsCallSiteLiveValueLocations) {
       hir_function.builtins.get(),
       hir_function.globals.get());
 
-  std::unique_ptr<ICodeAllocator> code_allocator{CodeAllocator::make()};
+  std::unique_ptr<CodeAllocator> code_allocator{CodeAllocator::make()};
 
   CodeHolder code;
   code.init(code_allocator->asmJitEnvironment());

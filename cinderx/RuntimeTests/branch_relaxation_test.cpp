@@ -26,7 +26,7 @@ extern "C" uint64_t branchRelaxationAddOne(uint64_t value) {
 class BranchRelaxationTest : public ::testing::Test {
  public:
   void SetUp() override {
-    code_allocator_ = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
+    code_allocator_ = std::unique_ptr<CodeAllocator>(CodeAllocator::make());
   }
 
   void TearDown() override {
@@ -60,7 +60,7 @@ class BranchRelaxationTest : public ::testing::Test {
     return count;
   }
 
-  std::unique_ptr<ICodeAllocator> code_allocator_;
+  std::unique_ptr<CodeAllocator> code_allocator_;
 };
 
 TEST_F(BranchRelaxationTest, InRangeCondBranch) {

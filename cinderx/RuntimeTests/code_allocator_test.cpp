@@ -23,7 +23,7 @@ class CodeAllocatorTest : public ::testing::Test {
     saved_config_ = getConfig();
     getMutableConfig().mem.multiple_code_sections = true;
     getMutableConfig().mem.huge_pages = true;
-    code_allocator_ = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
+    code_allocator_ = std::unique_ptr<CodeAllocator>(CodeAllocator::make());
   }
 
   void TearDown() override {
@@ -32,7 +32,7 @@ class CodeAllocatorTest : public ::testing::Test {
   }
 
   Config saved_config_;
-  std::unique_ptr<ICodeAllocator> code_allocator_;
+  std::unique_ptr<CodeAllocator> code_allocator_;
 };
 
 const uint8_t* addressAtOffset(const void* base, uintptr_t offset) {
@@ -91,7 +91,7 @@ TEST_F(CodeAllocatorTest, AddSplitCodeCopiesHotAndColdSections) {
 
 // Indirect calls built with -fsanitize=function read the 8 bytes in front of
 // their target, so the memory there has to belong to the allocator.
-void expectReadablePrefix(const ICodeAllocator& allocator, const void* addr) {
+void expectReadablePrefix(const CodeAllocator& allocator, const void* addr) {
   EXPECT_TRUE(allocator.contains(static_cast<const uint8_t*>(addr) - 8))
       << "code at " << addr << " starts at the beginning of a mapping";
 }
@@ -128,7 +128,7 @@ TEST_F(CodeAllocatorTest, AddSplitCodeLeavesReadablePrefix) {
 TEST_F(CodeAllocatorTest, AddCodeLeavesReadablePrefix) {
   code_allocator_.reset();
   getMutableConfig().mem.multiple_code_sections = false;
-  code_allocator_ = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
+  code_allocator_ = std::unique_ptr<CodeAllocator>(CodeAllocator::make());
 
   asmjit::CodeHolder code;
   code.init(code_allocator_->asmJitEnvironment());

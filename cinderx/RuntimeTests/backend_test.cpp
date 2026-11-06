@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/environ.h"
@@ -58,7 +59,7 @@ class BackendTest : public RuntimeTest {
     arg_buffer_size = std::max(arg_buffer_size, env.max_arg_buffer_size);
 
     asmjit::CodeHolder code;
-    ICodeAllocator* code_allocator =
+    CodeAllocator* code_allocator =
         cinderx::getModuleState()->code_allocator.get();
     code.init(code_allocator->asmJitEnvironment());
 
@@ -232,7 +233,7 @@ class BackendTest : public RuntimeTest {
     post_rewrite.run();
 
     asmjit::CodeHolder code;
-    ICodeAllocator* code_allocator =
+    CodeAllocator* code_allocator =
         cinderx::getModuleState()->code_allocator.get();
     code.init(code_allocator->asmJitEnvironment());
 

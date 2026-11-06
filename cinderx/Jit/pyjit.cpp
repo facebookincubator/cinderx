@@ -1056,7 +1056,7 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
 // Check if we have exceeded the max code size limit.
 bool isOverMaxCodeSize() {
   auto max_code_size = getConfig().max_code_size;
-  ICodeAllocator* code_allocator =
+  CodeAllocator* code_allocator =
       cinderx::getModuleState()->code_allocator.get();
   return max_code_size && code_allocator->usedBytes() >= max_code_size;
 }

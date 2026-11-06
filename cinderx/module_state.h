@@ -9,7 +9,7 @@
 #include "cinderx/Common/py_object_allocator.h"
 #include "cinderx/Common/runtime_offsets.h"
 #include "cinderx/Common/watchers.h"
-#include "cinderx/Jit/code_allocator_iface.h"
+#include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/context_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/jit_list.h"
@@ -35,6 +35,9 @@ extern ModuleState* s_cinderx_state;
 // Especially for Python objects as this state is traversed and cleared by the
 // Python GC.
 struct ModuleState {
+  ModuleState();
+  ~ModuleState();
+
   // Implement CPython's traverse functionality for tracing through to GC
   // references.
   int traverse(visitproc visit, void* arg);
@@ -65,7 +68,7 @@ struct ModuleState {
 
   // Assorted JIT state.
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager;
-  std::unique_ptr<jit::ICodeAllocator> code_allocator;
+  std::unique_ptr<jit::CodeAllocator> code_allocator;
   std::unique_ptr<jit::ISymbolizer> symbolizer;
   std::unique_ptr<jit::IJitContext> jit_context;
   std::unique_ptr<jit::JITList> jit_list;

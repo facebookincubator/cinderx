@@ -7,7 +7,6 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/write_protect.h"
 
 #ifdef WIN32
@@ -202,7 +201,7 @@ CodeAllocator::CodeAllocator() {
 #endif
 }
 
-ICodeAllocator* CodeAllocator::make() {
+CodeAllocator* CodeAllocator::make() {
   if (getConfig().mem.huge_pages) {
     return new CodeAllocatorCinder{};
   }

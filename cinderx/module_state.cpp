@@ -6,6 +6,7 @@
 
 #include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Jit/code_allocator.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
 #include "internal/pycore_pystate.h"
@@ -106,6 +107,10 @@ void initRuntimeDeltas(ModuleState* state) {
 #endif
 
 } // namespace
+
+ModuleState::ModuleState() = default;
+
+ModuleState::~ModuleState() = default;
 
 int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(static_type_error);

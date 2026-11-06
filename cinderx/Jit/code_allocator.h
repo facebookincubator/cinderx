@@ -2,21 +2,26 @@
 
 #pragma once
 
-#include "cinderx/Jit/code_allocator_iface.h"
-
 #include <asmjit/asmjit.h>
 
 #include <atomic>
+#include <cstddef>
 #include <mutex>
 #include <span>
 #include <vector>
 
 namespace cinderx::jit {
 
+// Resulting address and status code after calling CodeAllocator::addCode().
+struct AllocateResult {
+  void* addr{nullptr};
+  asmjit::Error error{asmjit::kErrorNotInitialized};
+};
+
 /*
-  A CodeAllocator allocates memory for live JIT code. This is an abstract
-  interface for now to allow us to easily switch between implementations based
-  on an AsmJIT "Runtime", or an implemenation which uses huge pages.
+  A CodeAllocator allocates memory for live JIT code. It is a polymorphic base
+  so we can switch between the default AsmJIT runtime and an implementation
+  which uses huge pages.
 
   For now we only support one global per-process CodeAllocator, accessible via
   ::get(). This is primarily to maximize the efficiency when using huge pages
@@ -26,24 +31,24 @@ namespace cinderx::jit {
   like accommodate memory pools with different allocation characteristics, or
   have multiple threads which might compile independently.
 */
-class CodeAllocator : public ICodeAllocator {
+class CodeAllocator {
  public:
   CodeAllocator();
-  ~CodeAllocator() override = default;
+  virtual ~CodeAllocator() = default;
 
   // To be called once by JIT initialization after enough configuration has been
   // loaded to determine which global code allocator type to use.
-  [[nodiscard]] static ICodeAllocator* make();
+  [[nodiscard]] static CodeAllocator* make();
 
-  AllocateResult addCode(asmjit::CodeHolder* code) override;
-  asmjit::Error releaseCode(void* code) override;
-  bool contains(const void* ptr) const override;
-  size_t usedBytes() const override;
-  const asmjit::Environment& asmJitEnvironment() const override;
+  virtual AllocateResult addCode(asmjit::CodeHolder* code);
+  virtual asmjit::Error releaseCode(void* code);
+  virtual bool contains(const void* ptr) const;
+  virtual size_t usedBytes() const;
+  virtual const asmjit::Environment& asmJitEnvironment() const;
 
-  void atForkPrepare() override;
-  void atForkParent() override;
-  void atForkChild() override;
+  virtual void atForkPrepare();
+  virtual void atForkParent();
+  virtual void atForkChild();
 
  protected:
   asmjit::JitRuntime runtime_;

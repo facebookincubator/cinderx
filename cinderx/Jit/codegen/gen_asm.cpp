@@ -11,6 +11,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/bytecode.h"
+#include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/arch.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
@@ -565,7 +566,7 @@ void* finalizeCode(arch::Builder& builder, std::string_view name) {
         DebugUtils::errorAsString(err))};
   }
 
-  ICodeAllocator* code_allocator =
+  CodeAllocator* code_allocator =
       cinderx::getModuleState()->code_allocator.get();
   AllocateResult result = code_allocator->addCode(builder.code());
   if (result.error != kErrorOk) {
@@ -680,7 +681,7 @@ static void* emitAndRegisterTrampoline(
   }
 
   CodeHolder code;
-  ICodeAllocator* code_allocator = mod_state->code_allocator.get();
+  CodeAllocator* code_allocator = mod_state->code_allocator.get();
   ASM_CHECK(code.init(code_allocator->asmJitEnvironment()), name);
   arch::Builder a(&code);
 
@@ -773,7 +774,7 @@ void* getOrCreateTrampoline(std::atomic<void*>& slot, Generator&& generator) {
 // required for an sret return on the MS x64 ABI).
 void* generateStaticReentryTrampoline(bool fp) {
   CodeHolder code;
-  ICodeAllocator* code_allocator =
+  CodeAllocator* code_allocator =
       cinderx::getModuleState()->code_allocator.get();
   const char* name =
       fp ? "static_reentry_trampoline_fp" : "static_reentry_trampoline";
@@ -892,7 +893,7 @@ void* NativeGenerator::getVectorcallEntry() {
   JIT_CHECK(as_ == nullptr, "Builder should not have been initialized.");
 
   CodeHolder code;
-  ICodeAllocator* code_allocator =
+  CodeAllocator* code_allocator =
       cinderx::getModuleState()->code_allocator.get();
   code.init(code_allocator->asmJitEnvironment());
   ThrowableErrorHandler eh;

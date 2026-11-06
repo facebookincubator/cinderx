@@ -44,7 +44,7 @@ class HintedCodeAllocationTest : public ::testing::Test {
     getMutableConfig().mem.huge_pages = true;
     getMutableConfig().mem.hinted_code_allocation = true;
     getMutableConfig().mem.multiple_code_sections = false;
-    code_allocator_ = std::unique_ptr<ICodeAllocator>(CodeAllocator::make());
+    code_allocator_ = std::unique_ptr<CodeAllocator>(CodeAllocator::make());
   }
 
   void TearDown() override {
@@ -53,7 +53,7 @@ class HintedCodeAllocationTest : public ::testing::Test {
   }
 
   Config saved_config_;
-  std::unique_ptr<ICodeAllocator> code_allocator_;
+  std::unique_ptr<CodeAllocator> code_allocator_;
 };
 
 TEST_F(HintedCodeAllocationTest, AllocatesWithinCinderJitRegion) {
