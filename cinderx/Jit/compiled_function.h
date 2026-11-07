@@ -98,7 +98,6 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/hir/function.h"
-#include "cinderx/Jit/jit_unwind.h"
 #include "cinderx/Jit/profile.h"
 #include "cinderx/Jit/stable_storage.h"
 
@@ -165,23 +164,13 @@ struct CompiledFunctionData {
   CompiledFunctionData(const CompiledFunctionData&) = delete;
   CompiledFunctionData& operator=(const CompiledFunctionData&) = delete;
 
-  // Unregisters any unwind info registered for the code range.  Runs on
-  // destruction as a backstop; the release sites in `compiled_function.cpp`
-  // call `unregisterUnwindInfo()` explicitly first so deregistration
-  // happens before the code memory is released.
+  // Unwind info for the code range is owned by the code allocator
+  // that allocated it, which deregisters it when the code is released.
   ~CompiledFunctionData();
 
   [[nodiscard]] bool defer();
   void releaseRuntimeResources();
   void releaseRuntimeReferences();
-
-  // Unwind-info registrations for the code range, owned by this object.
-  // Deregistered by `unregisterUnwindInfo()`; empty after a move.
-  std::vector<std::unique_ptr<JitUnwindRegistration>> unwind_registrations;
-
-  // Deregister all unwind info and clear `unwind_registrations`.
-  // Idempotent; safe to call before the code range is released.
-  void unregisterUnwindInfo();
 };
 
 class CompiledFunction;

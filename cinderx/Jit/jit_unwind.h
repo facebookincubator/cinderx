@@ -67,12 +67,16 @@ namespace cinderx::jit {
 // when neither unwinder is linked into the process, registration returns
 // null and JIT code simply runs without unwind info.
 //
-// Callers register one frame per executable code section (see
-// `populateCodeSections`).  A registration must be unregistered before the
-// code range or the frame buffer can be reused; `CompiledFunctionData`
-// owns this for JIT functions, and standalone trampolines (never freed)
-// keep theirs in the registry owned by `ModuleState`, which unregisters
-// them when the module state is torn down.
+// The code allocator owns registration for JIT code (see
+// `CodeAllocator`): one frame per chunk, or one frame per executable
+// code section for individually freed allocations.  A registration must
+// be unregistered before the code range or the frame buffer can be
+// reused.  Frames registered through `registerPermanentJitUnwindInfo`
+// are owned by the registry in `ModuleState`, which unregisters them
+// when the module state is torn down.  No narrower frame may overlap a
+// registered range: libgcc's FDE lookup picks the frame with the
+// greatest start address at or below the PC, so an enclosed frame
+// would shadow the enclosing one for PCs past it.
 
 // Size in bytes of the .eh_frame data for one code range, or 0 when no
 // unwind info is generated for this target.
@@ -217,8 +221,8 @@ JitUnwindPermanentRegistry* jitUnwindPermanentRegistry() noexcept;
 // `unregisterJitUnwindInfo` before the code range is freed or reused.
 //
 // The libgcc half of the registration (`__register_frame`) is gated by
-// the `unwind.libgcc_frame_registration` JIT config flag, which is off
-// by default; turning it on enables `__register_frame` while the HP
+// the `unwind.libgcc_frame_registration` JIT config flag, which is on
+// by default; turning it off disables `__register_frame` while the HP
 // libunwind registration is always on.  `libgcc_registered` on the returned
 // registration records which half ran, so unregistering stays correct
 // when the flag changes between registration and unregistration.

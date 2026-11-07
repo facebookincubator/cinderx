@@ -273,8 +273,8 @@ TEST(JitUnwindTest, LibgccFrameRegistrationCanBeDisabled) {
       getMutableConfig().unwind.libgcc_frame_registration);
   (void)restore;
 
-  // Off by default.
-  EXPECT_FALSE(getConfig().unwind.libgcc_frame_registration);
+  // On by default.
+  EXPECT_TRUE(getConfig().unwind.libgcc_frame_registration);
 
   // With the flag off, no `__register_frame` call happens.  HP libunwind
   // registration is unaffected: when libunwind is linked the

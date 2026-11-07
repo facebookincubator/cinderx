@@ -7,6 +7,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/Jit/jit_unwind.h"
 #include "cinderx/Jit/write_protect.h"
 
 #ifdef WIN32
@@ -208,6 +209,32 @@ CodeAllocator* CodeAllocator::make() {
   return new CodeAllocator{};
 }
 
+CodeAllocator::~CodeAllocator() {
+  std::lock_guard lock{runtime_mutex_};
+  for (auto& [addr, registrations] : unwind_registrations_) {
+    for (std::unique_ptr<JitUnwindRegistration>& registration : registrations) {
+      unregisterJitUnwindInfo(std::move(registration));
+    }
+  }
+  unwind_registrations_.clear();
+}
+
+void CodeAllocator::registerUnwindInfo(asmjit::CodeHolder* code, void* addr) {
+  std::vector<std::pair<void*, std::size_t>> sections;
+  codegen::populateCodeSections(sections, *code, addr);
+  std::vector<std::unique_ptr<JitUnwindRegistration>> registrations;
+  for (auto& [section_addr, size] : sections) {
+    std::unique_ptr<JitUnwindRegistration> registration =
+        registerJitUnwindInfo(section_addr, size);
+    if (registration != nullptr) {
+      registrations.push_back(std::move(registration));
+    }
+  }
+  if (!registrations.empty()) {
+    unwind_registrations_.emplace(addr, std::move(registrations));
+  }
+}
+
 AllocateResult CodeAllocator::addCode(asmjit::CodeHolder* code) {
   std::lock_guard lock{runtime_mutex_};
 
@@ -216,6 +243,10 @@ AllocateResult CodeAllocator::addCode(asmjit::CodeHolder* code) {
 
   if (addr != nullptr && error == asmjit::kErrorOk) {
     used_bytes_.fetch_add(code->codeSize(), std::memory_order_relaxed);
+    // This allocator frees each allocation individually in
+    // `releaseCode`, so register this allocation's sections now;
+    // `CodeAllocatorCinder` instead registers each chunk once.
+    registerUnwindInfo(code, addr);
   }
 
   return AllocateResult{addr, error};
@@ -229,6 +260,16 @@ asmjit::Error CodeAllocator::releaseCode(void* code) {
   asmjit::JitAllocator::Span span;
   if (auto error = inner->query(span, code); error != asmjit::kErrorOk) {
     return error;
+  }
+
+  // Deregister unwind info before the memory is freed: unwinders must
+  // never resolve a reused address through a stale frame.
+  auto it = unwind_registrations_.find(code);
+  if (it != unwind_registrations_.end()) {
+    for (std::unique_ptr<JitUnwindRegistration>& registration : it->second) {
+      unregisterJitUnwindInfo(std::move(registration));
+    }
+    unwind_registrations_.erase(it);
   }
 
   // The allocator may not actually free the code.  Zero it out in debug builds
@@ -280,6 +321,13 @@ void CodeAllocator::atForkChild() {
 }
 
 CodeAllocatorCinder::~CodeAllocatorCinder() {
+  // Deregister every chunk frame before any chunk is unmapped: after
+  // this, no unwinder may observe a registration whose code is gone.
+  for (std::unique_ptr<JitUnwindRegistration>& registration :
+       chunk_unwind_registrations_) {
+    unregisterJitUnwindInfo(std::move(registration));
+  }
+  chunk_unwind_registrations_.clear();
   for (std::span<uint8_t> alloc : allocations_) {
 #ifndef WIN32
     JIT_CHECK(
@@ -313,6 +361,17 @@ void CodeAllocatorCinder::ensureSpace(
   lost_bytes_.fetch_add(kChunkHeaderSize, std::memory_order_relaxed);
   alloc = res + kChunkHeaderSize;
   alloc_free = chunk_size - kChunkHeaderSize;
+  registerChunkUnwindInfo(res, chunk_size);
+}
+
+void CodeAllocatorCinder::registerChunkUnwindInfo(
+    void* chunk_addr,
+    size_t chunk_size) {
+  std::unique_ptr<JitUnwindRegistration> registration =
+      registerJitUnwindInfo(chunk_addr, chunk_size);
+  if (registration != nullptr) {
+    chunk_unwind_registrations_.push_back(std::move(registration));
+  }
 }
 
 void CodeAllocatorCinder::ensureSplitSpace(
@@ -354,6 +413,7 @@ void CodeAllocatorCinder::ensureSplitSpace(
   hot_alloc_free_ = hot_share;
   cold_alloc_ = hot_alloc_ + hot_share;
   cold_alloc_free_ = usable_size - hot_share;
+  registerChunkUnwindInfo(res, chunk_size);
 }
 
 AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {

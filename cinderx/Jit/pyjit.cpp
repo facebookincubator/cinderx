@@ -583,8 +583,8 @@ FlagProcessor initFlagProcessor() {
       "cinderx-jit-unwind-libgcc-frame-registration",
       "CINDERX_JIT_UNWIND_LIBGCC_FRAME_REGISTRATION",
       getMutableConfig().unwind.libgcc_frame_registration,
-      "Register each JIT function section with libgcc via __register_frame "
-      "(off by default; enable for glibc backtrace() through JIT frames). "
+      "Register JIT code with libgcc via __register_frame "
+      "(on by default; disable to skip glibc backtrace() through JIT frames). "
       "HP libunwind registration is unaffected");
 
   flag_processor.addOption(

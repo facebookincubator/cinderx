@@ -74,10 +74,10 @@ struct ModuleState {
   std::unique_ptr<jit::JITList> jit_list;
   std::unique_ptr<PyObjectAllocator> jit_gen_allocator;
 
-  // Permanent unwind registrations for standalone JIT trampolines
-  // (deopt exits), whose code is never freed.  Owned here rather than
-  // in a process-global so the frames are deregistered when the module
-  // state is torn down; see `JitUnwindPermanentRegistry`.
+  // Permanent unwind registrations, for code that is never freed.
+  // Owned here rather than in a process-global so the frames are
+  // deregistered when the module state is torn down; see
+  // `JitUnwindPermanentRegistry`.
   jit::JitUnwindPermanentRegistry permanent_unwind_registrations;
 
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value;

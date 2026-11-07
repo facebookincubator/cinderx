@@ -379,7 +379,7 @@ std::unique_ptr<JitUnwindRegistration> registerJitUnwindInfo(
   registration->index[0].fde_offset = fde_offset;
 
   // libgcc's frame registry (for C++ exceptions and glibc `backtrace()`)
-  // is gated by `unwind.libgcc_frame_registration` (off by default): on
+  // is gated by `unwind.libgcc_frame_registration` (on by default): on
   // libgcc older than GCC 13 every C++ exception or `backtrace()` frame
   // lookup takes a global mutex and walks every registered frame.  HP
   // libunwind registration below is unaffected.  Read the flag once per
@@ -412,6 +412,7 @@ JitUnwindRegistration* registerPermanentJitUnwindInfo(
   if (registration == nullptr) {
     return nullptr;
   }
+#if JIT_UNWIND_REGISTRATION_SUPPORTED
   JitUnwindPermanentRegistry* registry = jitUnwindPermanentRegistry();
   if (registry == nullptr) {
     // No module state: there is nowhere to root the registration, so
@@ -427,6 +428,9 @@ JitUnwindRegistration* registerPermanentJitUnwindInfo(
   std::lock_guard<std::mutex> lock{registry->mutex};
   registry->registrations.push_back(std::move(registration));
   return result;
+#else
+  return nullptr;
+#endif
 }
 
 void unregisterJitUnwindInfo(

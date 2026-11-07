@@ -87,16 +87,17 @@ struct GdbOptions {
 
 // Settings related to registering unwind info for JIT-compiled code.
 struct UnwindOptions {
-  // Register each JIT function section with libgcc via `__register_frame`,
-  // so C++ exceptions and `backtrace()` can unwind through JIT code.
-  // Off by default: on libgcc older than GCC 13, every C++ exception or
+  // Register JIT code with libgcc via `__register_frame`, so C++
+  // exceptions and `backtrace()` can unwind through JIT code.  On by
+  // default: on libgcc older than GCC 13, every C++ exception or
   // `backtrace()` frame lookup takes a global mutex and walks every
-  // registered frame.  Turn this on only in processes that need glibc
-  // `backtrace()` through JIT frames.  HP libunwind registration (via
-  // `_U_dyn_register`) is unaffected and stays on.  Changing the flag
-  // only affects functions compiled afterwards; frames registered while
-  // it was on stay registered until their code is freed.
-  bool libgcc_frame_registration{false};
+  // registered frame, but the default code allocator registers only
+  // once per 2MiB chunk of JIT code, so the number of registered frames
+  // stays small.  HP libunwind registration (via `_U_dyn_register`) is
+  // unaffected and stays on.  Changing the flag only affects code
+  // allocated afterwards; frames registered while it was on stay
+  // registered until their code is freed.
+  bool libgcc_frame_registration{true};
 };
 
 // Options for controlling how JIT-compiled functions are serialized out for
