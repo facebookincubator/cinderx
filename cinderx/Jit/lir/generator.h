@@ -11,8 +11,10 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/stable_storage.h"
 
+#include <initializer_list>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <variant>
 
@@ -329,6 +331,28 @@ class LIRGenerator {
   bool translateSpecializedCall(
       BasicBlockBuilder& bbb,
       const hir::VectorCall& instr);
+
+  // Emit a call to a vectorcall-shaped C function:
+  //   callee(prefix..., args, nargsf, kwnames)
+  // where args points at a contiguous array of the values in `values`.
+  // The array is materialized with a ReserveStack, which places it above
+  // the call argument buffer so the callee cannot clobber it, and the call
+  // itself is a plain kCall whose arguments the post-allocation rewrite
+  // moves into place.  `prefix` holds the C arguments before args, as
+  // defining instructions (nullptr for a null argument), in order.
+  // `kwnames`, when present, is the trailing kwnames tuple; its length is
+  // subtracted from nargsf at runtime.  When `args_offset` is set, the
+  // array is preceded by a scratch slot and nargsf advertises
+  // PY_VECTORCALL_ARGUMENTS_OFFSET, as _PyObject_VectorcallTstate and
+  // rt::call require.  A null `kwnames` passes a null kwnames pointer.
+  Instruction* appendVectorCall(
+      BasicBlockBuilder& bbb,
+      hir::Register* dst,
+      std::variant<Instruction*, uint64_t> callee,
+      std::initializer_list<Instruction*> prefix,
+      std::span<hir::Register* const> values,
+      hir::Register* kwnames,
+      bool args_offset);
 
   TranslatedBlock translateOneBasicBlock(
       const hir::BasicBlock* bb,

@@ -1931,6 +1931,106 @@ void LIRGenerator::registerCallSiteLiveValues(
   JIT_CHECK(inserted, "Callsite live-value metadata registered twice");
 }
 
+Instruction* LIRGenerator::appendVectorCall(
+    BasicBlockBuilder& bbb,
+    hir::Register* dst,
+    std::variant<Instruction*, uint64_t> callee,
+    std::initializer_list<Instruction*> prefix,
+    std::span<hir::Register* const> values,
+    hir::Register* kwnames,
+    bool args_offset) {
+  const size_t num_values = values.size();
+  const size_t scratch_slots = args_offset ? 1 : 0;
+  const size_t num_words = num_values + scratch_slots;
+
+  Instruction* args_ptr = nullptr;
+  if (num_words != 0) {
+    const int aligned_size =
+        static_cast<int>((num_words * kPointerSize + 15) & ~15);
+    env_->reserve_stack_size = std::max(env_->reserve_stack_size, aligned_size);
+    Instruction* reserved =
+        bbb.appendInstr(OutVReg{Operand::k64bit}, Opcode::kReserveStack);
+    if (scratch_slots != 0) {
+      args_ptr = bbb.appendInstr(
+          OutVReg{Operand::k64bit},
+          Opcode::kLea,
+          Ind{reserved,
+              static_cast<int32_t>(scratch_slots * kPointerSize),
+              DataType::k64bit});
+    } else {
+      args_ptr = reserved;
+    }
+    for (size_t i = 0; i < num_values; ++i) {
+      Instruction* value = bbb.getDefInstr(values[i]);
+      if constexpr (kFreeThreadedBuild) {
+        // The array is read by C code, which expects untagged pointers.
+        // The post-generation strip pass only strips call operands, so
+        // strip the values here, as they are stored into the array.
+        value = bbb.appendInstr(
+            OutVReg{DataType::kObjectUntagged},
+            Opcode::kAnd,
+            value,
+            Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
+                DataType::k64bit});
+      }
+      bbb.appendInstr(
+          OutInd{args_ptr, static_cast<int32_t>(i * kPointerSize)},
+          Opcode::kStore,
+          value);
+    }
+  }
+
+  const uint64_t nargsf_initial =
+      num_values | (args_offset ? PY_VECTORCALL_ARGUMENTS_OFFSET : 0);
+  Instruction* nargsf = nullptr;
+  if (kwnames != nullptr) {
+    Instruction* kwlen = bbb.appendInstr(
+        OutVReg{Operand::k64bit},
+        Opcode::kLoad,
+        Ind{bbb.getDefInstr(kwnames),
+            static_cast<int32_t>(offsetof(PyVarObject, ob_size)),
+            DataType::k64bit});
+    Instruction* initial = bbb.appendInstr(
+        OutVReg{Operand::k64bit},
+        Opcode::kMove,
+        Imm{nargsf_initial, DataType::k64bit});
+    nargsf =
+        bbb.appendInstr(OutVReg{Operand::k64bit}, Opcode::kSub, initial, kwlen);
+  }
+
+  Instruction* instr;
+  if (std::holds_alternative<Instruction*>(callee)) {
+    instr = bbb.appendInstr(
+        dst, Opcode::kCall, VReg{std::get<Instruction*>(callee)});
+  } else {
+    instr = bbb.appendInstr(
+        dst, Opcode::kCall, Imm{std::get<uint64_t>(callee), DataType::k64bit});
+  }
+  for (Instruction* pre : prefix) {
+    if (pre == nullptr) {
+      instr->addOperands(Imm{0, DataType::k64bit});
+    } else {
+      instr->addOperands(VReg{pre});
+    }
+  }
+  if (args_ptr != nullptr) {
+    instr->addOperands(VReg{args_ptr});
+  } else {
+    instr->addOperands(Imm{0, DataType::k64bit});
+  }
+  if (nargsf != nullptr) {
+    instr->addOperands(VReg{nargsf});
+  } else {
+    instr->addOperands(Imm{nargsf_initial, DataType::k64bit});
+  }
+  if (kwnames != nullptr) {
+    instr->addOperands(VReg{bbb.getDefInstr(kwnames)});
+  } else {
+    instr->addOperands(Imm{0, DataType::k64bit});
+  }
+  return instr;
+}
+
 // Attempt to emit a type-specialized call, returning true if successful.
 bool LIRGenerator::translateSpecializedCall(
     BasicBlockBuilder& bbb,
@@ -2014,21 +2114,24 @@ bool LIRGenerator::translateSpecializedCall(
     case METH_FASTCALL | METH_KEYWORDS: {
       // PyCFunctionFastWithKeywords has the same ABI as vectorcallfunc when
       // PY_VECTORCALL_ARGUMENTS_OFFSET isn't set: (self, args, nargs,
-      // kwnames). Reuse kVectorCall's argument-array lowering with the raw
-      // PyCFunction entry point and bound self.
-      Instruction* instr = bbb.appendInstr(
-          hir_instr.output(),
-          Opcode::kVectorCall,
-          Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(callee))},
-          Imm{0},
+      // kwnames).
+      Instruction* self = bbb.appendInstr(
+          OutVReg{DataType::kObject},
+          Opcode::kMove,
           Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_SELF(callee)),
               DataType::kObject});
-      for (size_t i = 0; i < hir_instr.numArgs(); ++i) {
-        instr->addOperands(VReg{bbb.getDefInstr(hir_instr.arg(i))});
-      }
-      if (!has_kw_args) {
-        instr->addOperands(Imm{0});
-      }
+      auto operands = hir_instr.getOperands();
+      const size_t num_values = operands.size() - 1 - (has_kw_args ? 1 : 0);
+      hir::Register* kwnames =
+          has_kw_args ? operands[operands.size() - 1] : nullptr;
+      appendVectorCall(
+          bbb,
+          hir_instr.output(),
+          reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(callee)),
+          {self},
+          operands.subspan(1, num_values),
+          kwnames,
+          /*args_offset=*/false);
       return true;
     }
   }
@@ -4371,8 +4474,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         if (translateSpecializedCall(bbb, hir_instr)) {
           break;
         }
-        size_t flags = 0;
-        Instruction* instr;
+        const bool has_kwargs = hir_instr.flags() & CallFlags::KwArgs;
+        auto operands = hir_instr.getOperands();
+        const size_t num_values = operands.size() - 1 - (has_kwargs ? 1 : 0);
+        hir::Register* kwnames =
+            has_kwargs ? operands[operands.size() - 1] : nullptr;
+        auto values = operands.subspan(1, num_values);
+        Instruction* callable = bbb.getDefInstr(hir_instr.func());
         const Type func_type = hir_instr.func()->type();
         vectorcallfunc type_vectorcall = nullptr;
         if (func_type <= TType && func_type.hasObjectSpec()) {
@@ -4395,35 +4503,36 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               Ind{callee,
                   static_cast<int32_t>(offsetof(PyFunctionObject, vectorcall)),
                   Operand::k64bit});
-          instr = bbb.appendInstr(
+          appendVectorCall(
+              bbb,
               hir_instr.output(),
-              Opcode::kVectorCall,
-              VReg{vectorcall_ptr},
-              Imm{flags});
+              vectorcall_ptr,
+              {callable},
+              values,
+              kwnames,
+              /*args_offset=*/false);
         } else if (type_vectorcall != nullptr) {
-          instr = bbb.appendInstr(
+          appendVectorCall(
+              bbb,
               hir_instr.output(),
-              Opcode::kVectorCall,
-              Imm{reinterpret_cast<uint64_t>(type_vectorcall)},
-              Imm{flags});
+              reinterpret_cast<uint64_t>(type_vectorcall),
+              {callable},
+              values,
+              kwnames,
+              /*args_offset=*/false);
         } else {
           // Calls without a known direct vectorcall target need to check the
           // eval breaker. We do this in a helper instead of injecting it after
           // every call.
-          instr = bbb.appendInstr(
+          appendVectorCall(
+              bbb,
               hir_instr.output(),
-              Opcode::kVectorCallTstate,
               // TASK(T140174965): This should be MemImm.
-              Imm{reinterpret_cast<uint64_t>(rt::vectorcallTstate)},
-              Imm{flags},
-              VReg{env_->asm_tstate});
-        }
-        for (hir::Register* arg : hir_instr.getOperands()) {
-          instr->addOperands(VReg{bbb.getDefInstr(arg)});
-        }
-        if (!(hir_instr.flags() & CallFlags::KwArgs)) {
-          // TASK(T140174965): This should be MemImm.
-          instr->addOperands(Imm{0});
+              reinterpret_cast<uint64_t>(rt::vectorcallTstate),
+              {env_->asm_tstate, callable},
+              values,
+              kwnames,
+              /*args_offset=*/true);
         }
         break;
       }
@@ -4544,21 +4653,23 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case hir::Opcode::kCallMethod: {
         auto& hir_instr = i.as<CallMethod>();
-        size_t flags = 0;
-        Instruction* instr = bbb.appendInstr(
+        const bool has_kwargs = hir_instr.flags() & CallFlags::KwArgs;
+        auto operands = hir_instr.getOperands();
+        // The args array starts at operand 1: the receiver (or null
+        // placeholder) that rt::call consumes or shifts past. Operand 0 is
+        // the callable, passed as a separate C argument below.
+        const size_t num_values = operands.size() - 1 - (has_kwargs ? 1 : 0);
+        hir::Register* kwnames =
+            has_kwargs ? operands[operands.size() - 1] : nullptr;
+        appendVectorCall(
+            bbb,
             hir_instr.output(),
-            Opcode::kVectorCallTstate,
             // TASK(T140174965): This should be MemImm.
-            Imm{reinterpret_cast<uint64_t>(rt::call)},
-            Imm{flags},
-            VReg{env_->asm_tstate});
-        for (hir::Register* arg : hir_instr.getOperands()) {
-          instr->addOperands(VReg{bbb.getDefInstr(arg)});
-        }
-        if (!(hir_instr.flags() & CallFlags::KwArgs)) {
-          // TASK(T140174965): This should be MemImm.
-          instr->addOperands(Imm{0});
-        }
+            reinterpret_cast<uint64_t>(rt::call),
+            {env_->asm_tstate, bbb.getDefInstr(hir_instr.func())},
+            operands.subspan(1, num_values),
+            kwnames,
+            /*args_offset=*/true);
         break;
       }
 
@@ -5695,23 +5806,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case hir::Opcode::kBuildString: {
         const auto& instr = i.as<BuildString>();
 
-        // using vectorcall here although this is not strictly a vector call.
+        // Using vectorcall here although this is not strictly a vector call.
         // tstate and the callable are always null, and all the components
         // to be concatenated will be in the args argument.
-
-        Instruction* lir = bbb.appendInstr(
+        appendVectorCall(
+            bbb,
             instr.output(),
-            Opcode::kVectorCallTstate,
-            rt::buildString,
+            reinterpret_cast<uint64_t>(rt::buildString),
+            {nullptr, nullptr},
+            instr.getOperands(),
             nullptr,
-            nullptr);
-        lir->addOperands(Imm{0});
-        for (size_t operandIdx = 0; operandIdx < instr.numOperands();
-             operandIdx++) {
-          lir->addOperands(VReg{bbb.getDefInstr(instr.getOperand(operandIdx))});
-        }
-        lir->addOperands(Imm{0});
-
+            /*args_offset=*/true);
         break;
       }
       case hir::Opcode::kDeleteSubscr: {

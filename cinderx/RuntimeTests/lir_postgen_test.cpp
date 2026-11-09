@@ -25,8 +25,10 @@ TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
       block->allocateInstr(Opcode::kCall, nullptr, OutVReg{}, Imm{1});
   Instruction* first_arg =
       block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{4369});
-  Instruction* second_arg =
-      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{8738});
+  // A raw pointer argument, like the thread state: not a Python object, so
+  // it must not be stripped.
+  Instruction* second_arg = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{8738});
   Instruction* third_arg =
       block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{13107});
   Instruction* second_call = block->allocateInstr(
@@ -35,8 +37,8 @@ TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
       block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{4661});
   Instruction* final_arg =
       block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{17477});
-  Instruction* vector_call = block->allocateInstr(
-      Opcode::kVectorCallTstate,
+  Instruction* call = block->allocateInstr(
+      Opcode::kCall,
       nullptr,
       OutVReg{},
       Imm{2},
@@ -48,18 +50,18 @@ TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
       VReg{second_call},
       VReg{immediate_arg},
       VReg{final_arg});
-  block->allocateInstr(Opcode::kReturn, nullptr, VReg{vector_call});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{call});
 
   codegen::Environ env;
   PostGenerationRewrite(&func, &env).run();
 
-  // This constructs the postgen/regalloc hazard directly.  VectorCallTstate
+  // This constructs the postgen/regalloc hazard directly. The call
   // receives PyObject* operands that must have deferred-RC tag bits stripped
   // before entering C.  The original rewrite built each strip directly from
   // the operand's defining instruction:
   //
   //   %strip:ObjectUntagged = And %base:Object, ~tagbits
-  //   %call:Object = VectorCallTstate ..., %strip, ...
+  //   %call:Object = Call ..., %strip, ...
   //
   // That is valid LIR before register allocation, but it is fragile when
   // `%base` is a long-lived tagged Python object.  Calls can force regalloc to
@@ -76,7 +78,7 @@ TEST_F(LIRPostGenerationRewriteTest, StrippedCallOperandsKeepLocalDefs) {
   //   RCX:Object = Move <different object>
   //   RAX:ObjectUntagged = And RCX:Object, ~tagbits
   //   [RBP(-2464)]:ObjectUntagged = Move RAX:ObjectUntagged
-  //   RAX:Object = VectorCallTstate ..., [RBP(-2464)], ...
+  //   RAX:Object = Call ..., [RBP(-2464)], ...
   //
   // The call receives an untagged value derived from the different object
   // instead of the original tagged object.  The fix inserts an adjacent copy

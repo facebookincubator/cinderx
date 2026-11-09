@@ -3298,8 +3298,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kNop:
     case Opcode::kCVarArgCall:
     case Opcode::kFastCall:
-    case Opcode::kVectorCall:
-    case Opcode::kVectorCallTstate:
     case Opcode::kVarArgCall:
     case Opcode::kMulAdd:
     case Opcode::kLoadArg:
@@ -3493,8 +3491,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kNop:
     case Opcode::kCVarArgCall:
     case Opcode::kFastCall:
-    case Opcode::kVectorCall:
-    case Opcode::kVectorCallTstate:
     case Opcode::kVarArgCall:
     case Opcode::kLoadArg:
     case Opcode::kCondBranch:

@@ -87,9 +87,6 @@ namespace cinderx::jit::lir {
   /* Pass inputs to a helper as an array and count. */          \
   X(VarArgCall)                                                 \
   X(VariadicPush)                                               \
-  /* Call a vectorcallfunc pointer, with no tstate arg */       \
-  X(VectorCall)                                                 \
-  X(VectorCallTstate)                                           \
   X(Xor)                                                        \
   X(Zext)
 

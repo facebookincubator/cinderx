@@ -1171,11 +1171,55 @@ def func():
   ASSERT_NE(PySet_Type.tp_vectorcall, nullptr);
 
   auto lir_func = getLIRFunction(pyfunc.get());
-  EXPECT_LIR(
-      Query(*lir_func)
-          .opcode(Opcode::kVectorCall)
-          .inImm(0, reinterpret_cast<uint64_t>(PySet_Type.tp_vectorcall)));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
+  // No arguments and no scratch slot: no args array is reserved, and the
+  // call passes a null args pointer, a 0 nargsf, and a null kwnames.
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kCall)
+                 .inImm(0, reinterpret_cast<uint64_t>(PySet_Type.tp_vectorcall))
+                 .inImm(2, 0)
+                 .inImm(3, 0)
+                 .inImm(4, 0)
+                 .with([](const Instruction* instr) {
+                   return instr->getNumInputs() == 5;
+                 }));
+  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kReserveStack));
+}
+
+TEST_F(LIRGeneratorTest, VectorCallArgsArrayUsesReserveStack) {
+  const char* src = R"(
+def func(x):
+  return set(x)
+)";
+
+  Ref<PyObject> pyfunc(compileAndGet(src, "func"));
+  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
+
+  ASSERT_NE(PySet_Type.tp_vectorcall, nullptr);
+
+  auto lir_func = getLIRFunction(pyfunc.get());
+  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kReserveStack));
+  // The single argument is stored at offset 0 of the reserved array.
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kStore)
+                 .outIndOffset(0)
+                 .with([](const Instruction* instr) {
+                   const Operand* out = instr->output();
+                   if (!out->isInd()) {
+                     return false;
+                   }
+                   Operand* base =
+                       out->getMemoryIndirect()->getBaseRegOperand();
+                   return base != nullptr && base->isLinked() &&
+                       base->getLinkedInstr()->isReserveStack();
+                 }));
+  // The call targets the type's vectorcall directly, passing the reserved
+  // array as its args pointer, with one positional argument and no kwnames.
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kCall)
+                 .inImm(0, reinterpret_cast<uint64_t>(PySet_Type.tp_vectorcall))
+                 .inDefOpcode(2, Opcode::kReserveStack)
+                 .inImm(3, 1)
+                 .inImm(4, 0));
 }
 
 TEST_F(LIRGeneratorTest, ExactPyCFunctionFastCallUsesDirectTarget) {
@@ -1202,7 +1246,6 @@ def func(a, b):
                      0,
                      reinterpret_cast<uint64_t>(
                          PyCFunction_GET_FUNCTION(divmod_func))));
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
 }
 
 TEST_F(LIRGeneratorTest, PyCFunctionFastCallWithKeywordsIsNotSpecialized) {
@@ -1216,7 +1259,9 @@ def func(iterator):
 
   auto lir_func = getLIRFunction(pyfunc.get());
   EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kFastCall));
-  EXPECT_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
+  EXPECT_LIR(Query(*lir_func)
+                 .opcode(Opcode::kCall)
+                 .inAddr(0, reinterpret_cast<uint64_t>(rt::vectorcallTstate)));
 }
 
 TEST_F(LIRGeneratorTest, ExactPyCFunctionFastCallWithKeywordsUsesDirectTarget) {
@@ -1236,18 +1281,38 @@ def without_keywords(values):
           (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS),
       METH_FASTCALL | METH_KEYWORDS);
 
-  for (const char* name : {"with_keywords", "without_keywords"}) {
-    Ref<PyObject> pyfunc(compileAndGet(src, name));
-    ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling " << name;
+  // With keywords the call passes a kwnames tuple, so nargsf is computed
+  // by subtracting its length from the argument count; without keywords
+  // it is the plain positional count with a null kwnames. Both pass the
+  // bound self as the first C argument and the reserved args array second.
+  {
+    Ref<PyObject> pyfunc(compileAndGet(src, "with_keywords"));
+    ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling with_keywords";
 
     auto lir_func = getLIRFunction(pyfunc.get());
     EXPECT_LIR(
         Query(*lir_func)
-            .opcode(Opcode::kVectorCall)
+            .opcode(Opcode::kCall)
             .inImm(
-                0,
-                reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(sorted))));
-    EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kVectorCallTstate));
+                0, reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(sorted)))
+            .inDefOpcode(1, Opcode::kMove)
+            .inDefOpcode(2, Opcode::kReserveStack)
+            .inDefOpcode(3, Opcode::kSub));
+  }
+  {
+    Ref<PyObject> pyfunc(compileAndGet(src, "without_keywords"));
+    ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling without_keywords";
+
+    auto lir_func = getLIRFunction(pyfunc.get());
+    EXPECT_LIR(
+        Query(*lir_func)
+            .opcode(Opcode::kCall)
+            .inImm(
+                0, reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(sorted)))
+            .inDefOpcode(1, Opcode::kMove)
+            .inDefOpcode(2, Opcode::kReserveStack)
+            .inImm(3, 1)
+            .inImm(4, 0));
   }
 }
 
