@@ -52,11 +52,7 @@ build = [
     "cp315-manylinux_x86_64",
     "cp315-musllinux_aarch64",
     "cp315-musllinux_x86_64",
-
-    # Windows support for Python 3.15 still has issues.
-    #
-    # "cp315-win_amd64",
-
+    "cp315-win_amd64",
     # No UpstreamBorrow/ file for 3.15t yet.
     #
     # "cp315t-manylinux_aarch64",
