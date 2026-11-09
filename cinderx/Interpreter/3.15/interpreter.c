@@ -44,11 +44,6 @@
     case 124: \
     case 125: \
     case 127: \
-    case 214: \
-    case 215: \
-    case 216: \
-    case 217: \
-    case 218: \
     case 219: \
     case 220: \
     case 221: \
