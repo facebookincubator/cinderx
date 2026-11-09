@@ -1,7 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-strict
-
 import unittest
 from collections.abc import Callable
 
@@ -86,11 +84,14 @@ class ExceptionHandlingTests(unittest.TestCase):
             raise
 
     def test_reraise(self) -> None:
-        def f() -> None:
-            raise Exception("hello")
+        exc = Exception("hello")
 
-        with self.assertRaisesRegex(Exception, "hello"):
+        def f() -> None:
+            raise exc
+
+        with self.assertRaisesRegex(Exception, "hello") as ctx:
             self.reraise(f)
+        self.assertIs(ctx.exception, exc)
 
     @failUnlessJITCompiled
     @failUnlessHasOpcodes("PUSH_EXC_INFO")
