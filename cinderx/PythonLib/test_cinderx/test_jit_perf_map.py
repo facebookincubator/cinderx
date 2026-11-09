@@ -3,11 +3,13 @@
 # pyre-strict
 
 import os.path
+import platform
 import re
 import struct
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 import cinderx
@@ -28,6 +30,7 @@ _JITDUMP_MAGIC: int = 0x4A695444
 # Six u32s (magic, version, total_size, elf_mach, pad1, pid) plus two u64s
 # (timestamp, flags).
 _JITDUMP_HEADER_SIZE: int = 40
+_JITDUMP_FLAGS_ARCH_TIMESTAMP: int = 1
 # Record id of a CodeLoadRecord, the only kind of record CinderX writes.
 _JIT_CODE_LOAD: int = 0
 # sizeof(CodeLoadRecord): two u32s (id, total_size), a u64 timestamp, two u32s
@@ -84,9 +87,15 @@ class PerfMapTests(unittest.TestCase):
         map_contents = self._read_perf_map(self._find_pid(stdout, which))
         return set(re.findall(f"{_FUNC_PREFIX}(.+)", map_contents))
 
-    def _run_script(self, script: str, dump_dir: str) -> str:
+    def _run_script(
+        self, script: str, dump_dir: str, extra_env: dict[str, str] | None = None
+    ) -> str:
         """Run `script` with perf maps and JIT dumps enabled, passing it
         `dump_dir` as its only argument."""
+        env = subprocess_env()
+        # Tests opt in explicitly when they need architecture timestamps.
+        env.pop("JITDUMP_USE_ARCH_TIMESTAMP", None)
+        env.update(extra_env or {})
         proc: subprocess.CompletedProcess[str] = subprocess.run(
             [
                 sys.executable,
@@ -102,25 +111,34 @@ class PerfMapTests(unittest.TestCase):
             ],
             stdout=subprocess.PIPE,
             encoding=ENCODING,
-            env=subprocess_env(),
+            env=env,
         )
         self.assertEqual(proc.returncode, 0)
         return proc.stdout
 
-    def _read_jitdump_names(self, path: str) -> list[str]:
-        """Check that a JIT dump is a single header followed by well-formed
-        records running exactly to EOF, and return the records' symbol names."""
+    def _read_jitdump(self, path: str) -> tuple[int, int, list[tuple[str, int]]]:
+        """Read the header flags, header timestamp, and load records."""
         with open(path, "rb") as f:
             data = f.read()
         self.assertGreaterEqual(len(data), _JITDUMP_HEADER_SIZE, f"{path} is empty")
-        magic, _version, header_size = struct.unpack_from("<III", data)
+        (
+            magic,
+            _version,
+            header_size,
+            _elf_mach,
+            _pad1,
+            _pid,
+            header_ts,
+            flags,
+        ) = struct.unpack_from("<IIIIIIQQ", data)
         self.assertEqual(magic, _JITDUMP_MAGIC, f"{path} has no header")
+        self.assertEqual(header_size, _JITDUMP_HEADER_SIZE, f"{path} bad header")
 
-        names = []
+        records = []
         code_indices = set()
         offset = header_size
         while offset < len(data):
-            record_id, record_size = struct.unpack_from("<II", data, offset)
+            record_id, record_size, timestamp = struct.unpack_from("<IIQ", data, offset)
             where = f"{path} at offset {offset}"
             self.assertEqual(record_id, _JIT_CODE_LOAD, f"Bad record id in {where}")
             self.assertGreater(
@@ -131,11 +149,45 @@ class PerfMapTests(unittest.TestCase):
             code_indices.add(code_index)
 
             name_start = offset + _CODE_LOAD_RECORD_SIZE
-            names.append(data[name_start : data.index(b"\0", name_start)].decode())
+            name = data[name_start : data.index(b"\0", name_start)].decode()
+            records.append((name, timestamp))
             offset += record_size
 
         self.assertEqual(offset, len(data), f"{path} ends in a truncated record")
-        return names
+        return flags, header_ts, records
+
+    def _read_jitdump_names(self, path: str) -> list[str]:
+        return [name for name, _timestamp in self._read_jitdump(path)[2]]
+
+    def _read_jitdump_timestamps(self, path: str) -> tuple[int, int, list[int]]:
+        flags, header_ts, records = self._read_jitdump(path)
+        return flags, header_ts, [timestamp for _name, timestamp in records]
+
+    def _run_compute_timestamps(
+        self, extra_env: dict[str, str] | None = None
+    ) -> tuple[int, int, list[int]]:
+        """Compile one function and read the resulting jitdump timestamps."""
+        script = (
+            "import cinderx.jit\n"
+            "import os\n"
+            "\n"
+            "\n"
+            "def compute() -> int:\n"
+            "    n = 0\n"
+            "    for i in range(10):\n"
+            "        n += i\n"
+            "    return n\n"
+            "\n"
+            "\n"
+            "cinderx.jit.force_compile(compute)\n"
+            'print(f"pid={os.getpid()}", flush=True)\n'
+        )
+        with tempfile.TemporaryDirectory() as dump_dir:
+            stdout = self._run_script(script, dump_dir, extra_env)
+            m = re.search(r"pid=(\d+)", stdout)
+            self.assertIsNotNone(m, f"Couldn't find pid in stdout:\n\n{stdout}")
+            path = os.path.join(dump_dir, f"jit-{m[1]}.dump")
+            return self._read_jitdump_timestamps(path)
 
     @passUnless(hasattr(os, "fork"), "fork not available on Windows")
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
@@ -282,6 +334,40 @@ class PerfMapTests(unittest.TestCase):
             self._run_script(script, dump_dir)
             names = self._read_jitdump_names(os.path.join(dump_dir, "snapshot.dump"))
         self.assertIn(f"{_FUNC_PREFIX}compute", names)
+
+    @passIf(sys.platform == "win32", "Perf JIT dumps are not supported on Windows")
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
+    def test_jitdump_timestamps_are_monotonic(self) -> None:
+        # Both an unset variable and "0" select CLOCK_MONOTONIC.
+        for extra_env in (None, {"JITDUMP_USE_ARCH_TIMESTAMP": "0"}):
+            with self.subTest(extra_env=extra_env):
+                before_ns = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+                flags, header_ts, record_tss = self._run_compute_timestamps(extra_env)
+                after_ns = time.clock_gettime_ns(time.CLOCK_MONOTONIC)
+
+                self.assertEqual(flags, 0)
+                self.assertGreater(len(record_tss), 0)
+                for timestamp in [header_ts, *record_tss]:
+                    self.assertGreaterEqual(timestamp, before_ns)
+                    self.assertLessEqual(timestamp, after_ns)
+                self.assertLessEqual(header_ts, min(record_tss))
+
+    @passIf(sys.platform == "win32", "Perf JIT dumps are not supported on Windows")
+    @passUnless(
+        platform.machine() in ("x86_64", "AMD64"),
+        "Architecture timestamps need x86-64",
+    )
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
+    def test_jitdump_timestamps_use_arch_timestamp(self) -> None:
+        flags, _header_ts, record_tss = self._run_compute_timestamps(
+            {"JITDUMP_USE_ARCH_TIMESTAMP": "1"}
+        )
+        self.assertEqual(
+            flags,
+            _JITDUMP_FLAGS_ARCH_TIMESTAMP,
+            "dump does not use architecture timestamps",
+        )
+        self.assertGreater(len(record_tss), 0, "dump has no records")
 
     @passUnless(hasattr(os, "fork"), "fork not available on Windows")
     @skip_unless_jit("Runs a subprocess with the JIT enabled")

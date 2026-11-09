@@ -50,6 +50,11 @@ std::unique_ptr<Writer> makePerfMapWriter(bool prefork_enabled);
 //
 // Used by 'perf inject' and 'perf report'. The format is documented here:
 // https://raw.githubusercontent.com/torvalds/linux/master/tools/perf/Documentation/jitdump-specification.txt.
-std::unique_ptr<Writer> makeJitDumpWriter(std::string_view jit_dump_dir);
+//
+// If use_arch_timestamp is true, timestamps use the TSC on x86-64; otherwise
+// they use CLOCK_MONOTONIC.
+std::unique_ptr<Writer> makeJitDumpWriter(
+    std::string_view jit_dump_dir,
+    bool use_arch_timestamp);
 
 } // namespace cinderx::jit::perf

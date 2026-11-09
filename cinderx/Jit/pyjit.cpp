@@ -886,7 +886,10 @@ FlagProcessor initFlagProcessor() {
           "JITDUMPDIR",
           getMutableConfig().perf_map.jit_dump_dir,
           "Absolute path to a <DIRECTORY> that exists. A perf jitdump file "
-          "will be written to this directory")
+          "will be written to this directory. Use with `perf record -k 1` "
+          "and `perf inject --jit` to view JIT assembly in `perf report`. "
+          "Perf sets `JITDUMP_USE_ARCH_TIMESTAMP=1` automatically for Intel "
+          "PT/BTS recordings")
       .withFlagParamName("DIRECTORY");
   flag_processor
       .addOption(
@@ -894,7 +897,10 @@ FlagProcessor initFlagProcessor() {
           "CINDERX_JIT_DUMP_DIR",
           getMutableConfig().perf_map.jit_dump_dir,
           "Absolute path to a <DIRECTORY> that exists. A perf jitdump file "
-          "will be written to this directory")
+          "will be written to this directory. Use with `perf record -k 1` "
+          "and `perf inject --jit` to view JIT assembly in `perf report`. "
+          "Perf sets `JITDUMP_USE_ARCH_TIMESTAMP=1` automatically for Intel "
+          "PT/BTS recordings")
       .withFlagParamName("DIRECTORY");
 
   flag_processor.addOption(
@@ -991,6 +997,13 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.setFlags(PySys_GetXOptions());
 
+  // Perf sets this for Intel PT/BTS. Match its JVM jitdump agent's handling of
+  // empty and "0" values.
+  const char* arch_timestamp_env = Py_GETENV("JITDUMP_USE_ARCH_TIMESTAMP");
+  getMutableConfig().perf_map.use_arch_timestamp =
+      arch_timestamp_env != nullptr && arch_timestamp_env[0] != '\0' &&
+      std::string_view{arch_timestamp_env} != "0";
+
   // If the inliner is off and the user hasn't explicitly set the preload
   // dependent limit, set it to zero.  Nothing is going to be inlined so there's
   // no need to aggressively preload.
@@ -1018,6 +1031,10 @@ FlagProcessor initFlagProcessor() {
       !jit_dump_dir.empty() && jit_dump_dir[0] != '/',
       "The perf JIT dump directory must be an absolute path, have '{}'",
       jit_dump_dir);
+  JIT_THROW_IF(
+      !jit_dump_dir.empty() && getConfig().perf_map.use_arch_timestamp &&
+          kBuildArch != Arch::kX86_64,
+      "Architecture timestamps are only supported on x86-64");
 
   return flag_processor;
 }
@@ -5044,7 +5061,9 @@ int initialize(BorrowedRef<> cinderx_module) {
   }
   if (!getConfig().perf_map.jit_dump_dir.empty()) {
     mod_state->perf_writers.emplace_back(
-        perf::makeJitDumpWriter(getConfig().perf_map.jit_dump_dir));
+        perf::makeJitDumpWriter(
+            getConfig().perf_map.jit_dump_dir,
+            getConfig().perf_map.use_arch_timestamp));
   }
 
   std::atomic_ref{getMutableConfig().state}.store(State::kRunning);

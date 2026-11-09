@@ -107,6 +107,8 @@ struct PerfMapOptions {
   std::string jit_dump_dir;
   // Whether perf map support is enabled.
   bool enabled{false};
+  // Whether to use architecture-specific timestamps in JIT dumps.
+  bool use_arch_timestamp{false};
 };
 
 struct JitListOptions {

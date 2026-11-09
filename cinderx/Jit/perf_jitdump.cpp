@@ -27,11 +27,6 @@ namespace fs = std::filesystem;
 // Needed for __rdtsc on GCC.
 #include <x86intrin.h>
 
-// Use the cheaper rdtsc by default. If you disable this for some reason, or
-// run on a non-x86_64 architecture, you need to add '-k1' to your 'perf
-// record' command.
-#define PERF_USE_RDTSC
-
 #endif
 
 // From elf.h, intentionally not included here to avoid having it as a
@@ -66,9 +61,7 @@ std::string string_error(int errnum) {
 
 // Following definitions are for the JIT dump file format.
 
-#ifdef PERF_USE_RDTSC
 constexpr int JITDUMP_FLAGS_ARCH_TIMESTAMP = 1;
-#endif
 
 struct FileHeader {
   uint32_t magic;
@@ -109,19 +102,19 @@ pid_t gettid() {
   return syscall(SYS_gettid);
 }
 
-// Get a timestamp for the current event.
-uint64_t getTimestamp() {
-#ifdef PERF_USE_RDTSC
-  return __rdtsc();
-#else
+uint64_t getTimestamp(bool use_arch_timestamp) {
+  if (use_arch_timestamp) {
+#ifdef CINDER_X86_64
+    return __rdtsc();
+#endif
+  }
   static const uint64_t kNanosPerSecond = 1000000000;
-  struct timespec tm;
+  struct timespec tm{};
   int ret = clock_gettime(CLOCK_MONOTONIC, &tm);
   if (ret < 0) {
-    return -1;
+    return 0;
   }
   return tm.tv_sec * kNanosPerSecond + tm.tv_nsec;
-#endif
 }
 
 void* mmapJitDump(int fd) {
@@ -261,7 +254,8 @@ struct PerfMapWriter : Writer {
 };
 
 struct JitDumpWriter : Writer {
-  explicit JitDumpWriter(std::string_view jit_dump_dir) : dir_{jit_dump_dir} {}
+  explicit JitDumpWriter(std::string_view jit_dump_dir, bool use_arch_timestamp)
+      : dir_{jit_dump_dir}, use_arch_timestamp_{use_arch_timestamp} {}
 
   ~JitDumpWriter() override {
     if (handle_ == nullptr) {
@@ -297,7 +291,7 @@ struct JitDumpWriter : Writer {
     auto total_size =
         static_cast<uint32_t>(sizeof(record) + name_len + 1 + entry.size);
     record.total_size = total_size;
-    record.timestamp = getTimestamp();
+    record.timestamp = getTimestamp(use_arch_timestamp_);
     record.pid = getpid();
     record.tid = gettid();
     record.vma = record.code_addr = reinterpret_cast<uint64_t>(entry.addr);
@@ -390,12 +384,11 @@ struct JitDumpWriter : Writer {
     }
     header.pad1 = 0;
     header.pid = getpid();
-    header.timestamp = getTimestamp();
-#ifdef PERF_USE_RDTSC
-    header.flags = JITDUMP_FLAGS_ARCH_TIMESTAMP;
-#else
-    header.flags = 0;
-#endif
+    header.timestamp = getTimestamp(use_arch_timestamp_);
+    // CLOCK_MONOTONIC dumps require `perf record -k 1`.
+    header.flags = (use_arch_timestamp_ && kBuildArch == Arch::kX86_64)
+        ? JITDUMP_FLAGS_ARCH_TIMESTAMP
+        : 0;
 
     // Open the JIT dump file.
     auto path = jitDumpPath(dir_);
@@ -428,6 +421,7 @@ struct JitDumpWriter : Writer {
   }
 
   std::string dir_;
+  bool use_arch_timestamp_{false};
   std::string path_;
   // Uses std::FILE* as the mmap() call needs the raw file descriptor, which
   // std::ostream doesn't expose.
@@ -461,9 +455,10 @@ std::unique_ptr<Writer> makePerfMapWriter(
 }
 
 std::unique_ptr<Writer> makeJitDumpWriter(
-    [[maybe_unused]] std::string_view jit_dump_dir) {
+    [[maybe_unused]] std::string_view jit_dump_dir,
+    [[maybe_unused]] bool use_arch_timestamp) {
 #ifndef _WIN32
-  return std::make_unique<JitDumpWriter>(jit_dump_dir);
+  return std::make_unique<JitDumpWriter>(jit_dump_dir, use_arch_timestamp);
 #else
   return std::make_unique<NopWriter>();
 #endif
