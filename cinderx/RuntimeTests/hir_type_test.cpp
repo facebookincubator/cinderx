@@ -403,7 +403,7 @@ TEST_F(HIRTypeTest, ToString) {
 
   EXPECT_EQ(
       Type::fromCPtr(reinterpret_cast<void*>(0x12345)).toString(),
-      "CPtr[0xdeadbeef]");
+      "CPtr[0x12345]");
 
   EXPECT_EQ(Type::fromObject(Py_True).toString(), "ImmortalBool[True]");
   EXPECT_EQ(Type::fromObject(Py_False).toString(), "ImmortalBool[False]");
@@ -464,14 +464,16 @@ TEST_F(HIRTypeTest, ToString) {
   Ref<> my_pyobj(getGlobal("obj"));
   ASSERT_NE(my_pyobj, nullptr);
   auto my_obj = Type::fromObject(my_pyobj);
-  EXPECT_EQ(my_obj.toString(), "MortalObjectUser[MyClass:0xdeadbeef]");
+  EXPECT_EQ(
+      my_obj.toString(PointerFormat::kStable),
+      "MortalObjectUser[MyClass:0xdeadbeef]");
 
   runCode("obj = len");
   Ref<> len_func(getGlobal("obj"));
   ASSERT_NE(len_func, nullptr);
   auto len_func_type = Type::fromObject(len_func);
   EXPECT_EQ(
-      len_func_type.toString(),
+      len_func_type.toString(PointerFormat::kStable),
       "MortalObjectUser[builtin_function_or_method:len:0xdeadbeef]");
 }
 
@@ -617,7 +619,9 @@ obj = MyClass()
   EXPECT_EQ(metaclass_obj.toString(), "MortalTypeExact[Metaclass:obj]");
   EXPECT_EQ(my_class.toString(), "User[MyClass]");
   EXPECT_EQ(my_class_obj.toString(), "MortalTypeUser[MyClass:obj]");
-  EXPECT_EQ(obj.toString(), "MortalObjectUser[MyClass:0xdeadbeef]");
+  EXPECT_EQ(
+      obj.toString(PointerFormat::kStable),
+      "MortalObjectUser[MyClass:0xdeadbeef]");
 
   EXPECT_TRUE(metaclass < TTypeUser);
   EXPECT_TRUE(metaclass_obj < TTypeExact);

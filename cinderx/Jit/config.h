@@ -290,9 +290,6 @@ struct Config {
   // List of function name patterns for which to capture compilation times.
   std::vector<std::string> capture_compilation_times_for;
 
-  // Use stable sentinel pointers in output (for deterministic test output).
-  bool use_stable_pointers{false};
-
   // Delay adaptive specialization until a function has been called enough
   // times.
   bool delay_adaptive_code{false};

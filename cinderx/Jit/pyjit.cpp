@@ -4939,12 +4939,10 @@ int initialize(BorrowedRef<> cinderx_module) {
   // Save fields that might have been set by test code before jit::initialize()
   // is called.
   auto force_init = getConfig().force_init;
-  auto use_stable_pointers = getConfig().use_stable_pointers;
   getMutableConfig() = Config{};
   if (force_init.has_value()) {
     getMutableConfig().force_init = force_init;
   }
-  getMutableConfig().use_stable_pointers = use_stable_pointers;
 
   FlagProcessor flag_processor = initFlagProcessor();
   // A flag callback may have rejected an invalid value by setting a Python

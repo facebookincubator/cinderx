@@ -148,6 +148,7 @@ void HIRTest::TestBody() {
     ASSERT_TRUE(checkFunc(*irfunc, std::cout));
   }
   HIRPrinter printer;
+  printer.setPointerFormat(PointerFormat::kStable);
   auto hir = printer.toString(*irfunc.get());
   EXPECT_EQ(hir, expected_hir_);
 }

@@ -4,7 +4,6 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/config.h"
 
 #include <cstdarg>
 #include <cstdio>
@@ -24,14 +23,10 @@ static_assert(std::has_single_bit(kDeferredRcTag));
 
 namespace cinderx {
 
-const void* getStablePointer(const void* ptr) {
-  return jit::getConfig().use_stable_pointers
+const void* getPrintablePointer(const void* ptr, PointerFormat format) {
+  return format == PointerFormat::kStable
       ? reinterpret_cast<const void*>(0xdeadbeef)
       : ptr;
-}
-
-void setUseStablePointers(bool enable) {
-  jit::getMutableConfig().use_stable_pointers = enable;
 }
 
 std::string unicodeAsString(PyObject* str) {

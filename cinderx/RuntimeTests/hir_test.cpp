@@ -24,6 +24,8 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#include <fmt/format.h>
+
 #include <array>
 #include <thread>
 
@@ -39,7 +41,56 @@ using namespace cinderx::jit;
 using namespace cinderx::jit::hir;
 
 HIRPrinter fullPrinter() {
-  return HIRPrinter{}.setFullSnapshots(true);
+  return HIRPrinter{}.setFullSnapshots(true).setPointerFormat(
+      PointerFormat::kStable);
+}
+
+using HIRPrinterTest = RuntimeTest;
+
+TEST_F(HIRPrinterTest, PointerFormatIsLocalToPrinter) {
+  int value = 0;
+  auto type = Type::fromCPtr(&value);
+  Environment env;
+  auto dst = env.allocateRegister();
+  dst->setType(type);
+  BasicBlock block;
+  auto instr = block.append<LoadConst>(dst, type);
+  HIRPrinter stable_printer;
+  stable_printer.setPointerFormat(PointerFormat::kStable);
+
+  EXPECT_EQ(
+      stable_printer.toString(*instr),
+      "v0:CPtr[0xdeadbeef] = LoadConst<CPtr[0xdeadbeef]>");
+  auto expected = fmt::format(
+      "v0:CPtr[{0}] = LoadConst<CPtr[{0}]>", static_cast<const void*>(&value));
+  EXPECT_EQ(HIRPrinter{}.toString(*instr), expected);
+  EXPECT_EQ(
+      type.toString(),
+      fmt::format("CPtr[{}]", static_cast<const void*>(&value)));
+  EXPECT_EQ(type, Type::fromCPtr(&value));
+
+  stable_printer.setPointerFormat(PointerFormat::kAddress);
+  EXPECT_EQ(stable_printer.toString(*instr), expected);
+}
+
+TEST_F(HIRPrinterTest, GuardTargetUsesSelectedPointerFormat) {
+  auto target = Ref<>::steal(PyList_New(0));
+  ASSERT_NE(target, nullptr);
+  Environment env;
+  auto src = env.allocateRegister();
+  auto dst = env.allocateRegister();
+  BasicBlock block;
+  auto guard = block.append<GuardIs>(dst, target.get(), src);
+
+  EXPECT_EQ(
+      HIRPrinter{}.setPointerFormat(PointerFormat::kStable).toString(*guard),
+      "v1 = GuardIs<0xdeadbeef> v0 {\n}");
+  EXPECT_EQ(
+      HIRPrinter{}.toString(*guard),
+      fmt::format(
+          "v1 = GuardIs<{}> v0 {{\n}}",
+          static_cast<const void*>(target.get())));
+  EXPECT_EQ(guard->target(), target.get());
 }
 
 TEST(BasicBlockTest, CanAppendInstrs) {

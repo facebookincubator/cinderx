@@ -141,13 +141,13 @@ truncatedStr(const char* data, std::size_t size, char delim) {
 
 } // namespace
 
-std::string Type::specString() const {
+std::string Type::specString(PointerFormat pointers) const {
   if (hasIntSpec()) {
     if (*this <= TCBool) {
       return int_ ? "true" : "false";
     }
     if (*this <= TCPtr) {
-      return fmt::format("{}", getStablePointer(ptr_));
+      return fmt::format("{}", getPrintablePointer(ptr_, pointers));
     }
     JIT_DCHECK(
         *this <= TCInt8 || *this <= TCInt16 || *this <= TCInt32 ||
@@ -186,7 +186,7 @@ std::string Type::specString() const {
         "{}:{}:{}",
         typeSpec()->tp_name,
         func_name,
-        getStablePointer(objectSpec()));
+        getPrintablePointer(objectSpec(), pointers));
   }
 
   if (*this <= TType) {
@@ -244,7 +244,9 @@ std::string Type::specString() const {
   // We want to avoid invoking arbitrary Python during compilation, so don't
   // call PyObject_Repr() or anything similar.
   return fmt::format(
-      "{}:{}", typeSpec()->tp_name, getStablePointer(objectSpec()));
+      "{}:{}",
+      typeSpec()->tp_name,
+      getPrintablePointer(objectSpec(), pointers));
 }
 
 static auto typeToName() {
@@ -308,7 +310,7 @@ static std::string joinParts(std::vector<std::string>& parts) {
   return fmt::format("{{{}}}", fmt::join(parts, "|"));
 }
 
-std::string Type::toString() const {
+std::string Type::toString(PointerFormat pointers) const {
   std::string base;
 
   static auto const type_names = typeToName();
@@ -348,7 +350,7 @@ std::string Type::toString() const {
     base = joinParts(parts);
   }
 
-  return hasSpec() ? fmt::format("{}[{}]", base, specString()) : base;
+  return hasSpec() ? fmt::format("{}[{}]", base, specString(pointers)) : base;
 }
 
 std::string Type::toStringSafe() const {

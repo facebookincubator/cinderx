@@ -336,9 +336,6 @@ int main(int argc, char* argv[]) {
 
   cinderx::setPythonProgramName(argv[0]);
 
-  // Prevent any test failures due to transient pointer values.
-  setUseStablePointers(true);
-
 #ifndef _WIN32
   // Particularly with ASAN, we might need a really large stack size.  Windows
   // fixes the stack reservation at link time instead, so there is nothing to

@@ -282,7 +282,8 @@ format_varname(const Function* func, const Instr& instr, int idx) {
 static std::string format_immediates(
     const Function* func,
     const Instr& instr,
-    bool symbolize_funcs) {
+    bool symbolize_funcs,
+    PointerFormat pointers) {
   switch (instr.opcode()) {
     case Opcode::kAssign:
     case Opcode::kBatchDecref:
@@ -391,7 +392,7 @@ static std::string format_immediates(
     }
     case Opcode::kReturn: {
       const auto& ret = static_cast<const Return&>(instr);
-      return ret.type() != TObject ? ret.type().toString() : "";
+      return ret.type() != TObject ? ret.type().toString(pointers) : "";
     }
     case Opcode::kCallEx: {
       const auto& call = static_cast<const CallEx&>(instr);
@@ -451,11 +452,13 @@ static std::string format_immediates(
         return fmt::format(
             "{}@{}, {}",
             call.name(),
-            getStablePointer(call.addr()),
+            getPrintablePointer(call.addr(), pointers),
             call.numOperands());
       }
       return fmt::format(
-          "{}, {}", getStablePointer(call.addr()), call.numOperands());
+          "{}, {}",
+          getPrintablePointer(call.addr(), pointers),
+          call.numOperands());
     }
     case Opcode::kCallStaticRetVoid: {
       const auto& call = static_cast<const CallStaticRetVoid&>(instr);
@@ -463,11 +466,13 @@ static std::string format_immediates(
         return fmt::format(
             "{}@{}, {}",
             call.name(),
-            getStablePointer(call.addr()),
+            getPrintablePointer(call.addr(), pointers),
             call.numOperands());
       }
       return fmt::format(
-          "{}, {}", getStablePointer(call.addr()), call.numOperands());
+          "{}, {}",
+          getPrintablePointer(call.addr(), pointers),
+          call.numOperands());
     }
     case Opcode::kInvokeStaticFunction: {
       const auto& call = static_cast<const InvokeStaticFunction&>(instr);
@@ -476,7 +481,7 @@ static std::string format_immediates(
           PyUnicode_AsUTF8(call.func()->func_module),
           PyUnicode_AsUTF8(call.func()->func_qualname),
           call.numOperands(),
-          call.retType());
+          call.retType().toString(pointers));
     }
     case Opcode::kInitFrameCellVars: {
       const auto& init = static_cast<const InitFrameCellVars&>(instr);
@@ -495,7 +500,7 @@ static std::string format_immediates(
           "{}@{}, {}, {}",
           lf.name(),
           offset,
-          lf.type(),
+          lf.type().toString(pointers),
           lf.borrowed() ? "borrowed" : "owned");
     }
     case Opcode::kStoreField: {
@@ -543,7 +548,7 @@ static std::string format_immediates(
     }
     case Opcode::kPrimitiveConvert: {
       const auto& conv = static_cast<const PrimitiveConvert&>(instr);
-      return conv.type().toString();
+      return conv.type().toString(pointers);
     }
     case Opcode::kPrimitiveUnaryOp: {
       const auto& unary = static_cast<const PrimitiveUnaryOp&>(instr);
@@ -557,7 +562,7 @@ static std::string format_immediates(
           fmt::format("{}, {}", cond.true_bb()->id, cond.false_bb()->id);
       if (cond.isCondBranchCheckType()) {
         Type type = static_cast<const CondBranchCheckType&>(cond).type();
-        return fmt::format("{}, {}", targets, type);
+        return fmt::format("{}, {}", targets, type.toString(pointers));
       }
       return targets;
     }
@@ -571,7 +576,7 @@ static std::string format_immediates(
       if (load.type() == TObject) {
         return varname;
       }
-      return fmt::format("{}, {}", varname, load.type());
+      return fmt::format("{}, {}", varname, load.type().toString(pointers));
     }
     case Opcode::kLoadAttrSpecial: {
       const auto& load = static_cast<const LoadAttrSpecial&>(instr);
@@ -590,7 +595,7 @@ static std::string format_immediates(
     }
     case Opcode::kLoadConst: {
       const auto& load = static_cast<const LoadConst&>(instr);
-      return fmt::format("{}", load.type());
+      return fmt::format("{}", load.type().toString(pointers));
     }
     case Opcode::kLoadFunctionIndirect: {
       const auto& load = static_cast<const LoadFunctionIndirect&>(instr);
@@ -613,11 +618,11 @@ static std::string format_immediates(
     }
     case Opcode::kPrimitiveBox: {
       const auto& box = static_cast<const PrimitiveBox&>(instr);
-      return fmt::format("{}", box.type());
+      return fmt::format("{}", box.type().toString(pointers));
     }
     case Opcode::kPrimitiveUnbox: {
       const auto& unbox = static_cast<const PrimitiveUnbox&>(instr);
-      return fmt::format("{}", unbox.type());
+      return fmt::format("{}", unbox.type().toString(pointers));
     }
     case Opcode::kIndexUnbox: {
       const auto& unbox = static_cast<const IndexUnbox&>(instr);
@@ -654,11 +659,13 @@ static std::string format_immediates(
     }
     case Opcode::kMakeCheckedDict: {
       const auto& makedict = static_cast<const MakeCheckedDict&>(instr);
-      return fmt::format("{} {}", makedict.type(), makedict.getCapacity());
+      return fmt::format(
+          "{} {}", makedict.type().toString(pointers), makedict.getCapacity());
     }
     case Opcode::kMakeCheckedList: {
       const auto& makelist = static_cast<const MakeCheckedList&>(instr);
-      return fmt::format("{} {}", makelist.type(), makelist.nvalues());
+      return fmt::format(
+          "{} {}", makelist.type().toString(pointers), makelist.nvalues());
     }
     case Opcode::kMakeDict: {
       const auto& makedict = static_cast<const MakeDict&>(instr);
@@ -740,11 +747,11 @@ static std::string format_immediates(
     }
     case Opcode::kGuardIs: {
       const auto& gs = static_cast<const GuardIs&>(instr);
-      return fmt::format("{}", getStablePointer(gs.target()));
+      return fmt::format("{}", getPrintablePointer(gs.target(), pointers));
     }
     case Opcode::kGuardType: {
       const auto& gs = static_cast<const GuardType&>(instr);
-      return fmt::format("{}", gs.target().toString());
+      return fmt::format("{}", gs.target().toString(pointers));
     }
     case Opcode::kHintType: {
       std::ostringstream os;
@@ -755,7 +762,7 @@ static std::string format_immediates(
         os << fmt::format("{}<", profile_sep);
         auto type_sep = "";
         for (auto type : types_seen) {
-          os << fmt::format("{}{}", type_sep, type.toString());
+          os << fmt::format("{}{}", type_sep, type.toString(pointers));
           type_sep = ", ";
         }
         os << ">";
@@ -772,10 +779,14 @@ static std::string format_immediates(
       const ProfileEntry& payload = use.entry();
       if (const auto* binop = std::get_if<BinaryOpProfile>(&payload)) {
         os << fmt::format(
-            "binary<{}, {}>", binop->left_type, binop->right_type);
+            "binary<{}, {}>",
+            binop->left_type.toString(pointers),
+            binop->right_type.toString(pointers));
       } else if (const auto* compare = std::get_if<CompareProfile>(&payload)) {
         os << fmt::format(
-            "compare<{}, {}>", compare->left_type, compare->right_type);
+            "compare<{}, {}>",
+            compare->left_type.toString(pointers),
+            compare->right_type.toString(pointers));
       } else if (
           const auto* load_attr = std::get_if<LoadAttrProfile>(&payload)) {
         os << "loadattr<";
@@ -812,7 +823,7 @@ static std::string format_immediates(
     }
     case Opcode::kUseType: {
       const auto& gs = static_cast<const UseType&>(instr);
-      return fmt::format("{}", gs.type().toString());
+      return fmt::format("{}", gs.type().toString(pointers));
     }
     case Opcode::kRaiseAwaitableError: {
       const auto& ra = static_cast<const RaiseAwaitableError&>(instr);
@@ -843,7 +854,7 @@ static std::string format_immediates(
     }
     case Opcode::kRefineType: {
       const auto& rt = static_cast<const RefineType&>(instr);
-      return rt.type().toString();
+      return rt.type().toString(pointers);
     }
     case Opcode::kFormatValue: {
       int conversion = static_cast<const FormatValue&>(instr).conversion();
@@ -867,10 +878,11 @@ static std::string format_immediates(
       if (patcher->isLinked()) {
         return fmt::format(
             "{} -> {}",
-            getStablePointer(patcher->patchpoint()),
-            getStablePointer(patcher->jumpTarget()));
+            getPrintablePointer(patcher->patchpoint(), pointers),
+            getPrintablePointer(patcher->jumpTarget(), pointers));
       }
-      return fmt::format("Patcher {}", getStablePointer(dp.patcher()));
+      return fmt::format(
+          "Patcher {}", getPrintablePointer(dp.patcher(), pointers));
     }
     case Opcode::kUpdatePrevInstr: {
       const auto& upi = static_cast<const UpdatePrevInstr&>(instr);
@@ -918,7 +930,7 @@ void HIRPrinter::print(std::ostream& os, const Instr& instr) {
     for (Register* dst : instr.outputs()) {
       os << sep << *dst;
       if (dst->type() != TTop) {
-        os << ":" << dst->type();
+        os << ":" << dst->type().toString(pointers_);
       }
       sep = ", ";
     }
@@ -926,7 +938,7 @@ void HIRPrinter::print(std::ostream& os, const Instr& instr) {
   }
   os << instr.opname();
 
-  auto immed = format_immediates(func_, instr, symbolize_);
+  auto immed = format_immediates(func_, instr, symbolize_, pointers_);
   if (!immed.empty()) {
     os << "<" << immed << ">";
   }
@@ -1031,6 +1043,11 @@ void HIRPrinter::print(std::ostream& os, const FrameState& state) {
     dedent();
     indented(os) << "}" << '\n';
   }
+}
+
+HIRPrinter& HIRPrinter::setPointerFormat(PointerFormat pointers) {
+  pointers_ = pointers;
+  return *this;
 }
 
 HIRPrinter& HIRPrinter::setFullSnapshots(bool full) {

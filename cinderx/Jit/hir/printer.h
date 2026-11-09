@@ -42,6 +42,7 @@ class HIRPrinter {
 
   HIRPrinter& setFullSnapshots(bool full);
   HIRPrinter& setLinePrefix(std::string_view prefix);
+  HIRPrinter& setPointerFormat(PointerFormat pointers);
 
  private:
   void indent();
@@ -53,6 +54,7 @@ class HIRPrinter {
   int indent_level_{0};
   bool full_snapshots_{false};
   bool symbolize_{false};
+  PointerFormat pointers_{PointerFormat::kAddress};
 };
 
 std::ostream& operator<<(std::ostream& os, const Function& func);

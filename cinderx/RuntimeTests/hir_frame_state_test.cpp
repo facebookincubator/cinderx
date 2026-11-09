@@ -20,11 +20,15 @@ TEST_F(FrameStateCreationTest, InitialInstrOffset) {
   EXPECT_EQ(frame.cur_instr_offs.value(), -sizeof(_Py_CODEUNIT));
 }
 
-#define EXPECT_HIR_EQ(irfunc, expected)                                     \
-  {                                                                         \
-    ASSERT_NE(irfunc, nullptr);                                             \
-    EXPECT_EQ(                                                              \
-        HIRPrinter{}.setFullSnapshots(true).toString(*(irfunc)), expected); \
+#define EXPECT_HIR_EQ(irfunc, expected)               \
+  {                                                   \
+    ASSERT_NE(irfunc, nullptr);                       \
+    EXPECT_EQ(                                        \
+        HIRPrinter{}                                  \
+            .setFullSnapshots(true)                   \
+            .setPointerFormat(PointerFormat::kStable) \
+            .toString(*(irfunc)),                     \
+        expected);                                    \
   }
 
 TEST_F(FrameStateCreationTest, LoadGlobal) {

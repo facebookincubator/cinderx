@@ -46,7 +46,7 @@ class Type {
       : Type{bits, lifetime, bits == kBottom ? kSpecBottom : kSpecTop, 0} {}
 
   std::size_t hash() const;
-  std::string toString() const;
+  std::string toString(PointerFormat pointers = PointerFormat::kAddress) const;
 
   // If we're using multithreaded compilation on 3.12+, toString() may call
   // functions that need the interpreter state. This abbreviated string function
@@ -293,7 +293,7 @@ class Type {
 
   // String representation of this Type's specialization, which must not be
   // kSpecTop or kSpecBottom.
-  std::string specString() const;
+  std::string specString(PointerFormat pointers) const;
 
   // Is this Type's specialization a subtype of the other Type's
   // specialization?

@@ -216,12 +216,15 @@ constexpr std::common_type_t<T1, T2> ceilDiv(T1 a, T2 b) {
 constexpr int kCoFlagsAnyGenerator =
     CO_ASYNC_GENERATOR | CO_COROUTINE | CO_GENERATOR | CO_ITERABLE_COROUTINE;
 
-// If stable pointers are enabled (with a call to setUseStablePointers(true))
-// return 0xdeadbeef. Otherwise, return the original pointer.
-const void* getStablePointer(const void* ptr);
+// Controls whether diagnostic output uses real pointer addresses or a fixed
+// placeholder for deterministic test snapshots.
+enum class PointerFormat {
+  kAddress,
+  kStable,
+};
 
-// Enable or disable pointer sanitization.
-void setUseStablePointers(bool enable);
+// Stable formatting replaces every address with 0xdeadbeef.
+const void* getPrintablePointer(const void* ptr, PointerFormat format);
 
 constexpr std::size_t combineHash(std::size_t seed, std::size_t hash) {
   return seed ^ (hash + 0x9e3779b9 + (seed << 6) + (seed >> 2));
