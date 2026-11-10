@@ -11,7 +11,16 @@
 #define _PyOpcode_Deopt _CiOpcode_Deopt
 #define _PyOpcode_PseudoTargets _CiOpcode_PseudoTargets
 
+// CPython 3.15 declares the opcode tables with PyAPI_DATA, which expands
+// to __declspec(dllimport) on Windows. The renamed _CiOpcode_* tables are
+// defined by cinder_opcode.c in this same extension, not imported from
+// python3xx.dll, so declare them as plain externs; a dllimport reference
+// cannot bind to the static definition and the Windows link fails.
+#pragma push_macro("PyAPI_DATA")
+#undef PyAPI_DATA
+#define PyAPI_DATA(RTYPE) extern RTYPE
 #include "internal/pycore_opcode_metadata.h"
+#pragma pop_macro("PyAPI_DATA")
 
 #ifndef Ci_INTERNAL_OPCODE_H
 #define Ci_INTERNAL_OPCODE_H
