@@ -1595,6 +1595,97 @@ class SpecializeCCallTests(unittest.TestCase):
             self._c_func_that_sets_pyerr()
 
 
+def _resolve_varargs_callee(x, *args):
+    return (x, args)
+
+
+def _resolve_varargs_defaults_callee(a, b=10, *args):
+    return (a, b, args)
+
+
+def _resolve_varargs_gen_callee(a, *args):
+    yield args
+    yield a
+
+
+def _resolve_varargs_gen_defaults_callee(a, b=10, *args):
+    yield (a, b, args)
+
+
+def _resolve_no_varargs_callee(a, b):
+    return (a, b)
+
+
+class ResolveVarargsTests(unittest.TestCase):
+    """
+    simplifyVectorCall resolves calls to known functions with *args by
+    filling defaults and passing surplus arguments through flat; the
+    callee entry binds them into the *args tuple.
+    """
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varargs_surplus(self):
+        return _resolve_varargs_callee(1, 2, 3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varargs_empty(self):
+        return _resolve_varargs_callee(1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varargs_defaults_empty(self):
+        return _resolve_varargs_defaults_callee(1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varargs_defaults_surplus(self):
+        return _resolve_varargs_defaults_callee(1, 2, 3, 4)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varargs_too_few(self):
+        return _resolve_varargs_callee()
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_no_varargs_too_many(self):
+        return _resolve_no_varargs_callee(1, 2, 3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varargs_gen(self):
+        return _resolve_varargs_gen_callee(1, 2, 3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varargs_gen_defaults(self):
+        return _resolve_varargs_gen_defaults_callee(1)
+
+    def test_resolve_varargs_results(self) -> None:
+        self.assertEqual(self._resolve_varargs_surplus(), (1, (2, 3)))
+        self.assertEqual(self._resolve_varargs_empty(), (1, ()))
+        self.assertEqual(self._resolve_varargs_defaults_empty(), (1, 10, ()))
+        self.assertEqual(self._resolve_varargs_defaults_surplus(), (1, 2, (3, 4)))
+        self.assertEqual(list(self._resolve_varargs_gen()), [(2, 3), 1])
+
+    def test_resolve_varargs_wrong_counts_raise(self) -> None:
+        with self.assertRaises(TypeError):
+            self._resolve_varargs_too_few()
+        with self.assertRaises(TypeError):
+            self._resolve_no_varargs_too_many()
+
+    @skip_unless_jit("Requires inspecting JIT-compiled HIR")
+    def test_resolve_varargs_gen_emits_resolved_call(self) -> None:
+        # Generator callees are not inlined, so the call stays a
+        # VectorCall; resolving it with a filled default emits the
+        # func_defaults guard.
+        self.assertEqual(list(self._resolve_varargs_gen_defaults()), [(1, 10, ())])
+        self.assertTrue(
+            force_compile(ResolveVarargsTests._resolve_varargs_gen_defaults)
+        )
+        opcodes = cinderx.jit.get_function_hir_opcode_counts(
+            ResolveVarargsTests._resolve_varargs_gen_defaults
+        )
+        self.assertIsNotNone(opcodes)
+        self.assertIn("VectorCall", opcodes)
+        self.assertIn("LoadField", opcodes)
+        self.assertNotIn("BeginInlinedFunction", opcodes)
+
+
 class UnpackSequenceTests(unittest.TestCase):
     @failUnlessHasOpcodes("UNPACK_SEQUENCE")
     @cinder_support.failUnlessJITCompiled

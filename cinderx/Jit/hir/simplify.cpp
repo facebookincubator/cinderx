@@ -2467,11 +2467,11 @@ static Register* resolveArgs(
     const VectorCall* instr,
     BorrowedRef<PyFunctionObject> target) {
   BorrowedRef<PyCodeObject> code{target->func_code};
-  JIT_CHECK(!(code->co_flags & CO_VARARGS), "can't resolve varargs");
   // number of positional args (including args with default values)
   size_t co_argcount = static_cast<size_t>(code->co_argcount);
-  if (instr->numArgs() > co_argcount) {
-    // TASK(T143644311): support varargs and check if non-varargs here
+  const bool has_varargs = code->co_flags & CO_VARARGS;
+  if (instr->numArgs() > co_argcount && !has_varargs) {
+    // A callee without *args cannot accept surplus positional arguments.
     return nullptr;
   }
 
@@ -2507,13 +2507,22 @@ static Register* resolveArgs(
     }
     JIT_CHECK(resolved_args.at(i) != nullptr, "expected non-null arg");
   }
+  // Surplus positional arguments pass through flat; the callee binds them
+  // into the *args tuple.
+  for (size_t i = co_argcount; i < instr->numArgs(); i++) {
+    resolved_args.push_back(instr->arg(i));
+  }
 
-  Register* defaults_obj = env.emit<LoadField>(
-      instr->getOperand(0),
-      "func_defaults",
-      offsetof(PyFunctionObject, func_defaults),
-      TTuple);
-  env.emit<GuardIs>(defaults, defaults_obj);
+  // Only guard func_defaults when a default was materialized above;
+  // a null target would crash outputType's GuardIs handling.
+  if (num_positional < co_argcount) {
+    Register* defaults_obj = env.emit<LoadField>(
+        instr->getOperand(0),
+        "func_defaults",
+        offsetof(PyFunctionObject, func_defaults),
+        TTuple);
+    env.emit<GuardIs>(defaults, defaults_obj);
+  }
   // creates an instruction VectorCall(arg_size, dest_reg, frame_state)
   // and inserts it to the current block. Returns the output of vectorcall
   auto new_instr = env.emitRawInstr<VectorCall>(
@@ -2846,16 +2855,15 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   if (target_type.hasValueSpec(TFunc)) {
     BorrowedRef<PyFunctionObject> func{target_type.objectSpec()};
     BorrowedRef<PyCodeObject> code{func->func_code};
-    if (code->co_kwonlyargcount > 0 || (code->co_flags & CO_VARARGS) ||
-        (code->co_flags & CO_VARKEYWORDS)) {
-      // TASK(T143644854): full argument resolution
+    if (code->co_kwonlyargcount > 0 || (code->co_flags & CO_VARKEYWORDS)) {
+      // TASK(T143644854): full argument resolution for kwonly/varkeywords
       return nullptr;
     }
 
     JIT_CHECK(
         code->co_argcount >= 0,
         "argcount must be greater than or equal to zero");
-    if (instr->numArgs() != static_cast<size_t>(code->co_argcount)) {
+    if (instr->numArgs() < static_cast<size_t>(code->co_argcount)) {
       return resolveArgs(env, instr, func);
     }
   }
