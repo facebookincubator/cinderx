@@ -548,7 +548,11 @@ static void _PyClassLoader_UpdateDerivedSlot(
       }
 
       PyTypeObject* subtype = (PyTypeObject*)ref;
-      PyObject* override = PyDict_GetItem(_PyType_GetDict(subtype), name);
+      /* Property getter/setter/deleter slots are keyed by (name, "fget") etc,
+       * but a subtype overrides them by defining `name` in its dict. */
+      PyObject* dict_name =
+          PyTuple_Check(name) ? PyTuple_GET_ITEM(name, 0) : name;
+      PyObject* override = PyDict_GetItem(_PyType_GetDict(subtype), dict_name);
       if (override != NULL) {
         /* subtype overrides the value */
         Py_DECREF(ref);

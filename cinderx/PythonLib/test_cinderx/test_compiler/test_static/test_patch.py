@@ -5,6 +5,7 @@ import re
 import sys
 from unittest.mock import MagicMock, Mock, patch
 
+from cinderx import cached_property
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.test_support import skip_test_if_oss
 
@@ -1888,6 +1889,32 @@ class StaticPatchTests(StaticTestBase):
             setattr(mod.C, "x", 42)  # noqa: B010
             self.assertEqual(c.x, 42)
             self.assertEqual(mod.f(c), 42)
+
+    def test_cached_property_patch_base_keeps_nonstatic_override(self) -> None:
+        codestr = """
+        from cinderx import cached_property
+
+        class C:
+            @cached_property
+            def x(self) -> int:
+                return 3
+
+        def f(c: C) -> int:
+            return c.x
+        """
+        with self.in_module(codestr) as mod:
+
+            class D(mod.C):
+                @cached_property
+                def x(self) -> int:
+                    return 5
+
+            self.assertEqual(mod.f(D()), 5)
+            with patch.object(mod.C, "x", property(lambda self: 42)):
+                self.assertEqual(mod.f(mod.C()), 42)
+                self.assertEqual(mod.f(D()), 5)
+            self.assertEqual(mod.f(mod.C()), 3)
+            self.assertEqual(mod.f(D()), 5)
 
     def test_cached_property_patch_with_none(self) -> None:
         codestr = """
