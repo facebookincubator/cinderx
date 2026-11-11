@@ -493,7 +493,7 @@ RewriteResult rewriteStoreImmediateToVreg(instr_iter_t instr_iter) {
 // translateCall only needs blr(reg).
 [[maybe_unused]] RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  if (!instr->isCall() && !instr->isCVarArgCall() && !instr->isFastCall()) {
+  if (!instr->isCall() && !instr->isCVarArgCall()) {
     return kUnchanged;
   }
 
@@ -736,8 +736,7 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
       // rt::batchDecref needs tagged deferred-RC refs so the helper can
       // recognize and skip them; every other call should still see untagged
       // object pointers.
-      bool is_call =
-          instr->isCall() || instr->isCVarArgCall() || instr->isFastCall();
+      bool is_call = instr->isCall() || instr->isCVarArgCall();
       bool strip_call_args = is_call;
       bool is_compare = instr->isCompare() &&
           (instr->condition() == Condition::kEqual ||

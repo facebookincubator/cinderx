@@ -24,8 +24,6 @@ namespace cinderx::jit::lir {
   X(Call)                                                       \
   /* C variadic call; input 1 is the fixed argument count. */   \
   X(CVarArgCall)                                                \
-  /* Call a PyCFunction with the METH_FASTCALL convention. */   \
-  X(FastCall)                                                   \
   /* Carries post-call liveness metadata but emits no code. */  \
   X(CallSiteLiveValues)                                         \
   X(Cmp)                                                        \

@@ -2072,6 +2072,34 @@ Instruction* LIRGenerator::appendVarArgCall(
   return instr;
 }
 
+Instruction* LIRGenerator::appendFastCall(
+    BasicBlockBuilder& bbb,
+    hir::Register* dst,
+    std::variant<Instruction*, uint64_t> callee,
+    Instruction* self,
+    std::span<hir::Register* const> values) {
+  Instruction* args_ptr =
+      appendArgsArray(bbb, values, /*scratch_slots=*/0, /*strip_tags=*/true);
+
+  Instruction* instr;
+  if (std::holds_alternative<Instruction*>(callee)) {
+    instr = bbb.appendInstr(
+        dst, Opcode::kCall, VReg{std::get<Instruction*>(callee)});
+  } else {
+    instr = bbb.appendInstr(
+        dst, Opcode::kCall, Imm{std::get<uint64_t>(callee), DataType::k64bit});
+  }
+  instr->addOperands(VReg{self});
+  if (args_ptr != nullptr) {
+    instr->addOperands(VReg{args_ptr});
+  } else {
+    instr->addOperands(Imm{0, DataType::k64bit});
+  }
+  instr->addOperands(
+      Imm{static_cast<uint64_t>(values.size()), DataType::k64bit});
+  return instr;
+}
+
 // Attempt to emit a type-specialized call, returning true if successful.
 bool LIRGenerator::translateSpecializedCall(
     BasicBlockBuilder& bbb,
@@ -2141,15 +2169,18 @@ bool LIRGenerator::translateSpecializedCall(
       }
       break;
     case METH_FASTCALL: {
-      Instruction* instr = bbb.appendInstr(
-          hir_instr.output(),
-          Opcode::kFastCall,
-          Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(callee))},
+      Instruction* self = bbb.appendInstr(
+          OutVReg{DataType::kObject},
+          Opcode::kMove,
           Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_SELF(callee)),
               DataType::kObject});
-      for (size_t i = 0; i < hir_instr.numArgs(); ++i) {
-        instr->addOperands(VReg{bbb.getDefInstr(hir_instr.arg(i))});
-      }
+      auto operands = hir_instr.getOperands();
+      appendFastCall(
+          bbb,
+          hir_instr.output(),
+          reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(callee)),
+          self,
+          operands.subspan(1));
       return true;
     }
     case METH_FASTCALL | METH_KEYWORDS: {

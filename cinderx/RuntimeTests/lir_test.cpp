@@ -1240,12 +1240,25 @@ def func(a, b):
       METH_FASTCALL);
 
   auto lir_func = getLIRFunction(pyfunc.get());
-  EXPECT_LIR(Query(*lir_func)
-                 .opcode(Opcode::kFastCall)
-                 .inImm(
-                     0,
-                     reinterpret_cast<uint64_t>(
-                         PyCFunction_GET_FUNCTION(divmod_func))));
+  // The call targets the PyCFunction directly, passing the bound self as
+  // the first C argument, the reserved args array second, and the
+  // positional count third.
+  EXPECT_LIR(
+      Query(*lir_func)
+          .opcode(Opcode::kCall)
+          .inImm(
+              0,
+              reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(divmod_func)))
+          .inDefOpcode(1, Opcode::kMove)
+          .inDefImm(
+              1,
+              0,
+              reinterpret_cast<uint64_t>(PyCFunction_GET_SELF(divmod_func)))
+          .inDefOpcode(2, Opcode::kReserveStack)
+          .inImm(3, 2)
+          .with([](const Instruction* instr) {
+            return instr->getNumInputs() == 4;
+          }));
 }
 
 TEST_F(LIRGeneratorTest, PyCFunctionFastCallWithKeywordsIsNotSpecialized) {
@@ -1258,7 +1271,6 @@ def func(iterator):
   ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
 
   auto lir_func = getLIRFunction(pyfunc.get());
-  EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kFastCall));
   EXPECT_LIR(Query(*lir_func)
                  .opcode(Opcode::kCall)
                  .inAddr(0, reinterpret_cast<uint64_t>(rt::vectorcallTstate)));

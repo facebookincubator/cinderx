@@ -375,6 +375,19 @@ class LIRGenerator {
       std::variant<Instruction*, uint64_t> callee,
       std::span<hir::Register* const> values);
 
+  // Emit a call to a METH_FASTCALL PyCFunction: callee(self, args,
+  // values.size()), where args points at a contiguous array of the values
+  // in `values`. The array is materialized by appendArgsArray, and the
+  // call itself is a plain kCall whose arguments the post-allocation
+  // rewrite moves into place. Tagged deferred-RC references are stripped
+  // as the values are stored, as the callee expects untagged pointers.
+  Instruction* appendFastCall(
+      BasicBlockBuilder& bbb,
+      hir::Register* dst,
+      std::variant<Instruction*, uint64_t> callee,
+      Instruction* self,
+      std::span<hir::Register* const> values);
+
   TranslatedBlock translateOneBasicBlock(
       const hir::BasicBlock* bb,
       const hir::FrameState* initial_caller_fs = nullptr,

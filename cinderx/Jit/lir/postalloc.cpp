@@ -531,106 +531,6 @@ int rewriteRegularFunction(
   return stack_arg_size;
 }
 
-int prepareArgsArray(
-    instr_iter_t instr_iter,
-    size_t num_args,
-    size_t flags,
-    size_t first_arg,
-    PhyLocation dest,
-    PhyLocation size_dest,
-    int base_offset) {
-  auto instr = instr_iter->get();
-  auto block = instr->basicBlock();
-  constexpr size_t PTR_SIZE = sizeof(void*);
-
-  int rsp_sub = ((num_args % 2) ? num_args + 1 : num_args) * PTR_SIZE;
-
-  // With no arguments the call needs no stack at all, and nothing has to be
-  // materialized into `dest` either: nargsf is 0 and
-  // PY_VECTORCALL_ARGUMENTS_OFFSET is clear, so the callee never reads the args
-  // pointer and its value is a don't-care.  Pass the register through as-is.
-  if (num_args != 0) {
-    // lea dest, [sp + base_offset]
-    block->allocateInstrBefore(
-        instr_iter,
-        Opcode::kLea,
-        OutPhyReg(dest),
-        Ind(arch::reg_stack_pointer_loc, base_offset));
-  }
-
-  // mov arg2, num_args
-  block->allocateInstrBefore(
-      instr_iter,
-      Opcode::kMove,
-      OutPhyReg(size_dest, DataType::k64bit),
-      Imm(num_args | flags, DataType::k64bit));
-
-  for (size_t i = first_arg; i < first_arg + num_args; i++) {
-    auto arg = instr->getInput(i);
-    int arg_offset = (i - first_arg) * PTR_SIZE;
-
-#if defined(CINDER_AARCH64)
-    if (i + 1 < first_arg + num_args) {
-      auto next_arg = instr->getInput(i + 1);
-      if (canStorePairOperand(arg) && canStorePairOperand(next_arg)) {
-        insertStorePairToMemoryLocation(
-            block, instr_iter, dest, arg_offset, arg, next_arg);
-        ++i;
-        continue;
-      }
-    }
-#endif
-
-    insertMoveToMemoryLocation(block, instr_iter, dest, arg_offset, arg);
-  }
-  return rsp_sub;
-}
-
-// Rewrite a kFastCall instruction. Fixed inputs are the PyCFunction entry
-// point and self, followed by the positional Python arguments. The native
-// calling convention is (self, args, nargs).
-int rewriteFastCall(instr_iter_t instr_iter, int base_offset) {
-  auto instr = instr_iter->get();
-  auto block = instr->basicBlock();
-
-  auto* self = instr->getInput(1);
-  if (self->isStack()) {
-    auto loc = self->getStackSlot();
-    auto dt = self->dataType();
-    auto* load = block->allocateInstrBefore(
-        instr_iter,
-        Opcode::kLoad,
-        OutPhyReg(ARGUMENT_REGS[0], dt),
-        Stk{loc, dt});
-    syncLastUse(load->getInput(0), self);
-    instr->releaseInput(1);
-  } else {
-    auto move = block->allocateInstrBefore(instr_iter, Opcode::kMove);
-    move->output()->setPhyRegister(ARGUMENT_REGS[0]);
-    move->output()->setDataType(self->dataType());
-    move->appendInput(instr->releaseInput(1));
-  }
-
-  base_offset = std::max(base_offset, kShadowSpaceSize);
-  int rsp_sub = prepareArgsArray(
-      instr_iter,
-      instr->getNumInputs() - 2,
-      0,
-      2,
-      ARGUMENT_REGS[1],
-      ARGUMENT_REGS[2],
-      base_offset);
-
-  // prepareArgsArray() sizes the array alone, so fold in what sits below it.
-  // rewriteCallInstrs() only sees this return value and adds its own
-  // base_offset, which is always 0.
-  rsp_sub += base_offset;
-  if (rsp_sub % kStackAlign != 0) {
-    rsp_sub += kStackAlign - (rsp_sub % kStackAlign);
-  }
-  return rsp_sub;
-}
-
 int rewriteCVarArgCall(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   JIT_THROW_IF(
@@ -660,7 +560,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   // per the ABI. ReserveStack data is placed above (at SP+max_arg_buffer_size)
   // after all call arg buffer sizes are known.
   int base_offset = 0;
-  if (!instr->isCall() && !instr->isCVarArgCall() && !instr->isFastCall()) {
+  if (!instr->isCall() && !instr->isCVarArgCall()) {
     return kUnchanged;
   }
 
@@ -674,8 +574,6 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
 
   if (instr->isCVarArgCall()) {
     rsp_sub = rewriteCVarArgCall(instr_iter, base_offset);
-  } else if (instr->isFastCall()) {
-    rsp_sub = rewriteFastCall(instr_iter, base_offset);
   } else {
     rsp_sub = rewriteRegularFunction(instr_iter, base_offset);
   }
@@ -1382,7 +1280,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kStoreGenYieldPoint:
     case Opcode::kStorePair:
     case Opcode::kUnreachable:
-    case Opcode::kFastCall:
     case Opcode::kVariadicPush:
     case Opcode::kZext:
       return kUnchanged;

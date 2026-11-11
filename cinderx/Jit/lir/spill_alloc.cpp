@@ -168,7 +168,7 @@ void SpillAllocator::rewriteInstr(BasicBlock* block, instr_iter_t iter) {
     rewriteBind(block, iter);
     return;
   }
-  if (instr->isCall() || instr->isCVarArgCall() || instr->isFastCall()) {
+  if (instr->isCall() || instr->isCVarArgCall()) {
     rewriteCall(instr);
     return;
   }
@@ -372,7 +372,7 @@ void SpillAllocator::handleFramePointerSwitch(
   for (auto back = iter; back != block->instructions().begin();) {
     --back;
     Instruction* prev = back->get();
-    if (!prev->isCall() && !prev->isCVarArgCall() && !prev->isFastCall()) {
+    if (!prev->isCall() && !prev->isCVarArgCall()) {
       continue;
     }
     Operand* out = prev->output();
