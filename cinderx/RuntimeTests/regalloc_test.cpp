@@ -23,20 +23,34 @@ using namespace cinderx::jit;
 namespace cinderx::jit::lir {
 class LinearScanAllocatorTest : public ::testing::Test {
  public:
-  static const char* criticalEdgePhiLIR() {
-    return R"(Function:
-BB %0 - succs: %3 %5
-  %1 = Move 10
-  %2 = Move 1
-  CondBranch %2, BB%3, BB%5
-BB %3 - succs: %5
-  %4 = Move 20
-BB %5 - succs: %8
-  %6 = Phi (BB%3, %4), (BB%0, %1)
-  Return %6
-BB %8
+  static BasicBlock* buildCriticalEdgePhiLIR(Function& function) {
+    BasicBlock* entry = function.allocateBasicBlock();
+    BasicBlock* fallthrough = function.allocateBasicBlock();
+    BasicBlock* phi_block = function.allocateBasicBlock();
+    BasicBlock* epilogue = function.allocateBasicBlock();
+    entry->addSuccessor(fallthrough);
+    IncomingEdge entry_edge = entry->addSuccessor(phi_block);
+    IncomingEdge fallthrough_edge = fallthrough->addSuccessor(phi_block);
+    phi_block->addSuccessor(epilogue);
 
-)";
+    Instruction* entry_value =
+        entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{10});
+    Instruction* condition =
+        entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{1});
+    entry->allocateInstr(
+        Opcode::kCondBranch,
+        nullptr,
+        VReg{condition},
+        Lbl{fallthrough},
+        Lbl{phi_block});
+    Instruction* fallthrough_value =
+        fallthrough->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{20});
+    Instruction* phi =
+        phi_block->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+    phi->addPhiInput(fallthrough_edge, fallthrough_value);
+    phi->addPhiInput(entry_edge, entry_value);
+    phi_block->allocateInstr(Opcode::kReturn, nullptr, VReg{phi});
+    return phi_block;
   }
 
   static const char* duplicateEdgePhiLIR() {
@@ -416,11 +430,11 @@ TEST_F(LinearScanAllocatorTest, RewriteSpilledMoveInputAsLoad) {
 }
 
 TEST_F(LinearScanAllocatorTest, FullRunHandlesCriticalEdgePhiSlots) {
-  Parser parser;
-  auto function = parser.parse(criticalEdgePhiLIR());
-  Instruction* phi = parser.getOutputInstrMap().at(6);
+  Function function;
+  BasicBlock* phi_block = buildCriticalEdgePhiLIR(function);
+  Instruction* phi = phi_block->getFirstInstr();
 
-  LinearScanAllocator allocator{function.get()};
+  LinearScanAllocator allocator{&function};
   allocator.run();
 
   ASSERT_EQ(phi->numPhiInputs(), 2);
@@ -499,15 +513,16 @@ TEST_F(LinearScanAllocatorTest, FullRunHandlesLoopPhiSlots) {
 }
 
 TEST_F(LinearScanAllocatorTest, SpillAllocatorHandlesCriticalEdgePhiSlots) {
-  auto function = Parser().parse(criticalEdgePhiLIR());
-  BasicBlock* phi_block = function->basicBlocks().at(2);
+  Function function;
+  BasicBlock* phi_block = buildCriticalEdgePhiLIR(function);
+
   ASSERT_EQ(phi_block->numPredecessors(), 2);
   const std::vector<BasicBlock*> predecessors = phi_block->predecessors();
 
-  SpillAllocator allocator{function.get()};
+  SpillAllocator allocator{&function};
   allocator.run();
 
-  for (BasicBlock* block : function->basicBlocks()) {
+  for (BasicBlock* block : function.basicBlocks()) {
     for (auto& instruction : block->instructions()) {
       EXPECT_FALSE(instruction->isPhi());
     }
