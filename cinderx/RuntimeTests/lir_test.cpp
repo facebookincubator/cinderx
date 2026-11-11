@@ -15,10 +15,10 @@
 #include "cinderx/Jit/lir/interpframe.h"
 #include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/postalloc.h"
+#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/spill_alloc.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/RuntimeTests/lir_query.h"
 
 #include <math.h>
@@ -924,21 +924,6 @@ class LIRGeneratorTest : public RuntimeTest {
     std::stringstream ss;
     ss << *lir_func << '\n';
     return ss.str();
-  }
-
-  std::string removeCommentsAndWhitespace(const std::string& input_s) {
-    std::istringstream iss(input_s);
-    std::string line;
-    std::string output_s;
-    while (std::getline(iss, line)) {
-      if (line.empty() || line.starts_with('#')) {
-        // skip blank lines and comments
-        continue;
-      } else {
-        output_s += line + '\n';
-      }
-    }
-    return output_s;
   }
 
   void expectResumeEntryDispatchIsNotAnSSAPredecessor(
@@ -2009,35 +1994,6 @@ def func():
 #endif
 }
 #endif
-
-TEST_F(LIRGeneratorTest, ParserTest) {
-  const char* pycode = R"(
-def func(x):
-    if x:
-        return True
-    return False
-)";
-
-  Ref<PyObject> pyfunc(compileAndGet(pycode, "func"));
-  ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling func";
-
-  auto lir_str = removeCommentsAndWhitespace(getLIRString(pyfunc.get()));
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_str);
-  std::stringstream first_print;
-  parsed_func->sortBasicBlocks();
-  first_print << *parsed_func;
-  ASSERT_EQ(lir_str, removeCommentsAndWhitespace(first_print.str()));
-
-  auto reparsed_func = Parser().parse(first_print.str());
-  std::stringstream second_print;
-  reparsed_func->sortBasicBlocks();
-  second_print << *reparsed_func;
-  ASSERT_EQ(
-      removeCommentsAndWhitespace(first_print.str()),
-      removeCommentsAndWhitespace(second_print.str()));
-}
 
 template <typename... Args>
 std::string formatMemoryIndirect(Args&&... args) {
