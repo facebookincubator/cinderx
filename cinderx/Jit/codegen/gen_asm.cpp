@@ -492,13 +492,20 @@ PyObject* resumeInInterpreter(
 
     setupTraceForDeoptedFrame(frame, tstate);
 
+#ifdef ENABLE_INTERPRETER_LOOP
     // Biased open-coding of _PyEval_EvalFrame(): the upstream inline reads
     // interp->eval_frame at a compiled-in offset, which is wrong when the
     // loaded runtime's layout differs (see cinderx/Common/runtime_offsets.h).
+    // We don't actually dispatch to the current hooked eval frame. If the eval
+    // frame is hooked then the hooked eval frame has already entered our eval
+    // frame and we've entered JITed code. We should de-opt to our eval frame.
     _PyFrameEvalFunction eval_frame = CiInterpPre(tstate->interp)->eval_frame;
     result = eval_frame == nullptr
         ? _PyEval_EvalFrameDefault(tstate, frame, err_occurred)
-        : eval_frame(tstate, frame, err_occurred);
+        : Ci_EvalFrame(tstate, frame, err_occurred);
+#else
+    result = _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
+#endif
 
     // If exception occurred before RETURN_GENERATOR, the generator was never
     // returned to anyone. The JIT created the generator early, but the caller
