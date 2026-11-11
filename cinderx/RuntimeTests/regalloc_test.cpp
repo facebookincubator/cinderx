@@ -4,12 +4,13 @@
 
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/codegen/arch.h"
+#include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/operand.h"
+#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/spill_alloc.h"
-#include "cinderx/RuntimeTests/lir_parser.h"
 
 #include <fmt/ostream.h>
 
@@ -61,15 +62,6 @@ class LinearScanAllocatorTest : public ::testing::Test {
       return lhs->startLocation() < rhs->startLocation();
     }
     return lhs->operand() < rhs->operand();
-  }
-
-  UnorderedMap<const Operand*, int> buildOperandToIndexMap(
-      const UnorderedMap<int, Instruction*>& map) {
-    UnorderedMap<const Operand*, int> res;
-    for (auto& m : map) {
-      res.emplace(m.second->output(), m.first);
-    }
-    return res;
   }
 
   void runAllocator(Function* func) {
@@ -257,45 +249,81 @@ TEST_F(LinearScanAllocatorTest, RegAllocationNoSpill) {
 }
 
 TEST_F(LinearScanAllocatorTest, RegAllocation) {
-  const char* lir_source = R"(Function:
-BB %0 - succs: %5 %8
-  %1 = Move 0(0x0)
-  %2 = Add %1, 0(0x0)
-  %3 = Add %1, 8(0x8)
-  CondBranch %2, BB%5, BB%8
-BB %5 - succs: %25
-  %6 = Call 1024(0x400), %2, %3
-  Branch BB%25
-BB %8 - succs: %25
-  %9 = Add %2, %3
-  %10 = Add %9, 1
-  %11 = Add %10, 1
-  %12 = Add %11, 1
-  %13 = Add %12, 1
-  %14 = Add %13, 1
-  %15 = Add %14, 1
-  %16 = Add %15, 1
-  %17 = Add %16, 1
-  %18 = Call 1024(0x400), %3, %2, %9, %12, %13, %14, %15, %16, %17
-  %19 = Add %2, %9
-  %20 = Add %10, %11
-  %21 = Add %20, %13
-  %22 = Add %21, %15
-  %23 = Call 1024(0x400), %19, %18, %22
-  Branch BB%25
-BB %25 - succs: %28
-  %26 = Phi (BB%8, %23), (BB%5, %6)
-  Return %26
-BB %28
+  Function lir_func;
+  BasicBlock* entry = lir_func.allocateBasicBlock();
+  BasicBlock* left = lir_func.allocateBasicBlock();
+  BasicBlock* right = lir_func.allocateBasicBlock();
+  BasicBlock* join = lir_func.allocateBasicBlock();
+  BasicBlock* epilogue = lir_func.allocateBasicBlock();
+  entry->addSuccessor(left);
+  entry->addSuccessor(right);
+  IncomingEdge left_edge = left->addSuccessor(join);
+  IncomingEdge right_edge = right->addSuccessor(join);
+  join->addSuccessor(epilogue);
 
-)";
+  UnorderedMap<const Operand*, int> opnd_id_map;
+  auto record = [&opnd_id_map](int id, Instruction* instruction) {
+    opnd_id_map.emplace(instruction->output(), id);
+    return instruction;
+  };
+  auto add = [&record](int id, BasicBlock* block, Instruction* lhs, auto rhs) {
+    return record(
+        id,
+        block->allocateInstr(Opcode::kAdd, nullptr, OutVReg{}, VReg{lhs}, rhs));
+  };
+  auto call = [&record](int id, BasicBlock* block, auto... arguments) {
+    return record(
+        id,
+        block->allocateInstr(
+            Opcode::kCall, nullptr, OutVReg{}, Imm{1024}, arguments...));
+  };
+  Instruction* initial = record(
+      1, entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{0}));
+  Instruction* condition = add(2, entry, initial, Imm{0});
+  Instruction* entry_value = add(3, entry, initial, Imm{8});
+  entry->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{condition}, Lbl{left}, Lbl{right});
 
-  Parser parser;
-  auto lir_func = parser.parse(lir_source);
-  auto opnd_id_map = buildOperandToIndexMap(parser.getOutputInstrMap());
+  Instruction* left_call = call(6, left, VReg{condition}, VReg{entry_value});
+  left->allocateInstr(Opcode::kBranch, nullptr, Lbl{join});
 
-  LinearScanAllocator lsallocator(lir_func.get());
-  lir_func->sortBasicBlocks();
+  Instruction* sum = add(9, right, condition, VReg{entry_value});
+  Instruction* add_10 = add(10, right, sum, Imm{1});
+  Instruction* add_11 = add(11, right, add_10, Imm{1});
+  Instruction* add_12 = add(12, right, add_11, Imm{1});
+  Instruction* add_13 = add(13, right, add_12, Imm{1});
+  Instruction* add_14 = add(14, right, add_13, Imm{1});
+  Instruction* add_15 = add(15, right, add_14, Imm{1});
+  Instruction* add_16 = add(16, right, add_15, Imm{1});
+  Instruction* add_17 = add(17, right, add_16, Imm{1});
+  Instruction* large_call = call(
+      18,
+      right,
+      VReg{entry_value},
+      VReg{condition},
+      VReg{sum},
+      VReg{add_12},
+      VReg{add_13},
+      VReg{add_14},
+      VReg{add_15},
+      VReg{add_16},
+      VReg{add_17});
+  Instruction* add_19 = add(19, right, condition, VReg{sum});
+  Instruction* add_20 = add(20, right, add_10, VReg{add_11});
+  Instruction* add_21 = add(21, right, add_20, VReg{add_13});
+  Instruction* add_22 = add(22, right, add_21, VReg{add_15});
+  Instruction* right_call =
+      call(23, right, VReg{add_19}, VReg{large_call}, VReg{add_22});
+  right->allocateInstr(Opcode::kBranch, nullptr, Lbl{join});
+
+  Instruction* phi =
+      record(26, join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{}));
+  phi->addPhiInput(right_edge, right_call);
+  phi->addPhiInput(left_edge, left_call);
+  join->allocateInstr(Opcode::kReturn, nullptr, VReg{phi});
+
+  LinearScanAllocator lsallocator(&lir_func);
+  lir_func.sortBasicBlocks();
   lsallocator.calculateLiveIntervals();
   lsallocator.linearScan();
   ASSERT_FALSE(lsallocator.intervalList().empty());
