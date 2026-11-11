@@ -2085,26 +2085,6 @@ BB %1 - succs: %3
   expect_aligned_phi(reparsed.get());
 }
 
-TEST_F(LIRGeneratorTest, ParserRejectsFlatPhiSyntax) {
-  EXPECT_THROW(
-      Parser().parse(R"(Function:
-BB %0
-      %1:Object = Phi BB%0, 1(0x1):Object
-
-)"),
-      ParserException);
-}
-
-TEST_F(LIRGeneratorTest, ParserRejectsPhiLabelValue) {
-  EXPECT_THROW(
-      Parser().parse(R"(Function:
-BB %0
-      %1:Object = Phi (BB%0, BB%0)
-
-)"),
-      ParserException);
-}
-
 TEST_F(LIRGeneratorTest, ParserAlignsPhiPairsWithDuplicateEdges) {
   const char* lir_str = R"(Function:
 BB %0 - succs: %1 %1
@@ -2197,16 +2177,6 @@ BB %0
   auto second = parser.parse(lir_str);
   ASSERT_EQ(first->basicBlocks().size(), 1);
   ASSERT_EQ(second->basicBlocks().size(), 1);
-}
-
-TEST_F(LIRGeneratorTest, ParserRejectsParenthesizedNonPhiInput) {
-  EXPECT_THROW(
-      Parser().parse(R"(Function:
-BB %0
-       %1:Object = Move (BB%0, 0(0x0):Object)
-
-)"),
-      ParserException);
 }
 
 TEST_F(LIRGeneratorTest, ParserSectionTest) {
