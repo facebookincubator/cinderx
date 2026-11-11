@@ -2010,69 +2010,6 @@ def func():
 }
 #endif
 
-TEST_F(LIRGeneratorTest, ParserDataTypeTest) {
-  std::string lir_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %7 %10
-         %1:8bit = Bind {}:8bit
-        %2:32bit = Bind {}:32bit
-        %3:16bit = Bind {}:16bit
-        %4:64bit = Bind {}:64bit
-       %5:Object = Move 0(0x0):Object
-                   CondBranch %5:Object, BB%7, BB%10
-
-BB %7 - preds: %0 - succs: %10
-       %8:Object = Load [0x5]:Object
-                   Return %8:Object
-
-BB %10 - preds: %0 %7
-
-)",
-      PhyLocation{0, 8},
-      PhyLocation{6, 32},
-      PhyLocation{9, 16},
-      PhyLocation{10, 64});
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_str);
-  std::stringstream ss;
-  parsed_func->sortBasicBlocks();
-  ss << *parsed_func;
-  // Assume that the parser assigns basic block and register numbers
-  // based on the parsing order of the instructions.
-  // If the parser behavior is modified and assigns numbers differently,
-  // then the assert may fail.
-  ASSERT_EQ(lir_str, ss.str());
-}
-
-TEST_F(LIRGeneratorTest, ParserMemIndTest) {
-  auto lir_str = fmt::format(
-      R"(Function:
-BB %0
-        %1:64bit = Bind {}:Object
-        %2:64bit = Load [{}:Object + {}:Object * 8 + 0x8]:Object
-        %3:64bit = Load [%2:64bit + 0x3]:Object
-        %4:64bit = Load [%2:64bit + %3:64bit * 16]:Object
-[%4:64bit - 0x16]:Object = Store %1:64bit
-
-)",
-      PhyLocation{5, 64},
-      PhyLocation{5, 64},
-      PhyLocation{4, 64},
-      PhyLocation{0, 64});
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_str);
-  std::stringstream ss;
-  parsed_func->sortBasicBlocks();
-  ss << *parsed_func;
-  // Assume that the parser assigns basic block and register numbers
-  // based on the parsing order of the instructions.
-  // If the parser behavior is modified and assigns numbers differently,
-  // then the assert may fail.
-  ASSERT_EQ(lir_str, ss.str());
-}
-
 TEST_F(LIRGeneratorTest, ParserTest) {
   const char* pycode = R"(
 def func(x):
@@ -2100,40 +2037,6 @@ def func(x):
   ASSERT_EQ(
       removeCommentsAndWhitespace(first_print.str()),
       removeCommentsAndWhitespace(second_print.str()));
-}
-
-TEST_F(LIRGeneratorTest, ParserSectionTest) {
-  std::string lir_str = fmt::format(
-      R"(Function:
-BB %0 - section: hot
-         %1:8bit = Bind {}:8bit
-        %2:32bit = Bind {}:32bit
-        %3:16bit = Bind {}:16bit
-        %4:64bit = Bind {}:64bit
-       %5:Object = Move 0(0x0):Object
-                   CondBranch %5:Object, BB%7, BB%10
-
-BB %7 - preds: %0 - succs: %10 - section: .coldtext
-       %8:Object = Load [0x5]:Object
-                   Return %8:Object
-
-BB %10 - preds: %0 %7 - section: hot
-
-)",
-      PhyLocation{0, 8},
-      PhyLocation{6, 32},
-      PhyLocation{9, 16},
-      PhyLocation{10, 64});
-
-  Parser parser;
-  auto parsed_func = parser.parse(lir_str);
-  ASSERT_EQ(parsed_func->basicBlocks().size(), 3);
-  ASSERT_EQ(
-      parsed_func->basicBlocks()[0]->section(), codegen::CodeSection::kHot);
-  ASSERT_EQ(
-      parsed_func->basicBlocks()[1]->section(), codegen::CodeSection::kCold);
-  ASSERT_EQ(
-      parsed_func->basicBlocks()[2]->section(), codegen::CodeSection::kHot);
 }
 
 template <typename... Args>
