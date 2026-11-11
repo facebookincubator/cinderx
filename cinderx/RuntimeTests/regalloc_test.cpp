@@ -53,20 +53,6 @@ class LinearScanAllocatorTest : public ::testing::Test {
     return phi_block;
   }
 
-  static const char* duplicateEdgePhiLIR() {
-    return R"(Function:
-BB %0 - succs: %3 %3
-  %1 = Move 10
-  %2 = Move 20
-  CondBranch %1, BB%3, BB%3
-BB %3 - succs: %5
-  %4 = Phi (BB%0, %1), (BB%0, %2)
-  Return %4
-BB %5
-
-)";
-  }
-
   static bool LiveIntervalPtrLess(
       const LiveInterval* lhs,
       const LiveInterval* rhs) {
@@ -447,13 +433,30 @@ TEST_F(LinearScanAllocatorTest, FullRunHandlesCriticalEdgePhiSlots) {
 }
 
 TEST_F(LinearScanAllocatorTest, FullRunHandlesDuplicateEdgePhiSlots) {
-  Parser parser;
-  auto function = parser.parse(duplicateEdgePhiLIR());
-  BasicBlock* source = function->basicBlocks().front();
-  Instruction* phi = parser.getOutputInstrMap().at(4);
-  BasicBlock* phi_block = phi->basicBlock();
+  Function function;
+  BasicBlock* source = function.allocateBasicBlock();
+  BasicBlock* phi_block = function.allocateBasicBlock();
+  BasicBlock* epilogue = function.allocateBasicBlock();
+  IncomingEdge first_edge = source->addSuccessor(phi_block);
+  IncomingEdge second_edge = source->addSuccessor(phi_block);
+  phi_block->addSuccessor(epilogue);
 
-  LinearScanAllocator allocator{function.get()};
+  Instruction* first_value =
+      source->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{10});
+  Instruction* second_value =
+      source->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{20});
+  source->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      VReg{first_value},
+      Lbl{phi_block},
+      Lbl{phi_block});
+  Instruction* phi = phi_block->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->addPhiInput(first_edge, first_value);
+  phi->addPhiInput(second_edge, second_value);
+  phi_block->allocateInstr(Opcode::kReturn, nullptr, VReg{phi});
+
+  LinearScanAllocator allocator{&function};
   allocator.run();
 
   ASSERT_EQ(source->successors().size(), 2);
@@ -465,7 +468,7 @@ TEST_F(LinearScanAllocatorTest, FullRunHandlesDuplicateEdgePhiSlots) {
     }
     ++trampoline_count;
     EXPECT_EQ(successor->successors(), (std::vector<BasicBlock*>{phi_block}));
-    EXPECT_GT(successor->getNumInstrs(), 0) << *function;
+    EXPECT_GT(successor->getNumInstrs(), 0) << function;
   }
   EXPECT_GT(trampoline_count, 0);
 
