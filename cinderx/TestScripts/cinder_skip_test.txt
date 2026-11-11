@@ -133,3 +133,6 @@ test.test_xml_etree_c.NoAcceleratorTest.*
 # entry is a per-test pattern, which gen_test_defs.sh ignores when listing
 # modules.
 test_ossaudiodev
+
+# Can't setup the environment to pick up the tests
+test.test_runpy.MiscTests.test_remove_sys_path0_run_python
