@@ -15,7 +15,6 @@
 #include "cinderx/Jit/lir/postalloc.h"
 #include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/lir_parser.h"
 #include "cinderx/module_state.h"
 // NOLINTNEXTLINE(facebook-unused-include-check)
 #include "internal/pycore_ceval.h" // SPECIAL___ENTER__
@@ -25,7 +24,6 @@
 #include <cstddef>
 // NOLINTNEXTLINE(facebook-hte-BadInclude-regex)
 #include <regex>
-#include <sstream>
 
 #ifdef CINDERX_RUNTIME_TESTS_USE_BUCK_RESOURCES
 #include "tools/cxx/Resources.h"
@@ -1064,43 +1062,6 @@ TEST_F(BackendTest, CastTest) {
   CheckCast(lirfunc.get());
 }
 
-TEST_F(BackendTest, ParserStringInputTest) {
-  auto lir_str = fmt::format(R"(Function:
-BB %0 - succs: %4
-        %1:Object = Move "hello"
-        Return %1:Object
-
-BB %4 - preds: %0
-
-)");
-  Parser parser;
-  auto parsed_func = parser.parse(lir_str);
-  auto func = (char* (*)())SimpleCompile(parsed_func.get());
-  std::string ret = func();
-  ASSERT_EQ(ret, "hello");
-}
-
-TEST_F(BackendTest, ParserMultipleStringInputTest) {
-  auto lir_str = fmt::format(R"(Function:
-BB %0 - succs: %8
-        %1:Object = Move "hello1"
-        %2:Object = Move "hello2"
-        %3:Object = Move "hello3"
-        %4:Object = Move "hello4"
-        %5:Object = Move "hello5"
-        %6:Object = Move "hello6"
-                    Return %1:Object
-
-BB %8 - preds: %0
-
-)");
-  Parser parser;
-  auto parsed_func = parser.parse(lir_str);
-  auto func = (char* (*)())SimpleCompile(parsed_func.get());
-  std::string ret = func();
-  ASSERT_EQ(ret, "hello1");
-}
-
 #if CINDER_JIT_TSAN_ENABLED
 
 TEST_F(BackendTest, TsanLoadStorePreservesBehaviorAndFlags) {
@@ -1335,57 +1296,6 @@ TEST_F(BackendTest, SplitBasicBlockTest) {
 
   ASSERT_EQ(func(0), 16);
   ASSERT_EQ(func(1), 9);
-}
-
-TEST_F(BackendTest, ParserErrorFromExpectTest) {
-  // Test throw from expect
-  Parser parser;
-  parser.parse(R"(Function:
-BB %0
-)");
-  try {
-    // Bad basic block header
-    parser.parse(R"(Function:
-BB %0 %3
-)");
-    FAIL();
-  } catch (ParserException&) {
-  }
-
-  try {
-    // Dupicate ID
-    parser.parse(R"(Function:
-BB %0
-%1:Object = Bind RDI:Object
-%1:Object
-)");
-    FAIL();
-  } catch (ParserException&) {
-  }
-}
-
-TEST_F(BackendTest, ParserErrorFromMapGetTest) {
-  // Test throw from map_get_throw
-  Parser parser;
-  try {
-    // Invalid opcode
-    parser.parse(R"(Function:
-BB %0
-%1:Object = InvalidInstruction
-)");
-    FAIL();
-  } catch (ParserException&) {
-  }
-  try {
-    // Missing basic block
-    parser.parse(R"(Function:
-BB %0 - succs: %2
-Return 0(0x0):Object
-BB %1
-)");
-    FAIL();
-  } catch (ParserException&) {
-  }
 }
 
 // Widening 32 bits to 64 has to reach the upper half of the destination: Zext
