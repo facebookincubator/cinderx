@@ -14,8 +14,9 @@
 #include <fmt/ostream.h>
 
 #include <algorithm>
+#include <initializer_list>
+#include <iterator>
 #include <optional>
-#include <sstream>
 #include <vector>
 
 using namespace cinderx::jit;
@@ -68,27 +69,6 @@ class LinearScanAllocatorTest : public ::testing::Test {
     for (auto& m : map) {
       res.emplace(m.second->output(), m.first);
     }
-    return res;
-  }
-
-  template <typename T>
-  UnorderedMap<int, T> buildIndexMap(
-      const UnorderedMap<const Operand*, T>& opnd_interval,
-      const UnorderedMap<const Operand*, int>& opnd_index) {
-    UnorderedMap<int, T> res;
-    for (auto& oi : opnd_interval) {
-      auto iter = opnd_index.find(oi.first);
-
-      if (iter == opnd_index.end()) {
-        // cannot find an index for an operand, clear the result
-        // and make the caller assert.
-        res.clear();
-        break;
-      }
-
-      res.emplace(iter->second, oi.second);
-    }
-
     return res;
   }
 
@@ -189,109 +169,91 @@ TEST_F(LinearScanAllocatorTest, IntervalIntersectWithInterval) {
 }
 
 TEST_F(LinearScanAllocatorTest, RegAllocationNoSpill) {
-  const char* lir_source = R"(
-Function:
-BB %0 - succs: %2
-      %1 = Move 0(0x0)
-           Branch BB%2
+  Function lir_func;
+  BasicBlock* entry = lir_func.allocateBasicBlock();
+  BasicBlock* branch = lir_func.allocateBasicBlock();
+  BasicBlock* left = lir_func.allocateBasicBlock();
+  BasicBlock* right = lir_func.allocateBasicBlock();
+  BasicBlock* join = lir_func.allocateBasicBlock();
+  BasicBlock* epilogue = lir_func.allocateBasicBlock();
+  entry->addSuccessor(branch);
+  branch->addSuccessor(left);
+  branch->addSuccessor(right);
+  IncomingEdge left_edge = left->addSuccessor(join);
+  IncomingEdge right_edge = right->addSuccessor(join);
+  join->addSuccessor(epilogue);
 
-BB %2 - succs: %5 %8
-      %3 = Add %1, 8(0x8)
-           CondBranch %3, BB%5, BB%8
+  Instruction* initial =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{0});
+  entry->allocateInstr(Opcode::kBranch, nullptr, Lbl{branch});
+  Instruction* condition = branch->allocateInstr(
+      Opcode::kAdd, nullptr, OutVReg{}, VReg{initial}, Imm{8});
+  branch->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{condition}, Lbl{left}, Lbl{right});
+  Instruction* left_value = left->allocateInstr(
+      Opcode::kAdd, nullptr, OutVReg{}, VReg{initial}, Imm{8});
+  left->allocateInstr(Opcode::kBranch, nullptr, Lbl{join});
+  Instruction* right_value = right->allocateInstr(
+      Opcode::kAdd, nullptr, OutVReg{}, VReg{initial}, Imm{16});
+  right->allocateInstr(Opcode::kBranch, nullptr, Lbl{join});
+  Instruction* phi = join->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->addPhiInput(left_edge, left_value);
+  phi->addPhiInput(right_edge, right_value);
+  join->allocateInstr(Opcode::kReturn, nullptr, VReg{phi});
 
-BB %5 - succs: %11
-      %6 = Add %1, 8(0x8)
-           Branch BB%11
+  struct ExpectedInterval {
+    const char* name;
+    const Operand* operand;
+    std::initializer_list<LiveRange> ranges;
+    std::initializer_list<LIRLocation> uses;
+    int32_t register_index;
+  };
+  const ExpectedInterval expected_intervals[] = {
+      {"initial", initial->output(), {{2, 12}, {15, 17}}, {2, 6, 11, 16}, 0},
+      {"condition", condition->output(), {{7, 9}}, {7, 8}, 1},
+      {"left_value", left_value->output(), {{12, 15}}, {12}, 0},
+      {"right_value", right_value->output(), {{17, 20}}, {17}, 0},
+      {"phi", phi->output(), {{20, 24}}, {}, 0},
+  };
 
-BB %8 - succs: %11
-      %9 = Add %1, 16(0x10)
-           Branch BB%11
-
-BB %11 - succs: %14
-     %12 = Phi (BB%5, %6), (BB%8, %9)
-           Return %12
-
-BB %14
-
-)";
-
-  Parser parser;
-  auto lir_func = parser.parse(lir_source);
-  auto opnd_id_map = buildOperandToIndexMap(parser.getOutputInstrMap());
-
-  LinearScanAllocator lsallocator(lir_func.get());
+  LinearScanAllocator lsallocator(&lir_func);
   lsallocator.calculateLiveIntervals();
-  UnorderedMap<int, LiveInterval> id_interval;
-  for (const LiveInterval& interval : lsallocator.vreg_intervals_) {
-    id_interval.emplace(opnd_id_map.at(interval.operand()), interval);
-  }
-  ASSERT_FALSE(id_interval.empty());
-
-  std::vector<int> vregs;
-  vregs.reserve(id_interval.size());
-  for (auto& ii : id_interval) {
-    vregs.push_back(ii.first);
-  }
-
-  std::sort(vregs.begin(), vregs.end());
-
-  std::stringstream ss_ranges;
-  for (auto& vreg : vregs) {
-    ss_ranges << vreg << ": " << id_interval.at(vreg) << "\n";
-  }
-
-  std::string live_expected = R"(1: [2, 12), [15, 17)
-3: [7, 9)
-6: [12, 15)
-9: [17, 20)
-12: [20, 24)
-)";
-
-  ASSERT_EQ(ss_ranges.str(), live_expected);
-
-  UnorderedMap<const Operand*, std::vector<LIRLocation>> phy_uses;
-  for (const LiveInterval& interval : lsallocator.vreg_intervals_) {
-    phy_uses.emplace(
-        interval.operand(), lsallocator.vreg_phy_uses_.at(interval.vregId()));
-  }
-  auto index_uses_map = buildIndexMap(phy_uses, opnd_id_map);
-  std::stringstream ss_uses;
-  for (auto& vreg : vregs) {
-    auto sep = "";
-    for (auto& s : index_uses_map[vreg]) {
-      fmt::print(ss_uses, "{}{}", sep, s);
-      sep = " ";
+  ASSERT_EQ(lsallocator.vreg_intervals_.size(), std::size(expected_intervals));
+  for (const ExpectedInterval& expected : expected_intervals) {
+    SCOPED_TRACE(expected.name);
+    const LiveInterval& interval = lsallocator.getInterval(expected.operand);
+    const auto& ranges = interval.ranges();
+    ASSERT_EQ(ranges.size(), expected.ranges.size());
+    size_t range_index = 0;
+    for (const LiveRange& range : expected.ranges) {
+      EXPECT_EQ(ranges[range_index].start, range.start);
+      EXPECT_EQ(ranges[range_index].end, range.end);
+      ++range_index;
     }
-    ss_uses << "\n";
+
+    const auto& uses = lsallocator.vreg_phy_uses_.at(interval.vregId());
+    ASSERT_EQ(uses.size(), expected.uses.size());
+    size_t use_index = 0;
+    for (LIRLocation use : expected.uses) {
+      EXPECT_EQ(uses[use_index++], use);
+    }
   }
-
-  std::string uses_expected = R"(2 6 11 16
-7 8
-12
-17
-
-)";
-  ASSERT_EQ(ss_uses.str(), uses_expected);
 
   lsallocator.linearScan();
 
-  std::stringstream allocated;
-  for (auto& interval : lsallocator.intervalList()) {
-    fmt::print(
-        allocated,
-        "{}->{}\n",
-        opnd_id_map.at(interval->operand()),
-        interval->allocatedLoc().loc);
+  EXPECT_EQ(lsallocator.getFrameSize(), 0);
+  const auto& allocations = lsallocator.intervalList();
+  ASSERT_EQ(allocations.size(), std::size(expected_intervals));
+  for (const ExpectedInterval& expected : expected_intervals) {
+    SCOPED_TRACE(expected.name);
+    auto allocated = std::find_if(
+        allocations.begin(), allocations.end(), [&](const auto& interval) {
+          return interval->operand() == expected.operand;
+        });
+    ASSERT_NE(allocated, allocations.end());
+    EXPECT_TRUE((*allocated)->isRegisterAllocated());
+    EXPECT_EQ((*allocated)->allocatedLoc().loc, expected.register_index);
   }
-
-  std::string allocated_expected = R"(1->0
-3->1
-6->0
-9->0
-12->0
-)";
-
-  ASSERT_EQ(allocated.str(), allocated_expected);
 }
 
 TEST_F(LinearScanAllocatorTest, RegAllocation) {
