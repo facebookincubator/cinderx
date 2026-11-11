@@ -23,6 +23,7 @@ try:  # noqa: C901
         append_jit_list,
         auto,
         background_compile,
+        background_compile_workers,
         clear_runtime_stats,
         compile_after_n_bytecodes,
         compile_after_n_calls,
@@ -43,6 +44,7 @@ try:  # noqa: C901
         get_and_clear_inline_cache_stats,
         get_and_clear_runtime_stats,
         get_background_compile,
+        get_background_compile_workers,
         get_compilation_time,
         get_compile_after_n_bytecodes,
         get_compile_after_n_calls,
@@ -102,6 +104,9 @@ except ImportError:
         return None
 
     def background_compile(enabled: bool) -> None:
+        return None
+
+    def background_compile_workers(workers: int) -> None:
         return None
 
     def compile_after_n_calls(calls: int) -> None:
@@ -173,6 +178,9 @@ except ImportError:
 
     def get_background_compile() -> bool:
         return False
+
+    def get_background_compile_workers() -> int:
+        return 2
 
     def get_compiled_function(func: FuncAny) -> object | None:
         return None

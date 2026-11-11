@@ -785,12 +785,21 @@ FlagProcessor initFlagProcessor() {
       "cinderx-jit-background-compile",
       "CINDERX_JIT_BACKGROUND_COMPILE",
       getMutableConfig().background_compile,
-      "compile lazily-triggered functions on a background worker thread, "
-      "running through the interpreter until compilation finishes.  The worker "
-      "releases the GIL for the bulk of the compile (reacquiring it only for "
+      "compile lazily-triggered functions on background worker threads, "
+      "running through the interpreter until compilation finishes.  The "
+      "workers "
+      "release the GIL for the bulk of the compile (reacquiring it only for "
       "the compiler's shared-state critical sections), so the interpreter runs "
       "concurrently with most of the compilation work even under a standard "
       "GIL build");
+
+  flag_processor
+      .addOption(
+          "cinderx-jit-background-compile-workers",
+          "CINDERX_JIT_BACKGROUND_COMPILE_WORKERS",
+          getMutableConfig().background_compile_workers,
+          "set the number of background compile worker threads to <COUNT>")
+      .withFlagParamName("COUNT");
 
   flag_processor
       .addOption(
@@ -2475,6 +2484,38 @@ PyObject* get_background_compile(PyObject* /* self */, PyObject*) {
   return PyBool_FromLong(getConfig().background_compile);
 }
 
+PyObject* background_compile_workers(PyObject* /* self */, PyObject* arg) {
+  Py_ssize_t workers = -1;
+  if (!PyArg_Parse(arg, "n:background_compile_workers", &workers)) {
+    return nullptr;
+  }
+  if (workers < 1 || workers > 1000) {
+    PyErr_Format(
+        PyExc_ValueError,
+        "Cannot configure background compilation with %zd workers",
+        workers);
+    return nullptr;
+  }
+  getMutableConfig().background_compile_workers = static_cast<size_t>(workers);
+  // Applying a lower target lets idle workers exit on their own; a higher
+  // target is picked up when the next compile is scheduled.  Growing the
+  // pool here would need the same pre-warming and fork-handler setup as
+  // starting it, which the scheduler already performs under its locks.
+  if (auto* ctx = getContext()) {
+    auto& reg = ctx->backgroundCompileRegistry();
+    std::lock_guard<std::mutex> lock(reg.mutex);
+    if (reg.worker_started) {
+      reg.worker_target = static_cast<size_t>(workers);
+      reg.queue_cv.notify_all();
+    }
+  }
+  Py_RETURN_NONE;
+}
+
+PyObject* get_background_compile_workers(PyObject* /* self */, PyObject*) {
+  return PyLong_FromSize_t(getConfig().background_compile_workers);
+}
+
 // Block until every background compile that is currently in flight has
 // finished.  Releases the GIL, which the worker needs to finalize its compiles.
 void waitForBackgroundCompiles() {
@@ -3961,6 +4002,18 @@ PyMethodDef jit_methods[] = {
      get_background_compile,
      METH_NOARGS,
      PyDoc_STR("Return True if background compilation is enabled.")},
+    {"background_compile_workers",
+     background_compile_workers,
+     METH_O,
+     PyDoc_STR(
+         "Set the number of background compile worker threads.  The pool "
+         "starts lazily at the configured size; raising the count grows it "
+         "on the next scheduled compile, lowering it lets idle workers "
+         "exit.")},
+    {"get_background_compile_workers",
+     get_background_compile_workers,
+     METH_NOARGS,
+     PyDoc_STR("Return the number of background compile worker threads.")},
     {"wait_for_background_compiles",
      wait_for_background_compiles,
      METH_NOARGS,
@@ -4604,8 +4657,9 @@ void jitAtForkChild() {
   // Reset the inherited registry by overwriting it, deliberately without
   // running its destructor.  Only the forking thread exists in the child, so:
   //
-  //  - `worker` still looks joinable here even though the thread is gone, and
-  //    ~thread() on a joinable handle calls std::terminate().
+  //  - Worker handles in `workers` still look joinable here even though
+  //    the threads are gone, and ~thread() on a joinable handle calls
+  //    std::terminate().
   //  - Destroying `queue` would drop the tasks' references to Python objects,
   //    and this handler runs inside fork(), before PyOS_AfterFork_Child() has
   //    reinitialized the runtime.
@@ -4679,37 +4733,65 @@ void processBackgroundCompile(
   }
 }
 
-// Main loop of the single long-lived background compilation worker thread.
-// Consumes tasks from the queue until a stop is requested and the queue is
-// drained.
+// Main loop of one long-lived background compilation worker thread.
+// Consumes tasks from the queue until a stop is requested, or until the
+// pool has more live workers than its target size and this worker is idle.
 void backgroundCompileWorkerLoop(
     CompilerContext<Compiler>* jit_ctx,
-    PyInterpreterState* interp) try {
-  setThreadName("bg_cx_compile");
+    PyInterpreterState* interp,
+    size_t worker_id) try {
+  std::string thread_name = fmt::format("bg_compile_{}", worker_id);
+  setThreadName(thread_name.c_str());
 
   CompileWorkerThreadState thread_state{interp};
 
   ThreadedCompileContext bgContext;
   BackgroundCompileRegistry& reg = jit_ctx->backgroundCompileRegistry();
+  // Decrement the live count exactly once on every exit path, including an
+  // exception escaping the loop below.  Exits that already decremented
+  // under the registry lock set `live_decremented` first.
+  bool live_decremented = false;
+  SCOPE_EXIT({
+    if (!live_decremented) {
+      std::lock_guard<std::mutex> lock(reg.mutex);
+      JIT_DCHECK(
+          reg.live_workers, "should have at least one worker if we're running");
+      reg.live_workers--;
+    }
+  });
   for (;;) {
     std::unique_ptr<BackgroundCompileTask> task;
+    bool should_exit = false;
     {
       hir::IsolatedPreloaders isolated_preloaders;
       {
         PyBeginAllowThreads allow_threads;
         {
           std::unique_lock<std::mutex> lock(reg.mutex);
-          reg.queue_cv.wait(
-              lock, [&reg] { return !reg.queue.empty() || reg.shutdown; });
+          reg.queue_cv.wait(lock, [&reg] {
+            return !reg.queue.empty() || reg.shutdown ||
+                reg.live_workers > reg.worker_target;
+          });
           if (!reg.shutdown && !reg.queue.empty()) {
             task = std::move(reg.queue.front());
             reg.queue.pop_front();
+          } else if (reg.shutdown || reg.live_workers > reg.worker_target) {
+            // Stop requested, or the pool shrank while this worker was
+            // idle.  The queue is empty here: a queued task takes
+            // precedence over exiting.
+            JIT_DCHECK(reg.live_workers, "this worker is still alive");
+            reg.live_workers--;
+            live_decremented = true;
+            should_exit = true;
           }
         }
-        if (!task) {
-          // Stop requested and queue empty.
-          JIT_DCHECK(reg.shutdown, "we should be shutting down");
+        if (should_exit) {
           break;
+        }
+        if (!task) {
+          // Woken only to find another worker already took the last task
+          // and the pool is still at its target size: wait again.
+          continue;
         }
         hir::preloaderManager().install(std::move(task->preloaders));
         processBackgroundCompile(jit_ctx, task);
@@ -4744,23 +4826,43 @@ bool startBackgroundWorkerThread(
 
   // The worker creates its own thread state, because PyThreadState_New() binds
   // mimalloc and biased-reference-counting state to the calling thread.  The
-  // interpreter is guaranteed to still be alive when it does: reg.worker is
-  // published under reg.mutex here, and cancelBackgroundCompiles() joins it
-  // before the interpreter is torn down.
+  // interpreter is guaranteed to still be alive when it does: the worker
+  // handle is published under reg.mutex here, and
+  // cancelBackgroundCompiles() joins it before the interpreter is torn down.
   PyInterpreterState* interp = PyInterpreterState_Get();
 
   // Normally already registered by jit::initialize(), but re-check here since
-  // the worker is the widest source of locks held across a fork.
+  // the workers are the widest source of locks held across a fork.
   ensureForkHandlersRegistered();
 
+  size_t worker_id = reg.next_worker_id++;
   try {
-    reg.worker = std::thread(backgroundCompileWorkerLoop, jit_ctx, interp);
+    reg.workers.emplace_back(
+        backgroundCompileWorkerLoop, jit_ctx, interp, worker_id);
+    reg.live_workers++;
     reg.worker_started = true;
   } catch (const std::system_error& exn) {
     JIT_LOG("Failed to start background compile worker: {}", exn.what());
     return false;
   }
   return true;
+}
+
+// Grow the background compile pool to its target size.  Called with
+// reg.mutex held, from the scheduler.
+bool ensureBackgroundWorkerPool(
+    CompilerContext<Compiler>* jit_ctx,
+    BackgroundCompileRegistry& reg) {
+  if (!reg.worker_started) {
+    reg.worker_target = std::max<size_t>(
+        std::min<size_t>(getConfig().background_compile_workers, 1000), 1);
+  }
+  while (reg.live_workers < reg.worker_target) {
+    if (!startBackgroundWorkerThread(jit_ctx, reg)) {
+      break;
+    }
+  }
+  return reg.worker_started;
 }
 
 void scheduleBackgroundCompile(
@@ -4900,8 +5002,8 @@ void scheduleBackgroundCompile(
       nullptr,
       std::move(profile));
 
-  // Enqueue the task and lazily start the single worker thread.  If the worker
-  // can't be started, release the task's Python references under the guard we
+  // Enqueue the task and lazily start the worker pool.  If no worker can
+  // be started, release the task's Python references under the guard we
   // already hold and leave the function interpreted.
   {
     FreeThreadedJITEntrypointGuard guard;
@@ -4919,15 +5021,15 @@ void scheduleBackgroundCompile(
     std::lock_guard<std::mutex> lock(reg->mutex);
     // Re-check for shutdown: preloading above ran without the registry lock, so
     // a drain could have completed in the meantime.  Starting a worker now
-    // would resurrect the thread that drain just joined.
+    // would resurrect the threads that drain just joined.
     if (reg->shutdown || reg->generation != generation) {
       return;
     }
-    if (!reg->worker_started && !startBackgroundWorkerThread(jit_ctx, *reg)) {
+    if (!ensureBackgroundWorkerPool(jit_ctx, *reg)) {
       return;
     }
     reg->queue.push_back(std::move(task));
-    // The worker owns the reservation now and releases it when the compile
+    // A worker owns the reservation now and releases it when the compile
     // ends.
     reservation_released = true;
     reg->queue_cv.notify_one();
@@ -5157,27 +5259,30 @@ void cancelBackgroundCompiles() {
   }
   BackgroundCompileRegistry& reg = ctx->backgroundCompileRegistry();
 
-  std::thread worker_to_join;
+  std::vector<std::thread> workers_to_join;
   // Tasks pulled out of the queue below.  Destroyed after the GIL is
   // reacquired: each task holds Python references
   std::deque<std::unique_ptr<BackgroundCompileTask>> abandoned;
-  // Release the GIL so the worker (which holds its own dedicated thread state
-  // and acquires the GIL to compile and finalize) can make progress while we
-  // drain.
+  // Release the GIL so the workers (each holding its own dedicated thread
+  // state and acquiring the GIL to compile and finalize) can make progress
+  // while we drain.
   {
     PyBeginAllowThreads allow_threads;
     {
       std::unique_lock<std::mutex> lock(reg.mutex);
-      // Notify the worker to shutdown immediately
+      // Notify the workers to shutdown immediately
       reg.shutdown = true;
+      reg.worker_target = 0;
       reg.queue_cv.notify_all();
-      worker_to_join = std::move(reg.worker);
+      workers_to_join = std::move(reg.workers);
       reg.worker_started = false;
     }
-    if (worker_to_join.joinable()) {
-      worker_to_join.join();
+    for (auto& worker : workers_to_join) {
+      if (worker.joinable()) {
+        worker.join();
+      }
     }
-    // The joined worker never took the tasks still sitting in the queue, but
+    // The joined workers never took the tasks still sitting in the queue, but
     // each one still holds the in-flight reservation its scheduler handed
     // over.  Reclaim those here so the drain below only waits for threads
     // that are still preloading.

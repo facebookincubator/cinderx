@@ -514,6 +514,36 @@ class CmdLineTest(unittest.TestCase):
             "CINDERX_JIT_BATCH_COMPILE_WORKERS",
         )
 
+    def test_background_compile_workers(self) -> None:
+        self._check_acknowledged(
+            "jit-background-compile-workers=3",
+            "PYTHONJITBACKGROUNDCOMPILEWORKERS=3",
+            "cinderx-jit-background-compile-workers",
+            "CINDERX_JIT_BACKGROUND_COMPILE_WORKERS",
+        )
+
+    def test_background_compile_workers_default(self) -> None:
+        source = textwrap.dedent(
+            """\
+            import cinderx.jit as jit
+
+            assert jit.get_background_compile_workers() == 2
+            print("CHILD_OK")
+            """
+        )
+
+        def check(proc: subprocess.CompletedProcess[str]) -> None:
+            self._assert_ok(proc)
+
+        self._check_both_forms(
+            "cinderx-jit-background-compile-workers=2",
+            "CINDERX_JIT_BACKGROUND_COMPILE_WORKERS=2",
+            ["-c", source],
+            check,
+        )
+        # Without the option, the default is also 2.
+        check(self._run(["-c", source]))
+
     # Generator allocation options.
 
     def test_gen_free_list_entry_count(self) -> None:

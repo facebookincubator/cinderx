@@ -251,6 +251,11 @@ struct Config {
   // thread keeps running through the interpreter until the background
   // compilation finishes and swaps in the JIT-compiled entry point.
   bool background_compile{true};
+  // Number of worker threads for background compilation.  The pool is
+  // started lazily on the first scheduled compile and sized from this
+  // value at that point; raising it afterwards grows the pool on the
+  // next scheduled compile, lowering it lets idle workers exit.
+  size_t background_compile_workers{2};
   // Calls before checking for a replacement compilation; zero disables checks.
   uint64_t recompile_threshold{0};
   // When a function is being compiled, this is the maximum number of dependent

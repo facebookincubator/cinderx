@@ -62,9 +62,10 @@ struct BackgroundCompileTask {
   Profile profile;
 };
 
-// Process-wide state for background compilation. A single long-lived worker
-// thread (started lazily on the first scheduled compile) consumes `queue`.
-// Lives as a member of Context.
+// Process-wide state for background compilation. A pool of long-lived
+// worker threads (started lazily on the first scheduled compile, sized by
+// `Config::background_compile_workers`) consumes `queue`. Lives as a member
+// of Context.
 struct BackgroundCompileRegistry {
   BackgroundCompileRegistry() = default;
 
@@ -87,10 +88,19 @@ struct BackgroundCompileRegistry {
   // Changes when fork discards inherited tasks, including surviving preload
   // calls.
   std::size_t generation{0};
-  // The single worker thread, and whether it has been started.
-  std::thread worker;
+  // The worker threads, and whether the pool has been started.  Handles of
+  // workers that exited early (e.g. after the target size was lowered) stay
+  // here until shutdown joins them.
+  std::vector<std::thread> workers;
   bool worker_started{false};
-  // Set when we want the background compilation thread to shutdown and
+  // Workers currently running.
+  size_t live_workers{0};
+  // Desired pool size.  Zero until the pool is first started, when it is set
+  // from `Config::background_compile_workers`
+  size_t worker_target{0};
+  // Id handed out to the next worker, only used for thread names.
+  size_t next_worker_id{0};
+  // Set when we want the background compilation threads to shutdown and
   // stop processing further requests
   bool shutdown{false};
 };

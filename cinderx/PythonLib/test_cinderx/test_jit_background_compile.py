@@ -70,6 +70,9 @@ class BackgroundCompileTest(unittest.TestCase):
     def setUp(self) -> None:
         # Enable background compilation for testing
         self._old_background_compile = cinderx.jit.get_background_compile()
+        self._old_background_compile_workers = (
+            cinderx.jit.get_background_compile_workers()
+        )
         cinderx.jit.background_compile(True)
         # If we were running w/ background compiles enabled we may have a queue
         # before the test starts, go ahead and drain it.
@@ -77,6 +80,7 @@ class BackgroundCompileTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         cinderx.jit.background_compile(self._old_background_compile)
+        cinderx.jit.background_compile_workers(self._old_background_compile_workers)
         gc.collect()
 
     def test_background_compile_basic(self) -> None:
@@ -96,6 +100,89 @@ class BackgroundCompileTest(unittest.TestCase):
         self.assertTrue(cinderx.jit.is_jit_compiled(test_func))
         result2 = test_func(10)
         self.assertEqual(result2, 21)
+
+    def test_background_compile_workers_default_and_setter(self) -> None:
+        """The worker count is configurable through the getter/setter."""
+        cinderx.jit.background_compile_workers(4)
+        self.assertEqual(cinderx.jit.get_background_compile_workers(), 4)
+        cinderx.jit.background_compile_workers(1)
+        self.assertEqual(cinderx.jit.get_background_compile_workers(), 1)
+
+    def test_background_compile_workers_rejects_invalid_counts(self) -> None:
+        """Worker counts below 1 or above the cap are rejected."""
+        for count in (0, -1, 1001):
+            with self.assertRaises(ValueError):
+                cinderx.jit.background_compile_workers(count)
+            self.assertEqual(
+                cinderx.jit.get_background_compile_workers(),
+                self._old_background_compile_workers,
+            )
+
+    def test_background_compile_multiple_workers(self) -> None:
+        """Raising the worker count grows the pool on the next scheduled
+        compile, and the grown pool compiles every queued function.
+
+        Calls only trigger lazy compiles under jit-all, so this runs
+        out-of-process.  The workers are native threads, so their names are
+        read from ``/proc`` rather than from ``threading.enumerate()``.
+        """
+        if not Path("/proc/self/task").is_dir():
+            self.skipTest("requires /proc task names")
+
+        code = textwrap.dedent("""
+            import time
+            from pathlib import Path
+
+            import cinderx.jit
+
+            def worker_names():
+                names = set()
+                for task_dir in Path("/proc/self/task").iterdir():
+                    try:
+                        name = (task_dir / "comm").read_text().strip()
+                    except OSError:
+                        continue
+                    if name.startswith("bg_compile_"):
+                        names.add(name)
+                return names
+
+            cinderx.jit.background_compile(True)
+            cinderx.jit.background_compile_workers(4)
+
+            body = "\\n".join(f"    x = x + {i} * 3 - {i}" for i in range(200))
+            expected = sum(3 * i - i for i in range(200))
+            funcs = []
+            for index in range(8):
+                namespace = {}
+                exec(f"def func_{index}(x):\\n{body}\\n    return x\\n", namespace)
+                funcs.append(namespace[f"func_{index}"])
+
+            for func in funcs:
+                assert func(1) == 1 + expected
+
+            seen = set()
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                seen = worker_names()
+                if len(seen) >= 4:
+                    break
+                time.sleep(0.005)
+            assert len(seen) >= 4, f"expected >=4 background compile threads, saw {seen}"
+
+            cinderx.jit.wait_for_background_compiles()
+            for func in funcs:
+                assert cinderx.jit.is_jit_compiled(func), func
+                assert func(2) == 2 + expected
+            """)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code, encoding=ENCODING)
+            subprocess.run(
+                [sys.executable, "-X", "cinderx-jit-all", str(test_file)],
+                check=True,
+                env=subprocess_env(),
+            )
 
     def test_readmit_after_failed_background_compile(self) -> None:
         """A failed background compile must not release the admission of a

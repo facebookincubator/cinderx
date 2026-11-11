@@ -13,7 +13,8 @@ namespace cinderx::jit {
 // storage so workers can find it.
 class ThreadedCompileContext {
  public:
-  // Used for background compilation (single background thread, no work list).
+  // Used for background compilation (background worker threads, no work
+  // list).
   ThreadedCompileContext();
 
   virtual ~ThreadedCompileContext();
