@@ -3411,7 +3411,7 @@ DEFINE_SIMPLE_INSTR(Deopt, (), Operands<0>, DeoptBase);
 // These are typically used by optimizations that want to invalidate compiled
 // code at runtime when an invariant that the code depends on is violated.
 //
-// See the comment in Jit/deopt_patcher.h for a description of how to use
+// See the comment in Jit/code_patcher.h for a description of how to use
 // these.
 class INSTR_CLASS(DeoptPatchpoint, (), Operands<0>, DeoptBase) {
  public:

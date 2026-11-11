@@ -114,6 +114,19 @@ TEST_F(CodePatcherTest, CodePatch) {
   EXPECT_EQ(memory.before, kBefore);
   EXPECT_EQ(memory.patchpoint, unpatched);
   EXPECT_EQ(memory.after, kAfter);
+
+  // Resetting forgets the linked patchpoint without touching its memory,
+  // so the patcher can be linked again.
+  patcher.reset();
+  EXPECT_FALSE(patcher.isLinked());
+  EXPECT_FALSE(patcher.isPatched());
+  EXPECT_EQ(memory.patchpoint, unpatched);
+
+  patcher.link(reinterpret_cast<uintptr_t>(memory.patchpoint.data()), bytes);
+  EXPECT_TRUE(patcher.isLinked());
+  patcher.patch();
+  EXPECT_TRUE(patcher.isPatched());
+  EXPECT_EQ(memory.patchpoint, patched);
 }
 
 TEST_F(CodePatcherTest, DeoptPatch) {
@@ -185,6 +198,77 @@ def func():
   EXPECT_EQ(deopts, 1);
   EXPECT_FALSE(patcher->isPatched());
   EXPECT_TRUE(patcher->calledOnUnpatch());
+
+  jit_ctx->clearGuardFailureCallback();
+}
+
+TEST_F(CodePatcherTest, RegeneratingCodeAfterResetRelinksSamePatcher) {
+  const char* pycode = R"(
+def func():
+  a = 314159
+  return a
+)";
+
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "func"));
+  ASSERT_NE(pyfunc, nullptr);
+
+  auto irfunc = buildHIR(pyfunc);
+  hir::BasicBlock* entry = irfunc->cfg.entry_block;
+  std::vector<hir::BasicBlock*> postorder =
+      irfunc->cfg.getPostOrderTraversal(entry);
+  ASSERT_GT(postorder.size(), 0);
+  hir::Instr* term = postorder[0]->getTerminator();
+  ASSERT_NE(term, nullptr);
+  ASSERT_TRUE(term->isReturn()) << *term;
+
+  // Insert a patchpoint immediately before the return. The patcher is
+  // allocated when the HIR is built and reused across generations: the
+  // harness resets it between generations (see DeoptStressTest).
+  auto patcher = irfunc->allocateCodePatcher<MyDeoptPatcher>(123);
+  auto patchpoint = hir::DeoptPatchpoint::create(patcher);
+  patchpoint->insertBefore(*term);
+
+  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+
+  // Generate code twice from the same HIR. Resetting the patcher between
+  // generations lets the same patcher be linked again: re-linking a
+  // linked patcher aborts.
+  codegen::NativeGeneratorFactory factory;
+  codegen::NativeGenerator ngen1(irfunc.get(), factory);
+  auto jitfunc1 = generateCode(ngen1);
+  ASSERT_NE(jitfunc1, nullptr);
+  ASSERT_EQ(irfunc->code_patchers.size(), 1);
+  EXPECT_TRUE(patcher->isLinked());
+  EXPECT_TRUE(patcher->calledOnLink());
+
+  patcher->reset();
+  EXPECT_FALSE(patcher->isLinked());
+  EXPECT_FALSE(patcher->isPatched());
+
+  codegen::NativeGenerator ngen2(irfunc.get(), factory);
+  auto jitfunc2 = generateCode(ngen2);
+  ASSERT_NE(jitfunc2, nullptr);
+  ASSERT_EQ(irfunc->code_patchers.size(), 1);
+  EXPECT_TRUE(patcher->isLinked());
+
+  // Patching the second copy's patchpoint deopts only the second copy.
+  size_t deopts = 0;
+  auto callback = [&deopts](const DeoptMetadata&) { deopts += 1; };
+  Context* jit_ctx = getContext();
+  jit_ctx->setGuardFailureCallback(callback);
+
+  auto res = Ref<>::steal(jitfunc1->invoke(pyfunc, nullptr, 0));
+  ASSERT_NE(res, nullptr);
+  EXPECT_EQ(deopts, 0);
+
+  patcher->patch();
+  auto res2 = Ref<>::steal(jitfunc2->invoke(pyfunc, nullptr, 0));
+  ASSERT_NE(res2, nullptr);
+  EXPECT_EQ(deopts, 1);
+
+  auto res3 = Ref<>::steal(jitfunc1->invoke(pyfunc, nullptr, 0));
+  ASSERT_NE(res3, nullptr);
+  EXPECT_EQ(deopts, 1);
 
   jit_ctx->clearGuardFailureCallback();
 }

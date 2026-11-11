@@ -26245,4 +26245,1406 @@ fun jittestmodule:test {
     Return v19
   }
 }
+--- Test Name ---
+VectorCallPlainTypeBecomesTpAlloc
+--- Input ---
+class Foo:
+  pass
+
+def test():
+  return Foo()
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptObject = LoadGlobalCached<0; "Foo">
+    v10:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    v13:Object = VectorCall<0> v10 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    AtQuiescentState
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Test Name ---
+VectorCallTypeWithNewOverrideStaysVectorCall
+--- Input ---
+class Foo:
+  def __new__(cls):
+    return super().__new__(cls)
+
+def test():
+  return Foo()
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptObject = LoadGlobalCached<0; "Foo">
+    v10:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    v13:Object = VectorCall<0> v10 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    AtQuiescentState
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Test Name ---
+VectorCallTypeWithInitOverrideStaysVectorCall
+--- Input ---
+class Foo:
+  def __init__(self):
+    pass
+
+def test():
+  return Foo()
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptObject = LoadGlobalCached<0; "Foo">
+    v10:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    v13:Object = VectorCall<0> v10 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    AtQuiescentState
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Test Name ---
+VectorCallTypeWithNewAndInitOverridesStaysVectorCall
+--- Input ---
+class Foo:
+  def __new__(cls):
+    return super().__new__(cls)
+
+  def __init__(self):
+    pass
+
+def test():
+  return Foo()
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:Nullptr = LoadConst<Nullptr>
+    v9:OptObject = LoadGlobalCached<0; "Foo">
+    v10:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v9 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    v13:Object = VectorCall<0> v10 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    AtQuiescentState
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v7:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v10:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:Object = VectorCall<0> v9 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Test Name ---
+VectorCallListAndTupleSubclassesStayVectorCall
+--- Input ---
+class ListFoo(list):
+  pass
+
+class TupleFoo(tuple):
+  pass
+
+def test():
+  return (ListFoo(), TupleFoo())
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v11:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v21:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:Nullptr = LoadConst<Nullptr>
+    v13:OptObject = LoadGlobalCached<0; "ListFoo">
+    v14:MortalTypeExact[ListFoo:obj] = GuardIs<0xdeadbeef> v13 {
+      Descr 'LOAD_GLOBAL: ListFoo'
+    }
+    Snapshot
+    v22:Object = VectorCall<0> v14 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v16:Nullptr = LoadConst<Nullptr>
+    v17:OptObject = LoadGlobalCached<1; "TupleFoo">
+    v18:MortalTypeExact[TupleFoo:obj] = GuardIs<0xdeadbeef> v17 {
+      Descr 'LOAD_GLOBAL: TupleFoo'
+    }
+    Snapshot
+    v23:Object = VectorCall<0> v18 {
+      FrameState {
+        CurInstrOffset 30
+        Stack<1> v22
+      }
+    }
+    Snapshot
+    v20:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 38
+        Stack<2> v22 v23
+      }
+    }
+    InitTupleElements<2> v20 v22 v23
+    Snapshot
+    Return v20
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v11:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v21:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:OptObject = LoadGlobalCached<0; "ListFoo">
+    v13:MortalTypeExact[ListFoo:obj] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: ListFoo'
+    }
+    v14:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:Object = VectorCall<0> v13 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v16:OptObject = LoadGlobalCached<1; "TupleFoo">
+    v17:MortalTypeExact[TupleFoo:obj] = GuardIs<0xdeadbeef> v16 {
+      Descr 'LOAD_GLOBAL: TupleFoo'
+    }
+    v18:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v23:Object = VectorCall<0> v17 {
+      FrameState {
+        CurInstrOffset 30
+        Stack<1> v22
+      }
+    }
+    Snapshot
+    v20:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 38
+        Stack<2> v22 v23
+      }
+    }
+    InitTupleElements<2> v20 v22 v23
+    Snapshot
+    Return v20
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    AtQuiescentState
+    v11:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v21:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:OptObject = LoadGlobalCached<0; "ListFoo">
+    v13:MortalTypeExact[ListFoo:obj] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: ListFoo'
+    }
+    v14:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:Object = VectorCall<0> v13 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v16:OptObject = LoadGlobalCached<1; "TupleFoo">
+    v17:MortalTypeExact[TupleFoo:obj] = GuardIs<0xdeadbeef> v16 {
+      Descr 'LOAD_GLOBAL: TupleFoo'
+    }
+    v18:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v23:Object = VectorCall<0> v17 {
+      FrameState {
+        CurInstrOffset 30
+        Stack<1> v22
+      }
+    }
+    Snapshot
+    v20:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 38
+        Stack<2> v22 v23
+      }
+    }
+    InitTupleElements<2> v20 v22 v23
+    Snapshot
+    Return v20
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v11:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v21:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:OptObject = LoadGlobalCached<0; "ListFoo">
+    v13:MortalTypeExact[ListFoo:obj] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: ListFoo'
+    }
+    v14:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:Object = VectorCall<0> v13 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v16:OptObject = LoadGlobalCached<1; "TupleFoo">
+    v17:MortalTypeExact[TupleFoo:obj] = GuardIs<0xdeadbeef> v16 {
+      Descr 'LOAD_GLOBAL: TupleFoo'
+    }
+    v18:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v23:Object = VectorCall<0> v17 {
+      FrameState {
+        CurInstrOffset 32
+        Stack<1> v22
+      }
+    }
+    Snapshot
+    v20:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 40
+        Stack<2> v22 v23
+      }
+    }
+    InitTupleElements<2> v20 v22 v23
+    Snapshot
+    Return v20
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v11:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v21:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:OptObject = LoadGlobalCached<0; "ListFoo">
+    v13:MortalTypeExact[ListFoo:obj] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: ListFoo'
+    }
+    v14:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v22:Object = VectorCall<0> v13 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v16:OptObject = LoadGlobalCached<1; "TupleFoo">
+    v17:MortalTypeExact[TupleFoo:obj] = GuardIs<0xdeadbeef> v16 {
+      Descr 'LOAD_GLOBAL: TupleFoo'
+    }
+    v18:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v23:Object = VectorCall<0> v17 {
+      FrameState {
+        CurInstrOffset 32
+        Stack<1> v22
+      }
+    }
+    Snapshot
+    v20:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 40
+        Stack<2> v22 v23
+      }
+    }
+    InitTupleElements<2> v20 v22 v23
+    Snapshot
+    Return v20
+  }
+}
+--- Test Name ---
+VectorCallPlainTypeWithArgAndAbstractTypeStaysVectorCall
+--- Input ---
+from abc import ABCMeta, abstractmethod
+
+
+class Foo:
+  pass
+
+
+class Bar(metaclass=ABCMeta):
+  @abstractmethod
+  def baz(self):
+    pass
+
+
+def test():
+  return (Foo(1), Bar())
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v11:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v12:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v23:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:Nullptr = LoadConst<Nullptr>
+    v14:OptObject = LoadGlobalCached<0; "Foo">
+    v15:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v14 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v24:Object = VectorCall<1> v15 v16 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v18:Nullptr = LoadConst<Nullptr>
+    v19:OptObject = LoadGlobalCached<1; "Bar">
+    v20:MortalTypeUser[Bar:obj] = GuardIs<0xdeadbeef> v19 {
+      Descr 'LOAD_GLOBAL: Bar'
+    }
+    Snapshot
+    v25:Object = VectorCall<0> v20 {
+      FrameState {
+        CurInstrOffset 32
+        Stack<1> v24
+      }
+    }
+    Snapshot
+    v22:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 40
+        Stack<2> v24 v25
+      }
+    }
+    InitTupleElements<2> v22 v24 v25
+    Snapshot
+    Return v22
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v11:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v23:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:OptObject = LoadGlobalCached<0; "Foo">
+    v14:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v13 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v15:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    v24:Object = VectorCall<1> v14 v16 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v18:OptObject = LoadGlobalCached<1; "Bar">
+    v19:MortalTypeUser[Bar:obj] = GuardIs<0xdeadbeef> v18 {
+      Descr 'LOAD_GLOBAL: Bar'
+    }
+    v20:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v25:Object = VectorCall<0> v19 {
+      FrameState {
+        CurInstrOffset 32
+        Stack<1> v24
+      }
+    }
+    Snapshot
+    v22:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 40
+        Stack<2> v24 v25
+      }
+    }
+    InitTupleElements<2> v22 v24 v25
+    Snapshot
+    Return v22
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v11:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    AtQuiescentState
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v23:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:OptObject = LoadGlobalCached<0; "Foo">
+    v14:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v13 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v15:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    v24:Object = VectorCall<1> v14 v16 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    Snapshot
+    v18:OptObject = LoadGlobalCached<1; "Bar">
+    v19:MortalTypeUser[Bar:obj] = GuardIs<0xdeadbeef> v18 {
+      Descr 'LOAD_GLOBAL: Bar'
+    }
+    v20:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v25:Object = VectorCall<0> v19 {
+      FrameState {
+        CurInstrOffset 32
+        Stack<1> v24
+      }
+    }
+    Snapshot
+    v22:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 40
+        Stack<2> v24 v25
+      }
+    }
+    InitTupleElements<2> v22 v24 v25
+    Snapshot
+    Return v22
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v11:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v23:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:OptObject = LoadGlobalCached<0; "Foo">
+    v14:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v13 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v15:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    v24:Object = VectorCall<1> v14 v16 {
+      FrameState {
+        CurInstrOffset 16
+      }
+    }
+    Snapshot
+    v18:OptObject = LoadGlobalCached<1; "Bar">
+    v19:MortalTypeUser[Bar:obj] = GuardIs<0xdeadbeef> v18 {
+      Descr 'LOAD_GLOBAL: Bar'
+    }
+    v20:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v25:Object = VectorCall<0> v19 {
+      FrameState {
+        CurInstrOffset 34
+        Stack<1> v24
+      }
+    }
+    Snapshot
+    v22:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 42
+        Stack<2> v24 v25
+      }
+    }
+    InitTupleElements<2> v22 v24 v25
+    Snapshot
+    Return v22
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v11:Func = LoadCurrentFunc
+    LoadFrame
+    Snapshot
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v23:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:OptObject = LoadGlobalCached<0; "Foo">
+    v14:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v13 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    v15:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Snapshot
+    v24:Object = VectorCall<1> v14 v16 {
+      FrameState {
+        CurInstrOffset 16
+      }
+    }
+    Snapshot
+    v18:OptObject = LoadGlobalCached<1; "Bar">
+    v19:MortalTypeUser[Bar:obj] = GuardIs<0xdeadbeef> v18 {
+      Descr 'LOAD_GLOBAL: Bar'
+    }
+    v20:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v25:Object = VectorCall<0> v19 {
+      FrameState {
+        CurInstrOffset 34
+        Stack<1> v24
+      }
+    }
+    Snapshot
+    v22:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 42
+        Stack<2> v24 v25
+      }
+    }
+    InitTupleElements<2> v22 v24 v25
+    Snapshot
+    Return v22
+  }
+}
 --- End ---

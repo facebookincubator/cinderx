@@ -23,10 +23,12 @@
 #include "internal/pycore_frame.h"
 
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/func_deopt_patcher.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/pyjit.h"
+#include "cinderx/Jit/type_deopt_patchers.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <algorithm>
@@ -564,6 +566,11 @@ class DeoptStressTest : public RuntimeTest {
     Context* ngen_ctx = getContext();
     auto pyfunc = reinterpret_cast<PyFunctionObject*>(funcobj.get());
     while (!guards.empty()) {
+      // The patchers were allocated when the HIR was built and can only be
+      // linked once, so reset them before generating code again. The
+      // previous generation's code is gone by this point (its factory is
+      // out of scope), so resetting touches no code memory.
+      resetPatchers(*irfunc, ngen_ctx);
       NativeGeneratorFactory factory;
       NativeGenerator gen(irfunc.get(), factory);
       auto jitfunc = reinterpret_cast<vectorcallfunc>(gen.getVectorcallEntry());
@@ -579,9 +586,28 @@ class DeoptStressTest : public RuntimeTest {
       }
       Py_XDECREF(res);
     }
+    // Unregister the final generation's patchers before the HIR (and
+    // with it the patchers) is destroyed.
+    resetPatchers(*irfunc, ngen_ctx);
   }
 
  private:
+  // Unregister every patcher from the previous code generation and
+  // forget its linked patchpoint, so the same HIR can generate code
+  // again. A patcher left registered would keep patching freed code
+  // after the HIR is destroyed.
+  void resetPatchers(Function& irfunc, Context* ctx) {
+    for (auto& patcher : irfunc.code_patchers) {
+      if (auto typed_patcher = dynamic_cast<TypeDeoptPatcher*>(patcher.get())) {
+        ctx->unwatch(typed_patcher);
+      }
+      if (auto func_patcher =
+              dynamic_cast<FuncCodeDeoptPatcher*>(patcher.get())) {
+        ctx->unwatchFunc(func_patcher);
+      }
+      patcher->reset();
+    }
+  }
   std::unordered_map<int, Instr*> insertDeopts(Function& irfunc) {
     std::unordered_map<int, Instr*> guards;
     Register* reg = irfunc.env.allocateRegister();
@@ -611,10 +637,8 @@ class DeoptStressTest : public RuntimeTest {
     return guards;
   }
 
-  void dumpDebuggingOutput(
-      const Function& irfunc,
-      PyObject* actual,
-      PyObject* expected) {
+  void
+  dumpDebuggingOutput(Function& irfunc, PyObject* actual, PyObject* expected) {
     auto expected_str = Ref<>::steal(PyObject_ASCII(expected));
     ASSERT_NE(expected_str, nullptr);
     std::cerr << "Expected: " << PyUnicode_AsUTF8(expected_str) << '\n';
@@ -630,12 +654,17 @@ class DeoptStressTest : public RuntimeTest {
     std::cerr << "HIR of failed function:\n";
     std::cerr << HIRPrinter().toString(irfunc) << '\n';
     std::cerr << "Disassembly:\n";
-    // Recompile so we get the annotated disassembly
+    // Recompile so we get the annotated disassembly. Reset the patchers
+    // from the failed generation first, and unregister this generation's
+    // patchers before returning so the failing test doesn't leave watches
+    // on freed patchers behind.
+    resetPatchers(irfunc, getContext());
     bool old_dump_asm = true;
     std::swap(getMutableConfig().log.dump_asm, old_dump_asm);
     NativeGeneratorFactory factory;
     NativeGenerator gen(&irfunc, factory);
     gen.getVectorcallEntry();
+    resetPatchers(irfunc, getContext());
     getMutableConfig().log.dump_asm = old_dump_asm;
     std::cerr << '\n';
     std::cerr << "Python traceback: ";

@@ -111,6 +111,16 @@ bool CodePatcher::isPatched() const {
   return flags_.is_patched;
 }
 
+void CodePatcher::reset() {
+  JIT_CHECK(
+      (flags_byte_ & lockBit()) == 0,
+      "Cannot reset a patcher while it is being patched");
+  patchpoint_ = nullptr;
+  // Clearing data_len as well keeps storedBytes() empty until the next
+  // link() overwrites data_ and sets it again.
+  flags_byte_ = 0;
+}
+
 uint8_t* CodePatcher::patchpoint() const {
   return patchpoint_;
 }

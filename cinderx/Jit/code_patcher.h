@@ -55,6 +55,14 @@ class CodePatcher {
   // Check if the patcher is currently patched.
   bool isPatched() const;
 
+  // Forget the linked patchpoint so link() can be called again, without
+  // touching the patchpoint memory. The caller must have unwatched the
+  // patcher, and must either have unpatched it first or ensure the
+  // previously linked code can no longer execute. This exists for test
+  // harnesses that generate code more than once from the same HIR; production
+  // code never reuses a patcher.
+  void reset();
+
   // Get where in the code to patch.  Will be nullptr before the patcher is
   // linked.
   uint8_t* patchpoint() const;
