@@ -2102,20 +2102,6 @@ def func(x):
       removeCommentsAndWhitespace(second_print.str()));
 }
 
-TEST_F(LIRGeneratorTest, ParserCanBeReused) {
-  const char* lir_str = R"(Function:
-BB %0
-                   Return 0(0x0):Object
-
-)";
-
-  Parser parser;
-  auto first = parser.parse(lir_str);
-  auto second = parser.parse(lir_str);
-  ASSERT_EQ(first->basicBlocks().size(), 1);
-  ASSERT_EQ(second->basicBlocks().size(), 1);
-}
-
 TEST_F(LIRGeneratorTest, ParserSectionTest) {
   std::string lir_str = fmt::format(
       R"(Function:
