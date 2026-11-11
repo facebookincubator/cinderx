@@ -207,6 +207,67 @@ foo = "hello"
   ASSERT_EQ(result, Py_None);
 }
 
+// A compile run detached from the GIL under a ThreadedCompileContext
+// defers owning its codegen references to finalizePendingCompiles(),
+// where the GIL is already held, instead of acquiring it at the end of
+// Compiler::compile(). The deferred references must land in the
+// CodeRuntime when the compile is published: the code, globals, and
+// builtins references are always collected during codegen, so the runtime
+// must traverse at least those three afterwards, and the function must
+// run. The preloader stays alive across finalization, as a detached
+// worker's preloader manager does.
+TEST_F(JITContextTest, DeferredReferencesTransferredByFinalize) {
+  Ref<PyFunctionObject> func{
+      compileAndGet("def func():\n    return 42\n", "func")};
+  std::unique_ptr<hir::Preloader> preloader{
+      hir::Preloader::make(func, makeFrameReifier(func->func_code))};
+  ASSERT_NE(preloader, nullptr);
+  ASSERT_TRUE(jit_ctx_->addActiveCompile(
+      CompilationKey{
+          preloader->code(), preloader->builtins(), preloader->globals()}));
+
+  {
+    ThreadedCompileContext compile;
+    // Hand the reference down before detaching, as a compile worker
+    // does: creating a reference with the GIL released races the
+    // interpreter. Detach so the compile defers its reference transfer
+    // instead of acquiring the GIL for it.
+    auto func_arg = Ref<PyFunctionObject>::create(func);
+    PyThreadState* saved = PyEval_SaveThread();
+    auto [comp_result, unclaimed] =
+        compilePreloaderImpl(jit_ctx_.get(), *preloader, std::move(func_arg));
+    PyEval_RestoreThread(saved);
+    ASSERT_EQ(comp_result, Result::OK);
+    // Stashed in completed_compiles_: not published yet.
+    EXPECT_EQ(unclaimed.get(), nullptr);
+    EXPECT_EQ(
+        jit_ctx_->lookupCode(
+            preloader->code(), preloader->builtins(), preloader->globals()),
+        nullptr);
+    jit_ctx_->finalizePendingCompiles();
+  }
+
+  BorrowedRef<CompiledFunction> compiled = jit_ctx_->lookupCode(
+      preloader->code(), preloader->builtins(), preloader->globals());
+  ASSERT_NE(compiled, nullptr);
+  EXPECT_TRUE(isJitCompiled(func));
+  EXPECT_TRUE(compiled->data()->pending_references.empty());
+  EXPECT_TRUE(compiled->data()->pending_strong_references.empty());
+
+  int visited = 0;
+  auto visit = [](PyObject*, void* arg) {
+    ++*static_cast<int*>(arg);
+    return 0;
+  };
+  ASSERT_EQ(compiled->runtime()->traverse(visit, &visited), 0);
+  EXPECT_GE(visited, 3);
+
+  auto empty_tuple = Ref<>::steal(PyTuple_New(0));
+  auto result = Ref<>::steal(PyObject_Call(func, empty_tuple, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_TRUE(isIntEquals(result, 42));
+}
+
 // Releasing a dying function's compile only touches state guarded by the GIL,
 // so it must not wait for the compilation lock, which background compiles take
 // without the GIL.

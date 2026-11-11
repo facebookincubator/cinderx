@@ -74,6 +74,10 @@ class NativeGenerator {
     env_.transferReferences();
   }
 
+  Environ::PendingReferences takePendingReferences() {
+    return env_.takePendingReferences();
+  }
+
 #ifndef ENABLE_PREFORK_MODEL
   std::unique_ptr<PerCompilationStableStorage> takeStableStorage() {
     return env_.takeStableStorage();

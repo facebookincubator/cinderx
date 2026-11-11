@@ -105,6 +105,7 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include <cstddef>
 #include <span>
 #include <unordered_set>
+#include <vector>
 
 namespace cinderx::jit {
 
@@ -153,6 +154,19 @@ struct CompiledFunctionData {
   // owned by the JIT Context's stable storage; otherwise it is owned by
   // stable_storage above.
   CodeRuntime* runtime{nullptr};
+  // References collected during codegen that `runtime` does not own yet.
+  // A compile detached from the GIL defers owning them until publication,
+  // where the GIL is already held, instead of acquiring it at the end of
+  // compilation. Borrowed entries stay alive until transfer through the
+  // preloader, whose manager outlives publication for a detached worker
+  // compile. A compile that never reaches publication drops them unowned.
+  std::vector<BorrowedRef<>> pending_references;
+  BorrowedRef<> pending_reifier;
+  std::unordered_set<Ref<>> pending_strong_references;
+
+  // Own every pending reference in `runtime`. The GIL must be held. A
+  // no-op once the pending references have been transferred.
+  void transferPendingReferences();
   // Attached only after the data reaches its final allocation. Published data
   // is not moved; this owner outlives the CompiledFunction wrapper.
   CompiledFunctionOwner* owner{nullptr};

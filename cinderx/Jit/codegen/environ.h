@@ -185,6 +185,19 @@ struct Environ {
     }
   }
 
+  // References collected during codegen, not yet owned by the CodeRuntime.
+  // Handed out so a threaded compile can defer the owning transfer to a
+  // GIL-held publication point; the objects stay alive until then through
+  // the preloader, as for all references in hir::Function.
+  struct PendingReferences {
+    std::vector<BorrowedRef<>> refs;
+    BorrowedRef<> reifier;
+  };
+
+  PendingReferences takePendingReferences() {
+    return {std::move(pending_references_), reifier};
+  }
+
   // Codegen-lifetime cache mapping live-value instructions to their deopt
   // metadata index. Avoids duplicate CodeRuntime entries when multiple passes
   // register the same instruction.

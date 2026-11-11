@@ -794,6 +794,11 @@ void Context::completeRecompile(BackgroundCompileTask& task) {
   // result an owner so a discarded candidate unregisters those watches when
   // its deferred data is released.
   auto replacement = std::move(task.replacement);
+  // As in makeCompiledFunction(): a background compile deferred owning its
+  // codegen references to this GIL-held point, reached after the worker
+  // reacquires the GIL; finalizePendingCompiles() does not see a
+  // replacement, so transfer here before the code can run.
+  replacement->transferPendingReferences();
   auto compiled =
       CompiledFunction::create(std::move(*replacement), *this, false);
   if (compiled == nullptr) {
@@ -1269,6 +1274,9 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
   // kPreforkModel); otherwise they're only immortal if the owning function is.
   bool immortal = kPreforkModel || (func != nullptr && _Py_IsImmortal(func)) ||
       (outer != nullptr && _Py_IsImmortal(outer));
+  // A threaded compile deferred owning its codegen references to this
+  // GIL-held publication point; own them before the code can run.
+  compiled_func.transferPendingReferences();
   auto compiled =
       CompiledFunction::create(std::move(compiled_func), *this, immortal);
   if (compiled == nullptr) {

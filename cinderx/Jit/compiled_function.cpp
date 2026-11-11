@@ -391,6 +391,25 @@ void CompiledFunctionData::releaseRuntimeResources() {
   releaseRuntimeReferences();
 }
 
+void CompiledFunctionData::transferPendingReferences() {
+  if (pending_references.empty() && pending_strong_references.empty() &&
+      pending_reifier == nullptr) {
+    return;
+  }
+  JIT_DCHECK(runtime != nullptr, "pending references need a CodeRuntime");
+  JIT_DCHECK(
+      ThreadedCompileContext::canAccessSharedData(), "lock should be held");
+  runtime->setReifier(Ref<>::create(pending_reifier));
+  auto pending = std::move(pending_references);
+  pending_references.clear();
+  for (BorrowedRef<> obj : pending) {
+    runtime->addReference(obj);
+  }
+  runtime->transferReferences(std::move(pending_strong_references));
+  pending_strong_references.clear();
+  pending_reifier = nullptr;
+}
+
 void CompiledFunctionData::releaseRuntimeReferences() {
   if (runtime == nullptr) {
     return;

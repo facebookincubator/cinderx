@@ -317,8 +317,23 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 
   // Flush Environ pending references to CodeRuntime so that they are
-  // kept alive during the lifetime of the compiled code.
-  {
+  // kept alive during the lifetime of the compiled code. When a worker
+  // compiles detached from the GIL, defer the owning transfer to
+  // publication (Context::makeCompiledFunction, reached from
+  // finalizePendingCompiles(), and Context::completeRecompile for
+  // background recompiles), where the GIL is already held, instead of
+  // acquiring it here for every compile. Defer only while detached: a
+  // compile running attached to the GIL (e.g. re-entrant, from a
+  // finalizer) may see its preloader, and the reifier it owns, destroyed
+  // before finalization, so its references must be owned here. Attached,
+  // the holder below is just a depth count and costs nothing.
+  codegen::Environ::PendingReferences pending_references;
+  hir::Environment::StrongReferenceSet pending_strong_references;
+  if (ThreadedCompileContext::compileRunning() &&
+      PyThreadState_GetUnchecked() == nullptr) {
+    pending_references = ngen->takePendingReferences();
+    pending_strong_references = irfunc->env.stealStrongReferences();
+  } else {
     ThreadedCompileGILHolder guard;
     ngen->transferReferences();
     auto code_runtime = ngen->codeRuntime();
@@ -356,6 +371,10 @@ std::optional<CompiledFunctionData> Compiler::compile(
   compiled_data.inline_function_stats = std::move(inline_stats);
   compiled_data.hir_opcode_counts = hir_opcode_counts;
   compiled_data.runtime = code_runtime;
+  compiled_data.pending_references = std::move(pending_references.refs);
+  compiled_data.pending_reifier = pending_references.reifier;
+  compiled_data.pending_strong_references =
+      std::move(pending_strong_references);
   compiled_data.compile_time = compile_time;
   compiled_data.code_patchers = std::move(irfunc->code_patchers);
 #ifndef ENABLE_PREFORK_MODEL
