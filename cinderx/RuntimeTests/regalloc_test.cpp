@@ -465,24 +465,28 @@ TEST_F(LinearScanAllocatorTest, FullRunHandlesDuplicateEdgePhiSlots) {
 }
 
 TEST_F(LinearScanAllocatorTest, FullRunHandlesLoopPhiSlots) {
-  const char* lir_source = R"(Function:
-BB %0 - succs: %2
-  %1 = Move 0
-BB %2 - succs: %2 %5
-  %3 = Phi (BB%2, %4), (BB%0, %1)
-  %4 = Add %3, 1
-  CondBranch %4, BB%2, BB%5
-BB %5 - succs: %8
-  Return %3
-BB %8
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* loop = function.allocateBasicBlock();
+  BasicBlock* exit = function.allocateBasicBlock();
+  BasicBlock* epilogue = function.allocateBasicBlock();
+  IncomingEdge entry_edge = entry->addSuccessor(loop);
+  IncomingEdge loop_edge = loop->addSuccessor(loop);
+  loop->addSuccessor(exit);
+  exit->addSuccessor(epilogue);
 
-)";
+  Instruction* initial =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{0});
+  Instruction* phi = loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  Instruction* next =
+      loop->allocateInstr(Opcode::kAdd, nullptr, OutVReg{}, VReg{phi}, Imm{1});
+  loop->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{next}, Lbl{loop}, Lbl{exit});
+  phi->addPhiInput(loop_edge, next);
+  phi->addPhiInput(entry_edge, initial);
+  exit->allocateInstr(Opcode::kReturn, nullptr, VReg{phi});
 
-  Parser parser;
-  auto function = parser.parse(lir_source);
-  Instruction* phi = parser.getOutputInstrMap().at(3);
-
-  LinearScanAllocator allocator{function.get()};
+  LinearScanAllocator allocator{&function};
   allocator.run();
 
   ASSERT_EQ(phi->numPhiInputs(), 2);
