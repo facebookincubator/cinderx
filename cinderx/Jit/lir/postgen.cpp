@@ -8,10 +8,6 @@
 
 #include <unordered_map>
 
-namespace cinderx::jit::rt {
-void batchDecref(cinderx::jit::TaggedPyObject* args, int nargs);
-} // namespace cinderx::jit::rt
-
 using namespace cinderx::jit::codegen;
 
 namespace cinderx::jit::lir {
@@ -497,8 +493,7 @@ RewriteResult rewriteStoreImmediateToVreg(instr_iter_t instr_iter) {
 // translateCall only needs blr(reg).
 [[maybe_unused]] RewriteResult rewriteCallInput(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
-  if (!instr->isCall() && !instr->isCVarArgCall() && !instr->isVarArgCall() &&
-      !instr->isFastCall()) {
+  if (!instr->isCall() && !instr->isCVarArgCall() && !instr->isFastCall()) {
     return kUnchanged;
   }
 
@@ -635,37 +630,6 @@ bool needsMoreThanTwoMovInstructions(uint64_t value) {
   return changed ? kChanged : kUnchanged;
 }
 
-bool hasHelperTarget(const Instruction& instr, uint64_t helper) {
-  if (!instr.isCall() && !instr.isCVarArgCall() && !instr.isVarArgCall() &&
-      !instr.isFastCall()) {
-    return false;
-  }
-  if (instr.getNumInputs() == 0) {
-    return false;
-  }
-
-  const Operand* target = instr.getInput(0);
-  if (target->isImm()) {
-    return target->getConstant() == helper;
-  }
-  if (!target->isLinked()) {
-    return false;
-  }
-
-  const Instruction* target_instr = target->getLinkedInstr();
-  if (!target_instr->isMove() || target_instr->getNumInputs() != 1) {
-    return false;
-  }
-
-  const Operand* move_input = target_instr->getInput(0);
-  return move_input->isImm() && move_input->getConstant() == helper;
-}
-
-bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
-  return instr.isVarArgCall() &&
-      hasHelperTarget(instr, reinterpret_cast<uint64_t>(rt::batchDecref));
-}
-
 // Strip deferred-RC tag bits from all kObject values before they
 // are used in memory dereferences, passed to C functions, compared, used
 // in guards, or returned. Since PyObject* is aligned enough for CPython's
@@ -772,9 +736,9 @@ bool shouldPreserveTaggedCallArgs(const Instruction& instr) {
       // rt::batchDecref needs tagged deferred-RC refs so the helper can
       // recognize and skip them; every other call should still see untagged
       // object pointers.
-      bool is_call = instr->isCall() || instr->isCVarArgCall() ||
-          instr->isVarArgCall() || instr->isFastCall();
-      bool strip_call_args = is_call && !shouldPreserveTaggedCallArgs(*instr);
+      bool is_call =
+          instr->isCall() || instr->isCVarArgCall() || instr->isFastCall();
+      bool strip_call_args = is_call;
       bool is_compare = instr->isCompare() &&
           (instr->condition() == Condition::kEqual ||
            instr->condition() == Condition::kNotEqual);

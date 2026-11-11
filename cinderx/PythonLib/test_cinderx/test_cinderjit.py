@@ -1776,6 +1776,35 @@ class UnpackSequenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not enough values to unpack"):
             self._unpack_arg(C(()), "a")
 
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("UNPACK_SEQUENCE")
+    def _unpack_twice(self, first, second):
+        a, b, c, d = first
+        a, b, c, d = second
+        return (a, b, c, d)
+
+    def test_unpack_sequence_reassigning_locals(self) -> None:
+        """The items array must survive the decrefs of the old locals.
+
+        The second unpack has to release the four values the first one
+        bound, which the JIT can batch into a single call.  That call and
+        the unpacked items must not share stack space, or the items are
+        overwritten before they are read back.
+        """
+
+        class C:
+            def __init__(self, value):
+                self.value = value
+
+            def __iter__(self):
+                return iter(self.value)
+
+        first = (object(), object(), object(), object())
+        second = (object(), object(), object(), object())
+        # Custom iterables take the slow path, which writes the unpacked
+        # items into a stack array.
+        self.assertEqual(self._unpack_twice(C(first), C(second)), second)
+
     def test_unpack_sequence_iterable_refcount(self) -> None:
         """Verify no reference leak when unpacking a custom iterable."""
         import sys

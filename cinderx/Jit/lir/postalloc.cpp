@@ -631,38 +631,6 @@ int rewriteFastCall(instr_iter_t instr_iter, int base_offset) {
   return rsp_sub;
 }
 
-int rewriteVarArgCall(instr_iter_t instr_iter, int base_offset) {
-  auto instr = instr_iter->get();
-  instr->setOpcode(Opcode::kCall);
-
-  // Keep the args array clear of the callee's shadow space. On Windows the
-  // callee owns [SP, SP+32) and may spill its register arguments there at any
-  // point -- including the register holding the pointer to this array, which
-  // would overwrite the array's first entries before the callee reads them.
-  // kShadowSpaceSize is 0 on System V, where this leaves the array at SP+0 as
-  // before.
-  base_offset = std::max(base_offset, kShadowSpaceSize);
-
-  int rsp_sub = prepareArgsArray(
-      instr_iter,
-      instr->getNumInputs() - 1, // func is 1st argument
-      0,
-      1,
-      ARGUMENT_REGS[0],
-      ARGUMENT_REGS[1],
-      base_offset);
-  instr->setNumInputs(1);
-
-  // prepareArgsArray() sizes the array alone, so fold in what sits below it.
-  // rewriteCallInstrs() only sees this return value and adds its own
-  // base_offset, which is always 0.
-  rsp_sub += base_offset;
-  if (rsp_sub % kStackAlign != 0) {
-    rsp_sub += kStackAlign - (rsp_sub % kStackAlign);
-  }
-  return rsp_sub;
-}
-
 int rewriteCVarArgCall(instr_iter_t instr_iter, int base_offset) {
   auto instr = instr_iter->get();
   JIT_THROW_IF(
@@ -692,13 +660,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   // per the ABI. ReserveStack data is placed above (at SP+max_arg_buffer_size)
   // after all call arg buffer sizes are known.
   int base_offset = 0;
-  if (instr->isVarArgCall()) {
-    int rsp_sub = rewriteVarArgCall(instr_iter, base_offset);
-    env->max_arg_buffer_size =
-        std::max<int>(env->max_arg_buffer_size, base_offset + rsp_sub);
-    return kChanged;
-  } else if (
-      !instr->isCall() && !instr->isCVarArgCall() && !instr->isFastCall()) {
+  if (!instr->isCall() && !instr->isCVarArgCall() && !instr->isFastCall()) {
     return kUnchanged;
   }
 
@@ -1421,7 +1383,6 @@ RewriteResult rewriteMemoryInputsToReg(instr_iter_t instr_iter) {
     case Opcode::kStorePair:
     case Opcode::kUnreachable:
     case Opcode::kFastCall:
-    case Opcode::kVarArgCall:
     case Opcode::kVariadicPush:
     case Opcode::kZext:
       return kUnchanged;

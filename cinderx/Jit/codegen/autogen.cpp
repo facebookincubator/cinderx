@@ -857,15 +857,24 @@ void translateLeaLabel(Environ* env, const Instruction* instr) {
 }
 
 // Lower LIR ReserveStack to a LEA (x86-64) or ADD (aarch64) that computes
-// the address of the reserved stack region. The reserved data lives at
-// [SP + max_arg_buffer_size], above the call argument buffer, so that
-// function calls don't clobber it.
+// the address of the reserved stack region named by its input.  Both
+// regions live above the call argument buffer, so that function calls
+// don't clobber them; see Environ for the layout.
 void translateReserveStack(Environ* env, const Instruction* instr) {
   auto* as = env->as;
   auto output = instr->output();
   JIT_CHECK(output->isReg(), "Expected output to be a register");
+  JIT_CHECK(
+      instr->getNumInputs() == 1 && instr->getInput(0)->isImm(),
+      "ReserveStack needs an immediate stack region, got '{}'",
+      *instr);
 
+  auto region =
+      static_cast<lir::StackRegion>(instr->getInput(0)->getConstant());
   int offset = env->max_arg_buffer_size;
+  if (region == lir::StackRegion::kCallArray) {
+    offset += env->reserve_stack_size;
+  }
 
 #if defined(CINDER_X86_64)
   as->lea(x86::gpq(output->getPhyRegister().loc), x86::ptr(x86::rsp, offset));
@@ -3298,7 +3307,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kNop:
     case Opcode::kCVarArgCall:
     case Opcode::kFastCall:
-    case Opcode::kVarArgCall:
     case Opcode::kMulAdd:
     case Opcode::kLoadArg:
     case Opcode::kMovConstPool:
@@ -3491,7 +3499,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kNop:
     case Opcode::kCVarArgCall:
     case Opcode::kFastCall:
-    case Opcode::kVarArgCall:
     case Opcode::kLoadArg:
     case Opcode::kCondBranch:
     case Opcode::kPhi:

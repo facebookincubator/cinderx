@@ -294,7 +294,6 @@ bool isEssential(Opcode opcode) {
     case Opcode::kSub:
     case Opcode::kTest32:
     case Opcode::kTest:
-    case Opcode::kVarArgCall:
     case Opcode::kXor:
     case Opcode::kZext:
 #if defined(CINDER_AARCH64)
@@ -364,7 +363,6 @@ bool inputMustBeRegister(Opcode opcode, size_t idx) {
     case Opcode::kOr:
     case Opcode::kRShift:
     case Opcode::kRShiftUn:
-    case Opcode::kVarArgCall:
     case Opcode::kXor:
       return idx == 0;
 

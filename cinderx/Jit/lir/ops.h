@@ -84,8 +84,6 @@ namespace cinderx::jit::lir {
   X(Test)                                                       \
   X(Test32)                                                     \
   X(Unreachable)                                                \
-  /* Pass inputs to a helper as an array and count. */          \
-  X(VarArgCall)                                                 \
   X(VariadicPush)                                               \
   X(Xor)                                                        \
   X(Zext)
@@ -129,6 +127,22 @@ enum class MemoryOrder : uint8_t {
 #define DECLARE_MEMORY_ORDER(NAME) k##NAME,
   FOREACH_LIR_MEMORY_ORDER(DECLARE_MEMORY_ORDER)
 #undef DECLARE_MEMORY_ORDER
+};
+
+// Which region of reserved stack space a ReserveStack instruction names.
+// The two regions do not overlap, so an array in one is never clobbered by
+// an array in the other.
+enum class StackRegion : uint64_t {
+  // Space whose contents outlive the call that fills it, such as the items
+  // array UnpackSequence writes and later reads back.  Only one such array
+  // is live at a time, so they share this region.
+  kLongLived = 0,
+  // The argument array of a single call, filled immediately before it and
+  // dead once it returns.  Only one such array is live at a time, so they
+  // share this region.  It has to be distinct from kLongLived: refcount
+  // insertion can place a batch decref, which builds an array here, between
+  // an UnpackSequence and the loads that read its array.
+  kCallArray = 1,
 };
 
 // The conditions a comparison can test, and that a conditional branch can read

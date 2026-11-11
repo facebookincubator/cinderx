@@ -1931,25 +1931,23 @@ void LIRGenerator::registerCallSiteLiveValues(
   JIT_CHECK(inserted, "Callsite live-value metadata registered twice");
 }
 
-Instruction* LIRGenerator::appendVectorCall(
+Instruction* LIRGenerator::appendArgsArray(
     BasicBlockBuilder& bbb,
-    hir::Register* dst,
-    std::variant<Instruction*, uint64_t> callee,
-    std::initializer_list<Instruction*> prefix,
     std::span<hir::Register* const> values,
-    hir::Register* kwnames,
-    bool args_offset) {
+    size_t scratch_slots,
+    bool strip_tags) {
   const size_t num_values = values.size();
-  const size_t scratch_slots = args_offset ? 1 : 0;
   const size_t num_words = num_values + scratch_slots;
 
   Instruction* args_ptr = nullptr;
   if (num_words != 0) {
     const int aligned_size =
         static_cast<int>((num_words * kPointerSize + 15) & ~15);
-    env_->reserve_stack_size = std::max(env_->reserve_stack_size, aligned_size);
-    Instruction* reserved =
-        bbb.appendInstr(OutVReg{Operand::k64bit}, Opcode::kReserveStack);
+    env_->call_array_size = std::max(env_->call_array_size, aligned_size);
+    Instruction* reserved = bbb.appendInstr(
+        OutVReg{Operand::k64bit},
+        Opcode::kReserveStack,
+        Imm{static_cast<uint64_t>(StackRegion::kCallArray)});
     if (scratch_slots != 0) {
       args_ptr = bbb.appendInstr(
           OutVReg{Operand::k64bit},
@@ -1963,15 +1961,17 @@ Instruction* LIRGenerator::appendVectorCall(
     for (size_t i = 0; i < num_values; ++i) {
       Instruction* value = bbb.getDefInstr(values[i]);
       if constexpr (kFreeThreadedBuild) {
-        // The array is read by C code, which expects untagged pointers.
-        // The post-generation strip pass only strips call operands, so
-        // strip the values here, as they are stored into the array.
-        value = bbb.appendInstr(
-            OutVReg{DataType::kObjectUntagged},
-            Opcode::kAnd,
-            value,
-            Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
-                DataType::k64bit});
+        if (strip_tags) {
+          // The array is read by C code, which expects untagged pointers.
+          // The post-generation strip pass only strips call operands, so
+          // strip the values here, as they are stored into the array.
+          value = bbb.appendInstr(
+              OutVReg{DataType::kObjectUntagged},
+              Opcode::kAnd,
+              value,
+              Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
+                  DataType::k64bit});
+        }
       }
       bbb.appendInstr(
           OutInd{args_ptr, static_cast<int32_t>(i * kPointerSize)},
@@ -1979,6 +1979,22 @@ Instruction* LIRGenerator::appendVectorCall(
           value);
     }
   }
+  return args_ptr;
+}
+
+Instruction* LIRGenerator::appendVectorCall(
+    BasicBlockBuilder& bbb,
+    hir::Register* dst,
+    std::variant<Instruction*, uint64_t> callee,
+    std::initializer_list<Instruction*> prefix,
+    std::span<hir::Register* const> values,
+    hir::Register* kwnames,
+    bool args_offset) {
+  const size_t num_values = values.size();
+  const size_t scratch_slots = args_offset ? 1 : 0;
+
+  Instruction* args_ptr =
+      appendArgsArray(bbb, values, scratch_slots, /*strip_tags=*/true);
 
   const uint64_t nargsf_initial =
       num_values | (args_offset ? PY_VECTORCALL_ARGUMENTS_OFFSET : 0);
@@ -2028,6 +2044,31 @@ Instruction* LIRGenerator::appendVectorCall(
   } else {
     instr->addOperands(Imm{0, DataType::k64bit});
   }
+  return instr;
+}
+
+Instruction* LIRGenerator::appendVarArgCall(
+    BasicBlockBuilder& bbb,
+    std::variant<Instruction*, uint64_t> callee,
+    std::span<hir::Register* const> values) {
+  Instruction* args_ptr =
+      appendArgsArray(bbb, values, /*scratch_slots=*/0, /*strip_tags=*/false);
+
+  Instruction* instr;
+  if (std::holds_alternative<Instruction*>(callee)) {
+    instr =
+        bbb.appendInstr(Opcode::kCall, VReg{std::get<Instruction*>(callee)});
+  } else {
+    instr = bbb.appendInstr(
+        Opcode::kCall, Imm{std::get<uint64_t>(callee), DataType::k64bit});
+  }
+  if (args_ptr != nullptr) {
+    instr->addOperands(VReg{args_ptr});
+  } else {
+    instr->addOperands(Imm{0, DataType::k64bit});
+  }
+  instr->addOperands(
+      Imm{static_cast<uint64_t>(values.size()), DataType::k64bit});
   return instr;
 }
 
@@ -4262,11 +4303,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
           deopt_idx = env_->addDeoptMetadata(*instr);
           storeActiveDeoptIndex(bbb, deopt_idx);
         }
-        Instruction* lir = bbb.appendInstr(Opcode::kVarArgCall);
-        lir->addOperands(Imm{reinterpret_cast<uint64_t>(rt::batchDecref)});
-        for (hir::Register* arg : instr->getOperands()) {
-          lir->addOperands(VReg{bbb.getDefInstr(arg)});
-        }
+        Instruction* lir = appendVarArgCall(
+            bbb,
+            reinterpret_cast<uint64_t>(rt::batchDecref),
+            instr->getOperands());
         if constexpr (kFreeThreadedBuild) {
           registerCallSiteLiveValues(
               lir,
@@ -5858,14 +5898,19 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         // Reserve space in the stack frame for the stack array. The reserved
         // data is placed above the call argument buffer so that calls don't
         // clobber it, and call args remain at SP+0 where the callee expects
-        // them per the ABI. The LIR ReserveStack instruction goes through
-        // normal register allocation and is lowered to a LEA in autogen once
+        // them per the ABI. This array outlives the call that fills it, so
+        // it goes in the long-lived region rather than the one call argument
+        // arrays share. The LIR ReserveStack instruction goes through normal
+        // register allocation and is lowered to a LEA in autogen once
         // max_arg_buffer_size is known.
         auto aligned_size =
             static_cast<int>((instr->numWords() * kPointerSize + 15) & ~15);
         env_->reserve_stack_size =
             std::max(env_->reserve_stack_size, aligned_size);
-        bbb.appendInstr(instr->output(), Opcode::kReserveStack);
+        bbb.appendInstr(
+            instr->output(),
+            Opcode::kReserveStack,
+            Imm{static_cast<uint64_t>(StackRegion::kLongLived)});
         break;
       }
       case hir::Opcode::kUnpackSequence: {

@@ -332,17 +332,29 @@ class LIRGenerator {
       BasicBlockBuilder& bbb,
       const hir::VectorCall& instr);
 
+  // Materialize `values` into a reserved stack array, preceded by
+  // `scratch_slots` scratch slots, and return a pointer to the first
+  // value, or nullptr when the array is empty. The array is reserved with
+  // a ReserveStack, which places it above the call argument buffer so a
+  // subsequent call cannot clobber it. When `strip_tags` is set, deferred-RC
+  // tag bits are stripped from the values as they are stored, for callees
+  // that expect untagged pointers; otherwise the values are stored as-is.
+  Instruction* appendArgsArray(
+      BasicBlockBuilder& bbb,
+      std::span<hir::Register* const> values,
+      size_t scratch_slots,
+      bool strip_tags);
+
   // Emit a call to a vectorcall-shaped C function:
   //   callee(prefix..., args, nargsf, kwnames)
   // where args points at a contiguous array of the values in `values`.
-  // The array is materialized with a ReserveStack, which places it above
-  // the call argument buffer so the callee cannot clobber it, and the call
-  // itself is a plain kCall whose arguments the post-allocation rewrite
-  // moves into place.  `prefix` holds the C arguments before args, as
-  // defining instructions (nullptr for a null argument), in order.
-  // `kwnames`, when present, is the trailing kwnames tuple; its length is
-  // subtracted from nargsf at runtime.  When `args_offset` is set, the
-  // array is preceded by a scratch slot and nargsf advertises
+  // The array is materialized by appendArgsArray, and the call itself is a
+  // plain kCall whose arguments the post-allocation rewrite moves into
+  // place.  `prefix` holds the C arguments before args, as defining
+  // instructions (nullptr for a null argument), in order.  `kwnames`, when
+  // present, is the trailing kwnames tuple; its length is subtracted from
+  // nargsf at runtime.  When `args_offset` is set, the array is preceded
+  // by a scratch slot and nargsf advertises
   // PY_VECTORCALL_ARGUMENTS_OFFSET, as _PyObject_VectorcallTstate and
   // rt::call require.  A null `kwnames` passes a null kwnames pointer.
   Instruction* appendVectorCall(
@@ -353,6 +365,15 @@ class LIRGenerator {
       std::span<hir::Register* const> values,
       hir::Register* kwnames,
       bool args_offset);
+
+  // Emit a call to a helper taking an array of values and an explicit
+  // count: callee(args, values.size()). The array is materialized by
+  // appendArgsArray, and tagged deferred-RC references are preserved in it,
+  // as the helper is expected to inspect them. The call has no output.
+  Instruction* appendVarArgCall(
+      BasicBlockBuilder& bbb,
+      std::variant<Instruction*, uint64_t> callee,
+      std::span<hir::Register* const> values);
 
   TranslatedBlock translateOneBasicBlock(
       const hir::BasicBlock* bb,
