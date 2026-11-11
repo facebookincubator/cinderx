@@ -8,7 +8,6 @@
 
 #include "internal/pycore_ceval.h"
 
-#include "cinderx/Common/fork_support.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode.h"
@@ -22,26 +21,10 @@
 #endif
 
 #include <bit>
-#include <shared_mutex>
 
 namespace cinderx::jit {
 
 namespace {
-
-// Set of interned strings for deopt descriptions.
-std::unordered_set<std::string> s_descrs;
-std::shared_mutex s_descrs_mutex;
-
-// Intern a description string and return a reference to it.
-const std::string& internDescr(const std::string& descr) {
-  std::shared_lock reader_guard{s_descrs_mutex};
-  if (auto iter = s_descrs.find(descr); iter != s_descrs.end()) {
-    return *iter;
-  }
-  reader_guard.unlock();
-  std::unique_lock writer_guard{s_descrs_mutex};
-  return *s_descrs.emplace(descr).first;
-}
 
 // Materialize an object for a primitive live value holding the raw bits `raw`.
 // Boxing is what makes primitives need the identity cache in
@@ -545,6 +528,13 @@ DeoptMetadata initDeoptMetadata(
   return meta;
 }
 
+std::string DeoptMetadata::descrString() const {
+  if (descr == hir::DeoptDescr::kNone) {
+    return {};
+  }
+  return hir::deoptDescrString(descr, eh_name);
+}
+
 DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   std::unordered_map<jit::hir::Register*, int> reg_idx;
   DeoptMetadata meta = initDeoptMetadata(instr, reg_idx);
@@ -638,14 +628,16 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
     meta.eh_name = check->name();
   }
 
-  std::string descr = instr.descr();
-  if (descr.empty()) {
-    descr = instr.opname();
+  meta.descr = instr.descr();
+  if (BorrowedRef<> descr_name = instr.descrName()) {
+    // A named description reuses eh_name for its name; named
+    // descriptions are only set on guards, which never also carry an
+    // error name above.
+    JIT_DCHECK(
+        meta.eh_name.get() == nullptr,
+        "instruction has both an error name and a description name");
+    meta.eh_name = descr_name;
   }
-
-  // This is safe to do because `s_descrs` has process lifetime.
-  const std::string& interned = internDescr(descr);
-  meta.descr = interned.c_str();
 
   return meta;
 }
@@ -656,8 +648,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::LiveValuesBase& instr) {
   meta.frame_meta.initialize(1);
 
   meta.reason = DeoptReason::kUnhandledException;
-  const std::string& interned = internDescr(std::string{instr.opname()});
-  meta.descr = interned.c_str();
+  meta.descr = hir::deoptDescrForOpcode(instr.opcode());
   return meta;
 }
 
@@ -692,18 +683,6 @@ void visitLiveDeferredRefs(
 #else
   JIT_ABORT("Only for FT builds.");
 #endif
-}
-
-void deoptAtForkPrepare() {
-  s_descrs_mutex.lock();
-}
-
-void deoptAtForkParent() {
-  s_descrs_mutex.unlock();
-}
-
-void deoptAtForkChild() {
-  resetMutexAfterFork(s_descrs_mutex);
 }
 
 } // namespace cinderx::jit

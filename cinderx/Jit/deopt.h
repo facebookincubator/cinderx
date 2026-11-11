@@ -196,8 +196,12 @@ struct DeoptFrameMetadata {
 // DeoptMetadata captures all the information necessary to reconstruct a
 // PyFrameObject when deoptimization occurs.
 struct DeoptMetadata {
-  // The name index of the unbound local or attribute, if we are deopting
-  // because of an undefined value.
+  // The name of the unbound local or attribute, if we are deopting
+  // because of an undefined value. Also reused to hold the name that
+  // follows a description kind for which hir::deoptDescrHasName() is
+  // true. The two uses never coincide: descriptions with a name are
+  // only set on guard instructions, whose deopt reason never reads
+  // this field as an error name.
   BorrowedRef<> eh_name;
 
   // All live values
@@ -205,9 +209,6 @@ struct DeoptMetadata {
 
   // Stack of inlined frame metadata unwound from the deopting instruction.
   FrozenList<DeoptFrameMetadata> frame_meta;
-
-  // A human-readable description of why this deopt happened.
-  const char* descr{nullptr};
 
   // If not -1, index into live_values for a context-dependent value that is
   // relevant to this deopt event.
@@ -219,6 +220,20 @@ struct DeoptMetadata {
 
   // Why we are de-opting
   DeoptReason reason{DeoptReason::kUnhandledException};
+
+  // The kind of human-readable description of why this deopt happened.
+  // A char-sized enum packed next to `reason`, replacing the
+  // interned-string pointer previously stored here, so this struct is
+  // a full word smaller. Every deopt-capable instruction carries one:
+  // either a constant-string kind set with setDescr(), or the kOpcode*
+  // kind for its opcode. kNone only occurs for default-constructed
+  // metadata, which describes no instruction.
+  hir::DeoptDescr descr{hir::DeoptDescr::kNone};
+
+  // The formatted description: the constant string for `descr`, followed
+  // by `eh_name` when the description kind takes a name, or the opcode
+  // name for kOpcode* kinds. Empty when `descr` is kNone.
+  std::string descrString() const;
 
   BorrowedRef<PyCodeObject> code() const {
     return innermostFrame().code();
@@ -272,7 +287,7 @@ struct DeoptMetadata {
         "DeoptMetadata {{ reason={}, descr={}, inline_depth={}, "
         "live_values=<{}> }}",
         deoptReasonName(reason),
-        descr,
+        descrString(),
         inline_depth(),
         fmt::join(live_value_strings, ", "));
   }
@@ -351,9 +366,5 @@ void visitLiveDeferredRefs(
     const DeoptMetadata& meta,
     uintptr_t frame_base,
     gcvisitobjects_t visit);
-
-void deoptAtForkPrepare();
-void deoptAtForkParent();
-void deoptAtForkChild();
 
 } // namespace cinderx::jit

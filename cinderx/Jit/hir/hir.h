@@ -129,6 +129,7 @@ inline auto makeTypeArray(Args&&... args) {
 class LiveValuesBase;
 class DeoptBase;
 class CallSiteLiveValuesBase;
+class Environment;
 
 // Base class that all concrete HIR instructions must derive from.
 //
@@ -365,6 +366,162 @@ class LiveValuesBase : public Instr {
   std::vector<RegState> live_regs_;
 };
 
+// Opcodes whose instructions can produce DeoptMetadata: every
+// DeoptBase opcode, plus the CallSiteLiveValuesBase opcodes handled by
+// the LiveValuesBase overload of DeoptMetadata::fromInstr. Keep this in
+// sync with the DeoptBase/CallSiteLiveValuesBase class definitions below;
+// deoptDescrForOpcode() aborts for any opcode missing from the list.
+#define FOREACH_DEOPT_DESCR_OPCODE(X) \
+  X(BinaryOp)                         \
+  X(BuildInterpolation)               \
+  X(BuildSlice)                       \
+  X(BuildString)                      \
+  X(BuildTemplate)                    \
+  X(CallEx)                           \
+  X(CallInd)                          \
+  X(CallMethod)                       \
+  X(Cast)                             \
+  X(CheckErrOccurred)                 \
+  X(CheckExc)                         \
+  X(CheckField)                       \
+  X(CheckFreevar)                     \
+  X(CheckNeg)                         \
+  X(CheckSequenceBounds)              \
+  X(CheckVar)                         \
+  X(Compare)                          \
+  X(CompareBool)                      \
+  X(ConvertValue)                     \
+  X(CopyDictWithoutKeys)              \
+  X(DeleteAttr)                       \
+  X(DeleteGlobal)                     \
+  X(DeleteSubscr)                     \
+  X(Deopt)                            \
+  X(DeoptPatchpoint)                  \
+  X(DictMerge)                        \
+  X(DictSubscr)                       \
+  X(DictUpdate)                       \
+  X(EagerImportName)                  \
+  X(FillTypeAttrCache)                \
+  X(FillTypeMethodCache)              \
+  X(FloatBinaryOp)                    \
+  X(FormatValue)                      \
+  X(FormatWithSpec)                   \
+  X(GetAIter)                         \
+  X(GetANext)                         \
+  X(GetIter)                          \
+  X(GetLength)                        \
+  X(GetTuple)                         \
+  X(Guard)                            \
+  X(GuardIs)                          \
+  X(GuardType)                        \
+  X(ImportFrom)                       \
+  X(ImportName)                       \
+  X(InPlaceOp)                        \
+  X(InitialYield)                     \
+  X(InvokeIterNext)                   \
+  X(InvokeStaticFunction)             \
+  X(IsInstance)                       \
+  X(IsNegativeAndErrOccurred)         \
+  X(IsTruthy)                         \
+  X(ListAppend)                       \
+  X(ListExtend)                       \
+  X(ListSubscr)                       \
+  X(LoadAttr)                         \
+  X(LoadAttrSpecial)                  \
+  X(LoadAttrSuper)                    \
+  X(LoadFunctionIndirect)             \
+  X(LoadGlobal)                       \
+  X(LoadMethod)                       \
+  X(LoadMethodSuper)                  \
+  X(LoadModuleAttrCached)             \
+  X(LoadModuleMethodCached)           \
+  X(LoadSpecial)                      \
+  X(LongBinaryOp)                     \
+  X(MakeCell)                         \
+  X(MakeCheckedDict)                  \
+  X(MakeCheckedList)                  \
+  X(MakeDict)                         \
+  X(MakeFunction)                     \
+  X(MakeList)                         \
+  X(MakeSet)                          \
+  X(MakeTuple)                        \
+  X(MakeTupleFromList)                \
+  X(MatchKeys)                        \
+  X(MergeSetUnpack)                   \
+  X(PrimitiveBox)                     \
+  X(Raise)                            \
+  X(RaiseAwaitableError)              \
+  X(RaiseStatic)                      \
+  X(RunPeriodicTasks)                 \
+  X(Send)                             \
+  X(SetDictItem)                      \
+  X(SetSetItem)                       \
+  X(SetUpdate)                        \
+  X(StoreAttr)                        \
+  X(StoreSubscr)                      \
+  X(TpAlloc)                          \
+  X(UnaryOp)                          \
+  X(UnicodeConcat)                    \
+  X(UnicodeRepeat)                    \
+  X(UnicodeSubscr)                    \
+  X(UnpackExToTuple)                  \
+  X(VectorCall)                       \
+  X(YieldValue)                       \
+  X(BatchDecref)                      \
+  X(Decref)                           \
+  X(XDecref)
+
+// Kinds of human-readable deopt descriptions carried by DeoptBase
+// instructions and, in packed form, by DeoptMetadata. The kOpcode*
+// kinds render as the opcode name and are the default for every
+// deopt-capable instruction: DeoptBase's constructors set the kind for
+// the opcode, and setDescr() only overrides it with one of the plain
+// constant-string kinds below. The ones for which deoptDescrHasName()
+// is true are followed by the name object returned by
+// DeoptBase::descrName(). kNone only occurs for default-constructed
+// DeoptMetadata, which has no instruction to describe.
+enum class DeoptDescr : char {
+  kNone,
+  kLoadGlobal,
+  kUnpackSequence,
+  kImportFromModule,
+  kImportFrom,
+  kImportName,
+  kImportNameFull,
+  kImportNameReturned,
+  kFuncCodeSwap,
+  kSplitDictDeoptPatcher,
+  kDictValuesCheck,
+  kMemberDescriptorAttribute,
+  kPropertyAttribute,
+  kGenericDescriptorAttribute,
+  kTpDescrGetSet,
+  kPythonMethod,
+  kInlineValuesValid,
+#define DESCR_OPCODE(name) kOpcode##name,
+  FOREACH_DEOPT_DESCR_OPCODE(DESCR_OPCODE)
+#undef DESCR_OPCODE
+};
+
+// The description kind for an opcode. Aborts for opcodes without one,
+// which can only happen for an opcode missing from
+// FOREACH_DEOPT_DESCR_OPCODE above.
+DeoptDescr deoptDescrForOpcode(Opcode op);
+
+// The constant prefix for a description kind, including the trailing ": "
+// for kinds followed by a name. For kOpcode* kinds this is the opcode
+// name.
+std::string_view deoptDescrPrefix(DeoptDescr descr);
+
+// Whether a description kind is followed by a name.
+bool deoptDescrHasName(DeoptDescr descr);
+
+// Whether a description kind renders as an opcode name.
+bool deoptDescrIsOpcode(DeoptDescr descr);
+
+// Format a description kind and its name object. `descr` must not be kNone.
+std::string deoptDescrString(DeoptDescr descr, BorrowedRef<> name);
+
 // Subclass of Instr that is able to deopt back to the interpreter.
 class DeoptBase : public LiveValuesBase {
  public:
@@ -387,10 +544,22 @@ class DeoptBase : public LiveValuesBase {
   int nonce() const;
   void setNonce(int nonce);
 
-  // Get or set the human-readable description of why this instruction might
-  // deopt.
-  const std::string& descr() const;
-  void setDescr(std::string r);
+  // Get or set the kind of human-readable description of why this
+  // instruction might deopt, and the name object that follows the
+  // description for kinds where deoptDescrHasName() is true. The
+  // constructors set the kind for the opcode; setDescr() overrides it.
+  DeoptDescr descr() const;
+  BorrowedRef<> descrName() const;
+  void setDescr(DeoptDescr descr);
+  // Record `name` in `env` so the CodeRuntime keeps the name object
+  // alive for as long as the compiled code (and its DeoptMetadata) can
+  // render it. Only for kinds where deoptDescrHasName() is true.
+  void setDescr(DeoptDescr descr, BorrowedRef<> name, Environment& env);
+
+  // The formatted description: the constant string for the kind,
+  // followed by the name object when the kind takes one, or the opcode
+  // name for kOpcode* kinds.
+  std::string descrString() const;
 
   // Get or set the optional value that is responsible for this deopt
   // event. Its exact meaning depends on the opcode of this instruction.
@@ -403,8 +572,8 @@ class DeoptBase : public LiveValuesBase {
   // conveniently available in the deopt machinery.
   Register* guilty_reg_{nullptr};
   int nonce_{-1};
-  // A human-readable description of why this instruction might deopt.
-  std::string descr_;
+  DeoptDescr descr_{DeoptDescr::kNone};
+  BorrowedRef<> descr_name_{nullptr};
 };
 
 // Subclass of Instr for instructions that may lower to helper calls capable of

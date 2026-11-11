@@ -3379,7 +3379,8 @@ void collect_deopt_stat(
   auto lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));
   auto reason =
       Ref<>::steal(check(PyUnicode_FromString(deoptReasonName(meta.reason))));
-  auto description = Ref<>::steal(check(PyUnicode_FromString(meta.descr)));
+  auto description =
+      Ref<>::steal(check(PyUnicode_FromString(meta.descrString().c_str())));
 
   // Helper to create an event dict with a given count value.
   auto append_event = [&](size_t count_raw, const char* type_name) {
@@ -4611,13 +4612,11 @@ void jitAtForkPrepare() {
   if (state != nullptr) {
     state->atForkPrepare();
   }
-  deoptAtForkPrepare();
   logAtForkPrepare();
 }
 
 void jitAtForkParent() {
   logAtForkParent();
-  deoptAtForkParent();
   ModuleState* state = getModuleState();
   if (state != nullptr) {
     state->atForkParent();
@@ -4637,7 +4636,6 @@ void jitAtForkParent() {
 
 void jitAtForkChild() {
   logAtForkChild();
-  deoptAtForkChild();
   freeThreadedJITEntrypointAtForkChild();
   ModuleState* state = getModuleState();
   if (state != nullptr) {

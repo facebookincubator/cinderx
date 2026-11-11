@@ -691,7 +691,7 @@ std::optional<InlineResult> inlineFunctionCall(
     auto patchpoint = DeoptPatchpoint::create(patcher);
     patchpoint->setFrameState(pre_call_state);
     patchpoint->setGuiltyReg(call_instr.target);
-    patchpoint->setDescr("func_code swap");
+    patchpoint->setDescr(DeoptDescr::kFuncCodeSwap);
     call_instr.instr->expandInto(
         {patchpoint, begin_inlined_function, callee_branch});
   } else {

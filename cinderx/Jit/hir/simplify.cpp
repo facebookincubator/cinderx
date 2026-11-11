@@ -1936,7 +1936,7 @@ Register* simplifyLoadAttrSplitDict(
       env.func.allocateCodePatcher<SplitDictDeoptPatcher>(type, name, keys));
   env.func.env.addReference(name);
   patchpoint->setGuiltyReg(receiver);
-  patchpoint->setDescr("SplitDictDeoptPatcher");
+  patchpoint->setDescr(DeoptDescr::kSplitDictDeoptPatcher);
   env.emit<UseType>(receiver, receiver->type());
 
   Register* inline_values_valid = env.emit<LoadField>(
@@ -2001,7 +2001,7 @@ Register* simplifyLoadAttrSplitDict(
       env.func.allocateCodePatcher<SplitDictDeoptPatcher>(type, name, keys));
   env.func.env.addReference(name);
   patchpoint->setGuiltyReg(receiver);
-  patchpoint->setDescr("SplitDictDeoptPatcher");
+  patchpoint->setDescr(DeoptDescr::kSplitDictDeoptPatcher);
   env.emit<UseType>(receiver, receiver->type());
 
   // PyDictOrValues is stored at -3 per _PyObject_DictOrValuesPointer
@@ -2020,7 +2020,7 @@ Register* simplifyLoadAttrSplitDict(
       env.emit<IntBinaryOp>(BinaryOpKind::kAnd, dict_ptr, one);
   auto guard = env.emitInstr<Guard>(is_values);
   guard->setGuiltyReg(receiver);
-  guard->setDescr("dict values check");
+  guard->setDescr(DeoptDescr::kDictValuesCheck);
   Register* values = env.emit<IntBinaryOp>(BinaryOpKind::kAdd, dict_ptr, one);
   Register* values_obj = env.emit<BitCast>(values, TOptObject);
   Register* attr = env.emit<LoadField>(
@@ -2048,7 +2048,7 @@ struct DescrInfo {
 void emitTypeAttrDeoptPatcher(
     Env& env,
     const DescrInfo& info,
-    const char* description) {
+    DeoptDescr description) {
   if (_PyClassLoader_IsImmutable(info.py_type)) {
     return;
   }
@@ -2086,7 +2086,7 @@ Register* simplifyLoadAttrMemberDescr(Env& env, const DescrInfo& info) {
       PyErr_Clear();
       name_cstr = "<unknown>";
     }
-    emitTypeAttrDeoptPatcher(env, info, "member descriptor attribute");
+    emitTypeAttrDeoptPatcher(env, info, DeoptDescr::kMemberDescriptorAttribute);
     env.emit<UseType>(info.receiver, info.type);
     Register* field =
         env.emit<LoadField>(info.receiver, name_cstr, def->offset, TOptObject);
@@ -2121,7 +2121,7 @@ Register* simplifyLoadAttrProperty(Env& env, const DescrInfo& info) {
     return nullptr;
   }
 
-  emitTypeAttrDeoptPatcher(env, info, "property attribute");
+  emitTypeAttrDeoptPatcher(env, info, DeoptDescr::kPropertyAttribute);
   env.emit<UseType>(info.receiver, info.type);
   Register* getter_obj = env.emit<LoadConst>(Type::fromObject(getter));
   auto call = env.emitRawInstr<VectorCall>(
@@ -2139,7 +2139,7 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
     return nullptr;
   }
 
-  emitTypeAttrDeoptPatcher(env, info, "generic descriptor attribute");
+  emitTypeAttrDeoptPatcher(env, info, DeoptDescr::kGenericDescriptorAttribute);
   if (!_PyClassLoader_IsImmutable(descr_type)) {
     // We unfortunately have to use a generic TypeDeoptPatcher here that
     // patches on any changes to the type, since type_setattro() calls
@@ -2154,7 +2154,7 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
     });
     auto patchpoint = env.emitInstr<DeoptPatchpoint>(patcher);
     patchpoint->setGuiltyReg(info.receiver);
-    patchpoint->setDescr("tp_descr_get/tp_descr_set");
+    patchpoint->setDescr(DeoptDescr::kTpDescrGetSet);
   }
   env.emit<UseType>(info.receiver, info.type);
   Register* descr_reg = env.emit<LoadConst>(Type::fromObject(info.descr));

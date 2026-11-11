@@ -1932,6 +1932,72 @@ def test():
   EXPECT_EQ(counts[Opcode::kGuard], 0);
 }
 
+// The name following a LOAD_GLOBAL description is a borrowed co_names
+// element; setDescr() must record it in the Environment so the
+// CodeRuntime keeps it alive for as long as the compiled code can render
+// the description.
+TEST_F(LoadGlobalGuardTest, PinnedGlobalDescrNameIsKeptAliveByEnv) {
+  const char* pycode = R"(
+def callee():
+  return 1
+
+def test():
+  return callee()
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  auto irfunc = buildHIR(pyfunc);
+  ASSERT_NE(irfunc, nullptr);
+
+  const DeoptBase* guard = nullptr;
+  for (const BasicBlock& block : irfunc->cfg.blocks) {
+    for (const Instr& instr : block) {
+      if (instr.isGuardIs()) {
+        guard = instr.asDeoptBase();
+      }
+    }
+  }
+  ASSERT_NE(guard, nullptr);
+  EXPECT_EQ(guard->descr(), DeoptDescr::kLoadGlobal);
+  EXPECT_EQ(guard->descrString(), "LOAD_GLOBAL: callee");
+  BorrowedRef<> name = guard->descrName();
+  ASSERT_NE(name, nullptr);
+  EXPECT_TRUE(irfunc->env.references().contains(name));
+}
+
+// A guard with no explicit description still carries the kind for its
+// opcode, so DeoptMetadata never needs the opcode to render it.
+TEST_F(LoadGlobalGuardTest, UndescribedGuardCarriesOpcodeDescr) {
+  const char* pycode = R"(
+FLAG = False
+
+def test():
+  return FLAG
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  auto irfunc = buildHIR(pyfunc);
+  ASSERT_NE(irfunc, nullptr);
+
+  const DeoptBase* guard = nullptr;
+  const DeoptBase* guard_type = nullptr;
+  for (const BasicBlock& block : irfunc->cfg.blocks) {
+    for (const Instr& instr : block) {
+      if (instr.isGuard()) {
+        guard = instr.asDeoptBase();
+      } else if (instr.isGuardType()) {
+        guard_type = instr.asDeoptBase();
+      }
+    }
+  }
+  ASSERT_NE(guard, nullptr);
+  EXPECT_EQ(guard->descr(), DeoptDescr::kOpcodeGuard);
+  EXPECT_EQ(guard->descrString(), "Guard");
+  ASSERT_NE(guard_type, nullptr);
+  EXPECT_EQ(guard_type->descr(), DeoptDescr::kOpcodeGuardType);
+  EXPECT_EQ(guard_type->descrString(), "GuardType");
+}
+
 // A global holding data is not pinned: rebinding it is ordinary Python and
 // must not deopt. Its type is still guarded, so type-driven rewrites keep
 // working.
@@ -1991,18 +2057,21 @@ class ImportCacheHIRTest : public LoadGlobalGuardTest {
         if (deopt == nullptr) {
           continue;
         }
-        if (instr.isGuardIs() && deopt->descr().starts_with("IMPORT_NAME")) {
+        if (instr.isGuardIs() &&
+            (deopt->descr() == DeoptDescr::kImportName ||
+             deopt->descr() == DeoptDescr::kImportNameFull ||
+             deopt->descr() == DeoptDescr::kImportNameReturned)) {
           ASSERT_NE(snapshot, nullptr);
           EXPECT_EQ(snapshot->stack.size(), 2);
           import_name_guards++;
         } else if (
             instr.isGuardIs() &&
-            deopt->descr().starts_with("IMPORT_FROM module")) {
+            deopt->descr() == DeoptDescr::kImportFromModule) {
           ASSERT_NE(snapshot, nullptr);
           EXPECT_EQ(snapshot->stack.size(), 1);
           import_from_module_guards++;
         } else if (
-            instr.isGuard() && deopt->descr().starts_with("IMPORT_FROM:")) {
+            instr.isGuard() && deopt->descr() == DeoptDescr::kImportFrom) {
           ASSERT_NE(deopt->frameState(), nullptr);
           EXPECT_EQ(deopt->frameState()->stack.size(), 1);
           import_from_member_guards++;

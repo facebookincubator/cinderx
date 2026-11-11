@@ -959,8 +959,10 @@ void HIRPrinter::print(std::ostream& os, const Instr& instr) {
   if (db != nullptr) {
     os << " {\n";
     indent();
-    if (!db->descr().empty()) {
-      indented(os) << fmt::format("Descr '{}'\n", db->descr());
+    // Opcode kinds render as the instruction's opcode, which is already
+    // printed; only print descriptions that setDescr() overrode.
+    if (db->descr() != DeoptDescr::kNone && !deoptDescrIsOpcode(db->descr())) {
+      indented(os) << fmt::format("Descr '{}'\n", db->descrString());
     }
     if (Register* guilty_reg = db->guiltyReg()) {
       indented(os) << fmt::format("GuiltyReg {}\n", *guilty_reg);

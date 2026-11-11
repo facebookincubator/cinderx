@@ -172,7 +172,7 @@ void addDeoptPatcher(
   auto patchpoint = DeoptPatchpoint::create(method_patcher);
   patchpoint->setBytecodeOffset(invoke.load_method->bytecodeOffset());
   patchpoint->setGuiltyReg(receiver);
-  patchpoint->setDescr("Python method");
+  patchpoint->setDescr(DeoptDescr::kPythonMethod);
   replacement.push_back(patchpoint);
 }
 
@@ -184,7 +184,7 @@ void addInstanceDictGuard(
   BCOffset bc_offset = invoke.load_method->bytecodeOffset();
   FrameState guard_frame{*invoke.load_method->frameState()};
   guard_frame.stack.push(receiver);
-  auto append_guard = [&](Register* condition, const char* descr) {
+  auto append_guard = [&](Register* condition, DeoptDescr descr) {
     auto snapshot = Snapshot::create(guard_frame);
     snapshot->setBytecodeOffset(bc_offset);
     replacement.push_back(snapshot);
@@ -206,7 +206,7 @@ void addInstanceDictGuard(
       TCUInt8);
   load_valid->setBytecodeOffset(bc_offset);
   replacement.push_back(load_valid);
-  append_guard(inline_values_valid, "inline values are valid");
+  append_guard(inline_values_valid, DeoptDescr::kInlineValuesValid);
 #else
   Register* dict_or_values = irfunc.env.allocateRegister();
   auto load_dict_or_values = LoadField::create(
@@ -230,7 +230,7 @@ void addInstanceDictGuard(
       is_values, BinaryOpKind::kAnd, dict_or_values_ptr, one);
   check_values->setBytecodeOffset(bc_offset);
   replacement.push_back(check_values);
-  append_guard(is_values, "dict values check");
+  append_guard(is_values, DeoptDescr::kDictValuesCheck);
 #endif
 }
 

@@ -3822,7 +3822,9 @@ void HIRBuilder::emitLoadGlobal(
     } else if (shouldPinGlobalValue(value)) {
       auto guard_is = tc.emit<GuardIs>(result, value, result);
       guard_is->setDescr(
-          fmt::format("LOAD_GLOBAL: {}", preloader_.name(name_idx)));
+          DeoptDescr::kLoadGlobal,
+          PyTuple_GET_ITEM(code_->co_names, name_idx),
+          *env_);
     } else {
       // The cache cell tracks rebinding, so the load already produced the live
       // value. Check that the name is still bound, mirroring CPython's
@@ -4506,7 +4508,7 @@ void HIRBuilder::emitUnpackSequence(
   deopt_path.emitSnapshot();
   Deopt* deopt = deopt_path.emit<Deopt>();
   deopt->setGuiltyReg(seq);
-  deopt->setDescr("UNPACK_SEQUENCE");
+  deopt->setDescr(DeoptDescr::kUnpackSequence);
 
   BasicBlock* fast_path = cfg.allocateBlock();
   BasicBlock* list_check_path = cfg.allocateBlock();
@@ -4883,7 +4885,9 @@ void HIRBuilder::emitImportFrom(
   auto module_guard =
       tc.emit<GuardIs>(module, import.returned_module.expected, module);
   module_guard->setDescr(
-      fmt::format("IMPORT_FROM module: {}", preloader_.name(import.name_idx)));
+      DeoptDescr::kImportFromModule,
+      PyTuple_GET_ITEM(code_->co_names, import.name_idx),
+      *env_);
   tc.emit<LoadGlobalCached>(
       res,
       code_,
@@ -4893,7 +4897,9 @@ void HIRBuilder::emitImportFrom(
       member->value.cache);
   auto member_guard = tc.emit<Guard>(res, tc.frame);
   member_guard->setDescr(
-      fmt::format("IMPORT_FROM: {}", preloader_.name(member->name_idx)));
+      DeoptDescr::kImportFrom,
+      PyTuple_GET_ITEM(code_->co_names, member->name_idx),
+      *env_);
   tc.emit<RefineType>(res, TObject, res);
   stack.push(res);
 }
@@ -4966,17 +4972,20 @@ void HIRBuilder::emitImportName(
   tc.emit<Snapshot>(pre_op_frame);
   auto importer_guard =
       tc.emit<GuardIs>(importer, import->import_func.expected, importer);
-  importer_guard->setDescr("IMPORT_NAME: __import__");
+  importer_guard->setDescr(DeoptDescr::kImportName);
   auto full_module_guard =
       tc.emit<GuardIs>(full_module, import->full_module.expected, full_module);
   full_module_guard->setDescr(
-      fmt::format("IMPORT_NAME full: {}", preloader_.name(import->name_idx)));
+      DeoptDescr::kImportNameFull,
+      PyTuple_GET_ITEM(code_->co_names, import->name_idx),
+      *env_);
   if (!returned_is_full) {
     auto returned_module_guard = tc.emit<GuardIs>(
         returned_module, import->returned_module.expected, returned_module);
     returned_module_guard->setDescr(
-        fmt::format(
-            "IMPORT_NAME returned: {}", preloader_.name(import->name_idx)));
+        DeoptDescr::kImportNameReturned,
+        PyTuple_GET_ITEM(code_->co_names, import->name_idx),
+        *env_);
   }
 
   if (returned_is_full) {

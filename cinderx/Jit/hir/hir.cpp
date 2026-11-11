@@ -53,9 +53,116 @@ void LiveValuesBase::sortLiveRegs() {
   }
 }
 
-DeoptBase::DeoptBase(Opcode op) : LiveValuesBase(op) {}
+namespace {
 
-DeoptBase::DeoptBase(Opcode op, const FrameState& frame) : LiveValuesBase(op) {
+std::optional<Opcode> opcodeForDeoptDescr(DeoptDescr descr) {
+  switch (descr) {
+#define OPCODE_CASE(name)         \
+  case DeoptDescr::kOpcode##name: \
+    return Opcode::k##name;
+    FOREACH_DEOPT_DESCR_OPCODE(OPCODE_CASE)
+#undef OPCODE_CASE
+    default:
+      return std::nullopt;
+  }
+}
+
+} // namespace
+
+DeoptDescr deoptDescrForOpcode(Opcode op) {
+  switch (op) {
+#define DESCR_CASE(name) \
+  case Opcode::k##name:  \
+    return DeoptDescr::kOpcode##name;
+    FOREACH_DEOPT_DESCR_OPCODE(DESCR_CASE)
+#undef DESCR_CASE
+    default:
+      break;
+  }
+  JIT_ABORT("No DeoptDescr for opcode {}", hirOpcodeName(op));
+}
+
+bool deoptDescrIsOpcode(DeoptDescr descr) {
+  return opcodeForDeoptDescr(descr).has_value();
+}
+
+std::string_view deoptDescrPrefix(DeoptDescr descr) {
+  if (std::optional<Opcode> op = opcodeForDeoptDescr(descr)) {
+    return hirOpcodeName(*op);
+  }
+  switch (descr) {
+    case DeoptDescr::kNone:
+      return "";
+    case DeoptDescr::kLoadGlobal:
+      return "LOAD_GLOBAL: ";
+    case DeoptDescr::kUnpackSequence:
+      return "UNPACK_SEQUENCE";
+    case DeoptDescr::kImportFromModule:
+      return "IMPORT_FROM module: ";
+    case DeoptDescr::kImportFrom:
+      return "IMPORT_FROM: ";
+    case DeoptDescr::kImportName:
+      return "IMPORT_NAME: __import__";
+    case DeoptDescr::kImportNameFull:
+      return "IMPORT_NAME full: ";
+    case DeoptDescr::kImportNameReturned:
+      return "IMPORT_NAME returned: ";
+    case DeoptDescr::kFuncCodeSwap:
+      return "func_code swap";
+    case DeoptDescr::kSplitDictDeoptPatcher:
+      return "SplitDictDeoptPatcher";
+    case DeoptDescr::kDictValuesCheck:
+      return "dict values check";
+    case DeoptDescr::kMemberDescriptorAttribute:
+      return "member descriptor attribute";
+    case DeoptDescr::kPropertyAttribute:
+      return "property attribute";
+    case DeoptDescr::kGenericDescriptorAttribute:
+      return "generic descriptor attribute";
+    case DeoptDescr::kTpDescrGetSet:
+      return "tp_descr_get/tp_descr_set";
+    case DeoptDescr::kPythonMethod:
+      return "Python method";
+    case DeoptDescr::kInlineValuesValid:
+      return "inline values are valid";
+    default:
+      break;
+  }
+  JIT_ABORT("Unknown DeoptDescr {}", static_cast<int>(descr));
+}
+
+bool deoptDescrHasName(DeoptDescr descr) {
+  switch (descr) {
+    case DeoptDescr::kLoadGlobal:
+    case DeoptDescr::kImportFromModule:
+    case DeoptDescr::kImportFrom:
+    case DeoptDescr::kImportNameFull:
+    case DeoptDescr::kImportNameReturned:
+      return true;
+    default:
+      return false;
+  }
+}
+
+std::string deoptDescrString(DeoptDescr descr, BorrowedRef<> name) {
+  JIT_CHECK(descr != DeoptDescr::kNone, "kNone has no description prefix");
+  std::string result{deoptDescrPrefix(descr)};
+  if (deoptDescrHasName(descr)) {
+    const char* utf8 = name != nullptr ? PyUnicode_AsUTF8(name) : nullptr;
+    if (utf8 == nullptr) {
+      PyErr_Clear();
+      utf8 = "<unknown>";
+    }
+    result += utf8;
+  }
+  return result;
+}
+
+DeoptBase::DeoptBase(Opcode op)
+    : LiveValuesBase(op), descr_{deoptDescrForOpcode(op)} {}
+
+DeoptBase::DeoptBase(Opcode op, const FrameState& frame)
+    : LiveValuesBase(op), descr_{deoptDescrForOpcode(op)} {
   setFrameState(frame);
 }
 
@@ -63,7 +170,8 @@ DeoptBase::DeoptBase(const DeoptBase& other)
     : LiveValuesBase(other),
       guilty_reg_{other.guiltyReg()},
       nonce_{other.nonce()},
-      descr_{other.descr()} {
+      descr_{other.descr()},
+      descr_name_{other.descrName()} {
   if (FrameState* copy_fs = other.frameState()) {
     setFrameState(std::make_unique<FrameState>(*copy_fs));
   }
@@ -134,12 +242,39 @@ void DeoptBase::setNonce(int nonce) {
   nonce_ = nonce;
 }
 
-const std::string& DeoptBase::descr() const {
+DeoptDescr DeoptBase::descr() const {
   return descr_;
 }
 
-void DeoptBase::setDescr(std::string r) {
-  descr_ = std::move(r);
+BorrowedRef<> DeoptBase::descrName() const {
+  return descr_name_;
+}
+
+void DeoptBase::setDescr(DeoptDescr descr) {
+  descr_ = descr;
+  descr_name_ = nullptr;
+}
+
+void DeoptBase::setDescr(
+    DeoptDescr descr,
+    BorrowedRef<> name,
+    Environment& env) {
+  JIT_CHECK(
+      deoptDescrHasName(descr),
+      "description kind {} takes no name",
+      deoptDescrPrefix(descr));
+  JIT_CHECK(name != nullptr, "description name must not be null");
+  // Record the borrowed name in the environment so it is forwarded to
+  // the CodeRuntime, which keeps it alive for as long as the compiled
+  // code (and the DeoptMetadata copied from this instruction) can
+  // render it, even if the owning code object goes away first.
+  env.addReference(name);
+  descr_ = descr;
+  descr_name_ = name;
+}
+
+std::string DeoptBase::descrString() const {
+  return deoptDescrString(descr_, descr_name_);
 }
 
 Register* DeoptBase::guiltyReg() const {
