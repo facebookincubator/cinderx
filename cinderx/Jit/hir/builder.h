@@ -81,12 +81,12 @@ class BlockCanonicalizer {
 // analysis.
 std::unique_ptr<Function> buildHIR(
     const Preloader& preloader,
-    uint64_t recompile_threshold = 0,
+    uint32_t recompile_threshold = 0,
     const Profile* profile = nullptr);
 std::unique_ptr<Function> buildHIR(
     const Preloader& preloader,
     const Profile& profile,
-    uint64_t recompile_threshold = 0);
+    uint32_t recompile_threshold = 0);
 
 // Inlining merges all of the different callee Returns (which terminate blocks,
 // leading to a bunch of distinct exit blocks) into Branches to one Return
@@ -101,7 +101,7 @@ class HIRBuilder {
  public:
   explicit HIRBuilder(
       const Preloader& preloader,
-      uint64_t recompile_threshold = 0,
+      uint32_t recompile_threshold = 0,
       const Profile* profile = nullptr)
       : code_(preloader.code()),
         preloader_(preloader),
@@ -110,7 +110,7 @@ class HIRBuilder {
   HIRBuilder(
       const Preloader& preloader,
       const Profile& profile,
-      uint64_t recompile_threshold = 0)
+      uint32_t recompile_threshold = 0)
       : HIRBuilder(preloader, recompile_threshold, &profile) {}
 
   HIRBuilder(const HIRBuilder&) = delete;
@@ -603,7 +603,7 @@ class HIRBuilder {
   BlockMap block_map_;
   const Preloader& preloader_;
   const Profile* profile_{nullptr};
-  uint64_t recompile_threshold_{0};
+  uint32_t recompile_threshold_{0};
 
   // The function's register Environment, set in buildHIRImpl.
   Environment* env_{nullptr};

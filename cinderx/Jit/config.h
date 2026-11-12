@@ -257,7 +257,7 @@ struct Config {
   // next scheduled compile, lowering it lets idle workers exit.
   size_t background_compile_workers{2};
   // Calls before checking for a replacement compilation; zero disables checks.
-  uint64_t recompile_threshold{0};
+  uint32_t recompile_threshold{0};
   // When a function is being compiled, this is the maximum number of dependent
   // functions called by it that can be compiled along with it.
   size_t preload_dependent_limit{99};

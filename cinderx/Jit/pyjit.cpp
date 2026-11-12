@@ -666,7 +666,7 @@ FlagProcessor initFlagProcessor() {
           "cinderx-jit-recompile-threshold",
           "CINDERX_JIT_RECOMPILE_THRESHOLD",
           [](const std::string& value) {
-            auto threshold = parseNumber<uint64_t>(
+            auto threshold = parseNumber<uint32_t>(
                 value.empty() ? std::string_view{"0"}
                               : std::string_view{value});
             if (threshold.has_value()) {

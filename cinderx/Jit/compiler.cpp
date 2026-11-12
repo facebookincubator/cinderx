@@ -270,7 +270,7 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 
   Timer timer;
-  uint64_t recompile_threshold = 0;
+  uint32_t recompile_threshold = 0;
 #if CINDER_CAN_IDENTIFY_JIT_FRAMES
   if (mode == CompileMode::kInitial) {
     recompile_threshold = getConfig().recompile_threshold;
