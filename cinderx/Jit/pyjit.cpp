@@ -2068,21 +2068,21 @@ bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
  *
  * Return true if the function was previously JIT-compiled, false otherwise.
  */
-bool deoptFuncForDisable(BorrowedRef<PyFunctionObject> func) {
-  if (jitCtx() == nullptr || !isJitCompiled(func)) {
+bool deoptFuncForDisable(Context& ctx, BorrowedRef<PyFunctionObject> func) {
+  if (!isJitCompiled(func)) {
     return false;
   }
-  BorrowedRef<CompiledFunction> compiled = jitCtx()->lookupFunc(func);
+  BorrowedRef<CompiledFunction> compiled = ctx.lookupFunc(func);
   if (compiled == nullptr) {
     return false;
   }
   compiled->deoptFunction(func);
-  jitCtx()->addDeoptedFunc(func, compiled);
+  ctx.addDeoptedFunc(func, compiled);
   return true;
 }
 
-void disable_jit_impl(bool deopt_all) {
-  if (jitCtx() == nullptr) {
+void disable_jit_impl(Context* ctx, bool deopt_all) {
+  if (ctx == nullptr) {
     return;
   }
 
@@ -2095,7 +2095,7 @@ void disable_jit_impl(bool deopt_all) {
   if (deopt_all) {
     size_t success = 0;
     for (auto& func : funcs) {
-      if (deoptFuncForDisable(func)) {
+      if (deoptFuncForDisable(*ctx, func)) {
         success++;
       } else {
         JIT_DLOG("Failed to deopt compiled function '{}'", funcFullname(func));
@@ -2115,7 +2115,7 @@ void disable_jit_impl(bool deopt_all) {
   }
 }
 
-PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
+PyObject* disable_jit(PyObject* mod, PyObject* args, PyObject* kwargs) {
   int deopt_all = 0;
 
   const char* keywords[] = {"deopt_all", nullptr};
@@ -2125,18 +2125,17 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
     return nullptr;
   }
 
-  disable_jit_impl(deopt_all);
+  disable_jit_impl(jitCtx(mod), deopt_all);
 
   Py_RETURN_NONE;
 }
 
-bool enable_jit_impl() {
-  FreeThreadedJITEntrypointGuard guard;
+bool enable_jit_impl(Context* ctx) {
   if (isJitFinalizing()) {
     PyErr_SetString(PyExc_RuntimeError, "Cannot enable JIT during shutdown");
     return false;
   }
-  if (jitCtx() == nullptr) {
+  if (ctx == nullptr) {
     PyErr_SetString(
         PyExc_RuntimeError,
         "Trying to re-enable the JIT but the JIT context is missing");
@@ -2150,12 +2149,12 @@ bool enable_jit_impl() {
   // Copy first: removeDeoptedFunc() erases entries from deoptedFuncs() as it
   // goes.
   std::vector<Ref<PyFunctionObject>> deopted;
-  deopted.reserve(jitCtx()->deoptedFuncs().size());
-  for (auto& [func, compiled] : jitCtx()->deoptedFuncs()) {
+  deopted.reserve(ctx->deoptedFuncs().size());
+  for (auto& [func, compiled] : ctx->deoptedFuncs()) {
     deopted.emplace_back(Ref<PyFunctionObject>::create(func));
   }
   for (auto& func : deopted) {
-    BorrowedRef<CompiledFunction> parked = jitCtx()->removeDeoptedFunc(func);
+    BorrowedRef<CompiledFunction> parked = ctx->removeDeoptedFunc(func);
     JIT_DCHECK(parked != nullptr, "deopted function book keeping mismatch");
     BorrowedRef<PyCodeObject> code{func->func_code};
     if (code->co_flags & CI_CO_SUPPRESS_JIT) {
@@ -2172,9 +2171,9 @@ bool enable_jit_impl() {
   // Nothing should be left parked: reoptFunc() unparks everything it is given,
   // and a function that went away in the meantime took itself out.
   JIT_DCHECK(
-      !jitCtx()->deoptedFuncs().size(),
+      !ctx->deoptedFuncs().size(),
       "{} functions still parked after re-enabling the JIT",
-      jitCtx()->deoptedFuncs().size());
+      ctx->deoptedFuncs().size());
 
   unpatchJitGenAmSendForDeopt();
   std::atomic_ref{getMutableConfig().state}.store(State::kRunning);
@@ -2187,8 +2186,14 @@ bool enable_jit_impl() {
   return true;
 }
 
-PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
-  if (!enable_jit_impl()) {
+PyObject* enable_jit(PyObject* mod, PyObject* /* arg */) {
+  bool enabled;
+  {
+    FreeThreadedJITEntrypointGuard guard;
+    enabled = enable_jit_impl(jitCtx(mod));
+  }
+
+  if (!enabled) {
     return nullptr;
   }
   Py_RETURN_NONE;
@@ -2236,18 +2241,20 @@ bool isInstrumentationActive() {
 }
 
 // Returns false only if enable_jit_impl() fails (with Python exception set).
-bool toggleJitBasedOnInstrumentationState() {
+bool toggleJitBasedOnInstrumentationState(ModuleState& mod_state) {
   FreeThreadedJITEntrypointGuard guard;
   if (!isJitInitialized() || isJitFinalizing()) {
     return true;
   }
   if (isInstrumentationActive()) {
     if (!isJitPaused()) {
-      disable_jit_impl(true /* deopt_all */);
+      disable_jit_impl(
+          static_cast<Context*>(mod_state.jit_context.get()),
+          true /* deopt_all */);
     }
     return true;
   }
-  return enable_jit_impl();
+  return enable_jit_impl(static_cast<Context*>(mod_state.jit_context.get()));
 }
 
 PyObject* callInstrumentedSysFunction(
@@ -2260,7 +2267,8 @@ PyObject* callInstrumentedSysFunction(
   if (result == nullptr) {
     return nullptr;
   }
-  if (owner != nullptr && !toggleJitBasedOnInstrumentationState()) {
+  if (owner != nullptr &&
+      !toggleJitBasedOnInstrumentationState(*cinderx::getModuleState(owner))) {
     return nullptr;
   }
   return result.release();
@@ -2308,10 +2316,10 @@ PyMethodDef instrumented_sys_settrace_def = {
 // Intercepts callback registration/deregistration to disable/enable the JIT
 // This is to handle debuggers/profilers attaching or detaching.
 PyObject* patched_sys_monitoring_register_callback(
-    PyObject* /* self */,
+    PyObject* mod,
     PyObject* const* args,
     Py_ssize_t nargs) {
-  auto mod_state = cinderx::getModuleState();
+  auto mod_state = cinderx::getModuleState(mod);
   BorrowedRef<> original = mod_state->orig_sys_monitoring_register_callback;
   JIT_CHECK(
       original != nullptr,
@@ -2324,7 +2332,7 @@ PyObject* patched_sys_monitoring_register_callback(
     return nullptr;
   }
 
-  if (!toggleJitBasedOnInstrumentationState()) {
+  if (!toggleJitBasedOnInstrumentationState(*mod_state)) {
     Py_DECREF(result);
     return nullptr;
   }
@@ -2337,10 +2345,10 @@ PyObject* patched_sys_monitoring_register_callback(
 // active monitoring callbacks. Without this, stale entries left in
 // monitoring_callables by free_tool_id would cause the JIT to remain paused.
 PyObject* patched_sys_monitoring_free_tool_id(
-    PyObject* /* self */,
+    PyObject* mod,
     PyObject* const* args,
     Py_ssize_t nargs) {
-  auto mod_state = cinderx::getModuleState();
+  auto mod_state = cinderx::getModuleState(mod);
   BorrowedRef<> original = mod_state->orig_sys_monitoring_free_tool_id;
   JIT_CHECK(
       original != nullptr,
@@ -2353,7 +2361,7 @@ PyObject* patched_sys_monitoring_free_tool_id(
     return nullptr;
   }
 
-  if (!toggleJitBasedOnInstrumentationState()) {
+  if (!toggleJitBasedOnInstrumentationState(*mod_state)) {
     Py_DECREF(result);
     return nullptr;
   }
@@ -2363,11 +2371,9 @@ PyObject* patched_sys_monitoring_free_tool_id(
 
 // Patched version of sys.setprofile().
 // Intercepts profiler registration/deregistration to disable/enable the JIT.
-PyObject* patched_sys_setprofile(
-    PyObject* /* self */,
-    PyObject* const* args,
-    Py_ssize_t nargs) {
-  auto mod_state = cinderx::getModuleState();
+PyObject*
+patched_sys_setprofile(PyObject* mod, PyObject* const* args, Py_ssize_t nargs) {
+  auto mod_state = cinderx::getModuleState(mod);
   BorrowedRef<> original = mod_state->orig_sys_setprofile;
   JIT_CHECK(
       original != nullptr, "Expecting to have sys.setprofile already saved");
@@ -2378,7 +2384,7 @@ PyObject* patched_sys_setprofile(
     return nullptr;
   }
 
-  if (!toggleJitBasedOnInstrumentationState()) {
+  if (!toggleJitBasedOnInstrumentationState(*mod_state)) {
     Py_DECREF(result);
     return nullptr;
   }
@@ -2388,11 +2394,9 @@ PyObject* patched_sys_setprofile(
 
 // Patched version of sys.settrace().
 // Intercepts tracer registration/deregistration to disable/enable the JIT.
-PyObject* patched_sys_settrace(
-    PyObject* /* self */,
-    PyObject* const* args,
-    Py_ssize_t nargs) {
-  auto mod_state = cinderx::getModuleState();
+PyObject*
+patched_sys_settrace(PyObject* mod, PyObject* const* args, Py_ssize_t nargs) {
+  auto mod_state = cinderx::getModuleState(mod);
   BorrowedRef<> original = mod_state->orig_sys_settrace;
   JIT_CHECK(
       original != nullptr, "Expecting to have sys.settrace already saved");
@@ -2403,7 +2407,7 @@ PyObject* patched_sys_settrace(
     return nullptr;
   }
 
-  if (!toggleJitBasedOnInstrumentationState()) {
+  if (!toggleJitBasedOnInstrumentationState(*mod_state)) {
     Py_DECREF(result);
     return nullptr;
   }
@@ -5219,7 +5223,7 @@ int initialize(BorrowedRef<> cinderx_module) {
   // Python binaries load the static `_cinderx` extension after site.py runs),
   // and the patched sys functions only observe later changes.
   if (getConfig().support_instrumentation &&
-      !toggleJitBasedOnInstrumentationState()) {
+      !toggleJitBasedOnInstrumentationState(*mod_state)) {
     return -1;
   }
 
