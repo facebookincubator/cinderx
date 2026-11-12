@@ -1943,6 +1943,377 @@ class ResolveVarargsTests(unittest.TestCase):
         self.assertNotIn("BeginInlinedFunction", opcodes)
 
 
+def _resolve_varkw_callee(a, b, **kw):
+    return (a, b, kw)
+
+
+def _resolve_varkw_defaults_callee(a, b=10, **kw):
+    return (a, b, kw)
+
+
+def _resolve_varkw_varargs_callee(a, *args, **kw):
+    return (a, args, kw)
+
+
+def _resolve_varkw_kwonly_callee(a, *, k, **kw):
+    return (a, k, kw)
+
+
+def _resolve_varkw_kwonly_defaults_callee(a, *, k=5, **kw):
+    return (a, k, kw)
+
+
+def _resolve_varkw_posonly_callee(a, /, b, **kw):
+    return (a, b, kw)
+
+
+def _resolve_varkw_gen_callee(a, b, **kw):
+    yield (a, b, kw)
+
+
+def _resolve_varkw_gen_defaults_callee(a, b=10, **kw):
+    yield (a, b, kw)
+
+
+def _resolve_no_varkw_callee(a, b):
+    return (a, b)
+
+
+class ResolveVarKeywordsTests(unittest.TestCase):
+    """
+    simplifyVectorCall resolves calls to known functions with **kwargs by
+    binding keyword arguments to named parameters, filling positional
+    defaults, and passing the remaining keywords through with a new
+    kwnames tuple; the callee entry collects them into the **kwargs dict.
+    """
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_bound(self):
+        return _resolve_varkw_callee(1, b=2, extra=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_keywords_only(self):
+        return _resolve_varkw_callee(a=1, b=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_excess(self):
+        return _resolve_varkw_callee(1, 2, extra=3, other=4)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_defaults_excess(self):
+        return _resolve_varkw_defaults_callee(1, extra=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_defaults_bound(self):
+        return _resolve_varkw_defaults_callee(1, b=2, z=9)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_varargs(self):
+        return _resolve_varkw_varargs_callee(1, 2, 3, extra=4)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_varargs_keyword(self):
+        return _resolve_varkw_varargs_callee(a=1, extra=4)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_kwonly(self):
+        return _resolve_varkw_kwonly_callee(1, k=2, extra=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_kwonly_keywords(self):
+        return _resolve_varkw_kwonly_callee(a=1, k=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_kwonly_default(self):
+        return _resolve_varkw_kwonly_defaults_callee(1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_kwonly_default_provided(self):
+        return _resolve_varkw_kwonly_defaults_callee(1, k=9)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_posonly(self):
+        return _resolve_varkw_posonly_callee(1, 2, a=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_args_name(self):
+        return _resolve_varkw_varargs_callee(1, args=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_gen(self):
+        return _resolve_varkw_gen_callee(1, b=2, extra=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_gen_defaults(self):
+        return _resolve_varkw_gen_defaults_callee(1, extra=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_duplicate(self):
+        return _resolve_varkw_callee(1, a=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_duplicate_positional(self):
+        return _resolve_varkw_callee(1, 2, b=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_too_few(self):
+        return _resolve_varkw_callee()
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_too_few_keyword(self):
+        return _resolve_varkw_callee(a=1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_missing_leading(self):
+        return _resolve_varkw_defaults_callee(b=2, extra=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_no_varkw_unknown(self):
+        return _resolve_no_varkw_callee(1, b=2, extra=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_too_many_positional(self):
+        return _resolve_varkw_callee(1, 2, 3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_varkw_kwonly_missing(self):
+        return _resolve_varkw_kwonly_callee(1)
+
+    def test_resolve_varkw_results(self) -> None:
+        self.assertEqual(self._resolve_varkw_bound(), (1, 2, {"extra": 3}))
+        self.assertEqual(self._resolve_varkw_keywords_only(), (1, 2, {}))
+        self.assertEqual(self._resolve_varkw_excess(), (1, 2, {"extra": 3, "other": 4}))
+        self.assertEqual(self._resolve_varkw_defaults_excess(), (1, 10, {"extra": 3}))
+        self.assertEqual(self._resolve_varkw_defaults_bound(), (1, 2, {"z": 9}))
+        self.assertEqual(self._resolve_varkw_varargs(), (1, (2, 3), {"extra": 4}))
+        self.assertEqual(self._resolve_varkw_varargs_keyword(), (1, (), {"extra": 4}))
+        self.assertEqual(self._resolve_varkw_kwonly(), (1, 2, {"extra": 3}))
+        self.assertEqual(self._resolve_varkw_kwonly_keywords(), (1, 2, {}))
+        self.assertEqual(self._resolve_varkw_kwonly_default(), (1, 5, {}))
+        self.assertEqual(self._resolve_varkw_kwonly_default_provided(), (1, 9, {}))
+        self.assertEqual(self._resolve_varkw_posonly(), (1, 2, {"a": 3}))
+        self.assertEqual(self._resolve_varkw_args_name(), (1, (), {"args": 2}))
+        self.assertEqual(list(self._resolve_varkw_gen()), [(1, 2, {"extra": 3})])
+
+    def test_resolve_varkw_errors_raise(self) -> None:
+        with self.assertRaises(TypeError):
+            self._resolve_varkw_duplicate()
+        with self.assertRaises(TypeError):
+            self._resolve_varkw_duplicate_positional()
+        with self.assertRaises(TypeError):
+            self._resolve_varkw_too_few()
+        with self.assertRaises(TypeError):
+            self._resolve_varkw_too_few_keyword()
+        with self.assertRaises(TypeError):
+            self._resolve_no_varkw_unknown()
+        with self.assertRaises(TypeError):
+            self._resolve_varkw_too_many_positional()
+        with self.assertRaises(TypeError):
+            self._resolve_varkw_kwonly_missing()
+        with self.assertRaises(TypeError):
+            self._resolve_varkw_missing_leading()
+
+    @skip_unless_jit("Requires inspecting JIT-compiled HIR")
+    def test_resolve_varkw_gen_emits_resolved_call(self) -> None:
+        # Generator callees are not inlined, so the call stays a
+        # VectorCall; resolving it with a filled default emits the
+        # func_defaults guard.
+        self.assertEqual(
+            list(self._resolve_varkw_gen_defaults()), [(1, 10, {"extra": 3})]
+        )
+        self.assertTrue(
+            force_compile(ResolveVarKeywordsTests._resolve_varkw_gen_defaults)
+        )
+        opcodes = cinderx.jit.get_function_hir_opcode_counts(
+            ResolveVarKeywordsTests._resolve_varkw_gen_defaults
+        )
+        self.assertIsNotNone(opcodes)
+        self.assertIn("VectorCall", opcodes)
+        self.assertIn("LoadField", opcodes)
+        self.assertNotIn("BeginInlinedFunction", opcodes)
+
+
+def _resolve_kwargs_callee(a, b):
+    return (a, b)
+
+
+def _resolve_kwargs_defaults_callee(a, b=10):
+    return (a, b)
+
+
+def _resolve_kwargs_kwonly_callee(a, *, k):
+    return (a, k)
+
+
+def _resolve_kwargs_kwonly_defaults_callee(a, b=10, *, k):
+    return (a, b, k)
+
+
+def _resolve_kwargs_kwonly_default_callee(a, *, k=5):
+    return (a, k)
+
+
+def _resolve_kwargs_varargs_callee(a, *args, k):
+    return (a, args, k)
+
+
+def _resolve_kwargs_posonly_callee(a, /, b):
+    return (a, b)
+
+
+def _resolve_kwargs_gen_callee(a, b):
+    yield (a, b)
+
+
+def _resolve_kwargs_gen_defaults_callee(a, b=10):
+    yield (a, b)
+
+
+class ResolveKwargsTests(unittest.TestCase):
+    """
+    simplifyVectorCall resolves keyword calls to known functions without
+    **kwargs when every keyword binds to a named parameter, filling
+    positional defaults; calls with leftover keywords keep the generic
+    path.
+    """
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_bound(self):
+        return _resolve_kwargs_callee(a=1, b=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_mixed(self):
+        return _resolve_kwargs_callee(1, b=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_reversed(self):
+        return _resolve_kwargs_callee(b=2, a=1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_defaults(self):
+        return _resolve_kwargs_defaults_callee(a=1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_defaults_reversed(self):
+        return _resolve_kwargs_defaults_callee(b=2, a=1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_kwonly(self):
+        return _resolve_kwargs_kwonly_callee(1, k=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_kwonly_keywords(self):
+        return _resolve_kwargs_kwonly_callee(a=1, k=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_kwonly_defaults(self):
+        return _resolve_kwargs_kwonly_defaults_callee(a=1, k=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_kwonly_defaults_mixed(self):
+        return _resolve_kwargs_kwonly_defaults_callee(1, b=2, k=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_kwonly_default(self):
+        return _resolve_kwargs_kwonly_default_callee(1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_varargs(self):
+        return _resolve_kwargs_varargs_callee(1, 2, 3, k=4)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_varargs_keyword(self):
+        return _resolve_kwargs_varargs_callee(a=1, k=4)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_gen(self):
+        return _resolve_kwargs_gen_callee(a=1, b=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_gen_defaults(self):
+        return _resolve_kwargs_gen_defaults_callee(a=1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_unknown(self):
+        return _resolve_kwargs_callee(1, b=2, extra=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_duplicate(self):
+        return _resolve_kwargs_callee(1, a=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_too_few(self):
+        return _resolve_kwargs_callee(a=1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_missing_leading(self):
+        return _resolve_kwargs_defaults_callee(b=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_missing_leading_kwonly(self):
+        return _resolve_kwargs_kwonly_defaults_callee(b=2, k=3)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_kwonly_missing(self):
+        return _resolve_kwargs_kwonly_callee(1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_posonly(self):
+        return _resolve_kwargs_posonly_callee(a=1, b=2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _resolve_kwargs_posonly_filled(self):
+        return _resolve_kwargs_posonly_callee(1, 2, a=3)
+
+    def test_resolve_kwargs_results(self) -> None:
+        self.assertEqual(self._resolve_kwargs_bound(), (1, 2))
+        self.assertEqual(self._resolve_kwargs_mixed(), (1, 2))
+        self.assertEqual(self._resolve_kwargs_reversed(), (1, 2))
+        self.assertEqual(self._resolve_kwargs_defaults(), (1, 10))
+        self.assertEqual(self._resolve_kwargs_defaults_reversed(), (1, 2))
+        self.assertEqual(self._resolve_kwargs_kwonly(), (1, 2))
+        self.assertEqual(self._resolve_kwargs_kwonly_keywords(), (1, 2))
+        self.assertEqual(self._resolve_kwargs_kwonly_defaults(), (1, 10, 3))
+        self.assertEqual(self._resolve_kwargs_kwonly_defaults_mixed(), (1, 2, 3))
+        self.assertEqual(self._resolve_kwargs_kwonly_default(), (1, 5))
+        self.assertEqual(self._resolve_kwargs_varargs(), (1, (2, 3), 4))
+        self.assertEqual(self._resolve_kwargs_varargs_keyword(), (1, (), 4))
+        self.assertEqual(list(self._resolve_kwargs_gen()), [(1, 2)])
+
+    def test_resolve_kwargs_errors_raise(self) -> None:
+        with self.assertRaises(TypeError):
+            self._resolve_kwargs_unknown()
+        with self.assertRaises(TypeError):
+            self._resolve_kwargs_duplicate()
+        with self.assertRaises(TypeError):
+            self._resolve_kwargs_too_few()
+        with self.assertRaises(TypeError):
+            self._resolve_kwargs_kwonly_missing()
+        with self.assertRaises(TypeError):
+            self._resolve_kwargs_posonly()
+        with self.assertRaises(TypeError):
+            self._resolve_kwargs_posonly_filled()
+        with self.assertRaises(TypeError):
+            self._resolve_kwargs_missing_leading()
+        with self.assertRaises(TypeError):
+            self._resolve_kwargs_missing_leading_kwonly()
+
+    @skip_unless_jit("Requires inspecting JIT-compiled HIR")
+    def test_resolve_kwargs_gen_emits_resolved_call(self) -> None:
+        # Generator callees are not inlined, so the call stays a
+        # VectorCall; resolving it with a filled default emits the
+        # func_defaults guard.
+        self.assertEqual(list(self._resolve_kwargs_gen_defaults()), [(1, 10)])
+        self.assertTrue(force_compile(ResolveKwargsTests._resolve_kwargs_gen_defaults))
+        opcodes = cinderx.jit.get_function_hir_opcode_counts(
+            ResolveKwargsTests._resolve_kwargs_gen_defaults
+        )
+        self.assertIsNotNone(opcodes)
+        self.assertIn("VectorCall", opcodes)
+        self.assertIn("LoadField", opcodes)
+        self.assertNotIn("BeginInlinedFunction", opcodes)
+
+
 class UnpackSequenceTests(unittest.TestCase):
     @failUnlessHasOpcodes("UNPACK_SEQUENCE")
     @cinder_support.failUnlessJITCompiled

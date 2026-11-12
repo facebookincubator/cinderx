@@ -5,6 +5,7 @@
 #include "pycore_long.h"
 #include "pycore_pyerrors.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/property.h"
@@ -2458,27 +2459,134 @@ static bool isBuiltin(Register* callable, const char* name) {
   return false;
 }
 
+// Keyword names match parameter names by value, mirroring bindKeywords in
+// jit_rt.cpp and mapCallArgs in inliner.cpp. Parameter names are usually
+// interned, so the pointer comparison hits; fall back to a full compare.
+static bool keywordNameEquals(PyObject* a, PyObject* b) {
+  return a == b || PyUnicode_Compare(a, b) == 0;
+}
+
 // This is inspired by _PyEval_EvalCodeWithName in 3.8's Python/ceval.c
 // We have a vector of Register* (resolved_args) that gets populated with
 // already-provided arguments from call instructions alongside the function's
-// default arguments, when such defaults are needed
+// default arguments, when such defaults are needed. Keyword arguments are
+// bound to named parameters; the rest stay as keywords for a **kwargs
+// callee, under a new kwnames tuple holding just their names, or the call
+// is left alone when there is no **kwargs callee to hold them.
 static Register* resolveArgs(
     Env& env,
     const VectorCall* instr,
     BorrowedRef<PyFunctionObject> target) {
   BorrowedRef<PyCodeObject> code{target->func_code};
   // number of positional args (including args with default values)
-  size_t co_argcount = static_cast<size_t>(code->co_argcount);
+  const size_t co_argcount = static_cast<size_t>(code->co_argcount);
+  const size_t co_kwonly = static_cast<size_t>(code->co_kwonlyargcount);
+  const size_t posonly = static_cast<size_t>(code->co_posonlyargcount);
   const bool has_varargs = code->co_flags & CO_VARARGS;
-  if (instr->numArgs() > co_argcount && !has_varargs) {
+  const bool has_varkw = code->co_flags & CO_VARKEYWORDS;
+  const bool has_kwargs_call = instr->flags() & CallFlags::KwArgs;
+
+  // Split a kwargs call into positional values, keyword values, and the
+  // kwnames tuple. The kwnames tuple must be a compile-time constant for
+  // keywords to be bound here.
+  size_t num_pos = instr->numArgs();
+  size_t num_kw = 0;
+  PyObject* kwnames = nullptr;
+  if (has_kwargs_call) {
+    if (instr->numArgs() < 1) {
+      return nullptr;
+    }
+    Type kwnames_type = instr->arg(instr->numArgs() - 1)->type();
+    if (!kwnames_type.hasObjectSpec()) {
+      return nullptr;
+    }
+    kwnames = kwnames_type.objectSpec();
+    if (!PyTuple_Check(kwnames)) {
+      return nullptr;
+    }
+    num_kw = static_cast<size_t>(PyTuple_GET_SIZE(kwnames));
+    if (instr->numArgs() < num_kw + 1) {
+      return nullptr;
+    }
+    num_pos = instr->numArgs() - 1 - num_kw;
+  }
+
+  if (num_pos > co_argcount && !has_varargs) {
     // A callee without *args cannot accept surplus positional arguments.
     return nullptr;
   }
+  if (co_argcount + co_kwonly > static_cast<size_t>(code->co_nlocalsplus)) {
+    return nullptr;
+  }
 
-  size_t num_positional = std::min(co_argcount, instr->numArgs());
   std::vector<Register*> resolved_args(co_argcount, nullptr);
-
-  JIT_CHECK(!(code->co_flags & CO_VARKEYWORDS), "can't resolve varkwargs");
+  for (size_t i = 0; i < std::min(co_argcount, num_pos); i++) {
+    resolved_args[i] = instr->arg(i);
+  }
+  std::vector<Register*> kwonly_regs(co_kwonly, nullptr);
+  // Keywords that stay keywords, in call order: keyword-only matches and
+  // excess keywords for **kwargs.
+  struct RemainingKw {
+    BorrowedRef<PyObject> name;
+    Register* value;
+  };
+  std::vector<RemainingKw> remaining;
+  bool moved_keyword = false;
+  bool has_excess_keyword = false;
+  if (has_kwargs_call) {
+    for (size_t j = 0; j < num_kw; j++) {
+      BorrowedRef<PyObject> name{PyTuple_GET_ITEM(kwnames, j)};
+      if (!PyUnicode_Check(name.get())) {
+        return nullptr;
+      }
+      Register* value = instr->arg(num_pos + j);
+      std::optional<size_t> param_idx;
+      for (size_t idx = posonly; idx < co_argcount + co_kwonly; idx++) {
+        BorrowedRef<PyObject> param_name{
+            getVarname(code, static_cast<int>(idx))};
+        if (keywordNameEquals(name.get(), param_name.get())) {
+          param_idx = idx;
+          break;
+        }
+      }
+      if (!param_idx.has_value()) {
+        has_excess_keyword = true;
+        remaining.push_back({name, value});
+        continue;
+      }
+      size_t idx = *param_idx;
+      if (idx < co_argcount) {
+        if (resolved_args[idx] != nullptr) {
+          // Duplicate argument: also provided positionally or by an
+          // earlier keyword.
+          return nullptr;
+        }
+        resolved_args[idx] = value;
+        moved_keyword = true;
+      } else {
+        size_t kw_idx = idx - co_argcount;
+        if (kwonly_regs[kw_idx] != nullptr) {
+          return nullptr;
+        }
+        kwonly_regs[kw_idx] = value;
+        remaining.push_back({name, value});
+      }
+    }
+    for (Register* reg : kwonly_regs) {
+      if (reg == nullptr) {
+        // Keyword-only arguments are never filled from kwdefaults here;
+        // the generic path handles missing ones.
+        return nullptr;
+      }
+    }
+  } else if (co_kwonly > 0) {
+    // Without keywords, keyword-only arguments cannot be provided.
+    return nullptr;
+  }
+  if (has_excess_keyword && !has_varkw) {
+    // Without **kwargs there is nowhere for excess keywords to go.
+    return nullptr;
+  }
 
   // grab default positional arguments
   BorrowedRef<PyTupleObject> defaults{target->func_defaults};
@@ -2486,36 +2594,72 @@ static Register* resolveArgs(
   // TASK(T143644350): support kwargs and kwdefaults
   size_t num_defaults =
       defaults == nullptr ? 0 : static_cast<size_t>(PyTuple_GET_SIZE(defaults));
-
-  if (num_positional + num_defaults < co_argcount) {
-    // function was called with too few arguments
-    return nullptr;
-  }
-  // TASK(T143644377): support kwonly args
-  JIT_CHECK(code->co_kwonlyargcount == 0, " can't resolve kwonly args");
-  for (size_t i = 0; i < co_argcount; i++) {
-    if (i < num_positional) {
-      resolved_args[i] = instr->arg(i);
-    } else {
-      size_t num_non_defaults = co_argcount - num_defaults;
-      size_t default_idx = i - num_non_defaults;
-
-      auto def = PyTuple_GET_ITEM(defaults, default_idx);
-      JIT_CHECK(def != nullptr, "expected non-null default");
-      auto type = Type::fromObject(env.func.env.addReference(def));
-      resolved_args[i] = env.emit<LoadConst>(type);
+  // Leading defaults beyond co_argcount are ignored by CPython; the rest
+  // right-align against the positional parameters (mirroring the inliner).
+  const size_t num_non_defaults =
+      num_defaults > co_argcount ? 0 : co_argcount - num_defaults;
+  const size_t default_offset =
+      num_defaults > co_argcount ? num_defaults - co_argcount : 0;
+  // Defaults right-align, so only slots at or after num_non_defaults
+  // can be filled from them. Every earlier slot must already be filled:
+  // a keyword can fill a later slot while an earlier required slot
+  // stays empty, so a total count cannot tell too-few apart.
+  for (size_t i = 0; i < num_non_defaults; i++) {
+    if (resolved_args[i] == nullptr) {
+      // function was called with too few arguments
+      return nullptr;
     }
+  }
+  // Build the new kwnames tuple before emitting anything: keywords bound
+  // to positional parameters are dropped from it, the rest keep their
+  // order. The tuple is a constant so later passes (including the
+  // inliner) can still map the remaining keywords. Creating it needs the
+  // GIL; ownership passes to the compilation via a strong reference.
+  Ref<> new_kwnames;
+  if (moved_keyword && !remaining.empty()) {
+    ThreadedCompileGILHolder lock;
+    new_kwnames =
+        Ref<>::steal(PyTuple_New(static_cast<Py_ssize_t>(remaining.size())));
+    if (new_kwnames == nullptr) {
+      PyErr_Clear();
+      return nullptr;
+    }
+    for (size_t i = 0; i < remaining.size(); i++) {
+      PyObject* name = remaining[i].name.get();
+      Py_INCREF(name);
+      PyTuple_SET_ITEM(new_kwnames.get(), i, name);
+    }
+  }
+
+  bool used_defaults = false;
+  for (size_t i = 0; i < co_argcount; i++) {
+    if (resolved_args[i] != nullptr) {
+      continue;
+    }
+    size_t default_idx = i - num_non_defaults + default_offset;
+    auto def = PyTuple_GET_ITEM(defaults, default_idx);
+    JIT_CHECK(def != nullptr, "expected non-null default");
+    auto type = Type::fromObject(env.func.env.addReference(def));
+    resolved_args[i] = env.emit<LoadConst>(type);
+    used_defaults = true;
     JIT_CHECK(resolved_args.at(i) != nullptr, "expected non-null arg");
   }
   // Surplus positional arguments pass through flat; the callee binds them
   // into the *args tuple.
-  for (size_t i = co_argcount; i < instr->numArgs(); i++) {
+  for (size_t i = co_argcount; i < num_pos; i++) {
     resolved_args.push_back(instr->arg(i));
+  }
+  // If nothing changed (no default materialized, no keyword moved into a
+  // positional slot), the original call already is the resolved call.
+  // Rewriting it would keep Simplify iterating without reaching a
+  // fixpoint.
+  if (!used_defaults && !moved_keyword) {
+    return nullptr;
   }
 
   // Only guard func_defaults when a default was materialized above;
   // a null target would crash outputType's GuardIs handling.
-  if (num_positional < co_argcount) {
+  if (used_defaults) {
     Register* defaults_obj = env.emit<LoadField>(
         instr->getOperand(0),
         "func_defaults",
@@ -2523,12 +2667,30 @@ static Register* resolveArgs(
         TTuple);
     env.emit<GuardIs>(defaults, defaults_obj);
   }
+
+  // Remaining keywords stay keywords, under the new kwnames tuple when a
+  // keyword was bound, or the original tuple when none was.
+  CallFlags new_flags = CallFlags::None;
+  Register* new_kwnames_reg = nullptr;
+  if (!remaining.empty()) {
+    for (auto& kw : remaining) {
+      resolved_args.push_back(kw.value);
+    }
+    if (moved_keyword) {
+      new_kwnames_reg = env.emit<LoadConst>(
+          Type::fromObject(env.func.env.addReference(std::move(new_kwnames))));
+    } else {
+      new_kwnames_reg = instr->arg(instr->numArgs() - 1);
+    }
+    new_flags |= CallFlags::KwArgs;
+  }
+
   // creates an instruction VectorCall(arg_size, dest_reg, frame_state)
   // and inserts it to the current block. Returns the output of vectorcall
   auto new_instr = env.emitRawInstr<VectorCall>(
-      resolved_args.size() + 1,
+      resolved_args.size() + 1 + (new_kwnames_reg != nullptr ? 1 : 0),
       env.func.env.allocateRegister(), // output register
-      CallFlags::None,
+      new_flags,
       *instr->frameState());
   Register* result = new_instr->output();
 
@@ -2537,6 +2699,9 @@ static Register* resolveArgs(
   new_instr->setOperand(0, instr->func());
   for (size_t i = 0; i < resolved_args.size(); i++) {
     new_instr->setOperand(i + 1, resolved_args.at(i));
+  }
+  if (new_kwnames_reg != nullptr) {
+    new_instr->setOperand(resolved_args.size() + 1, new_kwnames_reg);
   }
   result->setType(outputType(*new_instr));
   return result;
@@ -2811,15 +2976,25 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   if (Register* result = simplifyVectorCallStatic(env, instr)) {
     return result;
   }
+  Register* target = instr->getOperand(0);
+  Type target_type = target->type();
   if (instr->flags() & CallFlags::KwArgs) {
+    // Keyword calls are resolved for known functions when every keyword
+    // binds to a named parameter; resolveArgs bails otherwise, and the
+    // folds below assume positional layout.
+    if (target_type.hasValueSpec(TFunc)) {
+      BorrowedRef<PyFunctionObject> func{target_type.objectSpec()};
+      BorrowedRef<PyCodeObject> code{func->func_code};
+      JIT_CHECK(
+          code->co_argcount >= 0,
+          "argcount must be greater than or equal to zero");
+      return resolveArgs(env, instr, func);
+    }
     return nullptr;
   }
   if (Register* result = simplifyTypeCall(env, instr)) {
     return result;
   }
-
-  Register* target = instr->getOperand(0);
-  Type target_type = target->type();
   if (target_type == env.type_object && instr->numOperands() == 2) {
     env.emit<UseType>(target, env.type_object);
     return env.emit<LoadField>(
@@ -2909,8 +3084,9 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   if (target_type.hasValueSpec(TFunc)) {
     BorrowedRef<PyFunctionObject> func{target_type.objectSpec()};
     BorrowedRef<PyCodeObject> code{func->func_code};
-    if (code->co_kwonlyargcount > 0 || (code->co_flags & CO_VARKEYWORDS)) {
-      // TASK(T143644854): full argument resolution for kwonly/varkeywords
+    if (code->co_kwonlyargcount > 0) {
+      // TASK(T143644854): full argument resolution for kwonly args without
+      // kwargs
       return nullptr;
     }
 
