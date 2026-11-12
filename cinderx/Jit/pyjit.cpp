@@ -3444,11 +3444,10 @@ void collect_deopt_stat(
   }
 }
 
-Ref<> make_deopt_stats() {
-  CompilerContext<Compiler>* ctx = jitCtx();
+Ref<> make_deopt_stats(Context& ctx) {
   auto stats = Ref<>::steal(check(PyList_New(0)));
 
-  for (auto& pair : jitCtx()->compiledCodes()) {
+  for (auto& pair : ctx.compiledCodes()) {
     const BorrowedRef<CompiledFunction> compiled_func = pair.second;
     const CodeRuntime* code_runtime = compiled_func->runtime();
 
@@ -3457,25 +3456,25 @@ Ref<> make_deopt_stats() {
          ++deopt_idx) {
       const DeoptMetadata& meta = deopt_metadatas[deopt_idx];
 
-      ctx->ifDeoptStat(code_runtime, deopt_idx, [&](const auto& stat) {
+      ctx.ifDeoptStat(code_runtime, deopt_idx, [&](const auto& stat) {
         collect_deopt_stat(stat, meta, stats);
       });
     }
   }
 
-  ctx->clearDeoptStats();
+  ctx.clearDeoptStats();
 
   return stats;
 }
 
-PyObject* get_and_clear_runtime_stats(PyObject* /* self */, PyObject*) {
+PyObject* getAndClearRuntimeStats(Context& ctx) {
   auto stats = Ref<>::steal(PyDict_New());
   if (stats == nullptr) {
     return nullptr;
   }
 
   try {
-    Ref<> deopt_stats = make_deopt_stats();
+    Ref<> deopt_stats = make_deopt_stats(ctx);
     check(PyDict_SetItemString(stats, "deopt", deopt_stats));
   } catch (const CAPIError&) {
     return nullptr;
@@ -3484,8 +3483,12 @@ PyObject* get_and_clear_runtime_stats(PyObject* /* self */, PyObject*) {
   return stats.release();
 }
 
-PyObject* clear_runtime_stats(PyObject* /* self */, PyObject*) {
-  jitCtx()->clearDeoptStats();
+PyObject* get_and_clear_runtime_stats(PyObject* mod, PyObject*) {
+  return getAndClearRuntimeStats(*jitCtx(mod));
+}
+
+PyObject* clear_runtime_stats(PyObject* mod, PyObject*) {
+  jitCtx(mod)->clearDeoptStats();
   Py_RETURN_NONE;
 }
 
@@ -4466,8 +4469,8 @@ int install_jit_audit_hook() {
   return 0;
 }
 
-void dump_jit_stats() {
-  auto stats = Ref<>::steal(get_and_clear_runtime_stats(nullptr, nullptr));
+void dump_jit_stats(Context& ctx) {
+  auto stats = Ref<>::steal(getAndClearRuntimeStats(ctx));
   if (stats == nullptr) {
     return;
   }
@@ -5404,7 +5407,7 @@ void finalize(ModuleState& mod_state) {
   JIT_DLOG("CinderX JIT Total Compilation Time: {}", ctx->totalCompileTime());
 
   if (getConfig().log.dump_stats) {
-    dump_jit_stats();
+    dump_jit_stats(*ctx);
   }
 
   ctx->clearDeoptStats();
