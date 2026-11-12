@@ -2788,9 +2788,11 @@ void HIRBuilder::emitContainsOp(
 
   Register* right = stack.pop();
   Register* left = stack.pop();
-  Register* result = allocateTemp();
+  Register* bool_result = allocateTemp();
   CompareOp op = bc_instr.oparg() == 0 ? CompareOp::kIn : CompareOp::kNotIn;
-  tc.emit<Compare>(result, op, left, right, tc.frame);
+  tc.emit<CompareBool>(bool_result, op, left, right, tc.frame);
+  Register* result = allocateTemp();
+  tc.emit<PrimitiveBoxBool>(result, bool_result);
   stack.push(result);
 }
 

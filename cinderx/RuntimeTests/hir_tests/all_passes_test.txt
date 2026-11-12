@@ -1008,86 +1008,88 @@ def test(x, y):
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Object = LoadArg<1; "y">
+    v7:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<1; "y">
     LoadFrame
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v9:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v9
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 b:v7
+    v13:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 0
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 0, 2) {
-    v10:ImmortalBool = Compare<In> v6 v7 {
-      LiveValues<2> b:v6 b:v7
+    v11:CBool = CompareBool<In> v7 v8 {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 6
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
-    Return v10
+    v12:ImmortalBool = PrimitiveBoxBool v11
+    Return v12
   }
 }
 --- Expected 3.14 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Object = LoadArg<1; "y">
+    v7:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<1; "y">
     LoadFrame
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v9:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v9
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 b:v7
+    v13:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 0
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 0, 2) {
-    v10:ImmortalBool = Compare<In> v6 v7 {
-      LiveValues<2> b:v6 b:v7
+    v11:CBool = CompareBool<In> v7 v8 {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 4
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
-    Return v10
+    v12:ImmortalBool = PrimitiveBoxBool v11
+    Return v12
   }
 }
 --- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Object = LoadArg<1; "y">
+    v7:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<1; "y">
     LoadFrame
-    v9:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v9
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 b:v7
+    v13:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 0
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
     Branch<1>
@@ -1095,33 +1097,34 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     UpdatePrevInstr<idx:3 line_no:2: no parent>
-    v10:ImmortalBool = Compare<In> v6 v7 {
-      LiveValues<2> b:v6 b:v7
+    v11:CBool = CompareBool<In> v7 v8 {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 6
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
-    Return v10
+    v12:ImmortalBool = PrimitiveBoxBool v11
+    Return v12
   }
 }
 --- Expected 3.16 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Object = LoadArg<1; "y">
+    v7:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<1; "y">
     LoadFrame
-    v9:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v9
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 b:v7
+    v13:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 0
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
     Branch<1>
@@ -1129,51 +1132,53 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     UpdatePrevInstr<idx:3 line_no:2: no parent>
-    v10:ImmortalBool = Compare<In> v6 v7 {
-      LiveValues<2> b:v6 b:v7
+    v11:CBool = CompareBool<In> v7 v8 {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 6
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
-    Return v10
+    v12:ImmortalBool = PrimitiveBoxBool v11
+    Return v12
   }
 }
 --- Expected 3.14t ---
 fun jittestmodule:test {
   bb 0 {
-    v8:Object = LoadArg<0; "x">
-    v9:Object = LoadArg<1; "y">
+    v9:Object = LoadArg<0; "x">
+    v10:Object = LoadArg<1; "y">
     LoadFrame
-    v11:Object = TagIfDeferred v8
     v12:Object = TagIfDeferred v9
+    v13:Object = TagIfDeferred v10
     AtQuiescentState
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v13:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v13
+    v14:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v14
   }
 
   bb 2 (preds 0) {
-    v15:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v11 b:v12
+    v17:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v12 b:v13
       FrameState {
         CurInstrOffset 0
-        Locals<2> v11 v12
+        Locals<2> v12 v13
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 0, 2) {
-    v14:ImmortalBool = Compare<In> v11 v12 {
-      LiveValues<2> b:v11 b:v12
+    v15:CBool = CompareBool<In> v12 v13 {
+      LiveValues<2> b:v12 b:v13
       FrameState {
         CurInstrOffset 4
-        Locals<2> v11 v12
+        Locals<2> v12 v13
       }
     }
-    v16:ImmortalBool = MaterializeRef v14
-    Return v16
+    v16:ImmortalBool = PrimitiveBoxBool v15
+    v18:ImmortalBool = MaterializeRef v16
+    Return v18
   }
 }
 --- Test Name ---
@@ -1186,110 +1191,106 @@ def test(x, y):
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v7:Object = LoadArg<0; "x">
-    v8:Object = LoadArg<1; "y">
+    v8:Object = LoadArg<0; "x">
+    v9:Object = LoadArg<1; "y">
     LoadFrame
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v10:CInt32 = LoadEvalBreaker
-    CondBranch<4, 3> v10
+    v11:CInt32 = LoadEvalBreaker
+    CondBranch<4, 3> v11
   }
 
   bb 4 (preds 0) {
-    v13:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v7 b:v8
+    v15:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v8 b:v9
       FrameState {
         CurInstrOffset 0
-        Locals<2> v7 v8
+        Locals<2> v8 v9
       }
     }
     Branch<3>
   }
 
   bb 3 (preds 0, 4) {
-    v11:ImmortalBool = Compare<In> v7 v8 {
-      LiveValues<2> b:v7 b:v8
+    v12:CBool = CompareBool<In> v8 v9 {
+      LiveValues<2> b:v8 b:v9
       FrameState {
         CurInstrOffset 6
-        Locals<2> v7 v8
+        Locals<2> v8 v9
       }
     }
-    v14:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v15:CBool = PrimitiveCompare<Equal> v11 v14
-    CondBranch<1, 2> v15
+    CondBranch<1, 2> v12
   }
 
   bb 1 (preds 3) {
-    Incref v7
-    Return v7
+    Incref v8
+    Return v8
   }
 
   bb 2 (preds 3) {
-    Incref v8
-    Return v8
+    Incref v9
+    Return v9
   }
 }
 --- Expected 3.14 ---
 fun jittestmodule:test {
   bb 0 {
-    v8:Object = LoadArg<0; "x">
-    v9:Object = LoadArg<1; "y">
+    v9:Object = LoadArg<0; "x">
+    v10:Object = LoadArg<1; "y">
     LoadFrame
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v11:CInt64 = LoadEvalBreaker
-    CondBranch<4, 3> v11
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<4, 3> v12
   }
 
   bb 4 (preds 0) {
-    v15:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v8 b:v9
+    v17:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v9 b:v10
       FrameState {
         CurInstrOffset 0
-        Locals<2> v8 v9
+        Locals<2> v9 v10
       }
     }
     Branch<3>
   }
 
   bb 3 (preds 0, 4) {
-    v12:ImmortalBool = Compare<In> v8 v9 {
-      LiveValues<2> b:v8 b:v9
+    v13:CBool = CompareBool<In> v9 v10 {
+      LiveValues<2> b:v9 b:v10
       FrameState {
         CurInstrOffset 4
-        Locals<2> v8 v9
+        Locals<2> v9 v10
       }
     }
-    v13:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v14:CBool = PrimitiveCompare<Equal> v12 v13
-    CondBranch<1, 2> v14
+    CondBranch<1, 2> v13
   }
 
   bb 1 (preds 3) {
-    Incref v8
-    Return v8
+    Incref v9
+    Return v9
   }
 
   bb 2 (preds 3) {
-    Incref v9
-    Return v9
+    Incref v10
+    Return v10
   }
 }
 --- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
-    v8:Object = LoadArg<0; "x">
-    v9:Object = LoadArg<1; "y">
+    v9:Object = LoadArg<0; "x">
+    v10:Object = LoadArg<1; "y">
     LoadFrame
-    v11:CInt64 = LoadEvalBreaker
-    CondBranch<4, 3> v11
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<4, 3> v12
   }
 
   bb 4 (preds 0) {
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v15:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v8 b:v9
+    v17:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v9 b:v10
       FrameState {
         CurInstrOffset 0
-        Locals<2> v8 v9
+        Locals<2> v9 v10
       }
     }
     Branch<3>
@@ -1297,45 +1298,43 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     UpdatePrevInstr<idx:3 line_no:2: no parent>
-    v12:ImmortalBool = Compare<In> v8 v9 {
-      LiveValues<2> b:v8 b:v9
+    v13:CBool = CompareBool<In> v9 v10 {
+      LiveValues<2> b:v9 b:v10
       FrameState {
         CurInstrOffset 6
-        Locals<2> v8 v9
+        Locals<2> v9 v10
       }
     }
-    v13:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v14:CBool = PrimitiveCompare<Equal> v12 v13
-    CondBranch<1, 2> v14
+    CondBranch<1, 2> v13
   }
 
   bb 1 (preds 3) {
-    Incref v8
-    Return v8
+    Incref v9
+    Return v9
   }
 
   bb 2 (preds 3) {
-    Incref v9
-    Return v9
+    Incref v10
+    Return v10
   }
 }
 --- Expected 3.16 ---
 fun jittestmodule:test {
   bb 0 {
-    v8:Object = LoadArg<0; "x">
-    v9:Object = LoadArg<1; "y">
+    v9:Object = LoadArg<0; "x">
+    v10:Object = LoadArg<1; "y">
     LoadFrame
-    v11:CInt64 = LoadEvalBreaker
-    CondBranch<4, 3> v11
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<4, 3> v12
   }
 
   bb 4 (preds 0) {
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v15:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v8 b:v9
+    v17:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v9 b:v10
       FrameState {
         CurInstrOffset 0
-        Locals<2> v8 v9
+        Locals<2> v9 v10
       }
     }
     Branch<3>
@@ -1343,76 +1342,72 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     UpdatePrevInstr<idx:3 line_no:2: no parent>
-    v12:ImmortalBool = Compare<In> v8 v9 {
-      LiveValues<2> b:v8 b:v9
+    v13:CBool = CompareBool<In> v9 v10 {
+      LiveValues<2> b:v9 b:v10
       FrameState {
         CurInstrOffset 6
-        Locals<2> v8 v9
+        Locals<2> v9 v10
       }
     }
-    v13:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v14:CBool = PrimitiveCompare<Equal> v12 v13
-    CondBranch<1, 2> v14
+    CondBranch<1, 2> v13
   }
 
   bb 1 (preds 3) {
-    Incref v8
-    Return v8
+    Incref v9
+    Return v9
   }
 
   bb 2 (preds 3) {
-    Incref v9
-    Return v9
+    Incref v10
+    Return v10
   }
 }
 --- Expected 3.14t ---
 fun jittestmodule:test {
   bb 0 {
-    v10:Object = LoadArg<0; "x">
-    v11:Object = LoadArg<1; "y">
+    v11:Object = LoadArg<0; "x">
+    v12:Object = LoadArg<1; "y">
     LoadFrame
-    v13:Object = TagIfDeferred v10
     v14:Object = TagIfDeferred v11
+    v15:Object = TagIfDeferred v12
     AtQuiescentState
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v15:CInt64 = LoadEvalBreaker
-    CondBranch<4, 3> v15
+    v16:CInt64 = LoadEvalBreaker
+    CondBranch<4, 3> v16
   }
 
   bb 4 (preds 0) {
-    v19:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v13 b:v14
+    v21:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v14 b:v15
       FrameState {
         CurInstrOffset 0
-        Locals<2> v13 v14
+        Locals<2> v14 v15
       }
     }
     Branch<3>
   }
 
   bb 3 (preds 0, 4) {
-    v16:ImmortalBool = Compare<In> v13 v14 {
-      LiveValues<2> b:v13 b:v14
+    v17:CBool = CompareBool<In> v14 v15 {
+      LiveValues<2> b:v14 b:v15
       FrameState {
         CurInstrOffset 4
-        Locals<2> v13 v14
+        Locals<2> v14 v15
       }
     }
-    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v18:CBool = PrimitiveCompare<Equal> v16 v17
-    CondBranch<1, 2> v18
+    CondBranch<1, 2> v17
   }
 
   bb 1 (preds 3) {
-    Incref v13
-    v20:Object = MaterializeRef v13
-    Return v20
+    Incref v14
+    v22:Object = MaterializeRef v14
+    Return v22
   }
 
   bb 2 (preds 3) {
-    Incref v14
-    v21:Object = MaterializeRef v14
-    Return v21
+    Incref v15
+    v23:Object = MaterializeRef v15
+    Return v23
   }
 }
 --- Test Name ---
@@ -1423,86 +1418,88 @@ def test(x, y):
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Object = LoadArg<1; "y">
+    v7:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<1; "y">
     LoadFrame
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v9:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v9
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 b:v7
+    v13:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 0
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 0, 2) {
-    v10:ImmortalBool = Compare<NotIn> v6 v7 {
-      LiveValues<2> b:v6 b:v7
+    v11:CBool = CompareBool<NotIn> v7 v8 {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 6
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
-    Return v10
+    v12:ImmortalBool = PrimitiveBoxBool v11
+    Return v12
   }
 }
 --- Expected 3.14 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Object = LoadArg<1; "y">
+    v7:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<1; "y">
     LoadFrame
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v9:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v9
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 b:v7
+    v13:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 0
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 0, 2) {
-    v10:ImmortalBool = Compare<NotIn> v6 v7 {
-      LiveValues<2> b:v6 b:v7
+    v11:CBool = CompareBool<NotIn> v7 v8 {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 4
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
-    Return v10
+    v12:ImmortalBool = PrimitiveBoxBool v11
+    Return v12
   }
 }
 --- Expected 3.15 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Object = LoadArg<1; "y">
+    v7:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<1; "y">
     LoadFrame
-    v9:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v9
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 b:v7
+    v13:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 0
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
     Branch<1>
@@ -1510,33 +1507,34 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     UpdatePrevInstr<idx:3 line_no:2: no parent>
-    v10:ImmortalBool = Compare<NotIn> v6 v7 {
-      LiveValues<2> b:v6 b:v7
+    v11:CBool = CompareBool<NotIn> v7 v8 {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 6
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
-    Return v10
+    v12:ImmortalBool = PrimitiveBoxBool v11
+    Return v12
   }
 }
 --- Expected 3.16 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Object = LoadArg<1; "y">
+    v7:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<1; "y">
     LoadFrame
-    v9:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v9
+    v10:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v6 b:v7
+    v13:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 0
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
     Branch<1>
@@ -1544,51 +1542,53 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     UpdatePrevInstr<idx:3 line_no:2: no parent>
-    v10:ImmortalBool = Compare<NotIn> v6 v7 {
-      LiveValues<2> b:v6 b:v7
+    v11:CBool = CompareBool<NotIn> v7 v8 {
+      LiveValues<2> b:v7 b:v8
       FrameState {
         CurInstrOffset 6
-        Locals<2> v6 v7
+        Locals<2> v7 v8
       }
     }
-    Return v10
+    v12:ImmortalBool = PrimitiveBoxBool v11
+    Return v12
   }
 }
 --- Expected 3.14t ---
 fun jittestmodule:test {
   bb 0 {
-    v8:Object = LoadArg<0; "x">
-    v9:Object = LoadArg<1; "y">
+    v9:Object = LoadArg<0; "x">
+    v10:Object = LoadArg<1; "y">
     LoadFrame
-    v11:Object = TagIfDeferred v8
     v12:Object = TagIfDeferred v9
+    v13:Object = TagIfDeferred v10
     AtQuiescentState
     UpdatePrevInstr<idx:0 line_no:1: no parent>
-    v13:CInt64 = LoadEvalBreaker
-    CondBranch<2, 1> v13
+    v14:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v14
   }
 
   bb 2 (preds 0) {
-    v15:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v11 b:v12
+    v17:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v12 b:v13
       FrameState {
         CurInstrOffset 0
-        Locals<2> v11 v12
+        Locals<2> v12 v13
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 0, 2) {
-    v14:ImmortalBool = Compare<NotIn> v11 v12 {
-      LiveValues<2> b:v11 b:v12
+    v15:CBool = CompareBool<NotIn> v12 v13 {
+      LiveValues<2> b:v12 b:v13
       FrameState {
         CurInstrOffset 4
-        Locals<2> v11 v12
+        Locals<2> v12 v13
       }
     }
-    v16:ImmortalBool = MaterializeRef v14
-    Return v16
+    v16:ImmortalBool = PrimitiveBoxBool v15
+    v18:ImmortalBool = MaterializeRef v16
+    Return v18
   }
 }
 --- Test Name ---

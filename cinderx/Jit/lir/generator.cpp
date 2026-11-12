@@ -4094,23 +4094,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       }
       case hir::Opcode::kCompare: {
         auto instr = &i.as<Compare>();
-        if (instr->op() == CompareOp::kIn) {
-          bbb.appendCallInstruction(
-              instr->output(),
-              rt::sequenceContains,
-              instr->right(),
-              instr->left());
-          break;
-        }
-        if (instr->op() == CompareOp::kNotIn) {
-          bbb.appendCallInstruction(
-              instr->output(),
-              rt::sequenceNotContains,
-              instr->right(),
-              instr->left());
-          break;
-        }
-
         // The op's inline cache entry point, or null when caching is disabled
         // or the op has no cache support.
         PyObject* (*cache_entry)(PyObject*, PyObject*, CompareCache*) = nullptr;

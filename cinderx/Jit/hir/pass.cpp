@@ -151,13 +151,8 @@ Type outputType(
     case Opcode::kCallMethod:
       return returnType(static_cast<const CallMethod&>(instr).func()->type());
 
-    case Opcode::kCompare: {
-      CompareOp op = static_cast<const Compare&>(instr).op();
-      if (op == CompareOp::kIn || op == CompareOp::kNotIn) {
-        return TImmortalBool;
-      }
+    case Opcode::kCompare:
       return TObject;
-    }
 
     case Opcode::kInPlaceOp: {
       auto& op = static_cast<const InPlaceOp&>(instr);

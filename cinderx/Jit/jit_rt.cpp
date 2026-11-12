@@ -2013,28 +2013,6 @@ int unicodeEquals(PyObject* s1, PyObject* s2, int equals) {
   return PyObject_RichCompareBool(s1, s2, equals);
 }
 
-PyObject* sequenceContains(PyObject* haystack, PyObject* needle) {
-  int result = PySequence_Contains(haystack, needle);
-  if (result < 0) {
-    return nullptr;
-  }
-  if (result) {
-    Py_RETURN_TRUE;
-  }
-  Py_RETURN_FALSE;
-}
-
-PyObject* sequenceNotContains(PyObject* haystack, PyObject* needle) {
-  int result = PySequence_Contains(haystack, needle);
-  if (result < 0) {
-    return nullptr;
-  }
-  if (result) {
-    Py_RETURN_FALSE;
-  }
-  Py_RETURN_TRUE;
-}
-
 int notContainsBool(PyObject* w, PyObject* v) {
   int res = PySequence_Contains(w, v);
   if (res == -1) {

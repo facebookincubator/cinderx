@@ -965,10 +965,35 @@ TEST_F(LIRTargetSelectTest, SelectsBranchBitSetForPythonRefcountSignTest) {
       Query(function).opcode(Opcode::kBranchCC).condition(Condition::kSign));
 }
 
-TEST_F(LIRTargetSelectTest, SelectsBitTestForPythonCompareBranch) {
+TEST_F(LIRTargetSelectTest, BranchesOnPrimitiveMembershipResult) {
+  const char* conditions[] = {"x in y", "x not in y"};
+  for (const char* condition : conditions) {
+    std::string src = "def func(x, y):\n  if " + std::string(condition) +
+        ":\n    return x\n  return y\n";
+    Ref<PyObject> pyfunc(compileAndGet(src.c_str(), "func"));
+    ASSERT_NE(pyfunc.get(), nullptr) << "Failed compiling " << condition;
+    auto lir_func = getSelectedLIRFunction(pyfunc.get());
+
+    EXPECT_LIR(Query(*lir_func)
+                   .opcode(Opcode::kCondBranch)
+                   .inType(0, DataType::k8bit)
+                   .inDefOpcode(0, Opcode::kCall));
+    EXPECT_NO_LIR(Query(*lir_func).opcode(Opcode::kCompare));
+    EXPECT_NO_LIR(Query(*lir_func)
+                      .opcode(Opcode::kSelect)
+                      .inAddr(1, reinterpret_cast<uintptr_t>(Py_True))
+                      .inAddr(2, reinterpret_cast<uintptr_t>(Py_False)));
+    EXPECT_NO_LIR(
+        Query(*lir_func).inAddr(0, reinterpret_cast<uintptr_t>(Py_True)));
+    EXPECT_NO_LIR(
+        Query(*lir_func).inAddr(0, reinterpret_cast<uintptr_t>(Py_False)));
+  }
+}
+
+TEST_F(LIRTargetSelectTest, SelectsBitTestForPythonBoolBranch) {
   const char* src = R"(
 def func(x, y):
-  if x in y:
+  if bool(x):
     return x
   return y
 )";
@@ -978,7 +1003,7 @@ def func(x, y):
 
   auto lir_func = getSelectedLIRFunction(pyfunc.get());
 
-  // The `in` result is a known bool, so the branch tests a bit that
+  // The `bool(x)` result is a known bool, so the branch tests a bit that
   // differs between the Py_True/Py_False addresses instead of comparing
   // against the True singleton (testing another differing bit, or xoring
   // the tested bit, when a nonzero test of the first differing bit would
@@ -988,7 +1013,7 @@ def func(x, y):
   auto false_addr = reinterpret_cast<uintptr_t>(Py_False);
   auto mask = uintptr_t{1} << std::countr_zero(true_addr ^ false_addr);
   bool bit_in_true = (true_addr & mask) != 0;
-  // `if x in y` compares `== True`, which holds for True, so the layout is
+  // `if bool(x)` compares `== True`, which holds for True, so the layout is
   // inverted exactly when the mask bit is set in Py_False.
   bool inverted = !bit_in_true;
   // Mirror the generator's alternate-bit search for the inverted layout.
@@ -1024,14 +1049,14 @@ TEST_F(LIRTargetSelectTest, SelectsBitTestForBoolSingletonComparisons) {
     bool compare_true_for_true;
   };
   Case cases[] = {
-      {"(x in y) == True", true},
-      {"(x in y) != True", false},
-      {"(x in y) == False", false},
-      {"(x in y) != False", true},
-      {"(x in y) is True", true},
-      {"(x in y) is False", false},
-      {"(x in y) is not True", false},
-      {"not (x in y)", true},
+      {"bool(x) == True", true},
+      {"bool(x) != True", false},
+      {"bool(x) == False", false},
+      {"bool(x) != False", true},
+      {"bool(x) is True", true},
+      {"bool(x) is False", false},
+      {"bool(x) is not True", false},
+      {"not bool(x)", true},
       {"bool(x)", true},
   };
   auto true_addr = reinterpret_cast<uintptr_t>(Py_True);

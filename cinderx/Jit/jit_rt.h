@@ -446,14 +446,6 @@ StaticCallFPReturn callStaticallyWithPrimitiveSignatureFP(
  */
 int unicodeEquals(PyObject* s1, PyObject* s2, int equals);
 
-/* Return Py_True if needle is in haystack else return Py_False. Return nullptr
- * with exception raised on error. */
-PyObject* sequenceContains(PyObject* haystack, PyObject* needle);
-
-/* Return Py_True if needle is not in haystack else return Py_False. Return
- * nullptr with exception raised on error. */
-PyObject* sequenceNotContains(PyObject* haystack, PyObject* needle);
-
 /* Inverse form of PySequence_Contains for "not in"
  */
 int notContainsBool(PyObject* w, PyObject* v);
