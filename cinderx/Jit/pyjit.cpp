@@ -111,6 +111,12 @@ class PyBeginAllowThreads {
   PyThreadState* save_;
 };
 
+// Ordinary cinderjit APIs are bound to the native module that owns their state.
+CompilerContext<Compiler>* jitCtx(BorrowedRef<> mod) {
+  auto* state = cinderx::getModuleState(mod);
+  return static_cast<CompilerContext<Compiler>*>(state->jit_context.get());
+}
+
 CompilerContext<Compiler>* jitCtx() {
   auto state = cinderx::getModuleState();
   if (state != nullptr) {
@@ -2518,41 +2524,34 @@ PyObject* get_background_compile_workers(PyObject* /* self */, PyObject*) {
 
 // Block until every background compile that is currently in flight has
 // finished.  Releases the GIL, which the worker needs to finalize its compiles.
-void waitForBackgroundCompiles() {
-  auto* ctx = getContext();
-  if (ctx == nullptr) {
-    return;
-  }
-  auto& reg = ctx->backgroundCompileRegistry();
+void waitForBackgroundCompiles(Context& ctx) {
+  auto& reg = ctx.backgroundCompileRegistry();
 
   PyBeginAllowThreads allow_threads;
   std::unique_lock<std::mutex> lock(reg.mutex);
   reg.drain_cv.wait(lock, [&reg] { return reg.in_flight_count == 0; });
 }
 
-PyObject* wait_for_background_compiles(
-    PyObject* /* self */,
-    PyObject* /* args */) {
+PyObject* wait_for_background_compiles(PyObject* mod, PyObject* /* args */) {
   // Test helper: block until all background compiles currently in flight have
   // completed.
-  waitForBackgroundCompiles();
+  if (auto* ctx = jitCtx(mod)) {
+    waitForBackgroundCompiles(*ctx);
+  }
   Py_RETURN_NONE;
 }
 
 // Take a still-queued background compile of func back from the worker so the
 // caller can compile it itself.
-bool reclaimQueuedBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
-  auto* ctx = getContext();
-  if (ctx == nullptr) {
-    return false;
-  }
-
+bool reclaimQueuedBackgroundCompile(
+    Context& ctx,
+    BorrowedRef<PyFunctionObject> func) {
   CompilationKey key{func};
   // Destroyed once the registry lock is released: dropping the task's
   // references can run arbitrary Python code, which would re-enter the JIT.
   std::unique_ptr<BackgroundCompileTask> reclaimed;
   {
-    auto& reg = ctx->backgroundCompileRegistry();
+    auto& reg = ctx.backgroundCompileRegistry();
     std::lock_guard<std::mutex> lock(reg.mutex);
     auto it = std::find_if(
         reg.queue.begin(),
@@ -2573,7 +2572,7 @@ bool reclaimQueuedBackgroundCompile(BorrowedRef<PyFunctionObject> func) {
   }
 
   // Hand the admission back so the caller's compile can claim it.
-  ctx->removeActiveCompile(key);
+  ctx.removeActiveCompile(key);
   return true;
 }
 
@@ -2660,7 +2659,7 @@ precompile_all(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
   Py_RETURN_TRUE;
 }
 
-PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
+PyObject* force_compile(PyObject* mod, PyObject* arg) {
   BorrowedRef<PyFunctionObject> func = get_func_arg("force_compile", arg);
   if (func == nullptr) {
     return nullptr;
@@ -2678,7 +2677,9 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
   // A background compile may already have claimed this function.  Waiting for
   // the worker to reach it could take arbitrarily long, so take a queued task
   // over and compile it right here instead.
-  reclaimQueuedBackgroundCompile(func);
+  if (auto* ctx = jitCtx(mod)) {
+    reclaimQueuedBackgroundCompile(*ctx, func);
+  }
 
   // Compile the function.
   Result result;
@@ -2697,7 +2698,9 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
       // The compile wasn't in the queue to be reclaimed, so the background
       // worker is part-way through it.  Wait for it to land rather than
       // reporting a failure.
-      waitForBackgroundCompiles();
+      if (auto* ctx = jitCtx(mod)) {
+        waitForBackgroundCompiles(*ctx);
+      }
       if (isJitCompiled(func)) {
         Py_RETURN_TRUE;
       }
@@ -4560,16 +4563,12 @@ int register_gc_callback() {
 
 // Mark a compile as no longer being background-compiled and wake any waiter
 // (e.g. JIT finalization) that is draining in-flight compiles.
-// Uses the registry member of the JIT Context; if context is null (e.g.
-// during fork child handling when JIT not initialized), no-op.
-void finishBackgroundCompile(std::unique_ptr<BackgroundCompileTask> task) {
-  auto* ctx = getContext();
-  if (ctx == nullptr) {
-    return;
-  }
+void finishBackgroundCompile(
+    Context& ctx,
+    std::unique_ptr<BackgroundCompileTask> task) {
   CompilationKey key{task->code, task->builtins, task->globals};
-  ctx->removeActiveCompile(key);
-  auto& reg = ctx->backgroundCompileRegistry();
+  ctx.removeActiveCompile(key);
+  auto& reg = ctx.backgroundCompileRegistry();
   // Draining includes releasing the task's Python references while attached.
   task.reset();
   std::lock_guard<std::mutex> guard(reg.mutex);
@@ -4805,7 +4804,7 @@ void backgroundCompileWorkerLoop(
         jit_ctx->completeRecompile(*task);
       }
     }
-    finishBackgroundCompile(std::move(task));
+    finishBackgroundCompile(*jit_ctx, std::move(task));
   }
 
   JIT_DLOG(
