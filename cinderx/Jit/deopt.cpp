@@ -65,6 +65,15 @@ std::unordered_set<hir::Register*> collectFrameStateRegs(hir::FrameState* fs) {
   return regs;
 }
 
+// The value whose type explains why a type or identity guard failed.  Used as
+// the guilty value when the instruction doesn't set one explicitly.
+hir::Register* guardedReg(const hir::DeoptBase& instr) {
+  if (instr.isGuardType() || instr.isGuardIs()) {
+    return instr.getOperand(0);
+  }
+  return nullptr;
+}
+
 void reifyLocalsplus(
     _PyInterpreterFrame* frame,
     const DeoptMetadata& meta,
@@ -269,7 +278,7 @@ bool DeoptLiveRegFilter::isUsed(const hir::RegState& reg_state) const {
   }
 
   hir::Register* reg = reg_state.reg;
-  if (instr_.guiltyReg() == reg) {
+  if (instr_.guiltyReg() == reg || guardedReg(instr_) == reg) {
     return true;
   }
 
@@ -607,6 +616,11 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
 
   if (hir::Register* guilty_reg = instr.guiltyReg()) {
     meta.guilty_value = get_reg_idx(guilty_reg);
+  } else if (hir::Register* guarded = guardedReg(instr)) {
+    auto it = reg_idx.find(guarded);
+    if (it != reg_idx.end()) {
+      meta.guilty_value = it->second;
+    }
   }
 
   meta.nonce = instr.nonce();

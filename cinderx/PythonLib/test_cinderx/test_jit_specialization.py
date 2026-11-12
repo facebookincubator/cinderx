@@ -98,6 +98,28 @@ class SpecializationTests(CinderXTestCase):
         self.assertIn("BINARY_OP_ADD_INT", opnames(f))
         self.assertEqual(f(2, 3), 5)
 
+    def test_guard_failure_records_guilty_type(self) -> None:
+        def f(a: float, b: float) -> float:
+            return a + b
+
+        specialize(f, lambda: f(1, 2))
+        self.assertIn("BINARY_OP_ADD_INT", opnames(f))
+
+        cinderx.jit.get_and_clear_runtime_stats()
+        self.assertEqual(f(1.5, 2.5), 4.0)
+        deopts = cinderx.jit.get_and_clear_runtime_stats().get("deopt") or []
+        if not isinstance(deopts, list):
+            self.fail("Deopt runtime stats are not a list")
+        self.assertEqual(
+            {
+                e["normal"]["guilty_type"]
+                for e in deopts
+                if e["normal"]["func_qualname"].endswith(".f")
+                and e["normal"]["reason"] == "GuardFailure"
+            },
+            {"float"},
+        )
+
     def test_binary_op_subtract_int(self) -> None:
         def f(a: int, b: int) -> int:
             return a - b
