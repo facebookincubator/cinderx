@@ -1216,16 +1216,17 @@ AdmitResult admitCompile(
 // they hold the GIL; going through compilePreloader() would try to admit them a
 // second time and see them as in-flight.
 std::pair<Result, Ref<PyFunctionObject>> compileAdmittedPreloader(
+    CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func) {
   if (isOverMaxCodeSize()) {
     // Give the admission back, since we're not going to compile it.
-    jitCtx()->removeActiveCompile(
+    jit_ctx->removeActiveCompile(
         CompilationKey{
             preloader.code(), preloader.builtins(), preloader.globals()});
     return {Result::OVER_MAX_CODE_SIZE, std::move(func)};
   }
-  return compilePreloaderImpl(jitCtx(), preloader, std::move(func));
+  return compilePreloaderImpl(jit_ctx, preloader, std::move(func));
 }
 
 std::pair<Result, Ref<PyFunctionObject>> compilePreloader(
@@ -1327,13 +1328,15 @@ class CompileWorkerContext {
   ThreadedCompileContext& context_;
 };
 
-hir::Preloader* findPreloader(BorrowedRef<> unit) {
+// A context is only required when unit is a bare code object. Function
+// preloaders are keyed directly by their function object.
+hir::Preloader* findPreloader(Context* jit_ctx, BorrowedRef<> unit) {
   auto [func, code] = splitUnit(unit);
   if (func != nullptr) {
     return hir::preloaderManager().find(func);
   }
 
-  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+  auto& jit_code_outer_funcs = jit_ctx->codeOuterFunctions();
   auto it = jit_code_outer_funcs.find(code);
   if (it == jit_code_outer_funcs.end()) {
     return nullptr;
@@ -1349,6 +1352,7 @@ hir::Preloader* findPreloader(BorrowedRef<> unit) {
 // Can potentially hit a Python exception, if so, will forward that along and
 // return nullptr.
 hir::Preloader* preload(
+    Context* jit_ctx,
     BorrowedRef<> unit,
     BorrowedRef<PyFunctionObject> outer_func = nullptr) {
   if (isJitFinalizing()) {
@@ -1357,7 +1361,7 @@ hir::Preloader* preload(
   }
   auto [func, borrowed_code] = splitUnit(unit);
   auto code = Ref<PyCodeObject>::create(borrowed_code);
-  hir::Preloader* existing = findPreloader(unit);
+  hir::Preloader* existing = findPreloader(jit_ctx, unit);
   if (existing != nullptr) {
     return existing;
   }
@@ -1422,9 +1426,11 @@ using PreloadedUnitMap = UnorderedMap<BorrowedRef<>, const hir::Preloader*>;
 // Takes ownership of the unit's reference and hands it down to the compile.
 // The returned reference is whatever was left over, i.e. it is null once
 // something that outlives this call has taken the function over.
-std::pair<Result, CompilationUnit> tryCompilePreloaded(CompilationUnit&& unit) {
+std::pair<Result, CompilationUnit> tryCompilePreloaded(
+    CompilerContext<Compiler>* jit_ctx,
+    CompilationUnit&& unit) {
   auto [result, unclaimed] =
-      compileAdmittedPreloader(*unit.preloader, std::move(unit.func));
+      compileAdmittedPreloader(jit_ctx, *unit.preloader, std::move(unit.func));
   CompilationUnit res = {
       unit.preloader,
       Ref<>::steal(reinterpret_cast<PyObject*>(unclaimed.release()))};
@@ -1434,6 +1440,7 @@ std::pair<Result, CompilationUnit> tryCompilePreloaded(CompilationUnit&& unit) {
 void compile_worker_thread(
     size_t thread_id,
     PyInterpreterState* interp,
+    CompilerContext<Compiler>* jit_ctx,
     std::shared_ptr<ThreadedCompileQueue> context,
     std::shared_ptr<hir::IsolatedPreloaders> isolated) try {
   std::string thread_name = fmt::format("cx_compile_{}", thread_id);
@@ -1461,7 +1468,8 @@ void compile_worker_thread(
       // Hand our reference down into the compile so whatever ends up owning
       // the function can take it over instead of creating a reference here
       // with the GIL released.
-      auto [result, unclaimed] = tryCompilePreloaded(std::move(unit).value());
+      auto [result, unclaimed] =
+          tryCompilePreloaded(jit_ctx, std::move(unit).value());
 
       // Hand back whatever the compile did not take over.  Dropping a
       // reference on this thread would decref with the GIL released, which is
@@ -1495,15 +1503,18 @@ void compile_worker_thread(
   JIT_DLOG("Thread {} failed with exception:\n{}", thread_id, exn.what());
 }
 
-void compile_units_preloaded(ThreadedCompileQueue::WorkList&& units) {
+void compile_units_preloaded(
+    CompilerContext<Compiler>* jit_ctx,
+    ThreadedCompileQueue::WorkList&& units) {
   for (auto& unit : units) {
     // Runs with the GIL held, so releasing whatever comes back is fine.
-    tryCompilePreloaded(std::move(unit));
+    tryCompilePreloaded(jit_ctx, std::move(unit));
   }
-  jitCtx()->finalizePendingCompiles();
+  jit_ctx->finalizePendingCompiles();
 }
 
 bool multithread_compile_units_preloaded(
+    CompilerContext<Compiler>* jit_ctx,
     ThreadedCompileQueue::WorkList units,
     size_t worker_count,
     std::shared_ptr<hir::IsolatedPreloaders> isolated) {
@@ -1537,7 +1548,7 @@ bool multithread_compile_units_preloaded(
   try {
     for (size_t i = 0; i < worker_count; i++) {
       worker_threads.emplace_back(
-          compile_worker_thread, i, interp, compilation, isolated);
+          compile_worker_thread, i, interp, jit_ctx, compilation, isolated);
     }
   } catch (...) {
     creation_error = std::current_exception();
@@ -1554,12 +1565,12 @@ bool multithread_compile_units_preloaded(
     retry_list.emplace_back(std::move(unit).value());
   }
 
-  jitCtx()->finalizePendingCompiles();
+  jit_ctx->finalizePendingCompiles();
 
   JIT_DLOG(
       "multithread_compile_units_preloaded retrying {} units serially",
       retry_list.size());
-  compile_units_preloaded(std::move(retry_list));
+  compile_units_preloaded(jit_ctx, std::move(retry_list));
   if (creation_error) {
     std::rethrow_exception(creation_error);
   }
@@ -1685,17 +1696,18 @@ bool compile_all(size_t workers = 0) {
   }
 
   std::vector<CompilationUnit> compilation_units;
+  CompilerContext<Compiler>* jit_ctx = nullptr;
   struct PreloadUnit {
     Ref<> unit;
     Ref<PyCodeObject> code;
     // Bare nested code needs its outer function's globals and registration.
     Ref<PyFunctionObject> outer;
 
-    bool isCurrent() const {
+    bool isCurrent(Context* jit_ctx) const {
       if (PyFunction_Check(unit)) {
         return BorrowedRef<PyFunctionObject>{unit}->func_code == code.getObj();
       }
-      auto& outer_funcs = jitCtx()->codeOuterFunctions();
+      auto& outer_funcs = jit_ctx->codeOuterFunctions();
       auto it = outer_funcs.find(code);
       return it != outer_funcs.end() && it->second == outer;
     }
@@ -1780,13 +1792,16 @@ bool compile_all(size_t workers = 0) {
         const auto& target = owned_units[next_unit];
         {
           FreeThreadedJITEntrypointGuard guard;
-          if (!target.isCurrent()) {
+          auto* current_ctx = jitCtx();
+          if (!target.isCurrent(current_ctx)) {
             continue;
           }
         }
         // Preloading can execute arbitrary Python code, so run without a lock.
         try {
-          hir::Preloader* preloader = preload(target.unit, target.outer);
+          auto* preload_ctx = jitCtx();
+          hir::Preloader* preloader =
+              preload(preload_ctx, target.unit, target.outer);
           // A null preloader means we hit a Python exception while executing
           // code and we need to surface it.
           if (!preloader) {
@@ -1813,16 +1828,17 @@ bool compile_all(size_t workers = 0) {
       PyErr_SetString(PyExc_RuntimeError, "JIT stopped during preloading");
       return false;
     }
+    jit_ctx = jitCtx();
     compilation_units.reserve(owned_units.size());
     for (const auto& target : owned_units) {
-      const hir::Preloader* preloader = findPreloader(target.unit);
-      if (!target.isCurrent() || !preloader ||
+      const hir::Preloader* preloader = findPreloader(jit_ctx, target.unit);
+      if (!target.isCurrent(jit_ctx) || !preloader ||
           preloader->code() != target.code) {
         continue;
       }
       auto [func, code] = splitUnit(target.unit);
       auto admitted = admitCompile(
-          jitCtx(),
+          jit_ctx,
           preloader->code(),
           preloader->builtins(),
           preloader->globals(),
@@ -1830,7 +1846,7 @@ bool compile_all(size_t workers = 0) {
       if (admitted.admission == CompileAdmission::kInFlight &&
           admitted.func != nullptr) {
         // Another unit owns this key. Finalize this function when it finishes.
-        jitCtx()->addDeferredFinalization(
+        jit_ctx->addDeferredFinalization(
             CompilationKey{
                 preloader->code(), preloader->builtins(), preloader->globals()},
             std::move(admitted.func));
@@ -1845,9 +1861,9 @@ bool compile_all(size_t workers = 0) {
 
   if (workers > 1) {
     return multithread_compile_units_preloaded(
-        std::move(compilation_units), workers, isolated);
+        jit_ctx, std::move(compilation_units), workers, isolated);
   } else {
-    compile_units_preloaded(std::move(compilation_units));
+    compile_units_preloaded(jit_ctx, std::move(compilation_units));
   }
 
   return true;
@@ -5639,11 +5655,12 @@ std::vector<CompilationUnit> preloadFuncAndDeps(
          getCompilationEligibility(f) != JitEligibility::Ineligible);
   };
 
+  auto* jit_ctx = jitCtx();
   while (worklist.size() > 0 && result.size() < limit) {
     auto f = std::move(worklist.front());
     worklist.pop_front();
 
-    hir::Preloader* preloader = preload(f.getObj());
+    hir::Preloader* preloader = preload(jit_ctx, f.getObj());
 
     if (preloader == nullptr) {
       return {};
