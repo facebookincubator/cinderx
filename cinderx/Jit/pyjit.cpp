@@ -3064,8 +3064,8 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
 }
 #endif
 
-PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
-  if (auto jit_list = cinderx::getModuleState()->jit_list.get()) {
+PyObject* get_jit_list(PyObject* mod, PyObject*) {
+  if (auto jit_list = cinderx::getModuleState(mod)->jit_list.get()) {
     return jit_list->getList().release();
   }
 
@@ -3074,8 +3074,8 @@ PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
 
 // Create a new JIT list if one doesn't exist yet, returning true if a new list
 // was made.
-bool ensureJitList() {
-  if (cinderx::getModuleState()->jit_list.get() != nullptr) {
+bool ensureJitList(ModuleState& state) {
+  if (state.jit_list.get() != nullptr) {
     return false;
   }
   std::unique_ptr<JITList> jit_list;
@@ -3084,7 +3084,7 @@ bool ensureJitList() {
   } else {
     jit_list = JITList::create();
   }
-  cinderx::getModuleState()->jit_list = std::move(jit_list);
+  state.jit_list = std::move(jit_list);
   return true;
 }
 
@@ -3092,25 +3092,21 @@ void deleteJitList(ModuleState& state) {
   state.jit_list = nullptr;
 }
 
-void deleteJitList() {
-  deleteJitList(*cinderx::getModuleState());
-}
-
 // Reschedule all functions on the JIT list for compilation.  Run when the JIT
 // list is modified.
-int rescheduleJitList() {
+int rescheduleJitList(ModuleState& state) {
   if (Ci_InitFrameEvalFunc() < 0) {
     return -1;
   }
 
   // Cached nested-function eligibility was computed against the old JIT list,
   // so it has to be recomputed before anything consults it again.
-  if (auto* ctx = jitCtx()) {
+  if (auto* ctx = static_cast<Context*>(state.jit_context.get())) {
     ctx->refreshNestedCompileData();
   }
 
-  walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
-    auto jit_list = cinderx::getModuleState()->jit_list.get();
+  walkFunctionObjects([&state](BorrowedRef<PyFunctionObject> func) {
+    auto jit_list = state.jit_list.get();
     if (jit_list->lookupFunc(func)) {
       if (!isJitCompiled(func)) {
         scheduleJitCompile(func);
@@ -3121,7 +3117,7 @@ int rescheduleJitList() {
   return 0;
 }
 
-PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
+PyObject* append_jit_list(PyObject* mod, PyObject* arg) {
   if (!PyUnicode_Check(arg)) {
     PyErr_Format(
         PyExc_TypeError,
@@ -3138,28 +3134,29 @@ PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
   std::string_view line{
       line_str, static_cast<std::string::size_type>(line_len)};
 
-  bool new_list = ensureJitList();
+  ModuleState& state = *cinderx::getModuleState(mod);
+  bool new_list = ensureJitList(state);
 
   // Parse in the new line.  If that fails and a new list was created, delete
   // it.
-  auto jit_list = cinderx::getModuleState()->jit_list.get();
+  auto jit_list = state.jit_list.get();
   if (!jit_list->parseLine(line)) {
     if (new_list) {
-      deleteJitList();
+      deleteJitList(state);
     }
     PyErr_Format(
         PyExc_RuntimeError, "Failed to parse new JIT list line %U", arg);
     return nullptr;
   }
 
-  if (rescheduleJitList() < 0) {
+  if (rescheduleJitList(state) < 0) {
     return nullptr;
   }
 
   Py_RETURN_NONE;
 }
 
-PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
+PyObject* read_jit_list(PyObject* mod, PyObject* arg) {
   if (!PyUnicode_Check(arg)) {
     PyErr_Format(
         PyExc_TypeError,
@@ -3174,23 +3171,24 @@ PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
   }
 
   // Create a new JIT list if one doesn't exist yet.
-  bool new_list = ensureJitList();
+  ModuleState& state = *cinderx::getModuleState(mod);
+  bool new_list = ensureJitList(state);
 
   // Parse in the new file.  If that fails and a new list was created, delete
   // it.
-  auto jit_list = cinderx::getModuleState()->jit_list.get();
+  auto jit_list = state.jit_list.get();
   try {
     jit_list->parseFile(path);
   } catch (const std::exception& exn) {
     if (new_list) {
-      deleteJitList();
+      deleteJitList(state);
     }
 
     PyErr_SetString(PyExc_RuntimeError, exn.what());
     return nullptr;
   }
 
-  if (rescheduleJitList() < 0) {
+  if (rescheduleJitList(state) < 0) {
     return nullptr;
   }
 
@@ -5218,7 +5216,7 @@ int initialize(BorrowedRef<> cinderx_module) {
     has_auto_jit_threshold = true;
   }
   if (!has_auto_jit_threshold && mod_state->jit_list.get() != nullptr) {
-    if (rescheduleJitList() < 0) {
+    if (rescheduleJitList(*mod_state) < 0) {
       return -1;
     }
   }
