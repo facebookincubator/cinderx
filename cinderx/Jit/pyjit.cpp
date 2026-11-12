@@ -3210,19 +3210,24 @@ PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
   return funcs.release();
 }
 
-PyObject* get_compilation_time(PyObject* /* self */, PyObject*) {
-  auto time = jitCtx() != nullptr ? jitCtx()->totalCompileTime()
-                                  : std::chrono::milliseconds::zero();
+PyObject* get_compilation_time(PyObject* mod, PyObject*) {
+  auto* ctx = jitCtx(mod);
+  auto time = ctx != nullptr ? ctx->totalCompileTime()
+                             : std::chrono::milliseconds::zero();
   return PyLong_FromLong(time.count());
 }
 
-PyObject* get_function_compilation_time(PyObject* /* self */, PyObject* arg) {
-  if (arg == nullptr || !PyFunction_Check(arg) || jitCtx() == nullptr) {
+PyObject* get_function_compilation_time(PyObject* mod, PyObject* arg) {
+  if (arg == nullptr || !PyFunction_Check(arg)) {
+    Py_RETURN_NONE;
+  }
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr) {
     Py_RETURN_NONE;
   }
 
   BorrowedRef<PyFunctionObject> func{arg};
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   if (compiled_func == nullptr) {
     Py_RETURN_NONE;
   }
@@ -3232,12 +3237,13 @@ PyObject* get_function_compilation_time(PyObject* /* self */, PyObject* arg) {
   return PyLong_FromLong(compile_time.count());
 }
 
-PyObject* get_inlined_functions_stats(PyObject* /* self */, PyObject* arg) {
-  if (jitCtx() == nullptr || !PyFunction_Check(arg)) {
+PyObject* get_inlined_functions_stats(PyObject* mod, PyObject* arg) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr || !PyFunction_Check(arg)) {
     Py_RETURN_NONE;
   }
   BorrowedRef<PyFunctionObject> func{arg};
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   if (compiled_func == nullptr) {
     Py_RETURN_NONE;
   }
@@ -3287,24 +3293,26 @@ PyObject* get_inlined_functions_stats(PyObject* /* self */, PyObject* arg) {
   return py_stats.release();
 }
 
-PyObject* get_num_inlined_functions(PyObject* /* self */, PyObject* arg) {
-  if (jitCtx() == nullptr || !PyFunction_Check(arg)) {
+PyObject* get_num_inlined_functions(PyObject* mod, PyObject* arg) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr || !PyFunction_Check(arg)) {
     return PyLong_FromLong(0);
   }
   BorrowedRef<PyFunctionObject> func{arg};
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   int size = compiled_func != nullptr
       ? compiled_func->inlinedFunctionsStats().num_inlined_functions
       : 0;
   return PyLong_FromLong(size);
 }
 
-PyObject* get_function_hir_opcode_counts(PyObject* /* self */, PyObject* arg) {
-  if (jitCtx() == nullptr || !PyFunction_Check(arg)) {
+PyObject* get_function_hir_opcode_counts(PyObject* mod, PyObject* arg) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr || !PyFunction_Check(arg)) {
     Py_RETURN_NONE;
   }
   BorrowedRef<PyFunctionObject> func{arg};
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   if (compiled_func == nullptr) {
     Py_RETURN_NONE;
   }

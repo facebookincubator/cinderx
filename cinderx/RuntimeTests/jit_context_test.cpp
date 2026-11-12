@@ -27,6 +27,28 @@ using namespace cinderx::jit;
 
 using JITModuleTest = RuntimeTest;
 
+TEST_F(JITModuleTest, CompilationQueryUsesReceiverContext) {
+  Ref<> native = Ref<>::steal(PyImport_ImportModule("_cinderx"));
+  ASSERT_NE(native, nullptr);
+  Ref<> query =
+      Ref<>::steal(PyObject_GetAttrString(native, "get_compilation_time"));
+  ASSERT_NE(query, nullptr);
+  auto* state = getModuleState(PyCFunction_GetSelf(query));
+  auto* ctx = static_cast<Context*>(state->jit_context.get());
+  ASSERT_NE(ctx, nullptr);
+  ctx->addCompileTime(std::chrono::milliseconds{7});
+
+  // A singleton lookup would see no context and report zero.
+  ModuleState alternate;
+  ModuleState* saved = s_cinderx_state;
+  s_cinderx_state = &alternate;
+  Ref<> result = Ref<>::steal(PyObject_CallNoArgs(query));
+  s_cinderx_state = saved;
+
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(PyLong_AsLong(result), ctx->totalCompileTime().count());
+}
+
 class JITContextTest : public RuntimeTest {
  public:
   void SetUp() override {
