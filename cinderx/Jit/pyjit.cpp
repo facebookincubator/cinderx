@@ -2958,16 +2958,17 @@ PyObject* set_max_code_size(PyObject* /* self */, PyObject* arg) {
 // Debug hook: hand back the CompiledFunction backing a function, if any.  The
 // JIT keeps it as a logical reference rather than putting it anywhere the user
 // can see, so this is the only way to observe compile reuse from Python.
-PyObject* get_compiled_function(PyObject* /* self */, PyObject* arg) {
+PyObject* get_compiled_function(PyObject* mod, PyObject* arg) {
   BorrowedRef<PyFunctionObject> func =
       get_func_arg("get_compiled_function", arg);
   if (func == nullptr) {
     return nullptr;
   }
-  if (jitCtx() == nullptr) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr) {
     Py_RETURN_NONE;
   }
-  BorrowedRef<CompiledFunction> compiled = jitCtx()->lookupFunc(func);
+  BorrowedRef<CompiledFunction> compiled = ctx->lookupFunc(func);
   // If the vector call entry doesn't match the CompiledFunction then
   // the function isn't actually compiled (it may have been deopted)
   if (compiled == nullptr || compiled->vectorcallEntry() != func->vectorcall) {
@@ -2976,8 +2977,9 @@ PyObject* get_compiled_function(PyObject* /* self */, PyObject* arg) {
   return Py_NewRef(reinterpret_cast<PyObject*>(compiled.get()));
 }
 
-PyObject* print_hir(PyObject* /* self */, PyObject* func) {
-  if (jitCtx() == nullptr) {
+PyObject* print_hir(PyObject* mod, PyObject* func) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "JIT is not initialized");
     return nullptr;
   }
@@ -2986,7 +2988,7 @@ PyObject* print_hir(PyObject* /* self */, PyObject* func) {
     return nullptr;
   }
 
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   if (compiled_func == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "function is not jit compiled");
     return nullptr;
@@ -2996,8 +2998,9 @@ PyObject* print_hir(PyObject* /* self */, PyObject* func) {
   Py_RETURN_NONE;
 }
 
-PyObject* disassemble(PyObject* /* self */, PyObject* func) {
-  if (jitCtx() == nullptr) {
+PyObject* disassemble(PyObject* mod, PyObject* func) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "JIT is not initialized");
     return nullptr;
   }
@@ -3006,7 +3009,7 @@ PyObject* disassemble(PyObject* /* self */, PyObject* func) {
     return nullptr;
   }
 
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   if (compiled_func == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "function is not jit compiled");
     return nullptr;
@@ -3486,21 +3489,23 @@ PyObject* clear_runtime_stats(PyObject* /* self */, PyObject*) {
   Py_RETURN_NONE;
 }
 
-PyObject* get_compiled_size(PyObject* /* self */, PyObject* arg) {
-  if (jitCtx() == nullptr) {
+PyObject* get_compiled_size(PyObject* mod, PyObject* arg) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr) {
     return PyLong_FromLong(0);
   }
   BorrowedRef<PyFunctionObject> func = get_func_arg("get_compiled_size", arg);
   if (func == nullptr) {
     return nullptr;
   }
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->codeSize() : -1;
   return PyLong_FromLong(size);
 }
 
-PyObject* get_compiled_stack_size(PyObject* /* self */, PyObject* arg) {
-  if (jitCtx() == nullptr) {
+PyObject* get_compiled_stack_size(PyObject* mod, PyObject* arg) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr) {
     return PyLong_FromLong(0);
   }
   BorrowedRef<PyFunctionObject> func =
@@ -3508,13 +3513,14 @@ PyObject* get_compiled_stack_size(PyObject* /* self */, PyObject* arg) {
   if (func == nullptr) {
     return nullptr;
   }
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->stackSize() : -1;
   return PyLong_FromLong(size);
 }
 
-PyObject* get_compiled_spill_stack_size(PyObject* /* self */, PyObject* arg) {
-  if (jitCtx() == nullptr) {
+PyObject* get_compiled_spill_stack_size(PyObject* mod, PyObject* arg) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr) {
     return PyLong_FromLong(0);
   }
   BorrowedRef<PyFunctionObject> func =
@@ -3522,7 +3528,7 @@ PyObject* get_compiled_spill_stack_size(PyObject* /* self */, PyObject* arg) {
   if (func == nullptr) {
     return nullptr;
   }
-  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+  CompiledFunction* compiled_func = ctx->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->spillStackSize() : -1;
   return PyLong_FromLong(size);
 }
