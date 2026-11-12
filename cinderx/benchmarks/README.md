@@ -130,6 +130,20 @@ version, then reports nanoseconds per lambda and the JIT/baseline ratio:
 
 ```bash
 buck run @fbcode//mode/opt fbcode//cinderx/benchmarks:lambda-creation-312 -- --compare
+```
+
+## Type Call Benchmark
+
+Measures the cost of calling types with no arguments, across three base
+types (`object`, `list`, `tuple`) crossed with four `__new__` / `__init__`
+shapes (neither, `__new__` only, `__init__` only, both). Only the plain
+`object` subclass is simplified to a `TpAlloc`; the rest stay on the
+generic call path and serve as controls:
+
+```bash
+buck run @fbcode//mode/opt fbcode//cinderx/benchmarks:type-call-312 -- --describe
+buck run @fbcode//mode/opt fbcode//cinderx/benchmarks:type-call-312 -- --compare
+```
 
 ## Heavyweight Benchmarks
 
@@ -225,6 +239,7 @@ CINDERJIT_DISABLE=1 uv run python benchmarks/runner.py
 | `compile_time` | Measures JIT compilation speed (not runtime performance) |
 | `generator-expression` | Generator-expression creation and resume/yield cost, with a list-comprehension control |
 | `lambda-creation` | Repeated short-lived lambda construction inside a JIT-compiled loop |
+| `type-call` | Calling types with no arguments across base types and `__new__`/`__init__` shapes |
 | `attr-cache` | LOAD_ATTR/STORE_ATTR against every receiver layout, monomorphic through megamorphic |
 | `global_cache` | Module-global reads across compile-time caching, late binding, rebinding, and uncompile |
 | `fastmark` | Full pyperformance suite (~60 benchmarks) with CinderX integration |

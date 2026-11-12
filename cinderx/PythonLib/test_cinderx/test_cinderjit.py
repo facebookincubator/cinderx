@@ -962,6 +962,263 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         self.assertEqual(_compact_guard_quick_ratio_like([1, 2, 3], [4, 5]), 1.2)
 
 
+class TypeCallSimplificationTests(unittest.TestCase):
+    def _namespace(self, src: str) -> dict[str, Any]:
+        namespace: dict[str, Any] = {}
+        exec(textwrap.dedent(src), namespace)
+        return namespace
+
+    def test_plain_type_call(self) -> None:
+        ns = self._namespace(
+            """
+            class Widget:
+                pass
+
+            def make():
+                return Widget()
+
+            def make_and_set(value):
+                widget = Widget()
+                widget.value = value
+                return widget
+        """
+        )
+        self.assertTrue(force_compile(ns["make"]))
+        self.assertTrue(force_compile(ns["make_and_set"]))
+        first, second = ns["make"](), ns["make"]()
+        self.assertIs(type(first), ns["Widget"])
+        self.assertIsNot(first, second)
+        widget = ns["make_and_set"](7)
+        self.assertEqual(widget.value, 7)
+        self.assertEqual(widget.__dict__, {"value": 7})
+
+    def test_object_call(self) -> None:
+        ns = self._namespace(
+            """
+            def make():
+                return object()
+        """
+        )
+        self.assertTrue(force_compile(ns["make"]))
+        first, second = ns["make"](), ns["make"]()
+        self.assertIs(type(first), object)
+        self.assertIsNot(first, second)
+
+    def test_new_override(self) -> None:
+        ns = self._namespace(
+            """
+            calls = []
+            SENTINEL = object()
+
+            class Recording:
+                def __new__(cls):
+                    calls.append("new")
+                    return super().__new__(cls)
+
+            class Returning:
+                def __new__(cls):
+                    return SENTINEL
+
+            def make_recording():
+                return Recording()
+
+            def make_returning():
+                return Returning()
+        """
+        )
+        self.assertTrue(force_compile(ns["make_recording"]))
+        self.assertTrue(force_compile(ns["make_returning"]))
+        self.assertIs(type(ns["make_recording"]()), ns["Recording"])
+        self.assertEqual(ns["calls"], ["new"])
+        self.assertIs(ns["make_returning"](), ns["SENTINEL"])
+
+    def test_init_override(self) -> None:
+        ns = self._namespace(
+            """
+            class Widget:
+                def __init__(self):
+                    self.value = 42
+
+            def make():
+                return Widget()
+        """
+        )
+        self.assertTrue(force_compile(ns["make"]))
+        self.assertEqual(ns["make"]().value, 42)
+
+    def test_new_and_init_overrides(self) -> None:
+        ns = self._namespace(
+            """
+            calls = []
+
+            class Widget:
+                def __new__(cls):
+                    calls.append("new")
+                    return super().__new__(cls)
+
+                def __init__(self):
+                    calls.append("init")
+                    self.value = 42
+
+            def make():
+                return Widget()
+        """
+        )
+        self.assertTrue(force_compile(ns["make"]))
+        self.assertEqual(ns["make"]().value, 42)
+        self.assertEqual(ns["calls"], ["new", "init"])
+
+    def test_list_and_tuple_subclass_calls(self) -> None:
+        ns = self._namespace(
+            """
+            class ListWidget(list):
+                pass
+
+            class TupleWidget(tuple):
+                pass
+
+            def make_list():
+                return ListWidget((1, 2))
+
+            def make_list_empty():
+                return ListWidget()
+
+            def make_tuple():
+                return TupleWidget((1, 2))
+
+            def make_tuple_empty():
+                return TupleWidget()
+        """
+        )
+        for name in (
+            "make_list",
+            "make_list_empty",
+            "make_tuple",
+            "make_tuple_empty",
+        ):
+            self.assertTrue(force_compile(ns[name]))
+        self.assertEqual(ns["make_list"](), [1, 2])
+        self.assertIs(type(ns["make_list"]()), ns["ListWidget"])
+        self.assertEqual(ns["make_list_empty"](), [])
+        self.assertEqual(ns["make_tuple"](), (1, 2))
+        self.assertIs(type(ns["make_tuple"]()), ns["TupleWidget"])
+        self.assertEqual(ns["make_tuple_empty"](), ())
+
+    def test_plain_type_call_with_args_raises(self) -> None:
+        ns = self._namespace(
+            """
+            class Widget:
+                pass
+
+            def make_one():
+                return Widget(1)
+
+            def make_kw():
+                return Widget(x=1)
+        """
+        )
+        self.assertTrue(force_compile(ns["make_one"]))
+        self.assertTrue(force_compile(ns["make_kw"]))
+        with self.assertRaises(TypeError):
+            ns["make_one"]()
+        with self.assertRaises(TypeError):
+            ns["make_kw"]()
+
+    def test_abstract_type_call_raises(self) -> None:
+        ns = self._namespace(
+            """
+            from abc import ABCMeta, abstractmethod
+
+            class Widget(metaclass=ABCMeta):
+                @abstractmethod
+                def run(self):
+                    pass
+
+            def make():
+                return Widget()
+        """
+        )
+        self.assertTrue(force_compile(ns["make"]))
+        with self.assertRaises(TypeError):
+            ns["make"]()
+
+    def test_adding_init_after_compile(self) -> None:
+        ns = self._namespace(
+            """
+            class Widget:
+                pass
+
+            def make():
+                return Widget()
+        """
+        )
+        make = ns["make"]
+        self.assertTrue(force_compile(make))
+        self.assertTrue(is_jit_compiled(make))
+        self.assertFalse(hasattr(make(), "marked"))
+        ns["Widget"].__init__ = lambda self: setattr(self, "marked", True)
+        self.assertTrue(make().marked)
+        self.assertTrue(make().marked)
+
+    def test_adding_new_after_compile(self) -> None:
+        ns = self._namespace(
+            """
+            calls = []
+
+            class Widget:
+                pass
+
+            def make():
+                return Widget()
+        """
+        )
+        make = ns["make"]
+        self.assertTrue(force_compile(make))
+        self.assertTrue(is_jit_compiled(make))
+        self.assertEqual(ns["calls"], [])
+        calls = ns["calls"]
+
+        def _new(cls):
+            calls.append("new")
+            return object.__new__(cls)
+
+        ns["Widget"].__new__ = _new
+        self.assertIs(type(make()), ns["Widget"])
+        self.assertEqual(ns["calls"], ["new"])
+
+    def test_metaclass_call(self) -> None:
+        ns = self._namespace(
+            """
+            calls = []
+
+            class PlainMeta(type):
+                pass
+
+            class CountingMeta(type):
+                def __call__(cls, *args, **kwargs):
+                    calls.append("call")
+                    return super().__call__(*args, **kwargs)
+
+            class PlainWidget(metaclass=PlainMeta):
+                pass
+
+            class CountedWidget(metaclass=CountingMeta):
+                pass
+
+            def make_plain():
+                return PlainWidget()
+
+            def make_counted():
+                return CountedWidget()
+        """
+        )
+        self.assertTrue(force_compile(ns["make_plain"]))
+        self.assertTrue(force_compile(ns["make_counted"]))
+        self.assertIs(type(ns["make_plain"]()), ns["PlainWidget"])
+        self.assertIs(type(ns["make_counted"]()), ns["CountedWidget"])
+        self.assertEqual(ns["calls"], ["call"])
+
+
 class DelObserver:
     def __init__(self, id, cb):
         self.id = id

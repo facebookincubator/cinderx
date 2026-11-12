@@ -19227,13 +19227,18 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: A'
     }
     Snapshot
-    v19:Object = VectorCall<0> v13 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v13
+    }
+    UseType<MortalTypeExact[A:obj]> v13
+    v20:ObjectUser[A:Exact] = TpAlloc<A> {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v20 {
       FrameState {
         CurInstrOffset 20
       }
@@ -19276,13 +19281,18 @@ fun jittestmodule:test {
     }
     v13:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v19:Object = VectorCall<0> v12 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v12
+    }
+    UseType<MortalTypeExact[A:obj]> v12
+    v20:ObjectUser[A:Exact] = TpAlloc<A> {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v20 {
       FrameState {
         CurInstrOffset 20
       }
@@ -19325,13 +19335,18 @@ fun jittestmodule:test {
     }
     v13:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v19:Object = VectorCall<0> v12 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v12
+    }
+    UseType<MortalTypeExact[A:obj]> v12
+    v20:ObjectUser[A:Exact] = TpAlloc<A> {
       FrameState {
         CurInstrOffset 14
       }
     }
     Snapshot
-    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v20 {
       FrameState {
         CurInstrOffset 22
       }
@@ -19374,13 +19389,18 @@ fun jittestmodule:test {
     }
     v13:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v19:Object = VectorCall<0> v12 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v12
+    }
+    UseType<MortalTypeExact[A:obj]> v12
+    v20:ObjectUser[A:Exact] = TpAlloc<A> {
       FrameState {
         CurInstrOffset 14
       }
     }
     Snapshot
-    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v20 {
       FrameState {
         CurInstrOffset 22
       }
@@ -19424,13 +19444,18 @@ fun jittestmodule:test {
     }
     v13:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v19:Object = VectorCall<0> v12 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v12
+    }
+    UseType<MortalTypeExact[A:obj]> v12
+    v20:ObjectUser[A:Exact] = TpAlloc<A> {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v19 {
+    v15:Object, v16:OptObject = LoadMethod<1; "hello"> v20 {
       FrameState {
         CurInstrOffset 20
       }
@@ -26281,13 +26306,18 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: Foo'
     }
     Snapshot
-    v13:Object = VectorCall<0> v10 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v10
+    }
+    UseType<MortalTypeExact[Foo:obj]> v10
+    v14:ObjectUser[Foo:Exact] = TpAlloc<Foo> {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Expected 3.14 ---
@@ -26318,13 +26348,18 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v9
+    }
+    UseType<MortalTypeExact[Foo:obj]> v9
+    v14:ObjectUser[Foo:Exact] = TpAlloc<Foo> {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Expected 3.14t ---
@@ -26356,13 +26391,18 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v9
+    }
+    UseType<MortalTypeExact[Foo:obj]> v9
+    v14:ObjectUser[Foo:Exact] = TpAlloc<Foo> {
       FrameState {
         CurInstrOffset 12
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Expected 3.15 ---
@@ -26393,13 +26433,18 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v9
+    }
+    UseType<MortalTypeExact[Foo:obj]> v9
+    v14:ObjectUser[Foo:Exact] = TpAlloc<Foo> {
       FrameState {
         CurInstrOffset 14
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Expected 3.16 ---
@@ -26430,13 +26475,18 @@ fun jittestmodule:test {
     }
     v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:Object = VectorCall<0> v9 {
+    DeoptPatchpoint<Patcher 0xdeadbeef> {
+      Descr 'type call'
+      GuiltyReg v9
+    }
+    UseType<MortalTypeExact[Foo:obj]> v9
+    v14:ObjectUser[Foo:Exact] = TpAlloc<Foo> {
       FrameState {
         CurInstrOffset 14
       }
     }
     Snapshot
-    Return v13
+    Return v14
   }
 }
 --- Test Name ---

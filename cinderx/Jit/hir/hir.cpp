@@ -125,6 +125,8 @@ std::string_view deoptDescrPrefix(DeoptDescr descr) {
       return "Python method";
     case DeoptDescr::kInlineValuesValid:
       return "inline values are valid";
+    case DeoptDescr::kTypeCall:
+      return "type call";
     default:
       break;
   }

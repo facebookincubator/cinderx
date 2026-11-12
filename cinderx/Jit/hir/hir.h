@@ -498,6 +498,7 @@ enum class DeoptDescr : char {
   kTpDescrGetSet,
   kPythonMethod,
   kInlineValuesValid,
+  kTypeCall,
 #define DESCR_OPCODE(name) kOpcode##name,
   FOREACH_DEOPT_DESCR_OPCODE(DESCR_OPCODE)
 #undef DESCR_OPCODE

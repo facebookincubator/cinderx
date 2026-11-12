@@ -2756,12 +2756,66 @@ Register* simplifyGetAttrStr(Env& env, const VectorCall* instr) {
       });
 }
 
+// Calling a type with no arguments whose tp_new and tp_init are object's
+// (i.e. the type has object.__new__ and object.__init__) allocates an
+// instance and does nothing else, so the call is just a TpAlloc. A
+// DeoptPatchpoint watches the type and deopts if it is later modified (e.g.
+// it gains an overriding __new__ or __init__), so the compiled code is
+// recompiled without this optimization.
+Register* simplifyTypeCall(Env& env, const VectorCall* instr) {
+  if (instr->numArgs() != 0) {
+    return nullptr;
+  }
+  Register* target = instr->func();
+  PyObject* callee = target->type().asObject();
+  if (callee == nullptr || !PyType_Check(callee)) {
+    return nullptr;
+  }
+  BorrowedRef<PyTypeObject> type{reinterpret_cast<PyTypeObject*>(callee)};
+  if (!PyType_HasFeature(type, Py_TPFLAGS_READY) ||
+      (type->tp_flags & Py_TPFLAGS_IS_ABSTRACT) ||
+      Py_TYPE(callee) != &PyType_Type) {
+    return nullptr;
+  }
+  newfunc tp_new = type->tp_new;
+  initproc tp_init = type->tp_init;
+  if (tp_new != PyBaseObject_Type.tp_new ||
+      tp_init != PyBaseObject_Type.tp_init) {
+    return nullptr;
+  }
+  if (!_PyClassLoader_IsImmutable(type) && !ensureVersionTag(type)) {
+    return nullptr;
+  }
+
+  if (!_PyClassLoader_IsImmutable(type)) {
+    auto* patcher = env.func.allocateCodePatcher<TypeDeoptPatcher>(type);
+    auto* patchpoint = env.emitInstr<DeoptPatchpoint>(patcher);
+    // The slot values cannot be re-derived from the patcher, so capture
+    // them for re-validation: a threaded compile installs its watch after
+    // the GIL was released, and a change in between would otherwise go
+    // unnoticed.
+    env.func.env.setWatchValidator(patcher, [type, tp_new, tp_init] {
+      return type->tp_new == tp_new && type->tp_init == tp_init &&
+          !(type->tp_flags & Py_TPFLAGS_IS_ABSTRACT);
+    });
+    patchpoint->setGuiltyReg(target);
+    patchpoint->setDescr(DeoptDescr::kTypeCall);
+  }
+  env.emit<UseType>(target, target->type());
+  env.func.env.addReference(
+      BorrowedRef<>{reinterpret_cast<PyObject*>(type.get())});
+  return env.emit<TpAlloc>(type.get(), *instr->frameState());
+}
+
 Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   if (Register* result = simplifyVectorCallStatic(env, instr)) {
     return result;
   }
   if (instr->flags() & CallFlags::KwArgs) {
     return nullptr;
+  }
+  if (Register* result = simplifyTypeCall(env, instr)) {
+    return result;
   }
 
   Register* target = instr->getOperand(0);
