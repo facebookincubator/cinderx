@@ -901,7 +901,7 @@ void module_free(void* raw_mod) {
   jit::clearJitGCDeferredRefVisitor(PyInterpreterState_Get());
 #endif
 
-  jit::finalize();
+  jit::finalize(*state);
 
   finiCodeExtraIndex();
 
@@ -923,13 +923,13 @@ void module_free(void* raw_mod) {
 // Called when the interpreter is shutting down, allows us to do some aggressive
 // cleanup. Currently this includes clearing out all strict modules which the
 // interpreter won't do because it only supports clearing normal module objects.
-PyObject* clear_strict_modules(PyObject*, PyObject*) {
+PyObject* clear_strict_modules(PyObject* mod, PyObject*) {
   // Drain any in-flight background JIT compiles here, at atexit time, while the
   // interpreter is still alive and worker threads can still acquire the GIL.
   // If we waited until jit::finalize() (during module teardown) the runtime has
   // already set `finalizing`, after which a worker re-acquiring the GIL is hung
   // forever, deadlocking the drain.
-  jit::beginShutdown();
+  jit::beginShutdown(*cinderx::getModuleState(mod));
 
   BorrowedRef<> modules = PyImport_GetModuleDict();
   Ref<> clearing;
@@ -950,8 +950,8 @@ PyObject* clear_strict_modules(PyObject*, PyObject*) {
 
   if (clearing != nullptr) {
     for (Py_ssize_t i = 0; i < PyList_GET_SIZE(clearing.get()); i++) {
-      BorrowedRef<> mod = PyList_GET_ITEM(clearing.get(), i);
-      BorrowedRef<> dict = Ci_StrictModule_GetDict(mod);
+      BorrowedRef<> strict_mod = PyList_GET_ITEM(clearing.get(), i);
+      BorrowedRef<> dict = Ci_StrictModule_GetDict(strict_mod);
       PyDict_Clear(dict);
     }
   }

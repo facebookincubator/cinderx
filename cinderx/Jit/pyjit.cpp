@@ -3067,8 +3067,12 @@ bool ensureJitList() {
   return true;
 }
 
+void deleteJitList(ModuleState& state) {
+  state.jit_list = nullptr;
+}
+
 void deleteJitList() {
-  cinderx::getModuleState()->jit_list = nullptr;
+  deleteJitList(*cinderx::getModuleState());
 }
 
 // Reschedule all functions on the JIT list for compilation.  Run when the JIT
@@ -4826,7 +4830,7 @@ bool startBackgroundWorkerThread(
   // mimalloc and biased-reference-counting state to the calling thread.  The
   // interpreter is guaranteed to still be alive when it does: the worker
   // handle is published under reg.mutex here, and
-  // cancelBackgroundCompiles() joins it before the interpreter is torn down.
+  // the background-compile drain joins it before the interpreter is torn down.
   PyInterpreterState* interp = PyInterpreterState_Get();
 
   // Normally already registered by jit::initialize(), but re-check here since
@@ -5258,12 +5262,8 @@ void scheduleRecompile(
   scheduleBackgroundCompile(func, expected);
 }
 
-void cancelBackgroundCompiles() {
-  auto* ctx = getContext();
-  if (ctx == nullptr) {
-    return;
-  }
-  BackgroundCompileRegistry& reg = ctx->backgroundCompileRegistry();
+void cancelBackgroundCompiles(Context& ctx) {
+  BackgroundCompileRegistry& reg = ctx.backgroundCompileRegistry();
 
   std::vector<std::thread> workers_to_join;
   // Tasks pulled out of the queue below.  Destroyed after the GIL is
@@ -5309,7 +5309,7 @@ void cancelBackgroundCompiles() {
     }
   }
   for (auto& task : abandoned) {
-    ctx->removeActiveCompile(
+    ctx.removeActiveCompile(
         CompilationKey{task->code, task->builtins, task->globals});
   }
   // `shutdown` deliberately stays set: this only runs while the interpreter
@@ -5317,7 +5317,7 @@ void cancelBackgroundCompiles() {
   // Python code that runs during the rest of shutdown start a fresh worker.
 }
 
-void beginShutdown() {
+void beginShutdown(ModuleState& mod_state) {
   {
     FreeThreadedJITEntrypointGuard guard;
     if (!isJitInitialized()) {
@@ -5330,21 +5330,25 @@ void beginShutdown() {
   // down the JIT state they depend on.
   {
     PyBeginAllowThreads allow_threads;
-    auto* state = cinderx::getModuleState();
-    state->joinCompileWorkers(std::unique_lock{state->compile_worker_mutex});
+    mod_state.joinCompileWorkers(
+        std::unique_lock{mod_state.compile_worker_mutex});
   }
 
   // Drain any in-flight background compiles before tearing down JIT state they
   // depend on.
-  cancelBackgroundCompiles();
+  auto* ctx = static_cast<Context*>(mod_state.jit_context.get());
+  if (ctx != nullptr) {
+    cancelBackgroundCompiles(*ctx);
+  }
 }
 
-void finalize() {
+void finalize(ModuleState& mod_state) {
   if (!isJitInitialized()) {
     return;
   }
-  beginShutdown();
+  beginShutdown(mod_state);
   FreeThreadedJITEntrypointGuard guard;
+  auto* ctx = static_cast<Context*>(mod_state.jit_context.get());
 
   // Deopt all JIT generators, since JIT generators reference code and other
   // metadata that we will be freeing later in this function.
@@ -5374,26 +5378,22 @@ void finalize() {
       still_compiled);
 #endif
 
-  JIT_DLOG(
-      "CinderX JIT Total Compilation Time: {}", jitCtx()->totalCompileTime());
+  JIT_DLOG("CinderX JIT Total Compilation Time: {}", ctx->totalCompileTime());
 
   if (getConfig().log.dump_stats) {
     dump_jit_stats();
   }
 
-  // Always release references from Context objects: C++ clients may have
-  // invoked the JIT directly without initializing a full jit::Context.
-  jitCtx()->clearDeoptStats();
-  jitCtx()->releaseReferences();
+  ctx->clearDeoptStats();
+  ctx->releaseReferences();
 
-  deleteJitList();
+  deleteJitList(mod_state);
 
   // Clear some global maps that reference Python data.
-  auto mod_state = cinderx::getModuleState();
-  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+  auto& jit_code_outer_funcs = ctx->codeOuterFunctions();
   jit_code_outer_funcs.clear();
-  mod_state->jit_context.reset();
-  mod_state->code_allocator.reset();
+  mod_state.jit_context.reset();
+  mod_state.code_allocator.reset();
 
 #ifndef WIN32
   g_aot_ctx.destroy();

@@ -10,6 +10,10 @@
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/threaded_compile_queue.h"
 
+namespace cinderx {
+struct ModuleState;
+}
+
 namespace cinderx::jit {
 
 /*
@@ -34,11 +38,11 @@ int initialize(BorrowedRef<> cinderx_module);
  *
  * This is intended to be called at interpreter shutdown in Py_Finalize().
  */
-void finalize();
+void finalize(ModuleState& state);
 
 // Stop new compilation and drain workers while they can still acquire the GIL.
 // Keep runtime resources alive until finalize().
-void beginShutdown();
+void beginShutdown(ModuleState& state);
 
 /*
  * Stop the background-compilation worker (if any) and cancel all in-flight
@@ -50,7 +54,7 @@ void beginShutdown();
  * compilation comes back when the JIT is re-initialized, which builds a fresh
  * registry.
  */
-void cancelBackgroundCompiles();
+void cancelBackgroundCompiles(Context& ctx);
 
 /*
  * Overwrite the entry point of a function so that it tries to JIT-compile

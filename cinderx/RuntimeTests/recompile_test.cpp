@@ -746,7 +746,7 @@ TEST_F(RecompileBackgroundTest, CancellationReleasesQueuedReplacement) {
   scheduleRecompile(func, initial);
   EXPECT_EQ(registry.queue.size(), 1);
   EXPECT_TRUE(getContext()->hasActiveCompile(key));
-  cancelBackgroundCompiles();
+  cancelBackgroundCompiles(*getContext());
   EXPECT_TRUE(registry.queue.empty());
   EXPECT_EQ(registry.in_flight_count, 0);
   EXPECT_FALSE(getContext()->hasActiveCompile(key));
