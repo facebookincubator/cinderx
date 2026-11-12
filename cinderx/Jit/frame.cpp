@@ -451,8 +451,9 @@ Ref<> makeFrameReifier([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
         fmt::format("failed to make reifier {}", codeQualname(code)));
   }
   return Ref<>::steal(reifier);
-#endif
+#else
   return nullptr;
+#endif
 }
 
 #if defined(META_PYTHON) && defined(Py_GIL_DISABLED)
