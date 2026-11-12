@@ -1989,7 +1989,7 @@ PyObject* is_multithreaded_compile_test_enabled(PyObject*, PyObject*) {
   Py_RETURN_FALSE;
 }
 
-bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
+bool deoptFuncImpl(Context& ctx, BorrowedRef<PyFunctionObject> func) {
   // There appear to be instances where the runtime is finalizing and goes to
   // destroy the _cinderx module and deopt all compiled functions, only to find
   // that some of the compiled functions have already been zeroed out and
@@ -2005,13 +2005,8 @@ bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
-  CompilerContext<Compiler>* ctx = jitCtx();
-  if (ctx == nullptr) {
-    return false;
-  }
-
   // See if we were deopted by disabling the JIT, if so we'll now stay deopted.
-  if (BorrowedRef<CompiledFunction> parked = ctx->removeDeoptedFunc(func)) {
+  if (BorrowedRef<CompiledFunction> parked = ctx.removeDeoptedFunc(func)) {
     parked->releaseDeoptedFunction(func);
     return true;
   }
@@ -2028,7 +2023,7 @@ bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
   //
   // What it may NOT do is run inside a GC heap walk, where freeing a tracked
   // object corrupts the generation list the walk is holding; see finalize().
-  BorrowedRef<CompiledFunction> compiled = ctx->lookupFunc(func);
+  BorrowedRef<CompiledFunction> compiled = ctx.lookupFunc(func);
   if (compiled != nullptr && compiled->vectorcallEntry() == func->vectorcall) {
     // May free the compile, so nothing may touch it after this.
     compiled->removeFunction(func);
@@ -2038,13 +2033,13 @@ bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
   return true;
 }
 
-void uncompile(BorrowedRef<PyFunctionObject> func) {
-  deoptFuncImpl(func);
-  // Releasing the compile can tear the JIT context down during shutdown, see
-  // CompiledFunction::~CompiledFunction().
-  if (CompilerContext<Compiler>* ctx = jitCtx()) {
-    ctx->forgetCode(func);
-  }
+void uncompile(
+    CompilerContext<Compiler>& ctx,
+    BorrowedRef<PyFunctionObject> func) {
+  // The sole caller is a module-bound API whose receiver retains the native
+  // owner, so releasing the compile cannot destroy this context.
+  deoptFuncImpl(ctx, func);
+  ctx.forgetCode(func);
 }
 
 /*
@@ -2054,10 +2049,10 @@ void uncompile(BorrowedRef<PyFunctionObject> func) {
  * Return true if the function was previously JIT-compiled, false otherwise.
  */
 bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
-  if (jitCtx() == nullptr) {
-    return false;
+  if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    return deoptFuncImpl(*ctx, func);
   }
-  return deoptFuncImpl(func);
+  return false;
 }
 
 /*
@@ -2786,7 +2781,7 @@ PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
 }
 
 // Uncompile a function by returning it to its non-jitted version.
-PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
+PyObject* force_uncompile(PyObject* mod, PyObject* arg) {
   BorrowedRef<PyFunctionObject> func = get_func_arg("force_uncompile", arg);
   if (func == nullptr) {
     return nullptr;
@@ -2802,7 +2797,7 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
     // Keep the compile alive before funcDestroyed() drops the function-owned
     // reference. In free-threaded builds that decref may be processed
     // asynchronously by the object's owning thread.
-    if (auto* ctx = jitCtx()) {
+    if (auto* ctx = jitCtx(mod)) {
       keepalive = Ref<CompiledFunction>::create(ctx->lookupFunc(func));
     }
   }
@@ -2811,8 +2806,8 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
   // all traces of it from the metadata.
   funcDestroyed(func);
 
-  if (jitCtx() != nullptr) {
-    uncompile(func);
+  if (CompilerContext<Compiler>* ctx = jitCtx(mod)) {
+    uncompile(*ctx, func);
   }
 
   Py_RETURN_TRUE;
@@ -5374,7 +5369,10 @@ void finalize(ModuleState& mod_state) {
   std::vector<Ref<PyFunctionObject>> compiled_funcs;
   PyUnstable_GC_VisitObjects(finalize_visitor, &compiled_funcs);
   for (auto& func : compiled_funcs) {
-    deoptFuncImpl(func);
+    if (auto* current_ctx =
+            static_cast<Context*>(mod_state.jit_context.get())) {
+      deoptFuncImpl(*current_ctx, func);
+    }
   }
   compiled_funcs.clear();
 
@@ -5750,7 +5748,7 @@ void funcModified(BorrowedRef<PyFunctionObject> func) {
     unregisterFunctionCodes(*ctx, func);
 
     // This can destroy the context.  Do not use `ctx` after this.
-    deoptFuncImpl(func);
+    deoptFuncImpl(*ctx, func);
   }
 }
 
