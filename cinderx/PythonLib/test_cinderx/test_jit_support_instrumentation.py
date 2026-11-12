@@ -2,18 +2,23 @@
 
 # pyre-strict
 
+import os
+import subprocess
 import sys
 import threading
 import unittest
+from textwrap import dedent
 from types import CodeType, FrameType
 from typing import Callable, Generator
 
 from cinderx.jit import _has_lightweight_frames, force_compile, is_jit_compiled
 from cinderx.test_support import (
     can_read_cross_thread_frames,
+    get_cinderjit_xargs,
     passUnless,
     run_in_fresh_process,
     skip_unless_jit,
+    subprocess_env,
 )
 
 skip_unless_stack_deopt = passUnless(
@@ -72,6 +77,53 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         )
 
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
+
+    def test_jit_paused_when_callback_registered_before_cinderx_import(self) -> None:
+        source = dedent("""
+            import sys
+
+            assert "_cinderx" not in sys.modules, "CinderX imported before the callback"
+            sys.monitoring.use_tool_id(sys.monitoring.DEBUGGER_ID, "test_debugger")
+            sys.monitoring.register_callback(
+                sys.monitoring.DEBUGGER_ID,
+                sys.monitoring.events.CALL,
+                lambda *args: None,
+            )
+
+            # Run the site setup skipped by -S. Native Python binaries need it
+            # to make the static `_cinderx` extension importable.
+            import site
+
+            site.main()
+
+            import cinderx
+            import cinderx.jit
+
+            assert cinderx.get_import_error() is None, repr(cinderx.get_import_error())
+
+            def new_function(a, b):
+                return a + b
+
+            cinderx.jit.force_compile(new_function)
+            assert not cinderx.jit.is_jit_compiled(new_function), "compiled while instrumented"
+
+            sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
+            cinderx.jit.force_compile(new_function)
+            assert cinderx.jit.is_jit_compiled(new_function), "not compiled after detach"
+        """)
+        # -S delays site.py, which would otherwise import CinderX before the
+        # callback is registered.
+        result = subprocess.run(
+            [sys.executable, "-S", *get_cinderjit_xargs(), "-c", source],
+            capture_output=True,
+            encoding="utf-8",
+            env={
+                **os.environ,
+                **subprocess_env(),
+                "CINDERX_JIT_SUPPORT_INSTRUMENTATION": "1",
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     @run_with_instrumentation
     def test_compiled_functions_deoptimized_on_callback_registration(self) -> None:

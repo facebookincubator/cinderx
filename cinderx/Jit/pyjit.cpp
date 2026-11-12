@@ -5196,6 +5196,14 @@ int initialize(BorrowedRef<> cinderx_module) {
     }
   }
 
+  // A debugger or profiler can attach before CinderX is imported (e.g. native
+  // Python binaries load the static `_cinderx` extension after site.py runs),
+  // and the patched sys functions only observe later changes.
+  if (getConfig().support_instrumentation &&
+      !toggleJitBasedOnInstrumentationState()) {
+    return -1;
+  }
+
   jit::initJitFunctionSlots();
 
   return 0;
