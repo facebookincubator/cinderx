@@ -1065,10 +1065,8 @@ FlagProcessor initFlagProcessor() {
  * Return true if the function was successfully reopted, false if nothing
  * happened.
  */
-bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
-  if (jitCtx() == nullptr) {
-    return false;
-  } else if (isJitCompiled(func)) {
+bool reoptFunc(Context& ctx, BorrowedRef<PyFunctionObject> func) {
+  if (isJitCompiled(func)) {
     return true;
   }
 
@@ -1077,8 +1075,8 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
-  if (CompiledFunction* compiled = jitCtx()->lookupFunc(func)) {
-    jitCtx()->finalizeFunc(func, compiled);
+  if (CompiledFunction* compiled = ctx.lookupFunc(func)) {
+    ctx.finalizeFunc(func, compiled);
     return true;
   }
 
@@ -1231,6 +1229,7 @@ std::pair<Result, Ref<PyFunctionObject>> compileAdmittedPreloader(
 }
 
 std::pair<Result, Ref<PyFunctionObject>> compilePreloader(
+    CompilerContext<Compiler>* jit_ctx,
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func) {
   if (isOverMaxCodeSize()) {
@@ -1240,7 +1239,7 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloader(
   // Foreground compiles hold the GIL, so this is where they get admitted.  It
   // also gives compileFunction() its finalize-if-already-compiled behaviour.
   auto admitted = admitCompile(
-      jitCtx(),
+      jit_ctx,
       preloader.code(),
       preloader.builtins(),
       preloader.globals(),
@@ -1249,7 +1248,7 @@ std::pair<Result, Ref<PyFunctionObject>> compilePreloader(
     return {resultFor(admitted.admission), std::move(admitted.func)};
   }
 
-  return compilePreloaderImpl(jitCtx(), preloader, std::move(admitted.func));
+  return compilePreloaderImpl(jit_ctx, preloader, std::move(admitted.func));
 }
 
 // Convert a registered translation unit into a pair of a Python function and
@@ -1924,7 +1923,8 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
 
   // Attempt to attach already-compiled code even if the JIT is disabled, as
   // long as it hasn't been finalized.
-  if (reoptFunc(func)) {
+  auto* ctx = jitCtx();
+  if (ctx != nullptr && reoptFunc(*ctx, func)) {
     return true;
   }
 
@@ -5502,8 +5502,11 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   // functions if the user had disabled the JIT without selecting to deopt
   // everything.  This is a weird behavior though, to have "new" functions get
   // JIT-compiled code despite the JIT being disabled.
-  if (!isInstrumentationActive() && reoptFunc(func)) {
-    return true;
+  if (!isInstrumentationActive()) {
+    auto* ctx = jitCtx();
+    if (ctx != nullptr && reoptFunc(*ctx, func)) {
+      return true;
+    }
   }
 
   if (!isJitUsable()) {
@@ -5564,6 +5567,8 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     return Result::UNKNOWN_ERROR;
   }
 
+  auto* jit_ctx = jitCtx();
+
   if (targets.size() > 1) {
     JIT_DLOG(
         "Compiling {} along with {} functions it calls",
@@ -5587,7 +5592,8 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
 
     // Holds the GIL, so any reference handed back is released right here.
     auto target_result =
-        compilePreloader(*preloader, Ref<PyFunctionObject>::create(target))
+        compilePreloader(
+            jit_ctx, *preloader, Ref<PyFunctionObject>::create(target))
             .first;
     JIT_CHECK(
         target_result != Result::PYTHON_EXCEPTION,
