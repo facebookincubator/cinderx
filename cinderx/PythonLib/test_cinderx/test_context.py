@@ -5,10 +5,11 @@
 from __future__ import annotations
 
 import contextlib
+import os
 import unittest
 from collections.abc import Iterator
 from types import FunctionType
-from typing import cast
+from typing import Any, cast
 
 from cinderx import _context
 from cinderx.test_support import passIf
@@ -65,6 +66,59 @@ class ContextTest(unittest.TestCase):
         self.assertEqual(_next_or_sentinel(iterator), 1)
         self.assertIs(_next_or_sentinel(iterator), _NEXT_SENTINEL)
 
+    def test_environ_getitem(self) -> None:
+        self.assertIs(os._Environ.__getitem__, _context._patched_getitem)
+
+        key = "CINDERX_CONTEXT_TEST_VAR"
+        os.environ.pop(key, None)
+        try:
+            os.environ[key] = "value"
+            self.assertEqual(os.environ[key], "value")
+
+            del os.environ[key]
+            with self.assertRaises(KeyError) as ctx:
+                os.environ[key]
+            self.assertEqual(ctx.exception.args, (key,))
+            self.assertIsNone(ctx.exception.__cause__)
+            self.assertTrue(ctx.exception.__suppress_context__)
+        finally:
+            os.environ.pop(key, None)
+
+    def test_environ_getitem_encodes_key(self) -> None:
+        with self.assertRaises(TypeError):
+            os.environ[cast(Any, 123)]
+
+    def test_environ_get(self) -> None:
+        self.assertIs(os._Environ.get, _context._patched_get)
+
+        key = "CINDERX_CONTEXT_TEST_GET_VAR"
+        os.environ.pop(key, None)
+        try:
+            os.environ[key] = "value"
+            self.assertEqual(os.environ.get(key), "value")
+            self.assertEqual(os.environ.get(key, "default"), "value")
+
+            del os.environ[key]
+            self.assertIsNone(os.environ.get(key))
+            self.assertEqual(os.environ.get(key, "default"), "default")
+            default = object()
+            self.assertIs(os.environ.get(key, default), default)
+        finally:
+            os.environ.pop(key, None)
+
+    def test_environ_get_encodes_key(self) -> None:
+        with self.assertRaises(TypeError):
+            os.environ.get(cast(Any, 123))
+        with self.assertRaises(TypeError):
+            os.environ.get(cast(Any, 123), "default")
+
+    def test_environ_install_is_idempotent(self) -> None:
+        installed = os._Environ.__getitem__
+        installed_get = os._Environ.get
+        _context.install()
+        self.assertIs(os._Environ.__getitem__, installed)
+        self.assertIs(os._Environ.get, installed_get)
+
     def test_patch_does_not_reference_cinderx_module(self) -> None:
         # Type dictionaries are never cleared during interpreter shutdown, so
         # anything the replacement captures outlives finalize_modules().  A
@@ -72,9 +126,10 @@ class ContextTest(unittest.TestCase):
         # deopt of every JIT-compiled function -- from ever running.
         import _cinderx
 
-        patched = cast(FunctionType, _context._patched_exit)
-        reachable = [cell.cell_contents for cell in patched.__closure__ or ()]
-        reachable.extend(patched.__globals__.values())
-        for obj in reachable:
-            self.assertIsNot(obj, _cinderx)
-            self.assertIsNot(getattr(obj, "__self__", None), _cinderx)
+        for name in ("_patched_exit", "_patched_get", "_patched_getitem"):
+            patched = cast(FunctionType, getattr(_context, name))
+            reachable = [cell.cell_contents for cell in patched.__closure__ or ()]
+            reachable.extend(patched.__globals__.values())
+            for obj in reachable:
+                self.assertIsNot(obj, _cinderx)
+                self.assertIsNot(getattr(obj, "__self__", None), _cinderx)
