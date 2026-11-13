@@ -5,6 +5,7 @@ from __static__ import chkdict, is_type_static, make_generic_type, StaticGeneric
 
 import asyncio
 import itertools
+import pickle
 import sys
 from collections import UserDict
 from types import FunctionType
@@ -23,12 +24,30 @@ from cinderx.compiler.static.types import (
     SEQ_SUBSCR_UNCHECKED,
     TypedSyntaxError,
 )
-from cinderx.static import __build_cinder_class__
+from cinderx.static import __build_cinder_class__, StaticTypeError
 
 from .common import bad_ret_type, StaticTestBase
 
 
 class StaticRuntimeTests(StaticTestBase):
+    def test_static_type_error_is_picklable(self) -> None:
+        codestr = """
+            def f(x: int) -> int:
+                return x
+        """
+        with self.in_module(codestr) as mod:
+            with self.assertRaisesRegex(
+                StaticTypeError, "f expected 'int' for argument x, got 'str'"
+            ) as cm:
+                mod.f("a")
+        exc = cm.exception
+        for protocol in range(pickle.HIGHEST_PROTOCOL + 1):
+            with self.subTest(protocol=protocol):
+                # @lint-ignore PYTHONPICKLEISBAD: Round-trips an exception created in this test.
+                restored = pickle.loads(pickle.dumps(exc, protocol))
+                self.assertIs(type(restored), StaticTypeError)
+                self.assertEqual(restored.args, exc.args)
+
     def test_build_cinder_class_bool_error_has_class_cell(self) -> None:
         class BadBool:
             def __bool__(self) -> bool:

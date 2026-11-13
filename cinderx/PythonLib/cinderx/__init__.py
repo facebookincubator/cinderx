@@ -79,6 +79,7 @@ try:
         is_sanitizer_build,
         remove_frame_evaluator,
         set_adaptive_delay,
+        StaticTypeError,
         strict_module_patch,
         strict_module_patch_delete,
         strict_module_patch_enabled,
@@ -498,6 +499,9 @@ except ImportError as e:
         pass
 
     def set_adaptive_delay(delay: int) -> None:
+        pass
+
+    class StaticTypeError(TypeError):
         pass
 
     def strict_module_patch(mod: object, name: str, value: object) -> None:
