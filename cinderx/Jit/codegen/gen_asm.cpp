@@ -62,13 +62,6 @@ namespace cinderx::jit::codegen {
 
 namespace {
 
-// prepareForDeopt packs both the reified frame pointer and the
-// is_instrumentation_deopt flag into a single uintptr_t returned in RAX/X0.
-// The flag is encoded in bit 0 (frame pointers are always >= 8-byte aligned).
-// This avoids returning a multi-field struct whose Windows x64 ABI
-// hidden-pointer return semantics would conflict with the hand-rolled deopt
-// trampoline.  Callers unpack with: frame = result & ~1, flag = result & 1.
-
 #define ASM_CHECK_THROW(exp)                         \
   {                                                  \
     auto err = (exp);                                \
@@ -260,10 +253,29 @@ _PyInterpreterFrame* reifyLightweightFrames(
   return cur;
 }
 
-uintptr_t prepareForDeopt(
+// Set up f_trace/f_trace_lines for sys.settrace compatibility on deopted
+// frames. CPython normally sets these during the RESUME opcode at function
+// entry, but deopted frames resume mid-function and skip RESUME.
+void setupTraceForDeoptedFrame(
+    _PyInterpreterFrame* frame,
+    PyThreadState* tstate) {
+  if (tstate->c_tracefunc != nullptr &&
+      frame->owner != FRAME_OWNED_BY_GENERATOR) {
+    PyFrameObject* fobj = _PyFrame_GetFrameObject(frame);
+    if (fobj != nullptr) {
+      fobj->f_trace_lines = 1;
+      if (fobj->f_trace == nullptr && tstate->c_traceobj != nullptr) {
+        fobj->f_trace = Py_NewRef(tstate->c_traceobj);
+      }
+    }
+  }
+}
+
+PyObject* deoptAndResumeInInterpreter(
     const uint64_t* regs,
     CodeRuntime* code_runtime,
     std::size_t deopt_idx) {
+  JIT_CHECK(code_runtime != nullptr, "CodeRuntime cannot be a nullptr");
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
   auto* ctx = getContext();
 #ifndef ENABLE_PREFORK_MODEL
@@ -344,94 +356,64 @@ uintptr_t prepareForDeopt(
     }
   }
   // Clear our references now that we've transferred them to the frame
-  Ref<> deopt_obj;
-  if (!is_instrumentation_deopt) {
-    // TODO(T262342844): Add USDT support for instrumentation-related deopts.
-    deopt_obj = profileDeopt(deopt_meta, mem);
-  }
-  ctx->recordDeopt(code_runtime, deopt_idx, deopt_obj);
-  releaseRefs(deopt_meta, mem);
-  if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
-    BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
-    JitGenObject* gen = JitGenObject::cast(base_gen.get());
-    JIT_CHECK(gen != nullptr, "Not a JIT generator");
-    deopt_jit_gen_object_only(gen);
-  }
-  if (!PyErr_Occurred() && !is_instrumentation_deopt) {
-    auto reason = deopt_meta.reason;
-    switch (reason) {
-      case DeoptReason::kGuardFailure: {
-        ctx->guardFailed(code_runtime, deopt_meta);
-        break;
-      }
-      case DeoptReason::kRaise:
-      case DeoptReason::kYieldFrom: {
-        break;
-      }
-      case DeoptReason::kUnhandledNullField:
-        raiseAttributeError(deopt_obj, deopt_meta.eh_name);
-        break;
-      case DeoptReason::kUnhandledUnboundLocal:
-        raiseUnboundLocalError(deopt_meta.eh_name);
-        break;
-      case DeoptReason::kUnhandledUnboundFreevar:
-        raiseUnboundFreevarError(deopt_meta.eh_name);
-        break;
-      case DeoptReason::kUnhandledException:
-      case DeoptReason::kPeriodicTaskFailure:
-        JIT_ABORT("unhandled exception without error set");
-      case DeoptReason::kRaiseStatic:
-        JIT_ABORT("Lost exception when raising static exception");
+  {
+    Ref<> deopt_obj;
+    if (!is_instrumentation_deopt) {
+      // TODO(T262342844): Add USDT support for instrumentation-related deopts.
+      deopt_obj = profileDeopt(deopt_meta, mem);
     }
-  }
-  // Pack the frame pointer and the instrumentation-deopt flag into a single
-  // register-width value.  Bit 0 carries the flag; the remaining bits carry
-  // the pointer (which is always at least 8-byte aligned, so bit 0 is free).
-  return reinterpret_cast<uintptr_t>(frame) |
-      static_cast<uintptr_t>(is_instrumentation_deopt);
-}
+    ctx->recordDeopt(code_runtime, deopt_idx, deopt_obj);
 
-// Set up f_trace/f_trace_lines for sys.settrace compatibility on deopted
-// frames. CPython normally sets these during the RESUME opcode at function
-// entry, but deopted frames resume mid-function and skip RESUME.
-void setupTraceForDeoptedFrame(
-    _PyInterpreterFrame* frame,
-    PyThreadState* tstate) {
-  if (tstate->c_tracefunc != nullptr &&
-      frame->owner != FRAME_OWNED_BY_GENERATOR) {
-    PyFrameObject* fobj = _PyFrame_GetFrameObject(frame);
-    if (fobj != nullptr) {
-      fobj->f_trace_lines = 1;
-      if (fobj->f_trace == nullptr && tstate->c_traceobj != nullptr) {
-        fobj->f_trace = Py_NewRef(tstate->c_traceobj);
+    releaseRefs(deopt_meta, mem);
+    if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
+      BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
+      JitGenObject* gen = JitGenObject::cast(base_gen.get());
+      JIT_CHECK(gen != nullptr, "Not a JIT generator");
+      deopt_jit_gen_object_only(gen);
+    }
+    if (!PyErr_Occurred() && !is_instrumentation_deopt) {
+      auto reason = deopt_meta.reason;
+      switch (reason) {
+        case DeoptReason::kGuardFailure: {
+          ctx->guardFailed(code_runtime, deopt_meta);
+          break;
+        }
+        case DeoptReason::kRaise:
+        case DeoptReason::kYieldFrom: {
+          break;
+        }
+        case DeoptReason::kUnhandledNullField:
+          raiseAttributeError(deopt_obj, deopt_meta.eh_name);
+          break;
+        case DeoptReason::kUnhandledUnboundLocal:
+          raiseUnboundLocalError(deopt_meta.eh_name);
+          break;
+        case DeoptReason::kUnhandledUnboundFreevar:
+          raiseUnboundFreevarError(deopt_meta.eh_name);
+          break;
+        case DeoptReason::kUnhandledException:
+        case DeoptReason::kPeriodicTaskFailure:
+          JIT_ABORT("unhandled exception without error set");
+        case DeoptReason::kRaiseStatic:
+          JIT_ABORT("Lost exception when raising static exception");
       }
     }
   }
-}
-
-PyObject* resumeInInterpreter(
-    _PyInterpreterFrame* frame,
-    CodeRuntime* code_runtime,
-    std::size_t deopt_idx,
-    [[maybe_unused]] bool is_instrumentation_deopt) {
-  JIT_CHECK(code_runtime != nullptr, "CodeRuntime cannot be a nullptr");
-
+  // Resume the reified frames in the interpreter.
 #ifndef ENABLE_PREFORK_MODEL
-  auto compilation_data =
+  auto owned_compilation_data =
       Ref<CompiledFunctionData>::steal(code_runtime->compilationData());
   SCOPE_EXIT({
     FreeThreadedJITEntrypointGuard guard;
-    if (compilation_data != nullptr && compilation_data->retired &&
-        !_Py_IsImmortal(compilation_data.get())) {
-      static_cast<void>(compilation_data->defer());
+    if (owned_compilation_data != nullptr && owned_compilation_data->retired &&
+        !_Py_IsImmortal(owned_compilation_data.get())) {
+      static_cast<void>(owned_compilation_data->defer());
     }
-    compilation_data.reset();
+    owned_compilation_data.reset();
   });
 #endif
 
-  PyThreadState* tstate = PyThreadState_Get();
-
-  const DeoptMetadata& deopt_meta = code_runtime->getDeoptMetadata(deopt_idx);
+  tstate = PyThreadState_Get();
 
   // For instrumentation deopts, only enter error handler if actually excepted.
   int err_occurred = PyErr_Occurred() != nullptr;
@@ -695,8 +677,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   lir::GenerateDeoptTrampolineBlocks(
       &lir_func,
       generator_mode,
-      reinterpret_cast<void*>(prepareForDeopt),
-      reinterpret_cast<void*>(resumeInInterpreter));
+      reinterpret_cast<void*>(deoptAndResumeInInterpreter));
 
   return emitAndRegisterTrampoline(
       &lir_func,

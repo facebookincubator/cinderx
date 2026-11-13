@@ -1228,6 +1228,70 @@ class DelObserver:
         self.cb(self.id)
 
 
+class DeoptGuiltyValueTests(unittest.TestCase):
+    def test_guard_deopt_does_not_retain_guilty_value(self) -> None:
+        namespace: dict[str, Any] = {}
+        exec(
+            textwrap.dedent(
+                """
+                finalized = False
+                use_subclass = False
+
+                class FinalizableDict(dict):
+                    def __del__(self):
+                        global finalized
+                        finalized = True
+
+                def make_values():
+                    if use_subclass:
+                        return FinalizableDict(key=1)
+                    return {"key": 1}
+
+                def probe():
+                    # Called through globals() so the HIR inliner cannot
+                    # fold make_values() into probe(): the guard must be
+                    # on the VectorCall result, as in foo.py with the
+                    # inliner disabled.
+                    values = globals()["make_values"]()
+                    _ = values["key"]
+                    del values
+                    return finalized
+                """
+            ),
+            namespace,
+        )
+        probe = namespace["probe"]
+        # Profile the subscript on exact dicts, as in foo.py, so compiling
+        # probe guards the result of make_values() with DictExact and the
+        # subclass call deopts on that guard.
+        jit_suppress(probe)
+        for _ in range(100):
+            probe()
+        self.assertFalse(namespace["finalized"])
+        jit_unsuppress(probe)
+        self.assertTrue(force_compile(probe))
+        self.assertTrue(is_jit_compiled(probe))
+
+        namespace["use_subclass"] = True
+        cinderx.jit.clear_runtime_stats()
+        # probe() returns the value of `finalized` read after `del values`,
+        # so this is True only if the dict was finalized by the del rather
+        # than held alive until the deopted frame finished resuming.
+        self.assertTrue(probe())
+        self.assertTrue(namespace["finalized"])
+        deopts = cast(
+            list[dict[str, dict[str, Any]]],
+            cinderx.jit.get_and_clear_runtime_stats().get("deopt") or (),
+        )
+        guard_deopts = sum(
+            event["int"]["count"]
+            for event in deopts
+            if event["normal"]["func_qualname"] == probe.__qualname__
+            and event["normal"]["reason"] == "GuardFailure"
+        )
+        self.assertGreater(guard_deopts, 0)
+
+
 class UnwindStateTests(unittest.TestCase):
     DELETED = []
 

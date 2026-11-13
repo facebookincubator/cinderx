@@ -1155,7 +1155,7 @@ class JitStackFrameDeoptTest(unittest.TestCase):
         In foo() + bar(), foo()'s result is on the operand stack when bar()
         is called. The post-call guard's DeoptMetadata does not include bar()'s
         return value as a stack entry (it captures the error-case state).
-        prepareForDeopt pushes RAX (bar()'s return value) onto the operand
+        Deopt handling pushes RAX (bar()'s return value) onto the operand
         stack after reifyStack reconstructs the pre-call values (foo()'s result)
         from stable locations (callee-saved regs / spill slots).
         """
