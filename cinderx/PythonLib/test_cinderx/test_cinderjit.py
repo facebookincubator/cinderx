@@ -1597,8 +1597,9 @@ def load():
 
     def _assert_import_from_cached(self, func: Callable[..., object]) -> None:
         opcodes = self._hir_opcodes(func)
+        entry = self._hir_opcodes(_call_specialization_entry_only)
         self.assertGreaterEqual(opcodes.get("LoadGlobalCached", 0), 2)
-        self.assertGreaterEqual(opcodes.get("Guard", 0), 1)
+        self.assertGreaterEqual(opcodes.get("Guard", 0), entry.get("Guard", 0) + 1)
         self.assertEqual(opcodes.get("ImportFrom", 0), 0)
         self.assertEqual(opcodes.get("ImportName", 0), 0)
         self.assertEqual(opcodes.get("EagerImportName", 0), 0)
@@ -1771,6 +1772,7 @@ def load():
         def replacement() -> int:
             return 2
 
+        entry = self._hir_opcodes(_call_specialization_entry_only)
         for value in (original, int):
             with self.subTest(value=value):
                 name = "_cinderx_import_cache_pinned_member_rebind"
@@ -1780,7 +1782,7 @@ def load():
                 load = self._make_import_from(name)
                 opcodes = self._hir_opcodes(load)
                 self.assertEqual(opcodes.get("ImportFrom", 0), 0)
-                self.assertEqual(opcodes.get("Guard", 0), 0)
+                self.assertEqual(opcodes.get("Guard", 0), entry.get("Guard", 0))
                 self.assertIs(load(), value)
 
                 cast(Any, module).value = replacement
@@ -2352,6 +2354,29 @@ _METHOD_DESCR_PATTERN_MATCH = re.Pattern.match
 _METHOD_DESCR_SET_UNION = set.union
 
 
+@cinder_support.failUnlessJITCompiled
+def _call_specialization_entry_only():
+    return None
+
+
+def _assert_single_body_vector_call(
+    test: unittest.TestCase, func: Callable[..., object]
+) -> dict[str, int]:
+    opcodes = cinderx.jit.get_function_hir_opcode_counts(func)
+    entry = cinderx.jit.get_function_hir_opcode_counts(_call_specialization_entry_only)
+    test.assertIsNotNone(opcodes)
+    test.assertIsNotNone(entry)
+    assert opcodes is not None and entry is not None
+    # Native evaluator admission may itself use CallStatic. Compare against a
+    # call-free leaf so any additional body CallStatic still fails. Each caller
+    # below has exactly one body call, which must remain a VectorCall.
+    test.assertEqual(entry.get("VectorCall", 0), 0)
+    test.assertLessEqual(entry.get("CallStatic", 0), 1)
+    test.assertEqual(opcodes.get("VectorCall", 0), 1)
+    test.assertEqual(opcodes.get("CallStatic", 0), entry.get("CallStatic", 0))
+    return opcodes
+
+
 class MethodDescrCallTests(unittest.TestCase):
     """
     Calls through method descriptors held in module globals are not
@@ -2543,12 +2568,9 @@ class MethodDescrCallTests(unittest.TestCase):
 
     @skip_unless_jit("Requires inspecting JIT-compiled HIR")
     def test_method_descr_stays_vector_call(self) -> None:
-        opcodes = cinderx.jit.get_function_hir_opcode_counts(
-            MethodDescrCallTests._method_descr_noargs_literal
+        _assert_single_body_vector_call(
+            self, MethodDescrCallTests._method_descr_noargs_literal
         )
-        self.assertIsNotNone(opcodes)
-        self.assertIn("VectorCall", opcodes)
-        self.assertNotIn("CallStatic", opcodes)
 
 
 # CPython's calling-convention fixture keeps METH_VARARGS across versions.
@@ -2632,23 +2654,15 @@ class SpecializeCCallTests(unittest.TestCase):
     def test_varargs_stays_vector_call(self) -> None:
         # METH_VARARGS calls are specialized by the LIR generator, so the
         # HIR keeps a VectorCall and builds no argument tuple.
-        opcodes = cinderx.jit.get_function_hir_opcode_counts(
-            SpecializeCCallTests._varargs_call
+        opcodes = _assert_single_body_vector_call(
+            self, SpecializeCCallTests._varargs_call
         )
-        self.assertIsNotNone(opcodes)
-        self.assertIn("VectorCall", opcodes)
-        self.assertNotIn("CallStatic", opcodes)
         self.assertNotIn("MakeTuple", opcodes)
         self.assertNotIn("InitTupleElements", opcodes)
         self.assertNotIn("ReserveStack", opcodes)
         self.assertNotIn("StoreArrayItem", opcodes)
 
-        opcodes = cinderx.jit.get_function_hir_opcode_counts(
-            SpecializeCCallTests._varargs_keyword
-        )
-        self.assertIsNotNone(opcodes)
-        self.assertIn("VectorCall", opcodes)
-        self.assertNotIn("CallStatic", opcodes)
+        _assert_single_body_vector_call(self, SpecializeCCallTests._varargs_keyword)
 
 
 # Staticmethods held in module globals: calling one forwards to the
@@ -2757,12 +2771,7 @@ class StaticMethodCallTests(unittest.TestCase):
     def test_staticmethod_stays_vector_call(self) -> None:
         # Staticmethod calls are specialized by the LIR generator, so the
         # HIR keeps a VectorCall and builds no static call.
-        opcodes = cinderx.jit.get_function_hir_opcode_counts(
-            StaticMethodCallTests._sm_o
-        )
-        self.assertIsNotNone(opcodes)
-        self.assertIn("VectorCall", opcodes)
-        self.assertNotIn("CallStatic", opcodes)
+        _assert_single_body_vector_call(self, StaticMethodCallTests._sm_o)
 
 
 def _resolve_varargs_callee(x, *args):

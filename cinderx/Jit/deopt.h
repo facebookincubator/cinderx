@@ -150,6 +150,13 @@ struct DeoptFrameMetadata {
     }
   }
 
+  bool freshEntry() const {
+    return fresh_entry_;
+  }
+  void setFreshEntry(bool fresh_entry) {
+    fresh_entry_ = fresh_entry;
+  }
+
   // Bytecode index of the instruction that triggered the deopt.
   BCIndex causeInstrIdx() const {
     return cause_instr_idx_;
@@ -192,6 +199,7 @@ struct DeoptFrameMetadata {
   BCIndex cause_instr_idx_{0};
   BCIndex next_instr_idx_{0};
   BCIndex profile_cause_idx_{0};
+  bool fresh_entry_{false};
 };
 
 // DeoptMetadata captures all the information necessary to reconstruct a
@@ -218,6 +226,10 @@ struct DeoptMetadata {
   // An identifier that can be used to map back to the guard from which
   // this was generated.
   int nonce{-1};
+
+  // Admission differs from an ordinary mid-function deopt: only the
+  // innermost frame has not entered its current evaluator yet.
+  bool frame_evaluator_entry{false};
 
   // Why we are de-opting
   DeoptReason reason{DeoptReason::kUnhandledException};

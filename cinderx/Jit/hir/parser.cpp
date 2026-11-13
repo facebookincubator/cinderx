@@ -1145,6 +1145,10 @@ FrameState HIRParser::parseFrameState() {
   while (token != "}") {
     if (token == "CurInstrOffset") {
       fs.cur_instr_offs = BCOffset{getNextInteger()};
+    } else if (token == "FrameEvaluatorEntry") {
+      fs.frame_evaluator_entry = true;
+    } else if (token == "FreshEntry") {
+      fs.fresh_entry = true;
     } else if (token == "Locals") {
       fs.localsplus = parseRegisterVector();
       fs.nlocals = fs.localsplus.size();

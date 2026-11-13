@@ -996,6 +996,12 @@ void HIRPrinter::print(std::ostream& os, const Instr& instr) {
 
 void HIRPrinter::print(std::ostream& os, const FrameState& state) {
   indented(os) << "CurInstrOffset " << state.cur_instr_offs << '\n';
+  if (state.frame_evaluator_entry) {
+    indented(os) << "FrameEvaluatorEntry\n";
+  }
+  if (state.fresh_entry) {
+    indented(os) << "FreshEntry\n";
+  }
 
   auto nlocals = state.nlocals;
   if (nlocals > 0) {

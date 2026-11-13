@@ -561,7 +561,8 @@ std::optional<InlineResult> inlineFunctionCall(
     return std::nullopt;
   }
 
-  HIRBuilder hir_builder(preloader, 0, profile);
+  HIRBuilder hir_builder(
+      preloader, 0, profile, caller.check_frame_evaluator);
 
   InlineResult result;
   try {

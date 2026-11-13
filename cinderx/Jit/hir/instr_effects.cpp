@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/Jit/jit_rt.h"
 
 namespace cinderx::jit::hir {
 
@@ -23,10 +24,22 @@ util::BitVector stealAllInputs(const Instr& inst) {
   return {inst.numOperands(), (uint64_t{1} << inst.numOperands()) - 1};
 }
 
+bool isFrameEvaluatorCheck(const CallStatic& call) {
+  return call.addr() == reinterpret_cast<void*>(rt::isFrameEvaluatorCompatible);
+}
+
 } // namespace
 
 MemoryEffects memoryEffects(const Instr& inst) {
   switch (inst.opcode()) {
+    // This runtime check only reads evaluator state. Keep CallStatic's
+    // non-replayable classification: installing a hook must be observed by
+    // the next native entry, even after optimization and inlining.
+    case Opcode::kCallStatic:
+      return commonEffects(
+          inst,
+          isFrameEvaluatorCheck(inst.as<CallStatic>()) ? AEmpty
+                                                      : AManagedHeapAny);
     // Instructions that don't produce a borrowed reference, don't steal any
     // inputs, and don't write to heap locations that we track.
     case Opcode::kAssign:
@@ -114,7 +127,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kCallInd:
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
-    case Opcode::kCallStatic:
     case Opcode::kCallStaticRetVoid:
     case Opcode::kCompare:
     case Opcode::kCompareBool:
@@ -478,6 +490,8 @@ bool compareHasNoArbitraryExecution(
 
 bool hasArbitraryExecution(const Instr& inst) {
   switch (inst.opcode()) {
+    case Opcode::kCallStatic:
+      return !isFrameEvaluatorCheck(inst.as<CallStatic>());
     /*
      * No arbitrary execution.
      */
@@ -630,7 +644,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kCallInd:
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
-    case Opcode::kCallStatic:
     case Opcode::kCallStaticRetVoid:
     case Opcode::kConvertValue:
     case Opcode::kCopyDictWithoutKeys:

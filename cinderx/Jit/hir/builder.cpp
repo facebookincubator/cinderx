@@ -26,6 +26,7 @@ extern "C" {
 #include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
+#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/profile.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/checked_dict.h"
@@ -708,6 +709,7 @@ std::unique_ptr<Function> HIRBuilder::buildHIR() {
   is_simple_leaf_function_ = isSimpleLeafFunction(code_);
 
   std::unique_ptr<Function> irfunc = preloader_.makeFunction();
+  irfunc->check_frame_evaluator = check_frame_evaluator_;
   buildHIRImpl(irfunc.get(), /*frame_state=*/nullptr);
   // Use mergeLinearBlocks and removeUnreachableBlocks directly instead of
   // CleanCFG because the rest of CleanCFG requires SSA.
@@ -828,14 +830,19 @@ BasicBlock* HIRBuilder::buildHIRImpl(
     entry_tc.emit<LoadFrame>();
   }
 
-  addPrimitiveLocalInits(entry_tc, preloader_.numArgs());
-
-  // Generators tag their args after GEN_START. Inlined callees share the
-  // caller's registers, which may hold owned references, so they are not
-  // tagged.
-  if (is_root_function && (code_->co_flags & kCoFlagsAnyGenerator) == 0) {
-    addTagIfDeferredArgs(entry_tc, preloader_.numArgs());
+  // Generators tag their args after GEN_START.
+  if ((code_->co_flags & kCoFlagsAnyGenerator) == 0) {
+    // Inlined callees share the caller's registers, which may hold owned
+    // references, so preserve upstream's root-only argument tagging.
+    if (is_root_function) {
+      addTagIfDeferredArgs(entry_tc, preloader_.numArgs());
+    }
+    // Preserve deferred-reference normalization before any deopt point. The
+    // interpreter handoff materializes clean owned references from these.
+    emitFrameEvaluatorCheck(entry_tc, /*fresh_entry=*/true);
   }
+
+  addPrimitiveLocalInits(entry_tc, preloader_.numArgs());
 
   emitTypeAnnotationGuards(entry_tc);
 
@@ -2153,10 +2160,44 @@ void HIRBuilder::emitCallInstrinsic(
   tc.frame.stack.push(res);
 }
 
+void HIRBuilder::emitFrameEvaluatorCheck(
+    [[maybe_unused]] TranslationContext& tc,
+    [[maybe_unused]] bool fresh_entry) {
+#ifdef ENABLE_PEP523_HOOK
+  if (!check_frame_evaluator_) {
+    return;
+  }
+  Register* compatible_evaluator = allocateTemp();
+  tc.emit<CallStatic>(
+      0,
+      compatible_evaluator,
+      reinterpret_cast<void*>(rt::isFrameEvaluatorCompatible),
+      TCInt64,
+      "isFrameEvaluatorCompatible");
+  FrameState evaluator_frame = tc.frame;
+  evaluator_frame.frame_evaluator_entry = true;
+  if (fresh_entry) {
+    // Guard failures re-execute their cause instruction. Start at bytecode
+    // zero, before MAKE_CELL can wrap bound arguments and COPY_FREE_VARS can
+    // initialize frame slots. Only this snapshot carries the entry marker.
+    evaluator_frame.cur_instr_offs = BCOffset{0};
+    evaluator_frame.fresh_entry = true;
+  }
+  // CallStatic is non-replayable; bindGuards requires a snapshot after it.
+  tc.emit<Snapshot>(evaluator_frame);
+  tc.emit<Guard>(compatible_evaluator, evaluator_frame);
+#endif
+}
+
 void HIRBuilder::emitResume(
     CFG& cfg,
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
+  if ((code_->co_flags & kCoFlagsAnyGenerator) != 0 && bc_instr.oparg() == 0) {
+    // Generator creation/resumption retains its existing ownership protocol.
+    // A pre-RETURN_GENERATOR handoff needs separate generator-specific work.
+    emitFrameEvaluatorCheck(tc, /*fresh_entry=*/false);
+  }
   if (bc_instr.oparg() >= 2) {
     return;
   }

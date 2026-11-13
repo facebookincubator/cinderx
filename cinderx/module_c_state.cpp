@@ -13,7 +13,19 @@ namespace {
 
 // Borrowed specialization code can run without a live CinderX ModuleState, so
 // its evaluator identity needs process-lifetime storage.
+#if defined(__cpp_lib_atomic_ref) && __cpp_lib_atomic_ref >= 201806L && \
+    !defined(CINDERX_DISABLE_FRAME_EVALUATOR_FAST_PATH)
+// Keep explicit pointer storage so generated code need not depend on the
+// representation of std::atomic<T>. All C++ accesses use atomic_ref; native
+// loads use the same relaxed ordering on supported lock-free targets.
+alignas(std::atomic_ref<_PyFrameEvalFunction>::required_alignment)
+    _PyFrameEvalFunction cinderx_eval_frame = nullptr;
+#else
+// Older supported standard libraries have no atomic_ref. The forced fallback
+// build exercises this portable implementation too; neither exposes the
+// implementation-defined std::atomic representation to generated code.
 std::atomic<_PyFrameEvalFunction> cinderx_eval_frame{nullptr};
+#endif
 
 } // namespace
 
@@ -45,11 +57,31 @@ void Ci_SetStaticFunctionVectorcall(vectorcallfunc vcall) {
 }
 
 _PyFrameEvalFunction Ci_GetEvalFrameFunc(void) {
+#if defined(__cpp_lib_atomic_ref) && __cpp_lib_atomic_ref >= 201806L && \
+    !defined(CINDERX_DISABLE_FRAME_EVALUATOR_FAST_PATH)
+  return std::atomic_ref(cinderx_eval_frame).load(std::memory_order_relaxed);
+#else
   return cinderx_eval_frame.load(std::memory_order_relaxed);
+#endif
 }
 
 void Ci_SetEvalFrameFunc(_PyFrameEvalFunction eval_frame) {
+#if defined(__cpp_lib_atomic_ref) && __cpp_lib_atomic_ref >= 201806L && \
+    !defined(CINDERX_DISABLE_FRAME_EVALUATOR_FAST_PATH)
+  std::atomic_ref(cinderx_eval_frame)
+      .store(eval_frame, std::memory_order_relaxed);
+#else
   cinderx_eval_frame.store(eval_frame, std::memory_order_relaxed);
+#endif
+}
+
+const void* Ci_GetEvalFrameFuncStorage(void) {
+#if defined(__cpp_lib_atomic_ref) && __cpp_lib_atomic_ref >= 201806L && \
+    !defined(CINDERX_DISABLE_FRAME_EVALUATOR_FAST_PATH)
+  return &cinderx_eval_frame;
+#else
+  return nullptr;
+#endif
 }
 
 #if PY_VERSION_HEX >= 0x030E0000

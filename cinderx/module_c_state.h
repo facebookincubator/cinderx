@@ -36,6 +36,14 @@ void Ci_SetStaticFunctionVectorcall(vectorcallfunc vcall);
 _PyFrameEvalFunction Ci_GetEvalFrameFunc(void);
 void Ci_SetEvalFrameFunc(_PyFrameEvalFunction eval_frame);
 
+// Process-lifetime identity storage for native evaluator-check lowering.
+// This address is not a snapshot: generated code must reload it atomically
+// on every check, including after evaluator removal/reinstallation. C/C++
+// callers must use the accessors above, not dereference this address.
+// Returns null when the standard library cannot expose portable pointer
+// storage; such builds must retain the runtime helper.
+const void* Ci_GetEvalFrameFuncStorage(void);
+
 // Get the StaticTypeError exception type.
 PyObject* Ci_GetStaticTypeError(void);
 

@@ -134,6 +134,19 @@ void reifyLocalsplus(
 
   BorrowedRef<PyCodeObject> code = frameCode(frame);
   int free_offset = numLocalsplus(code) - numFreevars(code);
+  if (frame_meta.freshEntry()) {
+    // No COPY_FREE_VARS or MAKE_CELL has executed. Bound arguments are raw
+    // objects, and every other slot (including freevars) is uninitialized.
+    // Initialize rather than decref/replace those slots; the receiving
+    // evaluator owns execution of the function's bytecode preamble.
+    for (std::size_t i = 0; i < frame_meta.localsplus.size(); i++) {
+      const LiveValue* value = meta.getLocalValue(i, frame_meta);
+      *localsplus++ = value == nullptr
+          ? Ci_STACK_NULL
+          : Ci_STACK_STEAL(mem.readOwned(*value).release());
+    }
+    return;
+  }
   // Local variables are not initialized in the frame
   for (std::size_t i = 0; i < free_offset && i < frame_meta.localsplus.size();
        i++) {
@@ -660,6 +673,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   JIT_DCHECK(
       fs != nullptr, "need FrameState to calculate inline depth of {}", instr);
 
+  meta.frame_evaluator_entry = fs->frame_evaluator_entry;
   int num_frames = fs->inlineDepth();
   meta.frame_meta.initialize(num_frames + 1); // +1 for caller
 
@@ -679,6 +693,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
     frame_meta.setNextInstrIdx(next_instr_idx);
     frame_meta.setCode(code);
     frame_meta.setLazyFrame(frame->lazy_frame);
+    frame_meta.setFreshEntry(frame->fresh_entry);
   }
 
   if (hir::Register* guilty_reg = instr.guiltyReg()) {

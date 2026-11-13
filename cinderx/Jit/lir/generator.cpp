@@ -29,6 +29,7 @@ extern "C" {
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/long.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/runtime_offsets.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/iter_helpers.h"
 #include "cinderx/Jit/codegen/arch.h"
@@ -50,6 +51,7 @@ extern "C" {
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 #include "cinderx/module_state.h"
 
 #include <fmt/format.h>
@@ -4999,6 +5001,64 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
 
       case hir::Opcode::kCallStatic: {
         auto& hir_instr = i.as<CallStatic>();
+        if constexpr (rt::kInlineFrameEvaluatorCheck) {
+          if (hir_instr.addr() ==
+                  reinterpret_cast<void*>(rt::isFrameEvaluatorCompatible) &&
+              hir_instr.numArgs() == 0 && hir_instr.retType() == TCInt64) {
+            // Retain the non-replayable HIR call's ordering, but emit no
+            // runtime call. Both pointers are loaded afresh at each native
+            // or inlined admission point; never bake the current identity
+            // into generated code, since removal/reinstallation changes it.
+            auto interp = bbb.appendInstr(
+                Opcode::kLoad,
+                OutVReg{DataType::k64bit},
+                Ind{env_->asm_tstate, offsetof(PyThreadState, interp)});
+            int64_t evaluator_offset = offsetof(PyInterpreterState, eval_frame);
+#if PY_VERSION_HEX >= 0x030E0000
+            evaluator_offset += Ci_InterpPreDelta();
+#endif
+            auto evaluator = bbb.appendInstr(
+                Opcode::kLoad,
+                OutVReg{DataType::k64bit},
+                MemoryOrder::kRelaxed,
+                Ind{interp, static_cast<int32_t>(evaluator_offset)});
+            auto registered = bbb.appendInstr(
+                Opcode::kLoad,
+                OutVReg{DataType::k64bit},
+                MemoryOrder::kRelaxed,
+                MemImm{
+                    const_cast<void*>(Ci_GetEvalFrameFuncStorage()),
+                    DataType::k64bit});
+            auto own = bbb.appendInstr(
+                Opcode::kCompare,
+                Condition::kEqual,
+                OutVReg{DataType::k8bit},
+                evaluator,
+                registered);
+            auto unset = bbb.appendInstr(
+                Opcode::kCompare,
+                Condition::kEqual,
+                OutVReg{DataType::k8bit},
+                evaluator,
+                Imm{0});
+            auto default_evaluator = bbb.appendInstr(
+                Opcode::kMove,
+                OutVReg{DataType::k64bit},
+                Imm{reinterpret_cast<uint64_t>(_PyEval_EvalFrameDefault)});
+            auto standard = bbb.appendInstr(
+                Opcode::kCompare,
+                Condition::kEqual,
+                OutVReg{DataType::k8bit},
+                evaluator,
+                default_evaluator);
+            auto compatible = bbb.appendInstr(
+                Opcode::kOr, OutVReg{DataType::k8bit}, own, unset);
+            compatible = bbb.appendInstr(
+                Opcode::kOr, OutVReg{DataType::k8bit}, compatible, standard);
+            bbb.appendInstr(hir_instr.output(), Opcode::kZext, compatible);
+            break;
+          }
+        }
         std::vector<Instruction*> args;
         // Generate the argument conversions before the call.
         for (hir::Register* reg_arg : hir_instr.getOperands()) {

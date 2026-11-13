@@ -283,7 +283,9 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 #endif
   std::unique_ptr<hir::Function> irfunc(
-      hir::buildHIR(preloader, recompile_threshold, profile));
+      hir::HIRBuilder(
+          preloader, recompile_threshold, profile, /*check_frame_evaluator=*/true)
+          .buildHIR());
 
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();

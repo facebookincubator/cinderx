@@ -13,6 +13,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
+#include <atomic>
 #include <utility>
 
 namespace cinderx::jit {
@@ -22,6 +23,23 @@ struct JitGenObject;
 } // namespace cinderx::jit
 
 namespace cinderx::jit::rt {
+
+// Whether native execution may bypass the interpreter's current PEP 523 hook.
+uint64_t isFrameEvaluatorCompatible();
+
+// Only the CPython layout and native atomic load target audited here use the
+// inline lowering. Other builds retain the runtime helper, including when a
+// fallback-only build is requested for validation.
+#if defined(CINDER_X86_64) && defined(__linux__) && \
+    !defined(Py_GIL_DISABLED) && PY_VERSION_HEX >= 0x030E0000 && \
+    PY_VERSION_HEX < 0x030F0000 && defined(__cpp_lib_atomic_ref) && \
+    __cpp_lib_atomic_ref >= 201806L && \
+    !defined(CINDERX_DISABLE_FRAME_EVALUATOR_FAST_PATH)
+inline constexpr bool kInlineFrameEvaluatorCheck =
+    std::atomic_ref<_PyFrameEvalFunction>::is_always_lock_free;
+#else
+inline constexpr bool kInlineFrameEvaluatorCheck = false;
+#endif
 
 // static->static call convention for primitive returns is to return error flag
 // in rdx (null means error occurred); for C helpers that need to implement this

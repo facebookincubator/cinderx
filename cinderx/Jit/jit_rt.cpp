@@ -63,6 +63,15 @@ void* getStaticReentryTrampoline(bool fp);
 
 namespace cinderx::jit::rt {
 
+uint64_t isFrameEvaluatorCompatible() {
+  PyThreadState* tstate = PyThreadState_Get();
+  auto evaluator = _PyInterpreterState_GetEvalFrameFunc(tstate->interp);
+  // The registered identity is null in builds without the interpreter loop.
+  // Do not reference Ci_EvalFrame itself: those builds do not define it.
+  return evaluator == nullptr || evaluator == _PyEval_EvalFrameDefault ||
+      evaluator == Ci_GetEvalFrameFunc();
+}
+
 static int bindKeywords(
     PyObject** args,
     PyObject* kwnames,

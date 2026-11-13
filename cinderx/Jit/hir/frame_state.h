@@ -110,6 +110,16 @@ struct FrameState {
   // propagated by value into DeoptFrameMetadata.
   bool lazy_frame{false};
 
+  // Native admission failed before any bytecode, including COPY_FREE_VARS
+  // and MAKE_CELL. Reification must construct CPython's raw entry layout,
+  // without treating uninitialized freevar slots as owned references.
+  bool fresh_entry{false};
+
+  // This snapshot belongs specifically to native evaluator admission. Only
+  // its innermost frame should enter the active hook; suspended callers resume
+  // through the ordinary deoptimization path.
+  bool frame_evaluator_entry{false};
+
   OperandStack stack;
   BlockStack block_stack;
   BorrowedRef<PyCodeObject> code;

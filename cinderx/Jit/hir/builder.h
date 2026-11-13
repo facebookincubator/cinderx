@@ -102,11 +102,13 @@ class HIRBuilder {
   explicit HIRBuilder(
       const Preloader& preloader,
       uint32_t recompile_threshold = 0,
-      const Profile* profile = nullptr)
+      const Profile* profile = nullptr,
+      bool check_frame_evaluator = false)
       : code_(preloader.code()),
         preloader_(preloader),
         profile_(profile),
-        recompile_threshold_(recompile_threshold) {}
+        recompile_threshold_(recompile_threshold),
+        check_frame_evaluator_(check_frame_evaluator) {}
   HIRBuilder(
       const Preloader& preloader,
       const Profile& profile,
@@ -185,6 +187,7 @@ class HIRBuilder {
       CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitFrameEvaluatorCheck(TranslationContext& tc, bool fresh_entry);
   void emitKwNames(TranslationContext& tc, const BytecodeInstruction& bc_instr);
   void emitIsOp(TranslationContext& tc, int oparg);
   void emitContainsOp(
@@ -622,6 +625,10 @@ class HIRBuilder {
   const Preloader& preloader_;
   const Profile* profile_{nullptr};
   uint32_t recompile_threshold_{0};
+
+  // Pure bytecode-to-HIR translation does not need runtime admission checks.
+  // The native compiler enables these and propagates them into inline regions.
+  bool check_frame_evaluator_{false};
 
   // The function's register Environment, set in buildHIRImpl.
   Environment* env_{nullptr};
