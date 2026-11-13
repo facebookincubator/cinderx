@@ -3272,6 +3272,14 @@ bool checkSet(PyObject* op) {
 bool checkBool(PyObject* op) {
   return op == Py_True || op == Py_False;
 }
+
+bool checkNone(PyObject* op) {
+  return op == Py_None;
+}
+
+bool checkFrozenSet(PyObject* op) {
+  return PyFrozenSet_CheckExact(op);
+}
 } // namespace
 
 // Predicate testing whether an operand has the exact type a SpecializedType
@@ -4278,6 +4286,165 @@ CompareCache::CompareSpecialization CompareCache::specializedTypes() const {
   JIT_ABORT("Unknown CompareCache specialization");
 }
 
+// One row per operand type ToBoolCache specializes on, in populate
+// priority order. Each row is X(Name, Kind, Op, Fallback): Name becomes
+// Specialization::k<Name>, Kind is the SpecializedType whose check guards
+// the row, Op is the fast-path truthiness operation, and Fallback is the
+// specialization to step down to once the row stops matching. Compact
+// ints step down to general ints; every other row steps down to generic.
+#define FOREACH_TO_BOOL_SPECIALIZATION(X)               \
+  X(Bool, Bool, boolToBool, kGeneric)                   \
+  X(CompactLong, CompactLong, compactLongToBool, kLong) \
+  X(Long, Long, longToBool, kGeneric)                   \
+  X(List, List, sizeToBool, kGeneric)                   \
+  X(None, None, noneToBool, kGeneric)                   \
+  X(Unicode, Unicode, sizeToBool, kGeneric)             \
+  X(Set, Set, sizeToBool, kGeneric)                     \
+  X(FrozenSet, FrozenSet, sizeToBool, kGeneric)         \
+  X(Tuple, Tuple, sizeToBool, kGeneric)
+
+enum class ToBoolCache::Specialization : uint8_t {
+  kUninitialized,
+  kGeneric,
+#define DECLARE_TO_BOOL_SPECIALIZATION(NAME, KIND, OP, FALLBACK) k##NAME,
+  FOREACH_TO_BOOL_SPECIALIZATION(DECLARE_TO_BOOL_SPECIALIZATION)
+#undef DECLARE_TO_BOOL_SPECIALIZATION
+};
+
+ToBoolCache::ToBoolCache() : specialization_{Specialization::kUninitialized} {}
+
+ToBoolCache::Specialization ToBoolCache::getSpecialization() const {
+  return specialization_.load(std::memory_order_relaxed);
+}
+
+void ToBoolCache::setSpecialization(
+    Specialization expected,
+    Specialization desired) {
+  if constexpr (kFreeThreadedBuild) {
+    specialization_.compare_exchange_strong(
+        expected, desired, std::memory_order_relaxed);
+  } else {
+    specialization_.store(desired, std::memory_order_relaxed);
+  }
+}
+
+namespace {
+
+PyObject* boolObject(bool value) {
+  return Py_NewRef(value ? Py_True : Py_False);
+}
+
+PyObject* boolToBool(PyObject* obj) {
+  return Py_NewRef(obj);
+}
+
+PyObject* compactLongToBool(PyObject* obj) {
+  Py_ssize_t value = _PyLong_CompactValue(reinterpret_cast<PyLongObject*>(obj));
+  return boolObject(value != 0);
+}
+
+PyObject* longToBool(PyObject* obj) {
+  if (auto nb_bool = PyLong_Type.tp_as_number->nb_bool) {
+    int result = nb_bool(obj);
+    if (result < 0) {
+      return nullptr;
+    }
+    return boolObject(result != 0);
+  }
+  int result = PyObject_IsTrue(obj);
+  if (result < 0) {
+    return nullptr;
+  }
+  return boolObject(result != 0);
+}
+
+PyObject* noneToBool(PyObject* /* obj */) {
+  return Py_NewRef(Py_False);
+}
+
+// Exact lists, strings, sets, frozensets and tuples are truthy iff
+// non-empty. The exact-type check already rules out subclasses, so the
+// length slot cannot run user code.
+PyObject* sizeToBool(PyObject* obj) {
+  Py_ssize_t size = PyObject_Size(obj);
+  if (size < 0) {
+    return nullptr;
+  }
+  return boolObject(size != 0);
+}
+
+} // namespace
+
+template <auto Current, auto Kind, auto Op, auto Fallback, auto ReDispatch>
+PyObject* ToBoolCache::invokeSpecialized(PyObject* obj, ToBoolCache* cache) {
+  constexpr CheckFn check = checkFor(Kind);
+  if (check(obj)) {
+    return Op(obj);
+  }
+  cache->setSpecialization(Current, Fallback);
+  return ReDispatch(obj, cache);
+}
+
+PyObject* ToBoolCache::generic(PyObject* obj, ToBoolCache* /* cache */) {
+  int result = PyObject_IsTrue(obj);
+  if (result < 0) {
+    return nullptr;
+  }
+  return boolObject(result != 0);
+}
+
+PyObject* ToBoolCache::populateAndInvoke(PyObject* obj, ToBoolCache* cache) {
+#define POPULATE_TO_BOOL_SPECIALIZATION(NAME, KIND, OP, FALLBACK)   \
+  if (constexpr CheckFn check = checkFor(SpecializedType::k##KIND); \
+      check(obj)) {                                                 \
+    cache->setSpecialization(                                       \
+        ToBoolCache::Specialization::kUninitialized,                \
+        ToBoolCache::Specialization::k##NAME);                      \
+    return invoke(obj, cache);                                      \
+  }
+  FOREACH_TO_BOOL_SPECIALIZATION(POPULATE_TO_BOOL_SPECIALIZATION)
+#undef POPULATE_TO_BOOL_SPECIALIZATION
+
+  cache->setSpecialization(
+      Specialization::kUninitialized, Specialization::kGeneric);
+  return generic(obj, cache);
+}
+
+PyObject* ToBoolCache::invoke(PyObject* obj, ToBoolCache* cache) {
+  switch (cache->getSpecialization()) {
+    case Specialization::kUninitialized:
+      return populateAndInvoke(obj, cache);
+    case Specialization::kGeneric:
+      return generic(obj, cache);
+#define DISPATCH_TO_BOOL_SPECIALIZATION(NAME, KIND, OP, FALLBACK) \
+  case Specialization::k##NAME:                                   \
+    return invokeSpecialized<                                     \
+        Specialization::k##NAME,                                  \
+        SpecializedType::k##KIND,                                 \
+        OP,                                                       \
+        Specialization::FALLBACK,                                 \
+        &ToBoolCache::invoke>(obj, cache);
+      FOREACH_TO_BOOL_SPECIALIZATION(DISPATCH_TO_BOOL_SPECIALIZATION)
+#undef DISPATCH_TO_BOOL_SPECIALIZATION
+  }
+  JIT_ABORT("Unknown ToBoolCache specialization");
+}
+
+SpecializedType ToBoolCache::specializedType() const {
+  switch (getSpecialization()) {
+    case Specialization::kUninitialized:
+      return SpecializedType::kUninitialized;
+    case Specialization::kGeneric:
+      return SpecializedType::kGeneric;
+#define TO_BOOL_SPECIALIZATION_TYPE_ENTRY(NAME, KIND, OP, FALLBACK) \
+  case Specialization::k##NAME:                                     \
+    return SpecializedType::k##KIND;
+      FOREACH_TO_BOOL_SPECIALIZATION(TO_BOOL_SPECIALIZATION_TYPE_ENTRY)
+#undef TO_BOOL_SPECIALIZATION_TYPE_ENTRY
+  }
+  JIT_ABORT("Unknown ToBoolCache specialization");
+}
+
 void notifyICsTypeChanged(BorrowedRef<PyTypeObject> type) {
   ac_watcher.typeChanged(type);
   ac_descr_watcher.typeChanged(
@@ -4311,6 +4478,10 @@ std::optional<hir::Type> specializedTypeToHirType(SpecializedType type) {
       // Only comparison specializations produce bools; no binary-op row uses
       // this, so mapping it here is unreachable for binary ops.
       return hir::TBool;
+    case SpecializedType::kNone:
+      return hir::TNoneType;
+    case SpecializedType::kFrozenSet:
+      return hir::TFrozenSetExact;
     default:
       return std::nullopt;
   }

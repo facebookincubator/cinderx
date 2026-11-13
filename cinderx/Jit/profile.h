@@ -58,6 +58,18 @@ struct CompareProfile {
   bool operator==(const CompareProfile&) const = default;
 };
 
+// Profile feedback from a ToBool inline cache: the operand type observed
+// plus the result type (always bool). When the cache fell back to its
+// generic path (kGeneric), no single operand type was observed: generic
+// is true and operand_type is TObject, meaning the site must be compiled
+// generically rather than guarded on any one type.
+struct ToBoolProfile {
+  hir::Type operand_type, res_type;
+  bool generic{false};
+
+  bool operator==(const ToBoolProfile&) const = default;
+};
+
 // Profile feedback from a LoadAttr or LoadMethod inline cache. LoadMethod
 // caches only use the receiver type (and the polymorphic marker); kind is
 // unset for them.
@@ -101,8 +113,12 @@ struct StoreAttrProfile {
 // the originating profile during compilation and by CodeRuntime references
 // afterwards, and snapshot() takes owning references for the new profile's
 // owned set with the GIL held.
-using ProfileEntry = std::
-    variant<BinaryOpProfile, CompareProfile, LoadAttrProfile, StoreAttrProfile>;
+using ProfileEntry = std::variant<
+    BinaryOpProfile,
+    CompareProfile,
+    ToBoolProfile,
+    LoadAttrProfile,
+    StoreAttrProfile>;
 
 // Invokes func once with each Python object borrowed by entry that must be
 // kept alive while the entry is in use. Entries hold borrowed references so
@@ -216,6 +232,7 @@ struct Profile {
 using ProfileSource = std::variant<
     BinaryOpCache*,
     CompareCache*,
+    ToBoolCache*,
     LoadAttrCache*,
     LoadMethodCache*,
     StoreAttrCache*>;
@@ -241,8 +258,9 @@ class ProfileCollector {
   // emitting an inline cache.
   void add(ProfileLocation location, ProfileEntry payload);
   // Snapshot the observed inline-cache states. Free-threaded builds only
-  // snapshot binary-op and comparison feedback. Other builds require the
-  // GIL: profiling attribute/method caches takes strong references to types.
+  // snapshot binary-op, comparison and to-bool feedback. Other builds require
+  // the GIL: profiling attribute/method caches takes strong references to
+  // types.
   Profile snapshot() const;
   // Drop all state for a location whose profile guard deopted: the profile
   // entry that produced the guard is stale. Erases from both live and

@@ -489,6 +489,84 @@ TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesComparesByLocation) {
   EXPECT_EQ(profile.find<CompareProfile>(nullptr, cold_offset), nullptr);
 }
 
+TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesToBoolByLocation) {
+  ProfileCollector collector;
+  const BCOffset list_offset{24};
+  ToBoolCache list_cache;
+  collector.add(nullptr, list_offset, &list_cache);
+  auto list = Ref<>::steal(PyList_New(0));
+  Ref<> list_result = Ref<>::steal(ToBoolCache::invoke(list, &list_cache));
+  ASSERT_NE(list_result, nullptr);
+  EXPECT_EQ(list_result.get(), Py_False);
+
+  const BCOffset none_offset{48};
+  ToBoolCache none_cache;
+  collector.add(nullptr, none_offset, &none_cache);
+  Ref<> none_result = Ref<>::steal(ToBoolCache::invoke(Py_None, &none_cache));
+  ASSERT_NE(none_result, nullptr);
+  EXPECT_EQ(none_result.get(), Py_False);
+
+  const BCOffset generic_offset{16};
+  ToBoolCache generic_cache;
+  collector.add(nullptr, generic_offset, &generic_cache);
+  auto dict = Ref<>::steal(PyDict_New());
+  Ref<> generic_result =
+      Ref<>::steal(ToBoolCache::invoke(dict, &generic_cache));
+  ASSERT_NE(generic_result, nullptr);
+
+  const BCOffset cold_offset{60};
+  ToBoolCache cold_cache;
+  collector.add(nullptr, cold_offset, &cold_cache);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 3);
+
+  const ToBoolProfile* list_profile =
+      profile.find<ToBoolProfile>(nullptr, list_offset);
+  ASSERT_NE(list_profile, nullptr);
+  EXPECT_EQ(list_profile->operand_type, TListExact);
+  EXPECT_EQ(list_profile->res_type, TBool);
+  EXPECT_FALSE(list_profile->generic);
+
+  const ToBoolProfile* none_profile =
+      profile.find<ToBoolProfile>(nullptr, none_offset);
+  ASSERT_NE(none_profile, nullptr);
+  EXPECT_EQ(none_profile->operand_type, TNoneType);
+  EXPECT_EQ(none_profile->res_type, TBool);
+  EXPECT_FALSE(none_profile->generic);
+
+  // A cache that fell back to generic produces an explicitly generic
+  // profile entry, not no entry: the recompile must know not to use the
+  // interpreter's specialized opcode.
+  const ToBoolProfile* generic_profile =
+      profile.find<ToBoolProfile>(nullptr, generic_offset);
+  ASSERT_NE(generic_profile, nullptr);
+  EXPECT_EQ(generic_profile->operand_type, TObject);
+  EXPECT_EQ(generic_profile->res_type, TBool);
+  EXPECT_TRUE(generic_profile->generic);
+  // A cache that was never called produces no profile entry either.
+  EXPECT_EQ(profile.find<ToBoolProfile>(nullptr, cold_offset), nullptr);
+}
+
+TEST_F(BinaryOpCacheCodegenTest, ProfileMergesToBoolGenericOverSpecific) {
+  ProfileCollector collector;
+  const BCOffset offset{8};
+  ToBoolCache specific_cache;
+  collector.add(nullptr, offset, &specific_cache);
+  auto list = Ref<>::steal(PyList_New(0));
+  ASSERT_NE(Ref<>::steal(ToBoolCache::invoke(list, &specific_cache)), nullptr);
+  ToBoolCache generic_cache;
+  collector.add(nullptr, offset, &generic_cache);
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(Ref<>::steal(ToBoolCache::invoke(dict, &generic_cache)), nullptr);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const ToBoolProfile* merged = profile.find<ToBoolProfile>(nullptr, offset);
+  ASSERT_NE(merged, nullptr);
+  EXPECT_TRUE(merged->generic);
+}
+
 #endif
 
 #if defined(Py_GIL_DISABLED) && !defined(ENABLE_PREFORK_MODEL)
@@ -645,6 +723,153 @@ def test(a, b):
   ASSERT_NE(recompiled_result, nullptr);
   EXPECT_EQ(recompiled_result.get(), Py_False);
 }
+
+#if PY_VERSION_HEX >= 0x030E0000
+TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesFromToBoolProfile) {
+  // With a recompile threshold set, the initial compile must not use the
+  // interpreter's TO_BOOL specialization; it emits a ToBool cache whose
+  // profile the recompile then turns into a type guard.
+  // High enough that the single call below does not trigger a background
+  // recompile before the profile is snapshotted.
+  getMutableConfig().recompile_threshold = 100;
+  const char* src = R"(
+def test(a):
+  return "y" if a else "n"
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  auto initial = Compiler().compile(func);
+  ASSERT_TRUE(initial.has_value());
+  EXPECT_EQ(
+      initial->hir_opcode_counts[static_cast<size_t>(Opcode::kToBool)], 1);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto list = Ref<>::steal(PyList_New(0));
+  PyObject* args[] = {list};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(PyUnicode_CompareWithASCIIString(result, "n"), 0);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const ToBoolProfile* to_bool_profile =
+      profile.find<ToBoolProfile>(profile.entries().begin()->first);
+  ASSERT_NE(to_bool_profile, nullptr);
+  EXPECT_EQ(to_bool_profile->operand_type, TListExact);
+  EXPECT_EQ(to_bool_profile->res_type, TBool);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kToBool)], 0);
+  // The profile use survives on every build; on free-threaded builds the
+  // guard itself is rewritten by later passes, so only check its count
+  // where it is preserved verbatim.
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+#ifndef Py_GIL_DISABLED
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+#endif
+
+  auto empty_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(empty_result, nullptr);
+  ASSERT_EQ(PyUnicode_CompareWithASCIIString(empty_result, "n"), 0);
+
+  auto one_list = Ref<>::steal(PyList_New(1));
+  ASSERT_NE(one_list, nullptr);
+  PyList_SET_ITEM(one_list.get(), 0, PyLong_FromLong(1));
+  PyObject* full_args[] = {one_list};
+  auto full_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), full_args, 1, nullptr));
+  ASSERT_NE(full_result, nullptr);
+  ASSERT_EQ(PyUnicode_CompareWithASCIIString(full_result, "y"), 0);
+
+  // A non-list operand deopts the guard and still answers correctly.
+  auto num = Ref<>::steal(PyLong_FromLong(5));
+  PyObject* num_args[] = {num};
+  auto num_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), num_args, 1, nullptr));
+  ASSERT_NE(num_result, nullptr);
+  ASSERT_EQ(PyUnicode_CompareWithASCIIString(num_result, "y"), 0);
+}
+
+TEST_F(
+    BinaryOpCacheCodegenTest,
+    RecompileEmitsGenericToBoolFromGenericProfile) {
+  // Warm the interpreter so TO_BOOL specializes to TO_BOOL_LIST before
+  // the JIT compile: without an explicit generic profile entry, the
+  // recompile would reuse that specialization and guard on lists. With
+  // one, it must emit a generic, non-cached truthiness operation with no
+  // guard at all.
+  const char* src = R"(
+def test(a):
+  return "y" if a else "n"
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  auto warm_list = Ref<>::steal(PyList_New(0));
+  for (int i = 0; i < 20; ++i) {
+    ASSERT_NE(Ref<>::steal(PyObject_CallOneArg(func, warm_list)), nullptr);
+  }
+
+  getMutableConfig().recompile_threshold = 100;
+  auto initial = Compiler().compile(func);
+  ASSERT_TRUE(initial.has_value());
+  EXPECT_EQ(
+      initial->hir_opcode_counts[static_cast<size_t>(Opcode::kToBool)], 1);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto dict = Ref<>::steal(PyDict_New());
+  PyObject* args[] = {dict};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(PyUnicode_CompareWithASCIIString(result, "n"), 0);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const ToBoolProfile* to_bool_profile =
+      profile.find<ToBoolProfile>(profile.entries().begin()->first);
+  ASSERT_NE(to_bool_profile, nullptr);
+  EXPECT_TRUE(to_bool_profile->generic);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kToBool)], 0);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 0);
+  // The generic entry is carried forward for later recompiles.
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+
+  auto dict_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+  ASSERT_NE(dict_result, nullptr);
+  ASSERT_EQ(PyUnicode_CompareWithASCIIString(dict_result, "n"), 0);
+
+  auto one_list = Ref<>::steal(PyList_New(1));
+  ASSERT_NE(one_list, nullptr);
+  PyList_SET_ITEM(one_list.get(), 0, PyLong_FromLong(1));
+  PyObject* full_args[] = {one_list};
+  auto full_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), full_args, 1, nullptr));
+  ASSERT_NE(full_result, nullptr);
+  ASSERT_EQ(PyUnicode_CompareWithASCIIString(full_result, "y"), 0);
+
+  auto num = Ref<>::steal(PyLong_FromLong(5));
+  PyObject* num_args[] = {num};
+  auto num_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), num_args, 1, nullptr));
+  ASSERT_NE(num_result, nullptr);
+  ASSERT_EQ(PyUnicode_CompareWithASCIIString(num_result, "y"), 0);
+}
+#endif
 
 TEST_F(BinaryOpCacheCodegenTest, ProfileMergesCarriedPayloads) {
   PerCompilationStableStorage storage;

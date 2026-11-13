@@ -201,7 +201,12 @@ class HIRBuilder {
       Register* right);
   void emitToBool(
       TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr);
+      const jit::BytecodeInstruction& bc_instr,
+      bool allow_inline_cache = true);
+  bool emitToBoolProfileGuards(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr,
+      Register* operand);
   void emitCopyDictWithoutKeys(TranslationContext& tc);
   void emitGetLen(TranslationContext& tc);
 #if PY_VERSION_HEX < 0x03100000

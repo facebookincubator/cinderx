@@ -40,6 +40,25 @@ std::optional<ProfileEntry> comparePayload(const CompareCache& cache) {
       *left_type, *right_type, res.has_value() ? *res : TObject};
 }
 
+std::optional<ProfileEntry> toBoolPayload(const ToBoolCache& cache) {
+  const SpecializedType specialized_type = cache.specializedType();
+  if (specialized_type == SpecializedType::kUninitialized) {
+    return std::nullopt;
+  }
+  if (specialized_type == SpecializedType::kGeneric) {
+    // A generic cache observed operand types no single guard can cover.
+    // Record that explicitly: returning nothing here would let the
+    // recompile fall back to the interpreter's specialized opcode.
+    return ToBoolProfile{TObject, TBool, true};
+  }
+  const std::optional<Type> operand_type =
+      specializedTypeToHirType(specialized_type);
+  if (!operand_type.has_value()) {
+    return std::nullopt;
+  }
+  return ToBoolProfile{*operand_type, TBool};
+}
+
 std::optional<ProfileEntry> loadAttrPayload(const LoadAttrCache& cache) {
   const std::vector<LoadAttrCache::ProfiledEntry> entries =
       cache.profiledEntries();
@@ -96,6 +115,9 @@ std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   if (const auto* cache = std::get_if<CompareCache*>(&source)) {
     return comparePayload(**cache);
   }
+  if (const auto* cache = std::get_if<ToBoolCache*>(&source)) {
+    return toBoolPayload(**cache);
+  }
   if constexpr (kFreeThreadedBuild) {
     return std::nullopt;
   }
@@ -124,6 +146,18 @@ std::optional<ProfileEntry> mergePayloads(std::vector<ProfileEntry>& observed) {
             return entry == first;
           })) {
     return std::move(observed.front());
+  }
+  if (std::holds_alternative<ToBoolProfile>(first)) {
+    // Any generic observation means the site saw types no single guard
+    // covers, so the merged profile must stay generic even if another
+    // observation specialized.
+    for (const ProfileEntry& entry : observed) {
+      if (const auto* to_bool = std::get_if<ToBoolProfile>(&entry)) {
+        if (to_bool->generic) {
+          return ToBoolProfile{TObject, TBool, true};
+        }
+      }
+    }
   }
   if (std::holds_alternative<LoadAttrProfile>(first)) {
     return LoadAttrProfile{{}, std::nullopt, true};
@@ -178,7 +212,8 @@ Profile ProfileCollector::snapshot() const {
     for (const auto& source : sources) {
       if constexpr (kFreeThreadedBuild) {
         if (!std::holds_alternative<BinaryOpProfile>(source) &&
-            !std::holds_alternative<CompareProfile>(source)) {
+            !std::holds_alternative<CompareProfile>(source) &&
+            !std::holds_alternative<ToBoolProfile>(source)) {
           continue;
         }
       }

@@ -2838,41 +2838,84 @@ void HIRBuilder::emitCompareOp(
   tc.emit<Compare>(result, op, left, right, tc.frame);
   stack.push(result);
   if (PY_VERSION_HEX >= 0x030E0000 && bc_instr.oparg() & 0x10) {
-    emitToBool(tc, bc_instr);
+    // The comparison already produced a bool, and this instruction shares
+    // its bytecode offset with the Compare profile entry; a ToBool cache
+    // here would collide with it in the profile collector.
+    emitToBool(tc, bc_instr, /*allow_inline_cache=*/false);
   }
+}
+
+bool HIRBuilder::emitToBoolProfileGuards(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr,
+    Register* operand) {
+  if (profile_ == nullptr) {
+    return false;
+  }
+  ProfileLocation location{tc.frame.code, bc_instr.baseOffset()};
+  const ToBoolProfile* profile = profile_->find<ToBoolProfile>(location);
+  if (profile == nullptr) {
+    return false;
+  }
+  if (!profile->generic) {
+    auto guard =
+        tc.emit<GuardType>(operand, profile->operand_type, operand, tc.frame);
+    guard->setProfileCause(location.bytecode_offset);
+    if (profile->operand_type <= TBool) {
+      // As in the TO_BOOL_BOOL case below, the guard must survive even
+      // though nothing below consumes the operand with a typed use.
+      tc.emit<UseType>(operand, TBool);
+    }
+  }
+  // Carried forward in both cases: a generic entry must survive so later
+  // recompiles do not fall back to the interpreter's specialized opcode.
+  tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*profile});
+  return true;
 }
 
 void HIRBuilder::emitToBool(
     TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr) {
+    const jit::BytecodeInstruction& bc_instr,
+    bool allow_inline_cache) {
   Register* operand = tc.frame.stack.pop();
 
-  if (getConfig().specialized_opcodes) {
-    switch (bc_instr.specializedOpcode()) {
-      case TO_BOOL_BOOL:
-        // The operand is already a bool, so it is also the result.
-        tc.emit<GuardType>(operand, TBool, operand, tc.frame);
-        // POP_JUMP_IF_FALSE/TRUE consumes the result with a PrimitiveCompare
-        // against Py_True, which declares TTop operands because `is` shares
-        // the instruction. Without a typed use, GuardTypeRemoval deletes the
-        // guard above and truthy non-bools take the false branch.
-        tc.emit<UseType>(operand, TBool);
-        tc.frame.stack.push(operand);
-        return;
-      case TO_BOOL_INT:
-        tc.emit<GuardType>(operand, TLongExact, operand, tc.frame);
-        break;
-      case TO_BOOL_LIST:
-        tc.emit<GuardType>(operand, TListExact, operand, tc.frame);
-        break;
-      case TO_BOOL_NONE:
-        tc.emit<GuardType>(operand, TNoneType, operand, tc.frame);
-        break;
-      case TO_BOOL_STR:
-        tc.emit<GuardType>(operand, TUnicodeExact, operand, tc.frame);
-        break;
-      default:
-        break;
+  if (!emitToBoolProfileGuards(tc, bc_instr, operand)) {
+    if (allow_inline_cache && recompile_threshold_ != 0) {
+      // A recompile is coming: do not trust the interpreter's specialized
+      // opcode, which records only the last specialization it saw. Emit a
+      // ToBool inline cache instead so the recompile can specialize on the
+      // operand types actually observed at runtime.
+      Register* result = allocateTemp();
+      tc.emit<ToBool>(result, operand, tc.frame);
+      tc.frame.stack.push(result);
+      return;
+    } else if (getConfig().specialized_opcodes) {
+      switch (bc_instr.specializedOpcode()) {
+        case TO_BOOL_BOOL:
+          // The operand is already a bool, so it is also the result.
+          tc.emit<GuardType>(operand, TBool, operand, tc.frame);
+          // POP_JUMP_IF_FALSE/TRUE consumes the result with a PrimitiveCompare
+          // against Py_True, which declares TTop operands because `is` shares
+          // the instruction. Without a typed use, GuardTypeRemoval deletes the
+          // guard above and truthy non-bools take the false branch.
+          tc.emit<UseType>(operand, TBool);
+          tc.frame.stack.push(operand);
+          return;
+        case TO_BOOL_INT:
+          tc.emit<GuardType>(operand, TLongExact, operand, tc.frame);
+          break;
+        case TO_BOOL_LIST:
+          tc.emit<GuardType>(operand, TListExact, operand, tc.frame);
+          break;
+        case TO_BOOL_NONE:
+          tc.emit<GuardType>(operand, TNoneType, operand, tc.frame);
+          break;
+        case TO_BOOL_STR:
+          tc.emit<GuardType>(operand, TUnicodeExact, operand, tc.frame);
+          break;
+        default:
+          break;
+      }
     }
   }
 

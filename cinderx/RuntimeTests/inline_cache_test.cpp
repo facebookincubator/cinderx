@@ -1627,6 +1627,97 @@ TEST_F(InlineCacheTest, CompareCacheComputesCorrectly) {
       Py_False);
 }
 
+TEST_F(InlineCacheTest, ToBoolCacheSpecializesOnEachSupportedType) {
+  struct Case {
+    Ref<> value;
+    SpecializedType expected_type;
+    PyObject* expected_result;
+  };
+  auto empty_list = Ref<>::steal(PyList_New(0));
+  auto one_list = Ref<>::steal(PyList_New(1));
+  ASSERT_NE(one_list, nullptr);
+  PyList_SET_ITEM(one_list.get(), 0, PyLong_FromLong(1));
+  auto empty_set = makeSet({});
+  auto one_set = makeSet({1});
+  auto empty_frozenset = Ref<>::steal(PyFrozenSet_New(empty_set));
+  auto one_frozenset = Ref<>::steal(PyFrozenSet_New(one_set));
+  auto empty_tuple = Ref<>::steal(PyTuple_New(0));
+  auto one_tuple = Ref<>::steal(PyTuple_New(1));
+  ASSERT_NE(one_tuple, nullptr);
+  PyTuple_SET_ITEM(one_tuple.get(), 0, PyLong_FromLong(1));
+  std::vector<Case> cases;
+  cases.push_back({Ref<>::create(Py_True), SpecializedType::kBool, Py_True});
+  cases.push_back({Ref<>::create(Py_False), SpecializedType::kBool, Py_False});
+  cases.push_back(
+      {Ref<>::steal(PyLong_FromLong(0)),
+       SpecializedType::kCompactLong,
+       Py_False});
+  cases.push_back(
+      {Ref<>::steal(PyLong_FromLong(3)),
+       SpecializedType::kCompactLong,
+       Py_True});
+  cases.push_back(
+      {Ref<>::steal(PyLong_FromLongLong(1LL << 60)),
+       SpecializedType::kLong,
+       Py_True});
+  cases.push_back({std::move(empty_list), SpecializedType::kList, Py_False});
+  cases.push_back({std::move(one_list), SpecializedType::kList, Py_True});
+  cases.push_back({Ref<>::create(Py_None), SpecializedType::kNone, Py_False});
+  cases.push_back(
+      {Ref<>::steal(PyUnicode_FromString("")),
+       SpecializedType::kUnicode,
+       Py_False});
+  cases.push_back(
+      {Ref<>::steal(PyUnicode_FromString("x")),
+       SpecializedType::kUnicode,
+       Py_True});
+  cases.push_back({std::move(empty_set), SpecializedType::kSet, Py_False});
+  cases.push_back({std::move(one_set), SpecializedType::kSet, Py_True});
+  cases.push_back(
+      {std::move(empty_frozenset), SpecializedType::kFrozenSet, Py_False});
+  cases.push_back(
+      {std::move(one_frozenset), SpecializedType::kFrozenSet, Py_True});
+  cases.push_back({std::move(empty_tuple), SpecializedType::kTuple, Py_False});
+  cases.push_back({std::move(one_tuple), SpecializedType::kTuple, Py_True});
+  for (auto& test_case : cases) {
+    ASSERT_NE(test_case.value, nullptr);
+    ToBoolCache cache;
+    EXPECT_EQ(cache.specializedType(), SpecializedType::kUninitialized);
+    auto result = Ref<>::steal(ToBoolCache::invoke(test_case.value, &cache));
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result.get(), test_case.expected_result);
+    EXPECT_EQ(cache.specializedType(), test_case.expected_type);
+  }
+}
+
+TEST_F(InlineCacheTest, ToBoolCacheStepsDownToGeneric) {
+  ToBoolCache cache;
+  auto list = Ref<>::steal(PyList_New(0));
+  ASSERT_NE(list, nullptr);
+  EXPECT_EQ(Ref<>::steal(ToBoolCache::invoke(list, &cache)).get(), Py_False);
+  EXPECT_EQ(cache.specializedType(), SpecializedType::kList);
+
+  // An unsupported operand type steps the cache down to generic, and the
+  // generic path still answers with the object's __len__-based truthiness.
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  EXPECT_EQ(Ref<>::steal(ToBoolCache::invoke(dict, &cache)).get(), Py_False);
+  EXPECT_EQ(cache.specializedType(), SpecializedType::kGeneric);
+
+  runCode(R"(
+class AlwaysTruthy:
+    def __bool__(self):
+        return True
+    def __len__(self):
+        return 0
+always_truthy = AlwaysTruthy()
+)");
+  auto always_truthy = getGlobal("always_truthy");
+  EXPECT_EQ(
+      Ref<>::steal(ToBoolCache::invoke(always_truthy, &cache)).get(), Py_True);
+  EXPECT_EQ(cache.specializedType(), SpecializedType::kGeneric);
+}
+
 TEST_F(InlineCacheTest, CompareCacheRejectsUnsupportedOp) {
   EXPECT_THROW(CompareCache{CompareOp::kIn}, std::runtime_error);
   EXPECT_THROW(CompareCache{CompareOp::kNotIn}, std::runtime_error);

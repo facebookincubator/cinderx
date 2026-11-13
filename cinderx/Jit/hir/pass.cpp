@@ -448,6 +448,7 @@ Type outputType(
     }
 
     case Opcode::kPrimitiveBoxBool:
+    case Opcode::kToBool:
     case Opcode::kUnaryNot: {
       return TImmortalBool;
     }

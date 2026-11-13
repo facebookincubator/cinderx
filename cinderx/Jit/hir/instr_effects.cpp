@@ -158,6 +158,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kMatchClass:
     case Opcode::kMatchKeys:
     case Opcode::kSend:
+    case Opcode::kToBool:
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
     case Opcode::kReserveStack:
@@ -675,6 +676,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kSetUpdate:
     case Opcode::kStoreAttr:
     case Opcode::kStoreSubscr:
+    case Opcode::kToBool:
     case Opcode::kUnpackExToTuple:
     case Opcode::kUnpackSequence:
     case Opcode::kVectorCall:

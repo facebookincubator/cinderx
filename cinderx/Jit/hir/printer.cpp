@@ -356,6 +356,7 @@ static std::string format_immediates(
     case Opcode::kStoreSubscr:
     case Opcode::kXDecref:
     case Opcode::kXIncref:
+    case Opcode::kToBool:
     case Opcode::kUnicodeConcat:
     case Opcode::kUnicodeEqual:
     case Opcode::kUnicodeRepeat:

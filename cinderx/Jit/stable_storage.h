@@ -74,6 +74,7 @@ class PerCompilationStableStorage final {
   BinaryOpCache* allocateBinaryOpCache(hir::BinaryOpKind op);
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
   CompareCache* allocateCompareCache(hir::CompareOp op);
+  ToBoolCache* allocateToBoolCache();
 
 #ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
   template <typename T, typename... Args>
@@ -127,6 +128,7 @@ class ContextStableStorage final {
   BinaryOpCache* allocateBinaryOpCache(hir::BinaryOpKind op);
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
   CompareCache* allocateCompareCache(hir::CompareOp op);
+  ToBoolCache* allocateToBoolCache();
   void addLoadTypeAttrCacheSite(
       BCOffset bytecode_offset,
       LoadTypeAttrCache* cache);
@@ -149,6 +151,7 @@ class ContextStableStorage final {
   SlabArena<BinaryOpCache> binary_op_caches_;
   SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
   SlabArena<CompareCache> compare_caches_;
+  SlabArena<ToBoolCache> to_bool_caches_;
 };
 
 #ifdef ENABLE_PREFORK_MODEL

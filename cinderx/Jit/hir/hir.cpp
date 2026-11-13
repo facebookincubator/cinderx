@@ -787,6 +787,7 @@ bool Instr::isReplayable() const {
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreAttr:
     case Opcode::kStoreSubscr:
+    case Opcode::kToBool:
     case Opcode::kTpAlloc:
     case Opcode::kUnaryOp:
     case Opcode::kUnicodeRepeat:
@@ -1092,6 +1093,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreAttr:
     case Opcode::kStoreSubscr:
+    case Opcode::kToBool:
     case Opcode::kTpAlloc:
     case Opcode::kUnaryOp:
     case Opcode::kUnicodeCompare:

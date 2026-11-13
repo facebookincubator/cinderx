@@ -981,9 +981,10 @@ class LoadModuleMethodCache {
 #endif
 };
 
-// The operand types BinaryOpCache and CompareCache can specialize on. Each
-// X(Name) maps SpecializedType::k<Name> to its type-check predicate
-// check<Name> (see checkFor). Kept in sync with the SpecializedType enum.
+// The operand types BinaryOpCache, CompareCache and ToBoolCache can
+// specialize on. Each X(Name) maps SpecializedType::k<Name> to its
+// type-check predicate check<Name> (see checkFor). Kept in sync with
+// the SpecializedType enum.
 #define FOREACH_SPECIALIZATION_TYPE(X) \
   X(CompactLong)                       \
   X(Long)                              \
@@ -993,7 +994,9 @@ class LoadModuleMethodCache {
   X(Tuple)                             \
   X(Complex)                           \
   X(Set)                               \
-  X(Bool)
+  X(Bool)                              \
+  X(None)                              \
+  X(FrozenSet)
 
 // Identifies a single operand type a SpecializedType expects.  Kept in sync
 // with FOREACH_SPECIALIZATION_TYPE (inline_cache.cpp): every type there maps to
@@ -1236,6 +1239,48 @@ class CompareCache {
       auto ReDispatch>
   static PyObject*
   invokeSpecialized(PyObject* lhs, PyObject* rhs, CompareCache* cache);
+
+  Specialization getSpecialization() const;
+  void setSpecialization(Specialization expected, Specialization desired);
+
+  std::atomic<Specialization> specialization_;
+};
+
+// A cache for an individual TO_BOOL instruction.
+//
+// Mirrors CompareCache for a unary operation: a small state machine with a
+// single Specialization enum covering the operand types truthiness can
+// specialize on. It starts in the populate state, which checks the input
+// for a known type on first invocation, then transitions to the matching
+// specialized state, or to generic when no SpecializedType applies. The
+// specialized states re-check the operand type on every call and step
+// down to generic when it stops matching, so a cache that saw only lists
+// stays correct if a later call passes an object with __bool__.
+//
+// Codegen emits a direct call to invoke(); the returned object is always
+// Py_True or Py_False (a new reference), or nullptr with an exception set
+// when the generic path fails.
+class ToBoolCache {
+ public:
+  enum class Specialization : uint8_t;
+
+  ToBoolCache();
+
+  static PyObject* invoke(PyObject* obj, ToBoolCache* cache);
+
+  // Returns the operand type the cache has settled on
+  // (kUninitialized before the first call, kGeneric after falling back).
+  SpecializedType specializedType() const;
+
+  ToBoolCache(const ToBoolCache&) = delete;
+  ToBoolCache& operator=(const ToBoolCache&) = delete;
+
+ private:
+  static PyObject* populateAndInvoke(PyObject* obj, ToBoolCache* cache);
+  static PyObject* generic(PyObject* obj, ToBoolCache* cache);
+
+  template <auto Current, auto Kind, auto Op, auto Fallback, auto ReDispatch>
+  static PyObject* invokeSpecialized(PyObject* obj, ToBoolCache* cache);
 
   Specialization getSpecialization() const;
   void setSpecialization(Specialization expected, Specialization desired);

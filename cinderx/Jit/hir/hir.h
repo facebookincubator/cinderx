@@ -459,6 +459,7 @@ class LiveValuesBase : public Instr {
   X(SetUpdate)                        \
   X(StoreAttr)                        \
   X(StoreSubscr)                      \
+  X(ToBool)                           \
   X(TpAlloc)                          \
   X(UnaryOp)                          \
   X(UnicodeConcat)                    \
@@ -3712,6 +3713,19 @@ DEFINE_SIMPLE_INSTR(IsCompactLong, (TLongExact | TCInt64), Operands<1>);
 
 // Output 1, 0, if `value` is truthy or not truthy.
 DEFINE_SIMPLE_INSTR(IsTruthy, (TObject), Operands<1>, DeoptBase);
+
+// Coerce `value` to a bool object via a ToBoolCache inline cache, which
+// profiles the operand type for recompilation. Unlike IsTruthy, whose
+// output is a C bool, this returns Py_True/Py_False.
+class INSTR_CLASS(ToBool, (TObject), Operands<1>, DeoptBase) {
+ public:
+  ToBool(Register* dst, Register* operand, const FrameState& frame)
+      : InstrT(dst, operand, frame) {}
+
+  Register* operand() const {
+    return getOperand(0);
+  }
+};
 
 DEFINE_SIMPLE_INSTR(IsInstance, (TObject, TType), Operands<2>, DeoptBase);
 

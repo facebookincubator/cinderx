@@ -163,6 +163,7 @@ namespace cinderx::jit::hir {
   V(StoreAttr)                     \
   V(StoreField)                    \
   V(StoreSubscr)                   \
+  V(ToBool)                        \
   V(TpAlloc)                       \
   V(UnaryNot)                      \
   V(UnaryOp)                       \
@@ -362,6 +363,7 @@ constexpr size_t numOutputs(Opcode op) {
     case Opcode::kStealCellItem:
     case Opcode::kSwapCellItem:
     case Opcode::kTagIfDeferred:
+    case Opcode::kToBool:
     case Opcode::kTpAlloc:
     case Opcode::kUnaryNot:
     case Opcode::kUnaryOp:

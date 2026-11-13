@@ -5725,6 +5725,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         appendGuard(bbb, InstrGuardKind::kNotNegative, *is_truthy, call_instr);
         break;
       }
+      case hir::Opcode::kToBool: {
+        auto instr = &i.as<ToBool>();
+        ToBoolCache* cache = stable_storage_.allocateToBoolCache();
+        env_->profileCollector().add(
+            instr->frameState()->code, instr->bytecodeOffset(), cache);
+        bbb.appendCallInstruction(
+            instr->output(), ToBoolCache::invoke, instr->operand(), cache);
+        break;
+      }
       case hir::Opcode::kImportFrom: {
 #if ENABLE_LAZY_IMPORTS
         auto instr = &i.as<ImportFrom>();

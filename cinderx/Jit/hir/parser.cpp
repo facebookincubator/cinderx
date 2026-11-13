@@ -829,6 +829,11 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = newInstr<IsTruthy>(dst, src);
       break;
     }
+    case Opcode::kToBool: {
+      auto src = parseRegister();
+      instruction = newInstr<ToBool>(dst, src);
+      break;
+    }
     case Opcode::kUseObj: {
       auto reg = parseRegister();
       NEW_INSTR(UseObj, reg);
