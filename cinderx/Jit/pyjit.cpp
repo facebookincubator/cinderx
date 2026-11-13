@@ -244,6 +244,16 @@ PyObject* jitVectorcall(
         (bytecode_limit.has_value() &&
          codeInterpretedBytecodeCount(code) >= *bytecode_limit);
     if (!is_hot) {
+      if (Ci_UseCPythonInterpreter()) {
+        // CPython does not execute CinderX's interpreter counter macros.
+        // Count only calls routed through this scheduling adapter; native
+        // calls remain uncounted, as in the default interpreter policy.
+        auto extra = codeExtra(code);
+        if (extra == nullptr) {
+          return PyErr_NoMemory();
+        }
+        Ci_code_extra_incr_calls(extra);
+      }
       auto entry = getInterpretedVectorcall(func);
       return entry(func_obj, stack, nargsf, kwnames);
     }
@@ -386,8 +396,10 @@ FlagProcessor initFlagProcessor() {
         if (enabled) {
           getMutableConfig().compile_after_n_calls =
               kDefaultAutoJitCallThreshold;
-          getMutableConfig().compile_after_n_bytecodes =
-              kDefaultAutoJitBytecodeThreshold;
+          if (!Ci_UseCPythonInterpreter()) {
+            getMutableConfig().compile_after_n_bytecodes =
+                kDefaultAutoJitBytecodeThreshold;
+          }
         }
       },
       "Enable auto-JIT mode with the default call and bytecode thresholds");
@@ -1145,6 +1157,9 @@ AdmitResult admitCompile(
       "admitCompile reads compiled_codes_ and needs the GIL");
 
   if (isJitFinalizing() || code == nullptr) {
+    return {CompileAdmission::kIneligible, std::move(func)};
+  }
+  if (Ci_UseCPythonInterpreter() && codeRequiresCinderXInterpreter(code) != 0) {
     return {CompileAdmission::kIneligible, std::move(func)};
   }
   constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
@@ -2504,6 +2519,11 @@ int compile_after_n_bytecodes_impl(ModuleState& state, uint32_t bytecodes) {
     PyErr_SetString(PyExc_RuntimeError, "Cannot configure JIT during shutdown");
     return -1;
   }
+  if (Ci_UseCPythonInterpreter()) {
+    PyErr_SetString(PyExc_RuntimeError,
+        "Bytecode hotness requires CINDERX_INTERPRETER_MODE=cinderx");
+    return -1;
+  }
   if (Ci_InitFrameEvalFunc() < 0) {
     return -1;
   }
@@ -2665,8 +2685,9 @@ PyObject* auto_jit(PyObject* mod, PyObject* /* arg */) {
   if (compile_after_n_calls_impl(state, kDefaultAutoJitCallThreshold) < 0) {
     return nullptr;
   }
-  if (compile_after_n_bytecodes_impl(state, kDefaultAutoJitBytecodeThreshold) <
-      0) {
+  if (!Ci_UseCPythonInterpreter() &&
+      compile_after_n_bytecodes_impl(state, kDefaultAutoJitBytecodeThreshold) <
+          0) {
     return nullptr;
   }
 
@@ -2692,6 +2713,14 @@ BorrowedRef<PyFunctionObject> get_func_arg(
   }
 
   if (PyFunction_Check(func)) {
+    if (Ci_UseCPythonInterpreter() &&
+        codeRequiresCinderXInterpreter((PyCodeObject*)PyFunction_GetCode(func)) != 0) {
+      if (!PyErr_Occurred()) {
+        PyErr_SetString(PyExc_RuntimeError,
+            "Static Python/custom bytecode requires CINDERX_INTERPRETER_MODE=cinderx");
+      }
+      return nullptr;
+    }
     return BorrowedRef<PyFunctionObject>{func};
   }
 
@@ -3642,6 +3671,11 @@ PyObject* disable_emit_type_annotation_guards(PyObject* /* self */, PyObject*) {
 }
 
 PyObject* enable_specialized_opcodes(PyObject* /* self */, PyObject*) {
+  if (Ci_UseCPythonInterpreter()) {
+    PyErr_SetString(PyExc_RuntimeError,
+        "CinderX specialized opcodes require CINDERX_INTERPRETER_MODE=cinderx");
+    return nullptr;
+  }
   getMutableConfig().specialized_opcodes = true;
   Py_RETURN_NONE;
 }
@@ -5152,6 +5186,18 @@ int initialize(BorrowedRef<> cinderx_module) {
   // exception.  Fail initialization cleanly.
   if (PyErr_Occurred()) {
     return -1;
+  }
+
+  if (Ci_UseCPythonInterpreter()) {
+    if (getConfig().compile_after_n_bytecodes.has_value() ||
+        getConfig().compile_all_static_functions ||
+        (flag_processor.hasHandled("cinderx-jit-specialized-opcodes") &&
+         getConfig().specialized_opcodes)) {
+      PyErr_SetString(PyExc_ValueError,
+          "CPython interpreter mode does not support bytecode hotness, all-static compilation, or CinderX specialized opcodes");
+      return -1;
+    }
+    getMutableConfig().specialized_opcodes = false;
   }
 
   if (flag_processor.hasHandled("cinderx-jit-help")) {

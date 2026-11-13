@@ -84,6 +84,14 @@ class Compiler:
         code_generator: type[StaticCodeGenBase],
         error_sink: ErrorSink | None = None,
     ) -> None:
+        # Offline compilation without the runtime extension remains available.
+        # An initialized CPython-mode runtime must not generate bytecode its
+        # selected evaluator cannot execute (including unflagged helpers).
+        import cinderx
+
+        if (cinderx.get_import_error() is None and
+                cinderx.get_interpreter_mode() == "cpython"):
+            raise RuntimeError("Static Python requires CINDERX_INTERPRETER_MODE=cinderx")
         self.modules: dict[str, ModuleTable] = {}
         self.ast_cache: dict[
             str | bytes | ast.Module | ast.Expression | ast.Interactive, ast.Module

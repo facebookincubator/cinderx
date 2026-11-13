@@ -42,6 +42,7 @@
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 
 #include <fmt/format.h>
 
@@ -579,7 +580,9 @@ PyObject* deoptAndResumeInInterpreter(
           : eval_frame(tstate, frame, err_occurred);
     } else {
 #ifdef ENABLE_INTERPRETER_LOOP
-      result = eval_frame == nullptr
+      // A foreign evaluator does not imply that CinderX's interpreter was
+      // installed: the explicit CPython policy also applies to ordinary deopts.
+      result = eval_frame == nullptr || Ci_UseCPythonInterpreter()
           ? _PyEval_EvalFrameDefault(tstate, frame, err_occurred)
           : Ci_EvalFrame(tstate, frame, err_occurred);
 #else

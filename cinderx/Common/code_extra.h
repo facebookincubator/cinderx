@@ -33,6 +33,10 @@ typedef struct CodeExtra {
   // the data; keeping a pointer here is what lets any function creation path
   // find it.  See cinderx/Jit/nested_compile.h.
   void* jit_nested_compile_data;
+
+  // CPython-mode bytecode check, computed once for immutable code: 0 unknown,
+  // 1 ordinary CPython code, 2 requires the CinderX interpreter.
+  uint8_t interpreter_compatibility;
 } CodeExtra;
 
 // These counters are approximate hotness signals. Their thresholds are well

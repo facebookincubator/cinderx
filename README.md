@@ -58,6 +58,56 @@ See [the JIT documentation](https://facebookincubator.github.io/cinderx/jit) for
 more details, or browse the full [CinderX documentation
 site](https://facebookincubator.github.io/cinderx/).
 
+### Native JIT with CPython's interpreter
+
+On stock CPython 3.14 with the GIL and PEP 523 support, an opt-in startup
+policy keeps CPython's evaluator for ordinary uncompiled functions while
+retaining CinderX native JIT compilation:
+
+```sh
+CINDERX_INTERPRETER_MODE=cpython python application.py
+```
+
+```python
+import cinderx
+import cinderx.jit as jit
+
+assert cinderx.get_interpreter_mode() == "cpython"
+jit.enable()
+jit.force_compile(python_function)
+assert not cinderx.is_frame_evaluator_installed()
+```
+
+Set the environment variable before any import of CinderX, including imports
+performed by startup hooks or dependencies. The policy is immutable for that
+module lifetime; changing the environment after import does not change it.
+The default, `CINDERX_INTERPRETER_MODE=cinderx`, preserves existing behavior.
+`get_interpreter_mode()` reports the policy, while
+`is_frame_evaluator_installed()` reports current evaluator ownership.
+
+Manual compilation, lazy compilation, JIT lists, disable/enable cycles and
+call-count automatic compilation retain the selected policy. In CPython mode,
+`jit.auto()` uses its default call threshold only. Calls routed through the
+JIT's scheduling adapter advance call counters; this is not a general counter
+for every CPython frame. Existing and newly created eligible functions are
+scheduled. Bytecode hotness is unavailable: explicit bytecode thresholds fail
+without changing the scheduling configuration.
+
+Static Python and CinderX-specific bytecodes require the default policy.
+CPython mode skips CinderX's global opcode metadata initialization, disables
+its specialized-opcode option, and rejects attempts to enable these features
+or explicitly install the CinderX evaluator. The Static Python compiler/loader,
+execution or construction of static/custom-code functions, and native
+preloading/inlining of such code are rejected. Code compatibility checks are
+cached per code object; ordinary calls do not repeatedly scan bytecode.
+
+Foreign frame evaluators are preserved. A native CinderX entry still hands a
+fresh frame to a foreign evaluator such as TorchDynamo when required. This
+mode does not eliminate that handoff/materialization cost, accelerate GPU
+kernels, or change the separately scoped generator/coroutine evaluator
+limitations. Other Python versions, free-threaded builds and Meta Python are
+not currently supported by this opt-in policy; the default remains available.
+
 ## CinderX vs Cinder
 
 [Cinder](https://github.com/facebookincubator/cinder) was a fork of the CPython

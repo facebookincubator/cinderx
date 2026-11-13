@@ -44,6 +44,9 @@ void Ci_SetEvalFrameFunc(_PyFrameEvalFunction eval_frame);
 // storage; such builds must retain the runtime helper.
 const void* Ci_GetEvalFrameFuncStorage(void);
 
+// Immutable startup interpreter policy; false when no module state is live.
+bool Ci_UseCPythonInterpreter(void);
+
 // Get the StaticTypeError exception type.
 PyObject* Ci_GetStaticTypeError(void);
 

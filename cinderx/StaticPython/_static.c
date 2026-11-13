@@ -1759,6 +1759,11 @@ static int sp_audit_hook(const char* event, PyObject* args, void* data) {
 }
 
 static PyObject* install_sp_audit_hook(PyObject* mod) {
+  if (Ci_UseCPythonInterpreter()) {
+    PyErr_SetString(PyExc_RuntimeError,
+        "Static Python requires CINDERX_INTERPRETER_MODE=cinderx");
+    return NULL;
+  }
   if (Ci_GetSpAuditHookInstalled()) {
     Py_RETURN_NONE;
   }

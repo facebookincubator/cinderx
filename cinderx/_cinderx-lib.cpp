@@ -6,6 +6,8 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/define.h"
+#include "cinderx/Common/audit.h"
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
@@ -21,6 +23,7 @@
 #include "cinderx/Jit/function_slots.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/global_cache.h"
+#include "cinderx/Jit/jit_flag_processor.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/symbolizer.h"
@@ -557,6 +560,11 @@ int function_visitor(BorrowedRef<PyFunctionObject> func) {
       "Failed to initialize extra data for {}",
       cinderx::funcFullname(func));
 
+  if (Ci_UseCPythonInterpreter() && codeRequiresCinderXInterpreter(code) != 0) {
+    setVectorcall(func, getInterpretedVectorcall(func));
+    return 1;
+  }
+
   // Schedule the function to be compiled if desired.
   scheduleCompile(func);
 
@@ -673,6 +681,10 @@ int cinderx_func_watcher(
       // Update the new function's vectorcall to have it run with Static Python
       // if it needs to.
       BorrowedRef<PyCodeObject> code{func->func_code};
+      if (Ci_UseCPythonInterpreter() && codeRequiresCinderXInterpreter(code) != 0) {
+        func->vectorcall = getInterpretedVectorcall(func);
+        return PyErr_Occurred() ? -1 : 0;
+      }
       if (code->co_flags & CI_CO_STATICALLY_COMPILED) {
         func->vectorcall = getInterpretedVectorcall(func);
       }
@@ -818,13 +830,74 @@ static PyMethodDef next_or_sentinel_def = {
 
 PyDoc_STRVAR(
     install_frame_evaluator_doc,
-    "Install the CinderX frame evaluator.  This is needed for the JIT "
-    "and Static Python to function.");
+    "Install the CinderX frame evaluator under the default interpreter policy. "
+    "Static Python requires it; native JIT compilation can also use the "
+    "opt-in CPython interpreter policy.");
 PyObject* install_frame_evaluator(PyObject* /* mod */, PyObject* /* args */) {
+  if (Ci_UseCPythonInterpreter()) {
+    PyErr_SetString(PyExc_RuntimeError,
+        "CINDERX_INTERPRETER_MODE=cpython does not allow installing the CinderX evaluator");
+    return nullptr;
+  }
   if (Ci_InitFrameEvalFunc() < 0) {
     return nullptr;
   }
   Py_RETURN_NONE;
+}
+
+PyObject* get_interpreter_mode(PyObject*, PyObject*) {
+  return PyUnicode_FromString(Ci_UseCPythonInterpreter() ? "cpython" : "cinderx");
+}
+
+// Audit callbacks outlive ModuleState. Consult the current state rather than
+// retaining it, and leave other interpreters (which CinderX does not support)
+// alone. Recurse only at code execution/construction boundaries, not per call.
+static int check_cpython_code(PyCodeObject* code) {
+  if (Py_EnterRecursiveCall(" while checking CPython-mode bytecode")) {
+    return -1;
+  }
+  int requires_cinderx = codeRequiresCinderXInterpreter(code);
+  if (requires_cinderx > 0) {
+    PyErr_SetString(PyExc_RuntimeError,
+        "Static Python/custom bytecode requires CINDERX_INTERPRETER_MODE=cinderx");
+  }
+  int result = requires_cinderx == 0 ? 0 : -1;
+  if (result == 0) {
+    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(code->co_consts); i++) {
+      PyObject* item = PyTuple_GET_ITEM(code->co_consts, i);
+      if (PyCode_Check(item) && check_cpython_code((PyCodeObject*)item) < 0) {
+        result = -1;
+        break;
+      }
+    }
+  }
+  Py_LeaveRecursiveCall();
+  return result;
+}
+
+static int cpython_mode_audit_hook(const char* event, PyObject* args, void*) {
+  auto state = cinderx::getModuleState();
+  // Earlier imports may have installed this process-lifetime callback. Match
+  // first-import behavior while a replacement state is still bootstrapping.
+  if (state == nullptr || !state->use_cpython_interpreter ||
+      state->code_extra_index < 0 ||
+      PyInterpreterState_Get() != PyInterpreterState_Main()) {
+    return 0;
+  }
+  PyObject* code = nullptr;
+  if ((strcmp(event, "exec") == 0 || strcmp(event, "function.__new__") == 0) &&
+      PyTuple_GET_SIZE(args) > 0) {
+    code = PyTuple_GET_ITEM(args, 0);
+  } else if (strcmp(event, "object.__setattr__") == 0 &&
+             PyTuple_GET_SIZE(args) == 3) {
+    PyObject* name = PyTuple_GET_ITEM(args, 1);
+    if (PyUnicode_Check(name) &&
+        PyUnicode_CompareWithASCIIString(name, "__code__") == 0) {
+      code = PyTuple_GET_ITEM(args, 2);
+    }
+  }
+  return code != nullptr && PyCode_Check(code)
+      ? check_cpython_code((PyCodeObject*)code) : 0;
 }
 
 PyDoc_STRVAR(
@@ -890,6 +963,9 @@ void module_free(void* raw_mod) {
     // belongs to the main interpreter.
     if (!state->fully_initialized) {
       bool published = state == cinderx::getModuleState();
+      // Persistent audit callbacks must ignore this failed state before its
+      // members are destroyed, even if the traceback retained the module.
+      state->use_cpython_interpreter = false;
       state->cinderx::ModuleState::~ModuleState();
       if (published) {
         cinderx::removeModuleState();
@@ -1023,6 +1099,8 @@ int initCachedPropertyTypes(PyObject* mod, cinderx::ModuleState* state) {
 }
 
 PyMethodDef _cinderx_methods[] = {
+    {"get_interpreter_mode", get_interpreter_mode, METH_NOARGS,
+     PyDoc_STR("Return the immutable startup interpreter policy: cinderx or cpython.")},
     {"install_frame_evaluator",
      install_frame_evaluator,
      METH_NOARGS,
@@ -1154,6 +1232,72 @@ int _cinderx_exec_impl(PyObject* m) {
         PyExc_ImportError,
         "The _cinderx extension does not support subinterpreters");
     return -1;
+  }
+
+  // Select and validate policy before initializing runtime hooks or mutating
+  // global opcode metadata. Environment changes after import have no effect.
+  const char* interpreter_mode = getenv("CINDERX_INTERPRETER_MODE");
+  if (interpreter_mode != nullptr && *interpreter_mode != '\0' &&
+      strcmp(interpreter_mode, "cinderx") != 0) {
+    if (strcmp(interpreter_mode, "cpython") != 0) {
+      PyErr_SetString(PyExc_ValueError,
+          "CINDERX_INTERPRETER_MODE must be cinderx or cpython");
+      return -1;
+    }
+#if PY_VERSION_HEX >= 0x030E0000 && PY_VERSION_HEX < 0x030F0000 && \
+    defined(ENABLE_PEP523_HOOK) && !defined(Py_GIL_DISABLED) && !defined(META_PYTHON)
+    state->use_cpython_interpreter = true;
+    // Reject interpreter-dependent options before installing any process-wide
+    // hooks. A caught import failure can retain the failed module indefinitely.
+    bool bytecode_hotness = false;
+    bool all_static = false;
+    bool specialized = false;
+    jit::FlagProcessor policy_flags;
+    policy_flags.addOption(
+        "cinderx-jit-compile-n-bytecodes", "CINDERX_JIT_COMPILE_N_BYTECODES",
+        [&bytecode_hotness](int) { bytecode_hotness = true; }, "Reject bytecode hotness in CPython mode");
+    policy_flags.addOption(
+        "cinderx-jit-all-static-functions", "CINDERX_JIT_ALL_STATIC_FUNCTIONS",
+        all_static, "Reject static compilation in CPython mode");
+    policy_flags.addOption(
+        "cinderx-jit-specialized-opcodes", "CINDERX_JIT_SPECIALIZED_OPCODES",
+        specialized, "Reject custom specializations in CPython mode");
+    // This is a partial option parser; leave unrelated CLI options to the JIT's
+    // complete parser rather than warning that they are unrecognized.
+    Ref<> policy_options = Ref<>::steal(PyDict_New());
+    if (policy_options == nullptr) {
+      return -1;
+    }
+    for (const char* name : {
+             "cinderx-jit-compile-n-bytecodes", "jit-compile-n-bytecodes",
+             "cinderx-jit-all-static-functions", "jit-all-static-functions",
+             "cinderx-jit-specialized-opcodes", "jit-specialized-opcodes"}) {
+      PyObject* value = PyDict_GetItemString(PySys_GetXOptions(), name);
+      if (value != nullptr && PyDict_SetItemString(policy_options, name, value) < 0) {
+        return -1;
+      }
+    }
+    policy_flags.setFlags(policy_options);
+    if (bytecode_hotness || all_static || specialized) {
+      PyErr_SetString(PyExc_ValueError,
+          "CPython interpreter mode does not support bytecode hotness, all-static compilation, or CinderX specialized opcodes");
+      return -1;
+    }
+    const char* static_python = getenv("CINDERX_STATIC_PYTHON");
+    if (static_python == nullptr) {
+      static_python = getenv("PYTHONINSTALLSTRICTLOADER");
+    }
+    if (static_python != nullptr && *static_python != '\0' &&
+        strcmp(static_python, "0") != 0) {
+      PyErr_SetString(PyExc_ValueError,
+          "Static Python requires CINDERX_INTERPRETER_MODE=cinderx");
+      return -1;
+    }
+#else
+    PyErr_SetString(PyExc_RuntimeError,
+        "CPython interpreter mode requires CPython 3.14 with the GIL and PEP 523 support");
+    return -1;
+#endif
   }
 
   cinderx::initStaticObjects();
@@ -1410,6 +1554,13 @@ int _cinderx_exec_impl(PyObject* m) {
   // interpreter and try to use it.
   initCodeExtraIndex();
 
+  if (state->use_cpython_interpreter &&
+      !installAuditHook(cpython_mode_audit_hook, nullptr)) {
+    PyErr_SetString(PyExc_RuntimeError,
+        "Could not install CPython-mode bytecode audit hook");
+    return -1;
+  }
+
   if (watcher_state.init() < 0) {
     return -1;
   }
@@ -1430,7 +1581,9 @@ int _cinderx_exec_impl(PyObject* m) {
   state->enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
 
 #ifdef ENABLE_INTERPRETER_LOOP
-  Ci_InitOpcodes();
+  if (!state->use_cpython_interpreter) {
+    Ci_InitOpcodes();
+  }
 #endif
 
 #ifdef ENABLE_XXCLASSLOADER
@@ -1451,6 +1604,20 @@ int _cinderx_exec_impl(PyObject* m) {
   return 0;
 }
 
+void cleanup_failed_cpython_mode(PyObject* m) {
+  auto state = cinderx::getModuleState(m);
+  if (state != cinderx::getModuleState() || !state->use_cpython_interpreter) {
+    return;
+  }
+  // The traceback may keep a failed module alive through a subsequent import.
+  // Stop its callbacks immediately, before the singleton can refer to a new
+  // state whose code-extra index and other runtime data are not ready yet.
+  PyObject* error = PyErr_GetRaisedException();
+  state->use_cpython_interpreter = false;
+  state->watcher_state.fini();
+  PyErr_SetRaisedException(error);
+}
+
 int _cinderx_exec(PyObject* m) {
   try {
     int result = _cinderx_exec_impl(m);
@@ -1461,6 +1628,7 @@ int _cinderx_exec(PyObject* m) {
     // Everything else will be handled by module_free() when there's an error.
     if (result < 0) {
       Ci_FiniFrameEvalFunc();
+      cleanup_failed_cpython_mode(m);
     }
     return result;
   } catch (const std::exception& exn) {
@@ -1468,6 +1636,7 @@ int _cinderx_exec(PyObject* m) {
     // convert it to a Python exception.
     Ci_FiniFrameEvalFunc();
     setRuntimeError(exn);
+    cleanup_failed_cpython_mode(m);
     return -1;
   }
 }

@@ -3,6 +3,7 @@
 #include "cinderx/module_c_state.h"
 
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/module_state.h"
@@ -31,11 +32,33 @@ std::atomic<_PyFrameEvalFunction> cinderx_eval_frame{nullptr};
 
 extern "C" {
 
+bool Ci_UseCPythonInterpreter(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr && state->use_cpython_interpreter;
+}
+
 #if PY_VERSION_HEX < 0x030F0000
 vectorcallfunc Ci_PyFunction_Vectorcall;
 #endif
 
+static PyObject* unsupported_interpreter_vectorcall(
+    PyObject*, PyObject* const*, size_t, PyObject*) {
+  if (!PyErr_Occurred()) {
+    PyErr_SetString(
+        PyExc_RuntimeError,
+        "Static Python/custom bytecode requires CINDERX_INTERPRETER_MODE=cinderx");
+  }
+  return nullptr;
+}
+
 vectorcallfunc getInterpretedVectorcall(const PyFunctionObject* func) {
+  if (Ci_UseCPythonInterpreter()) {
+    auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
+    if (codeRequiresCinderXInterpreter(code) != 0) {
+      return unsupported_interpreter_vectorcall;
+    }
+    return Ci_PyFunction_Vectorcall;
+  }
   auto state = cinderx::getModuleState();
   vectorcallfunc static_function_vectorcall = state != nullptr
       ? state->static_function_vectorcall.load(std::memory_order_relaxed)

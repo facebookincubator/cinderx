@@ -19,6 +19,8 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/module_state.h"
+#include "cinderx/module_c_state.h"
+#include "cinderx/Common/code.h"
 
 #if PY_VERSION_HEX >= 0x030F0000
 #include "internal/pycore_lazyimportobject.h" // PyLazyImport_CheckExact
@@ -521,6 +523,16 @@ std::unique_ptr<Preloader> Preloader::makeImpl(
     const std::string& fullname,
     Ref<> reifier,
     bool register_code) {
+  // This is shared by direct, dependency, nested, and inline preloading.
+  // Reject interpreter-dependent code before any native body can bypass its
+  // rejecting vectorcall or later deopt into CPython's evaluator.
+  if (Ci_UseCPythonInterpreter() && codeRequiresCinderXInterpreter(code) != 0) {
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_RuntimeError,
+          "Static Python/custom bytecode requires CINDERX_INTERPRETER_MODE=cinderx");
+    }
+    return nullptr;
+  }
   auto preloader = std::unique_ptr<Preloader>(new Preloader(
       std::move(code),
       std::move(builtins),

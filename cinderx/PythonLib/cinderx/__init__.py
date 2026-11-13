@@ -69,6 +69,7 @@ try:
         enable_parallel_gc,
         freeze_type,
         get_adaptive_delay,
+        get_interpreter_mode,
         get_parallel_gc_settings,
         has_parallel_gc,
         immortalize_heap,
@@ -481,6 +482,9 @@ except ImportError as e:
     def install_frame_evaluator() -> None:
         pass
 
+    def get_interpreter_mode() -> str:
+        raise RuntimeError("CinderX is not initialized")
+
     def is_frame_evaluator_installed() -> bool:
         return False
 
@@ -562,6 +566,9 @@ def _maybe_enable_static_python() -> None:
     )
     if static_python == "" or static_python == "0":
         return
+
+    if get_interpreter_mode() == "cpython":
+        raise RuntimeError("Static Python requires CINDERX_INTERPRETER_MODE=cinderx")
 
     loader = import_module("cinderx.compiler.strict.loader")
     loader.init_static_python()

@@ -6,6 +6,7 @@
 #include "cinderx/Common/code.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
@@ -302,6 +303,33 @@ bool bytecodeIndexInExceptionHandler(PyCodeObject* code, int index) {
     }
   }
   return false;
+}
+
+int codeRequiresCinderXInterpreter(PyCodeObject* code) {
+  CodeExtra* extra = codeExtra(code);
+  if (extra == nullptr) {
+    PyErr_NoMemory();
+    return -1;
+  }
+  if (extra->interpreter_compatibility != 0) {
+    return extra->interpreter_compatibility == 2;
+  }
+  bool requires_cinderx = (code->co_flags & CI_CO_STATICALLY_COMPILED) != 0;
+#if PY_VERSION_HEX >= 0x030E0000
+  // Inspect instruction boundaries, not inline cache payload words. Some
+  // generated Static Python helpers omit the static flag but still contain
+  // the EXTENDED_OPCODE prefix. Never pass those to CPython's interpreter.
+  for (size_t i = 0, size = countIndices(code); !requires_cinderx && i < size;) {
+    int opcode = uninstrument(code, i);
+    if (opcode == EXTENDED_OPCODE) {
+      requires_cinderx = true;
+      break;
+    }
+    i += 1 + _CiOpcode_Caches[unspecialize(opcode)];
+  }
+#endif
+  extra->interpreter_compatibility = requires_cinderx ? 2 : 1;
+  return requires_cinderx;
 }
 
 int numLocals(PyCodeObject* code) {

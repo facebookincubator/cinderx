@@ -2,7 +2,9 @@
 
 from collections.abc import AsyncGenerator, Awaitable, Callable, Coroutine, Generator
 from types import ModuleType
-from typing import Any, Mapping, NoReturn, TypeVar
+from typing import Any, Literal, Mapping, NoReturn, TypeVar
+
+def get_interpreter_mode() -> Literal["cinderx", "cpython"]: ...
 
 class async_cached_classproperty:
     func: Any

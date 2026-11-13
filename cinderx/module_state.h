@@ -215,6 +215,10 @@ struct ModuleState {
   // where _cinderx does not support loading.
   bool fully_initialized{false};
 
+  // Immutable startup policy. Ordinary functions use CPython's evaluator;
+  // native JIT entries remain available. No global opcode metadata is patched.
+  bool use_cpython_interpreter{false};
+
   bool tstate_offset_inited{false};
   int32_t tstate_offset{-1};
 

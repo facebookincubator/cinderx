@@ -72,6 +72,10 @@ size_t codeInterpretedBytecodeCount(PyCodeObject* code);
 // as covering the index.
 bool bytecodeIndexInExceptionHandler(PyCodeObject* code, int index);
 
+// Cached direct-code compatibility check (does not traverse co_consts).
+// Returns 1 for CinderX-only code, 0 for ordinary code, -1 on allocation error.
+int codeRequiresCinderXInterpreter(PyCodeObject* code);
+
 // Count the various frame variables that a code object will use.
 int numLocals(PyCodeObject* code);
 int numCellvars(PyCodeObject* code);

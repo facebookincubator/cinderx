@@ -14,6 +14,11 @@
 extern "C" {
 
 int Ci_InitFrameEvalFunc() {
+  // Native-JIT APIs call this shared initialization path. Respect the startup
+  // policy without changing another tool's evaluator or registering our own.
+  if (Ci_UseCPythonInterpreter()) {
+    return 0;
+  }
 #ifdef ENABLE_INTERPRETER_LOOP
   Ci_SetStaticFunctionVectorcall(Ci_StaticFunction_Vectorcall);
 #ifdef ENABLE_EVAL_HOOK
