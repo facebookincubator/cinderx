@@ -10,6 +10,7 @@ from cinderx.test_support import passUnless
 class SubinterpreterTest(unittest.TestCase):
     def test_cinderx_import_fails_in_subinterpreter(self) -> None:
         """Verify that _cinderx cannot be loaded in a subinterpreter."""
+        # pyrefly: ignore [missing-import]
         import _interpreters
 
         interp_id = _interpreters.create()
@@ -33,6 +34,7 @@ class SubinterpreterTest(unittest.TestCase):
 
     def test_cinderx_wrapper_not_initialized_in_subinterpreter(self) -> None:
         """Verify that the cinderx wrapper is not initialized in a subinterpreter."""
+        # pyrefly: ignore [missing-import]
         import _interpreters
 
         interp_id = _interpreters.create()
