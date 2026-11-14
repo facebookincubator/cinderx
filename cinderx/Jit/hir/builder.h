@@ -477,9 +477,12 @@ class HIRBuilder {
   void emitBuildString(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+#if PY_VERSION_HEX < 0x03100000
+  // Removed in 3.16; see builder.cpp.
   void emitFormatValue(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+#endif
   void emitFormatWithSpec(TranslationContext& tc);
 
   void emitMapAdd(

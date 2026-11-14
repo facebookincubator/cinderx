@@ -139,7 +139,9 @@ bool isSupportedOpcode(int opcode) {
     case EXTENDED_ARG:
     case FAST_LEN:
     case FORMAT_SIMPLE:
+#if PY_VERSION_HEX < 0x03100000
     case FORMAT_VALUE:
+#endif
     case FORMAT_WITH_SPEC:
     case FOR_ITER:
     case GEN_START:
@@ -1526,10 +1528,12 @@ void HIRBuilder::translate(
           emitBuildString(tc, bc_instr);
           break;
         }
+#if PY_VERSION_HEX < 0x03100000
         case FORMAT_VALUE: {
           emitFormatValue(tc, bc_instr);
           break;
         }
+#endif
         case FORMAT_WITH_SPEC: {
           emitFormatWithSpec(tc);
           break;
@@ -5223,6 +5227,9 @@ void HIRBuilder::emitBuildString(
   tc.emitVariadic<BuildString>(*env_, num_operands);
 }
 
+#if PY_VERSION_HEX < 0x03100000
+// 3.16 removed `FORMAT_VALUE` and the `FVS_*` macros; f-strings are
+// `CONVERT_VALUE` followed by `FORMAT_SIMPLE` / `FORMAT_WITH_SPEC`.
 void HIRBuilder::emitFormatValue(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
@@ -5243,6 +5250,7 @@ void HIRBuilder::emitFormatValue(
   tc.emit<FormatValue>(dst, fmt_spec, value, which_conversion, tc.frame);
   tc.frame.stack.push(dst);
 }
+#endif
 
 void HIRBuilder::emitFormatWithSpec(TranslationContext& tc) {
   OperandStack& stack = tc.frame.stack;
