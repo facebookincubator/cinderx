@@ -13,8 +13,10 @@ jobs:
         os: [ubuntu-latest, ubuntu-26.04-arm, macos-latest, windows-latest]
         python-version: ['3.14', '3.15']
         include:
-          # Free-threading support is currently limited to Linux x86-64.
+          # Free-threading support is currently limited to Linux.
           - os: ubuntu-latest
+            python-version: '3.14t'
+          - os: ubuntu-26.04-arm
             python-version: '3.14t'
 
     steps:
