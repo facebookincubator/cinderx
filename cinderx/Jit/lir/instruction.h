@@ -201,7 +201,7 @@ class Instruction {
 
   template <typename... Args>
   static constexpr bool validOperandOrder() {
-    bool saw_non_condition_arg = false;
+    [[maybe_unused]] bool saw_non_condition_arg = false;
     bool valid = true;
 
     (
