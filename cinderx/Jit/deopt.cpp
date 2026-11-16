@@ -178,7 +178,8 @@ BCIndex getDeoptResumeIndex(
 
   if ((is_innermost &&
        (meta.reason == DeoptReason::kGuardFailure ||
-        meta.reason == DeoptReason::kRaise)) ||
+        meta.reason == DeoptReason::kRaise ||
+        meta.reason == DeoptReason::kRaiseUnhandled)) ||
       forced_deopt) {
     return frame.causeInstrIdx();
   }
@@ -253,6 +254,9 @@ DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
     }
     case jit::hir::Opcode::kRaise: {
       return DeoptReason::kRaise;
+    }
+    case jit::hir::Opcode::kRaiseUnhandled: {
+      return DeoptReason::kRaiseUnhandled;
     }
     case jit::hir::Opcode::kRaiseStatic: {
       return DeoptReason::kRaiseStatic;

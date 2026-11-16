@@ -582,6 +582,7 @@ bool Instr::isTerminator() const {
     case Opcode::kCondBranchIterNotDone:
     case Opcode::kCondBranchCheckType:
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:
     case Opcode::kReturn:
@@ -677,6 +678,7 @@ bool Instr::isReplayable() const {
     case Opcode::kPrimitiveUnbox:
     case Opcode::kUnaryNot:
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
     case Opcode::kRaiseStatic:
     case Opcode::kProfileUseTypes:
     case Opcode::kRefineType:
@@ -1130,6 +1132,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kInitListElements:
     case Opcode::kInitTupleElements:
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:
     case Opcode::kProfileUseTypes:

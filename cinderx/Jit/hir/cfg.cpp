@@ -37,6 +37,7 @@ void postorder_traverse(
     }
     case Opcode::kDeopt:
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:
     case Opcode::kUnreachable:

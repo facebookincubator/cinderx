@@ -450,6 +450,7 @@ class LiveValuesBase : public Instr {
   X(MergeSetUnpack)                   \
   X(PrimitiveBox)                     \
   X(Raise)                            \
+  X(RaiseUnhandled)                   \
   X(RaiseAwaitableError)              \
   X(RaiseStatic)                      \
   X(RunPeriodicTasks)                 \
@@ -3790,6 +3791,7 @@ class INSTR_CLASS(
 };
 
 DEFINE_SIMPLE_INSTR(Raise, (), Operands<0>, DeoptBase);
+DEFINE_SIMPLE_INSTR(RaiseUnhandled, (), Operands<0>, DeoptBase);
 
 // Set an error by calling PyErr_Format() and then raising. This is typically
 // used when a runtime assertion implemented as part of a Python opcode is hit.

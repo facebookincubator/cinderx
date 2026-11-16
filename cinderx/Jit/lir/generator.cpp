@@ -225,6 +225,14 @@ Py_ssize_t frameOffsetOf(const BeginInlinedFunction* instr) {
   return frameOffsetBefore(instr) - frameHeaderSize(instr->code());
 }
 
+int initialFrameStackDepth([[maybe_unused]] PyCodeObject* code) {
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  return 0;
+#else
+  return code->co_nlocalsplus;
+#endif
+}
+
 int lineForBytecodeOffset(BorrowedRef<PyCodeObject> code, int bc_off) {
   if (code == nullptr || bc_off < 0 || bc_off >= _PyCode_NBYTES(code)) {
     return -1;
@@ -538,10 +546,17 @@ class FrameInitPlan {
       }
     }
 
-    // Zero localsplus slots (non-LW frames need this so the GC doesn't
+    // Initialize localsplus slots (non-LW frames need this so the GC doesn't
     // see garbage pointers).
     if (localsplus_zero_count_ > 0) {
-      bbb.annotateNext("Zero localsplus");
+#if PY_VERSION_HEX >= 0x030E0000
+      const auto null_bits = std::bit_cast<uint64_t>(PyStackRef_NULL);
+#else
+      constexpr uint64_t null_bits = 0;
+#endif
+      bbb.annotateNext("Initialize localsplus");
+      Instruction* null_reg = bbb.appendInstr(
+          OutVReg{DataType::k64bit}, Opcode::kMove, Imm{null_bits});
       int i = 0;
       while (i + 1 < localsplus_zero_count_) {
         bbb.appendInstr(
@@ -550,8 +565,8 @@ class FrameInitPlan {
                 localsplus_zero_offset_ +
                 static_cast<int32_t>(i * kPointerSize))},
             frame_base,
-            Imm{0},
-            Imm{0});
+            null_reg,
+            null_reg);
         i += 2;
       }
       if (i < localsplus_zero_count_) {
@@ -561,7 +576,7 @@ class FrameInitPlan {
                 localsplus_zero_offset_ +
                     static_cast<int32_t>(i * kPointerSize)},
             Opcode::kStore,
-            Imm{0});
+            null_reg);
       }
     }
   }
@@ -5622,7 +5637,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
                       Stk{PhyLocation(
                           static_cast<int32_t>(
                               frameOffsetOf(instr) +
-                              offsetof(_PyInterpreterFrame, localsplus)))});
+                              offsetof(_PyInterpreterFrame, localsplus) +
+                              initialFrameStackDepth(code) * kPointerSize))});
 #else
                   return bbb.appendInstr(
                       OutVReg{dt},
@@ -5886,6 +5902,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         appendGuardAlwaysFail(bbb, instr);
         break;
       }
+      case hir::Opcode::kRaiseUnhandled: {
+        const auto& instr = i.as<RaiseUnhandled>();
+        appendGuardAlwaysFail(bbb, instr);
+        break;
+      }
       case hir::Opcode::kRaiseStatic: {
         const auto& instr = i.as<RaiseStatic>();
         Instruction* lir = bbb.appendInstr(
@@ -6143,6 +6164,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         case hir::Opcode::kIsTruthy:
         case hir::Opcode::kRaiseAwaitableError:
         case hir::Opcode::kRaise:
+        case hir::Opcode::kRaiseUnhandled:
         case hir::Opcode::kRaiseStatic:
         case hir::Opcode::kStoreAttr:
         case hir::Opcode::kStoreSubscr: {
@@ -6588,7 +6610,9 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
                   Stk{PhyLocation(
                       static_cast<int32_t>(
                           -fh_size + jit::kFrameHeaderOverhead +
-                          offsetof(_PyInterpreterFrame, localsplus)))});
+                          offsetof(_PyInterpreterFrame, localsplus) +
+                          initialFrameStackDepth(func_->code) *
+                              kPointerSize))});
 #else
               return bbb.appendInstr(
                   OutVReg{dt},

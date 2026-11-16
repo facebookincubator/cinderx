@@ -3,6 +3,7 @@
 #include "cinderx/Jit/codegen/gen_asm.h"
 
 #include "internal/pycore_ceval.h"
+#include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/extra-py-flags.h"
@@ -271,6 +272,73 @@ void setupTraceForDeoptedFrame(
   }
 }
 
+// The exception is already set and no handler covers this raise, so there
+// is nothing for the interpreter to resume. Record the traceback against
+// the reified frame, then pop the frame the way the interpreter's
+// exit_unwind path does.
+PyObject* handleRaiseUnhandled(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame) {
+  if (!_PyFrame_IsIncomplete(frame)) {
+    PyFrameObject* fobj = _PyFrame_GetFrameObject(frame);
+    if (fobj != nullptr) {
+      PyTraceBack_Here(fobj);
+    }
+  }
+  // Pop remaining stack entries, as exception_unwind does before the
+  // frame is cleared: this releases stack values before frame-object
+  // ownership transfer in the clear below takes over the locals.
+#if PY_VERSION_HEX >= 0x030E0000
+  _PyStackRef* stackbase = _PyFrame_Stackbase(frame);
+  while (frame->stackpointer > stackbase) {
+    _PyStackRef ref = _PyFrame_StackPop(frame);
+    PyStackRef_XCLOSE(ref);
+  }
+#else
+  while (frame->stacktop > frame->f_code->co_nlocalsplus) {
+    PyObject* obj = _PyFrame_StackPop(frame);
+    Py_XDECREF(obj);
+  }
+#endif
+  _PyInterpreterFrame* dying = frame;
+  _PyInterpreterFrame* previous = dying->previous;
+  setCurrentFrame(tstate, previous);
+  if (previous != nullptr) {
+    previous->return_offset = 0;
+  }
+#if PY_VERSION_HEX >= 0x030E0000
+#if defined(ENABLE_INTERPRETER_LOOP) || PY_VERSION_HEX >= 0x030F0000
+  _PyEval_FrameClearAndPop(tstate, dying);
+#else
+  // On 3.14 _PyEval_FrameClearAndPop is a borrowed definition that only
+  // exists when the interpreter loop is built, so configs without it
+  // (e.g. feature-free) have no such symbol to link against. Mirror its
+  // clear_thread_frame/clear_gen_frame branches with symbols that are
+  // available in every config.
+  if (dying->owner == FRAME_OWNED_BY_THREAD) {
+    _PyFrame_ClearExceptCode(dying);
+    PyStackRef_CLEAR(dying->f_executable);
+    _PyThreadState_PopFrame(tstate, dying);
+  } else {
+    PyGenObject* gen = _PyGen_GetGeneratorFromFrame(dying);
+    gen->gi_frame_state = FRAME_CLEARED;
+    tstate->exc_info = gen->gi_exc_state.previous_item;
+    gen->gi_exc_state.previous_item = nullptr;
+    dying->previous = nullptr;
+    _PyFrame_ClearExceptCode(dying);
+    _PyErr_ClearExcState(&gen->gi_exc_state);
+  }
+#endif
+#else
+  tstate->c_recursion_remaining--;
+  _PyFrame_ClearExceptCode(dying);
+  Py_DECREF(dying->f_code);
+  tstate->c_recursion_remaining++;
+  _PyThreadState_PopFrame(tstate, dying);
+#endif
+  return nullptr;
+}
+
 PyObject* deoptAndResumeInInterpreter(
     const uint64_t* regs,
     CodeRuntime* code_runtime,
@@ -396,6 +464,8 @@ PyObject* deoptAndResumeInInterpreter(
           JIT_ABORT("unhandled exception without error set");
         case DeoptReason::kRaiseStatic:
           JIT_ABORT("Lost exception when raising static exception");
+        case DeoptReason::kRaiseUnhandled:
+          JIT_ABORT("No exception set for unhandled exception");
       }
     }
   }
@@ -417,6 +487,13 @@ PyObject* deoptAndResumeInInterpreter(
 
   // For instrumentation deopts, only enter error handler if actually excepted.
   int err_occurred = PyErr_Occurred() != nullptr;
+
+  if (deopt_meta.reason == DeoptReason::kRaiseUnhandled &&
+      deopt_meta.inline_depth() == 0 &&
+      !(_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) &&
+      err_occurred) {
+    return handleRaiseUnhandled(tstate, frame);
+  }
 
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller

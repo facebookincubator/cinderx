@@ -515,6 +515,15 @@ int dictMerge(
 PyObject* copyDictWithoutKeys(PyObject* subject, PyObject* keys);
 
 /*
+ * Set the exception for a `raise` statement from its operands, following
+ * CPython's do_raise(). The traceback entry is recorded by the deopt
+ * handler after it reifies the frame. `exc` and `cause` are borrowed
+ * references; either may be null, with a null `exc` meaning reraise and
+ * a null `cause` meaning no `from` clause was present.
+ */
+void doRaise(PyObject* exc, PyObject* cause);
+
+/*
  * Reimplements the format_awaitable_error() function from the CPython
  * interpreter loop. */
 void formatAwaitableError(

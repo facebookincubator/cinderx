@@ -6,6 +6,7 @@ import copy
 import dis
 import faulthandler
 import gc
+import inspect
 import pickle
 import subprocess
 import sys
@@ -1899,6 +1900,117 @@ class RaiseTests(unittest.TestCase):
         with self.assertRaises(RuntimeError) as exc:
             self._jitReraise()
         self.assertEqual(exc.exception.args, ("No active exception to reraise",))
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("RAISE_VARARGS")
+    def _jitRaiseTraceback(self):
+        raise ValueError(1)
+
+    def test_raise_traceback_frame(self) -> None:
+        try:
+            self._jitRaiseTraceback()
+        except ValueError as exc:
+            frames = []
+            tb = exc.__traceback__
+            while tb is not None:
+                frames.append(tb)
+                tb = tb.tb_next
+            raise_frames = [
+                tb
+                for tb in frames
+                if tb.tb_frame.f_code.co_name == "_jitRaiseTraceback"
+            ]
+            self.assertEqual(len(raise_frames), 1)
+            lines, start = inspect.getsourcelines(self._jitRaiseTraceback)
+            raise_lineno = start + next(
+                i for i, line in enumerate(lines) if "raise ValueError" in line
+            )
+            self.assertEqual(raise_frames[0].tb_lineno, raise_lineno)
+        else:
+            self.fail("should have raised ValueError")
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("RAISE_VARARGS")
+    def _jitRaiseClassCause(self, exc):
+        raise exc from ValueError
+
+    def test_raise_class_cause(self) -> None:
+        with self.assertRaises(ValueError) as exc:
+            self._jitRaiseClassCause(ValueError(1))
+        self.assertIsInstance(exc.exception.__cause__, ValueError)
+        self.assertTrue(exc.exception.__suppress_context__)
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("RAISE_VARARGS")
+    def _jitRaiseFromNone(self, exc):
+        raise exc from None
+
+    def test_raise_from_none(self) -> None:
+        with self.assertRaises(ValueError) as exc:
+            self._jitRaiseFromNone(ValueError(1))
+        self.assertIsNone(exc.exception.__cause__)
+        self.assertTrue(exc.exception.__suppress_context__)
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("RAISE_VARARGS")
+    def _jitRaiseInvalid(self):
+        raise 42  # noqa: B016
+
+    def test_raise_invalid(self) -> None:
+        with self.assertRaises(TypeError) as exc:
+            self._jitRaiseInvalid()
+        self.assertEqual(
+            exc.exception.args, ("exceptions must derive from BaseException",)
+        )
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("RAISE_VARARGS")
+    def _jitRaiseInvalidCause(self):
+        raise ValueError(1) from 42
+
+    def test_raise_invalid_cause(self) -> None:
+        with self.assertRaises(TypeError) as exc:
+            self._jitRaiseInvalidCause()
+        self.assertEqual(
+            exc.exception.args,
+            ("exception causes must derive from BaseException",),
+        )
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("RAISE_VARARGS")
+    def _jitRaiseHandled(self):
+        try:
+            raise ValueError(1)
+        except ValueError:
+            return "caught"
+
+    def test_raise_handled(self) -> None:
+        self.assertEqual(self._jitRaiseHandled(), "caught")
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("RAISE_VARARGS")
+    def _jitRaiseFinally(self, flag):
+        try:
+            raise ValueError(1)
+        finally:
+            flag.append(True)
+
+    def test_raise_finally(self) -> None:
+        flag = []
+        with self.assertRaises(ValueError):
+            self._jitRaiseFinally(flag)
+        self.assertEqual(flag, [True])
+
+    def _jitGenRaise(self):
+        yield 1
+        raise RuntimeError("boom")
+
+    def test_gen_raise(self) -> None:
+        force_compile(self._jitGenRaise)
+        gen = self._jitGenRaise()
+        self.assertEqual(next(gen), 1)
+        with self.assertRaises(RuntimeError):
+            next(gen)
 
 
 class SpecializeCCallTests(unittest.TestCase):

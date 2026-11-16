@@ -142,6 +142,7 @@ namespace cinderx::jit::hir {
   V(MergeSetUnpack)                \
   V(Phi)                           \
   V(Raise)                         \
+  V(RaiseUnhandled)                \
   V(RaiseStatic)                   \
   V(RaiseAwaitableError)           \
   V(ProfileUseTypes)               \
@@ -237,6 +238,7 @@ constexpr size_t numOutputs(Opcode op) {
     case Opcode::kLoadFrame:
     case Opcode::kProfileUseTypes:
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:
     case Opcode::kReturn:

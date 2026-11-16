@@ -551,6 +551,7 @@ Type outputType(
     case Opcode::kInitTupleElements:
     case Opcode::kLoadFrame:
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:
     case Opcode::kProfileUseTypes:

@@ -66,6 +66,12 @@ size_t codeCallCount(PyCodeObject* code);
 // executed in interpreted loops.
 size_t codeInterpretedBytecodeCount(PyCodeObject* code);
 
+// Whether the bytecode at the given code-unit index is covered by an entry
+// in the code object's exception table, i.e. an exception raised there
+// would be handled inside the code object. A malformed table is treated
+// as covering the index.
+bool bytecodeIndexInExceptionHandler(PyCodeObject* code, int index);
+
 // Count the various frame variables that a code object will use.
 int numLocals(PyCodeObject* code);
 int numCellvars(PyCodeObject* code);

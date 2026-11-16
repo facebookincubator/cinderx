@@ -2201,6 +2201,79 @@ PyObject* copyDictWithoutKeys(PyObject* subject, PyObject* keys) {
   return rest.release();
 }
 
+void doRaise(PyObject* exc, PyObject* cause) {
+  PyThreadState* tstate = _PyThreadState_GET();
+  if (exc == nullptr) {
+    _PyErr_StackItem* exc_info = _PyErr_GetTopmostException(tstate);
+    PyObject* current = exc_info != nullptr ? exc_info->exc_value : nullptr;
+    if (current == nullptr || Py_IsNone(current)) {
+      _PyErr_SetString(
+          tstate, PyExc_RuntimeError, "No active exception to reraise");
+      return;
+    }
+    PyErr_SetRaisedException(Ref<>::create(current).release());
+    return;
+  }
+
+  Ref<> type;
+  Ref<> value;
+  if (PyExceptionClass_Check(exc)) {
+    type = Ref<>::create(exc);
+    value = Ref<>::steal(_PyObject_CallNoArgs(exc));
+    if (value == nullptr) {
+      return;
+    }
+    if (!PyExceptionInstance_Check(value)) {
+      _PyErr_Format(
+          tstate,
+          PyExc_TypeError,
+          "calling %R should have returned an instance of "
+          "BaseException, not %R",
+          type.get(),
+          Py_TYPE(value.get()));
+      return;
+    }
+  } else if (PyExceptionInstance_Check(exc)) {
+    value = Ref<>::create(exc);
+    type = Ref<>::create(PyExceptionInstance_Class(exc));
+  } else {
+    _PyErr_SetString(
+        tstate, PyExc_TypeError, "exceptions must derive from BaseException");
+    return;
+  }
+
+  if (cause != nullptr) {
+    Ref<> fixed_cause;
+    if (PyExceptionClass_Check(cause)) {
+      fixed_cause = Ref<>::steal(_PyObject_CallNoArgs(cause));
+      if (fixed_cause == nullptr) {
+        return;
+      }
+      if (!PyExceptionInstance_Check(fixed_cause)) {
+        _PyErr_Format(
+            tstate,
+            PyExc_TypeError,
+            "calling %R should have returned an instance of "
+            "BaseException, not %R",
+            cause,
+            Py_TYPE(fixed_cause.get()));
+        return;
+      }
+    } else if (PyExceptionInstance_Check(cause)) {
+      fixed_cause = Ref<>::create(cause);
+    } else if (!Py_IsNone(cause)) {
+      _PyErr_SetString(
+          tstate,
+          PyExc_TypeError,
+          "exception causes must derive from BaseException");
+      return;
+    }
+    PyException_SetCause(value.get(), fixed_cause.release());
+  }
+
+  PyErr_SetObject(type.get(), value.get());
+}
+
 void formatAwaitableError(
     PyThreadState* tstate,
     PyTypeObject* type,

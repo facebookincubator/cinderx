@@ -289,6 +289,46 @@ size_t codeInterpretedBytecodeCount(PyCodeObject* code) {
   return extra != nullptr ? Ci_code_extra_get_interpreted_bytecodes(extra) : 0;
 }
 
+bool bytecodeIndexInExceptionHandler(PyCodeObject* code, int index) {
+  PyObject* table = code->co_exceptiontable;
+  if (table == nullptr || !PyBytes_Check(table)) {
+    return true;
+  }
+  const auto* p =
+      reinterpret_cast<const unsigned char*>(PyBytes_AS_STRING(table));
+  const auto* end = p + PyBytes_GET_SIZE(table);
+  auto parse_varint = [&]() -> int {
+    int val = 0;
+    while (true) {
+      if (p >= end) {
+        return -1;
+      }
+      unsigned char byte = *p++;
+      val = (val << 6) | (byte & 63);
+      if ((byte & 64) == 0) {
+        return val;
+      }
+    }
+  };
+  while (p < end) {
+    int start = parse_varint();
+    if (start < 0 || start > index) {
+      return start < 0;
+    }
+    int size = parse_varint();
+    if (size < 0) {
+      return true;
+    }
+    if (start + size > index) {
+      return true;
+    }
+    if (parse_varint() < 0 || parse_varint() < 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int numLocals(PyCodeObject* code) {
   return code->co_nlocals;
 }

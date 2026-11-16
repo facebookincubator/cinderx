@@ -92,6 +92,7 @@ struct LiveValue {
   X(GuardFailure)                                                       \
   X(YieldFrom)                                                          \
   X(Raise)                                                              \
+  X(RaiseUnhandled)                                                     \
   X(RaiseStatic)                                                        \
   X(UnhandledException)                                                 \
   X(UnhandledUnboundLocal)                                              \

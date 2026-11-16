@@ -326,6 +326,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     }
 
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
       return {false, AEmpty, stealAllInputs(inst), AEmpty};
 
     case Opcode::kRaiseAwaitableError:
@@ -495,6 +496,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kGuard:
     case Opcode::kGuardType:
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:
 

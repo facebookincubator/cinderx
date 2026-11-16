@@ -341,6 +341,7 @@ static std::string format_immediates(
     case Opcode::kPrimitiveBoxBool:
     case Opcode::kUnaryNot:
     case Opcode::kRaise:
+    case Opcode::kRaiseUnhandled:
     case Opcode::kRunPeriodicTasks:
     case Opcode::kSend:
     case Opcode::kSetCurrentAwaiter:

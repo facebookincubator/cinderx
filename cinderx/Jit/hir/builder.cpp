@@ -1505,7 +1505,7 @@ void HIRBuilder::translate(
           break;
         }
         case RAISE_VARARGS: {
-          emitRaiseVarargs(tc);
+          emitRaiseVarargs(tc, bc_instr);
           break;
         }
         case YIELD_VALUE: {
@@ -5044,8 +5044,41 @@ void HIRBuilder::emitImportName(
   stack.push(res);
 }
 
-void HIRBuilder::emitRaiseVarargs(TranslationContext& tc) {
-  tc.emit<Raise>(tc.frame);
+void HIRBuilder::emitRaiseVarargs(
+    TranslationContext& tc,
+    const BytecodeInstruction& bc_instr) {
+  int oparg = bc_instr.oparg();
+  bool unhandled = oparg <= 2 && tc.frame.inlineDepth() == 0 &&
+      (code_->co_flags & kCoFlagsAnyGenerator) == 0 &&
+      tc.frame.block_stack.isEmpty() && preloader_.returnType() == TObject &&
+      !bytecodeIndexInExceptionHandler(
+                       code_.get(), bc_instr.opcodeIndex().value());
+  if (!unhandled) {
+    tc.emit<Raise>(tc.frame);
+    return;
+  }
+  auto& stack = tc.frame.stack;
+  Register* cause = nullptr;
+  Register* exc = nullptr;
+  if (oparg == 2) {
+    cause = stack.top();
+    exc = stack.top(1);
+  } else if (oparg == 1) {
+    exc = stack.top();
+  }
+  Register* nullp = allocateTemp();
+  tc.emit<LoadConst>(nullp, TNullptr);
+  if (exc == nullptr) {
+    exc = nullp;
+  }
+  if (cause == nullptr) {
+    cause = nullp;
+  }
+  auto* raise_call = tc.emit<CallStaticRetVoid>(
+      2, reinterpret_cast<void*>(rt::doRaise), "doRaise");
+  raise_call->setOperand(0, exc);
+  raise_call->setOperand(1, cause);
+  tc.emit<RaiseUnhandled>(tc.frame);
 }
 
 void HIRBuilder::emitYieldFrom(
