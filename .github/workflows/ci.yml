@@ -11,13 +11,17 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, ubuntu-26.04-arm, macos-latest, windows-latest]
-        python-version: ['3.14', '3.15']
-        include:
+        python-version: ['3.14', '3.14t', '3.15', '3.15t']
+        exclude:
           # Free-threading support is currently limited to Linux.
-          - os: ubuntu-latest
+          - os: macos-latest
             python-version: '3.14t'
-          - os: ubuntu-26.04-arm
+          - os: windows-latest
             python-version: '3.14t'
+          - os: macos-latest
+            python-version: '3.15t'
+          - os: windows-latest
+            python-version: '3.15t'
 
     steps:
     - name: Checkout CinderX
@@ -51,7 +55,7 @@ jobs:
     - name: Build CinderX
       # RuntimeTests do not support Windows or free-threaded builds yet.
       env:
-        CINDERX_BUILD_RUNTIME_TESTS: ${{ runner.os != 'Windows' && matrix.python-version != '3.14t' && '1' || '' }}
+        CINDERX_BUILD_RUNTIME_TESTS: ${{ runner.os != 'Windows' && !endsWith(matrix.python-version, 't') && '1' || '' }}
         CINDERX_RUNTIME_TESTS_OUTPUT_DIR: ${{ github.workspace }}/build/runtime-tests
       run: uv build --wheel --python ${{ matrix.python-version }}
 
@@ -68,11 +72,11 @@ jobs:
     - name: Run Tests
       # Free-threaded builds aren't stable yet, so don't run the test suite
       # against them.
-      if: matrix.python-version != '3.14t'
+      if: ${{ !endsWith(matrix.python-version, 't') }}
       run: uv run pytest cinderx/PythonLib/test_cinderx/
 
     - name: Run native tests
-      if: runner.os != 'Windows' && matrix.python-version != '3.14t'
+      if: runner.os != 'Windows' && !endsWith(matrix.python-version, 't')
       # Skip known OSS-only failures. Keep these narrow so RuntimeTests still
       # provide useful signal.
       # TODO(T275133043): burn these down as the underlying issues are fixed.
