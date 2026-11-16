@@ -27,6 +27,9 @@
 #include <cstring>
 #include <optional>
 #include <string>
+#include <unordered_set>
+#include <utility>
+#include <vector>
 
 namespace cinderx::jit {
 
@@ -767,6 +770,34 @@ BorrowedRef<PyFunctionObject> getFrameFunctionIfJitted(
 #endif
 }
 
+void Context::retireJitToJitCode(CompiledFunctionData* data) {
+  retireJitToJitCodeBatch({data});
+}
+
+void Context::retireJitToJitCodeBatch(
+    const std::vector<CompiledFunctionData*>& data) {
+  if (data.empty()) {
+    return;
+  }
+  std::optional<FreeThreadedJITEntrypointGuard> guard;
+  if (!isWorldStopped()) {
+    guard.emplace();
+  }
+#ifdef Py_GIL_DISABLED
+  PyInterpreterState* interp = PyInterpreterState_Get();
+  bool stopped_here = !isWorldStopped();
+  if (stopped_here) {
+    _PyEval_StopTheWorld(interp);
+  }
+#endif
+  relinkAndDetachStaleCode(data);
+#ifdef Py_GIL_DISABLED
+  if (stopped_here) {
+    _PyEval_StartTheWorld(interp);
+  }
+#endif
+}
+
 void retainActiveDeferredData(
     std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>&
         pending,
@@ -778,6 +809,8 @@ void retainActiveDeferredData(
   _PyEval_StopTheWorld(interp);
 #endif
 
+  // Move entries whose code is still executing on some thread's stack out of
+  // `pending`; what remains is the final set of blobs about to be freed.
   PyThreadState* ts = PyInterpreterState_ThreadHead(interp);
   while (ts != nullptr) {
     _PyInterpreterFrame* frame = currentFrame(ts);
@@ -826,6 +859,25 @@ void retainActiveDeferredData(
       frame = frame->previous;
     }
     ts = PyThreadState_Next(ts);
+  }
+
+  // With the world stopped and the final to-be-freed set known, revert live
+  // callers of any stale JIT-to-JIT callee back to the link trampoline (in
+  // O(callers) via the reverse index) and detach every freed blob from that
+  // index -- before its memory is released when `pending` is destroyed.  After
+  // this no live call site points into a freed blob.
+  JIT_CHECK(
+      isWorldStopped(),
+      "stale JIT-to-JIT relinking requires the world to be stopped");
+  if (Context* ctx = getContext()) {
+    std::vector<CompiledFunctionData*> freed;
+    freed.reserve(pending.size());
+    for (const auto& [key, data] : pending) {
+      if (Py_REFCNT(data.get()) == 1) {
+        freed.push_back(data.get());
+      }
+    }
+    ctx->relinkAndDetachStaleCode(freed);
   }
 
 #ifdef Py_GIL_DISABLED

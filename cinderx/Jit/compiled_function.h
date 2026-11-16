@@ -73,6 +73,26 @@ extern "C" {
 #define JITRT_GET_STATIC_ENTRY(entry) \
   ((vectorcallfunc)(((char*)entry) + JITRT_STATIC_ENTRY_OFFSET))
 
+// Offset from the normal entry to the dedicated JIT-to-JIT register entry, used
+// for direct register-ABI calls between ordinary (non-Static-Python) compiled
+// functions.  On both architectures the entry begins with a patchable NOP so
+// the relink patch is a pure NOP->branch store that never overwrites the real
+// prologue.  On x86-64 that slot is a 5-byte NOP (the width of the JMP rel32
+// the patch writes), making the entry 5 bytes larger than the static entry.  On
+// aarch64 it is a single 4-byte NOP word (a CMODX-safe NOP->B store), making
+// the entry 4 bytes larger.  Keeping a separate offset leaves the Static Python
+// static entry (which is never patched) untouched.
+#if defined(__x86_64__) || defined(_M_AMD64)
+#define JITRT_JIT_TO_JIT_ENTRY_OFFSET (JITRT_STATIC_ENTRY_OFFSET - 5)
+#elif defined(__aarch64__)
+#define JITRT_JIT_TO_JIT_ENTRY_OFFSET (JITRT_STATIC_ENTRY_OFFSET - 4)
+#else
+#define JITRT_JIT_TO_JIT_ENTRY_OFFSET (0)
+#endif
+
+#define JITRT_GET_JIT_TO_JIT_ENTRY(entry) \
+  ((vectorcallfunc)(((char*)entry) + JITRT_JIT_TO_JIT_ENTRY_OFFSET))
+
 // Fixes the JITed function entry point up to be the static entry point after
 // binding the args.
 #define JITRT_GET_NORMAL_ENTRY_FROM_STATIC(entry) \
@@ -93,10 +113,13 @@ bool isJitCompiled(const PyFunctionObject* func);
 
 #ifdef __cplusplus
 
+#include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/frozen_list.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/code_runtime.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/hir/function.h"
 #include "cinderx/Jit/profile.h"
 #include "cinderx/Jit/stable_storage.h"
@@ -110,6 +133,26 @@ bool isJitCompiled(const PyFunctionObject* func);
 namespace cinderx::jit {
 
 class CompiledFunctionOwner;
+
+// Whether a code object is eligible to be called via the JIT-to-JIT native
+// calling convention, and therefore should be given a JIT-to-JIT register entry
+// point when compiled.  Requires the feature to be active and the function to
+// have a simple positional signature.  This is the
+// callee-side mirror of the call-shape checks the caller applies at a specific
+// call site.  Static Python functions are excluded: they already have a static
+// register entry and are dispatched via InvokeStaticFunction, so the two
+// register-entry kinds never coexist in one compiled function.
+inline bool isJitToJitCallTarget(PyCodeObject* code) {
+  return useJitToJitCallingConvention() && code != nullptr &&
+      (code->co_flags & (CO_VARARGS | CO_VARKEYWORDS)) == 0 &&
+      (code->co_flags & CI_CO_STATICALLY_COMPILED) == 0 &&
+      code->co_kwonlyargcount == 0;
+}
+
+struct JitToJitCallSite {
+  uintptr_t address;
+  size_t nargs;
+};
 
 // Data members extracted from CompiledFunction to enable separate storage.
 // CompiledFunction is a GC tracked object and cannot be constructed during
@@ -172,6 +215,51 @@ struct CompiledFunctionData {
   CompiledFunctionOwner* owner{nullptr};
   bool retired{false};
 
+  // Whether this function was compiled with a register (native ABI) entry point
+  // at JITRT_STATIC_ENTRY_OFFSET from `vectorcall_entry`.  True for Static
+  // Python functions and for JIT-to-JIT call targets.
+  bool has_register_entry{false};
+
+  // True if this function is a JIT-to-JIT call target whose register entry may
+  // be the destination of patched direct calls from other compiled functions.
+  // Such code cannot be freed eagerly; it is reclaimed by the stale-code GC.
+  bool jit_to_jit_target{false};
+
+  // Absolute addresses of the JIT-to-JIT call sites emitted in this function's
+  // code.  Populated once at finalize and never mutated afterwards; the stale
+  // code GC scans these (under stop-the-world) to find direct calls into code
+  // it is about to free.
+  FrozenList<JitToJitCallSite> jit_to_jit_call_sites;
+  bool jit_to_jit_entry_diverted{false};
+  bool jit_to_jit_registered{false};
+  CompiledFunctionOwner* jit_to_jit_owner{nullptr};
+
+  bool participatesInJitToJitCalls() const {
+    return jit_to_jit_target || jit_to_jit_call_sites.size() != 0;
+  }
+
+  const JitToJitCallSite* findJitToJitCallSite(uintptr_t address) const;
+
+  // The far-relink stub emitted in this function's code (or nullptr if it has
+  // no JIT-to-JIT register entry).  When the register entry goes stale it is
+  // patched to branch here, and the stub jumps to the relink trampoline -- so
+  // the patch's relative branch always reaches a valid target.
+  void* jit_to_jit_far_relink_stub{nullptr};
+
+  // Reverse index for O(callers) stale-code relinking.  These form a bipartite
+  // graph over compiled blobs and are the exact mirror of each other:
+  //   A ∈ callee->callers  <=>  callee ∈ A->callees
+  // Populated by the link shim when it patches a call site to a direct call,
+  // and torn down when either endpoint's code is freed.  Bare pointers, so they
+  // never keep a CompiledFunctionData alive.  All access is guarded by the JIT
+  // Context's reverse-index mutex (or stop-the-world during reclamation).
+  //
+  // Distinct caller blobs that currently have >=1 direct call into this
+  // function's register entry.
+  std::unordered_set<CompiledFunctionData*> callers;
+  // Distinct callee blobs this function currently has >=1 direct call into.
+  std::unordered_set<CompiledFunctionData*> callees;
+
   CompiledFunctionData() = default;
   CompiledFunctionData(CompiledFunctionData&&) = default;
   CompiledFunctionData& operator=(CompiledFunctionData&&) = default;
@@ -199,6 +287,8 @@ class NestedCompileData;
 class CompiledFunctionOwner {
  public:
   virtual ~CompiledFunctionOwner() = default;
+
+  virtual void retireJitToJitCode(CompiledFunctionData*) {}
 
   // Notify the owner that a CompiledFunction is about to be destroyed.
   virtual void forgetCompiledFunction(CompiledFunction& function) = 0;
@@ -258,6 +348,14 @@ class CompiledFunction {
   CodeRuntime* runtime() const {
     return data_->runtime;
   }
+
+  // The JIT-to-JIT register entry point, or nullptr for other entry kinds.
+  void* registerEntry() const;
+
+  // Patch the register entry point with a branch to the relink trampoline so
+  // existing patched direct calls into this (now stale) function are diverted.
+  // No-op unless this is a JIT-to-JIT target with a register entry.
+  void patchRegisterEntryForDeopt();
 
   // Call the compiled code directly through its vectorcall entry point.
   PyObject* invoke(PyObject* func, PyObject** args, Py_ssize_t nargs) const;

@@ -368,6 +368,14 @@ std::optional<CompiledFunctionData> Compiler::compile(
   compiled_data.vectorcall_entry = entry;
   compiled_data.stack_size = stack_size;
   compiled_data.spill_stack_size = spill_stack_size;
+  compiled_data.has_register_entry = ngen->emittedRegisterEntry();
+  compiled_data.jit_to_jit_target = isJitToJitCallTarget(preloader.code());
+  const std::vector<JitToJitCallSite>& call_sites = ngen->jitToJitCallSites();
+  compiled_data.jit_to_jit_call_sites.initialize(call_sites.size());
+  for (size_t i = 0; i < call_sites.size(); ++i) {
+    compiled_data.jit_to_jit_call_sites[i] = call_sites[i];
+  }
+  compiled_data.jit_to_jit_far_relink_stub = ngen->jitToJitFarRelinkStub();
   compiled_data.inline_function_stats = std::move(inline_stats);
   compiled_data.hir_opcode_counts = hir_opcode_counts;
   compiled_data.runtime = code_runtime;

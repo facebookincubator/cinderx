@@ -1786,7 +1786,21 @@ void translateCall(Environ* env, const Instruction* instr) {
   auto output = instr->output();
   auto input = instr->getInput(0);
 
-  if (input->isImm()) {
+  if (env->jit_to_jit_call_instrs.contains(instr)) {
+    // JIT-to-JIT call site: emit a fixed 4-byte BL placeholder whose target is
+    // filled in (to the link trampoline) after finalization, so the site can be
+    // patched at runtime.  asmjit's bl(imm) may relax to ldr+blr, which is not
+    // a single patchable instruction; the explicit BL keeps it a fixed 4 bytes.
+    // A64 instructions are naturally 4-byte aligned, which is what the atomic
+    // patch requires.  Register allocation still treats this kCall normally
+    // (clobbers, args in ARGUMENT_REGS, result in x0); only the bytes differ.
+    asmjit::Label call_site = as->newLabel();
+    as->bind(call_site);
+    env->jit_to_jit_call_site_labels.emplace_back(
+        call_site, env->jit_to_jit_call_instrs.at(instr));
+    static constexpr uint32_t kBlPlaceholder = 0x94000000;
+    as->embed(&kBlPlaceholder, sizeof(kBlPlaceholder));
+  } else if (input->isImm()) {
     // Use bl(imm) so asmjit can pick the final encoding at relocation time:
     // direct bl if within ±128MB, or a branch to an out-of-line stub.
     as->bl(static_cast<uint64_t>(input->getConstant()));
@@ -3167,7 +3181,28 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
     case Opcode::kCall: {
       auto* input = instr->getInput(0);
 
-      if (input->isImm()) {
+      // JIT-to-JIT call sites are patched at runtime, so the relative CALL must
+      // be a fixed-size instruction at a stable, known address.  asmjit's
+      // call(imm) does not emit a 5-byte E8 rel32 for an absolute target, so
+      // emit an E8 placeholder here and fill in the displacement to the link
+      // trampoline after finalization (via patchCall).  Register
+      // allocation still treats this kCall normally (caller-saved clobbers,
+      // arguments in ARGUMENT_REGS, result in rax) -- only the emitted bytes
+      // differ.  On free-threaded x86 the site is 8-byte aligned so the target
+      // can later be patched with a single atomic store.
+      bool is_jit_to_jit = env->jit_to_jit_call_instrs.contains(instr);
+      if (is_jit_to_jit) {
+        if constexpr (kFreeThreadedBuild && kBuildArch == Arch::kX86_64) {
+          env->as->align(AlignMode::kCode, 8);
+        }
+        asmjit::Label call_site = env->as->newLabel();
+        env->as->bind(call_site);
+        env->jit_to_jit_call_site_labels.emplace_back(
+            call_site, env->jit_to_jit_call_instrs.at(instr));
+        static constexpr uint8_t kCallRel32Placeholder[] = {
+            0xe8, 0x00, 0x00, 0x00, 0x00};
+        env->as->embed(kCallRel32Placeholder, sizeof(kCallRel32Placeholder));
+      } else if (input->isImm()) {
         env->as->call(getImm(input));
       } else if (input->isLabel()) {
         env->as->call(getLabel(env, input));

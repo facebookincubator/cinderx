@@ -96,7 +96,7 @@ class Compiler {
       PostPassFunction callback,
       Profile* profile);
 
-  codegen::NativeGeneratorFactory ngen_factory_;
+  codegen::NativeGeneratorFactory ngen_factory_{true};
 };
 
 } // namespace cinderx::jit

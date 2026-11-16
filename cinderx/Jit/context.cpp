@@ -10,6 +10,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
+#include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/compilation_lock.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/elf/reader.h"
@@ -152,6 +153,9 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
   return result->second;
 }
 
+std::mutex Context::reverse_index_mutex_;
+std::map<uintptr_t, CompiledFunctionData*> Context::code_owner_index_;
+
 Context::Context(WatcherState& watcher_state)
     : str_build_class_(Ref<>::create(&_Py_ID(__build_class__))),
       watcher_state_{watcher_state} {
@@ -165,6 +169,22 @@ Context::Context(WatcherState& watcher_state)
 }
 
 Context::~Context() {
+  std::optional<FreeThreadedJITEntrypointGuard> guard;
+  if (!isWorldStopped()) {
+    guard.emplace();
+  }
+  std::vector<Ref<CompiledFunctionData>> indexed_data;
+  std::vector<CompiledFunctionData*> detached;
+  withLock(reverse_index_mutex_, [&]() {
+    for (auto& [address, data] : code_owner_index_) {
+      if (data->jit_to_jit_owner == this) {
+        indexed_data.push_back(Ref<CompiledFunctionData>::create(data));
+        detached.push_back(data);
+      }
+    }
+  });
+  retireJitToJitCodeBatch(detached);
+
   // Do this first, while everything the release path re-enters - lookups,
   // forgetCompiledFunction(), the nested-compile maps - is still intact.
   releaseFunctionCompileRefs();
@@ -207,6 +227,11 @@ Context::~Context() {
       (void)key.builtins.release();
       (void)key.globals.release();
     }
+  }
+  for (auto& data : indexed_data) {
+    data->releaseRuntimeResources();
+    data->owner = nullptr;
+    data->releaseRuntimeReferences();
   }
 }
 
@@ -840,6 +865,7 @@ void Context::adoptRecompile(
   // Cache the replacement before publishing its entrypoint so function GC
   // traversal can recover the function's reference to it.
   compiled_codes_.insert_or_assign(CompilationKey{func}, compiled);
+  registerCodeOwner(compiled->data());
   finalizeFunc(func, compiled);
 }
 
@@ -912,8 +938,8 @@ void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
     clearNestedCompile(*nested_it->second);
   }
 
-  compiled->clear();
   compiled_codes_.erase(CompilationKey{func});
+  compiled->clear();
 }
 
 void Context::forgetCompiledFunction(CompiledFunction& function) {
@@ -1277,11 +1303,14 @@ Ref<CompiledFunction> Context::makeCompiledFunction(
   // A threaded compile deferred owning its codegen references to this
   // GIL-held publication point; own them before the code can run.
   compiled_func.transferPendingReferences();
+  immortal = immortal && !compiled_func.participatesInJitToJitCalls();
   auto compiled =
       CompiledFunction::create(std::move(compiled_func), *this, immortal);
   if (compiled == nullptr) {
     return nullptr;
   }
+
+  registerCodeOwner(compiled->data());
 
   BorrowedRef<PyCodeObject> code{key.code};
   if (hasFunctionEntryCache(code)) {
@@ -1367,6 +1396,116 @@ void Context::processDeferredCleanup() {
   retainActiveDeferredData(pending, still_active);
   withLock(deferred_compile_data_mutex_, [&]() {
     deferred_compiled_data_.merge(still_active);
+  });
+}
+
+void Context::registerCodeOwner(CompiledFunctionData* data) {
+  if (data == nullptr || data->code.data() == nullptr) {
+    return;
+  }
+  // Only functions that can be a JIT-to-JIT caller (emit call sites) or callee
+  // (have a register entry) ever need to be resolved from a code address.
+  bool participates = data->participatesInJitToJitCalls();
+  if (!participates) {
+    return;
+  }
+  auto start = reinterpret_cast<uintptr_t>(data->code.data());
+  withLock(reverse_index_mutex_, [&]() {
+    code_owner_index_[start] = data;
+    data->jit_to_jit_registered = true;
+    data->jit_to_jit_owner = this;
+  });
+}
+
+CompiledFunctionData* Context::lookupCodeOwner(uintptr_t addr) {
+  return withLock(reverse_index_mutex_, [&]() -> CompiledFunctionData* {
+    // Greatest blob start <= addr, then bounds-check against its extent.
+    auto it = code_owner_index_.upper_bound(addr);
+    if (it == code_owner_index_.begin()) {
+      return nullptr;
+    }
+    --it;
+    CompiledFunctionData* data = it->second;
+    uintptr_t start = it->first;
+    uintptr_t end = start + data->code.size();
+    return (addr >= start && addr < end) ? data : nullptr;
+  });
+}
+
+void Context::recordJitToJitEdge(
+    CompiledFunctionData* caller,
+    CompiledFunctionData* callee) {
+  withLock(reverse_index_mutex_, [&]() {
+    callee->callers.insert(caller);
+    caller->callees.insert(callee);
+  });
+}
+
+void Context::relinkAndDetachStaleCode(
+    const std::vector<CompiledFunctionData*>& freed) {
+  if (freed.empty()) {
+    return;
+  }
+  withLock(reverse_index_mutex_, [&]() {
+    // Register entries of the blobs being freed that could be direct-call
+    // targets.  A patched JIT-to-JIT call site always targets one of these.
+    std::unordered_set<uintptr_t> stale_entries;
+    for (CompiledFunctionData* data : freed) {
+      if (data->jit_to_jit_target && data->has_register_entry &&
+          data->vectorcall_entry != nullptr) {
+        stale_entries.insert(
+            reinterpret_cast<uintptr_t>(
+                JITRT_GET_JIT_TO_JIT_ENTRY(data->vectorcall_entry)));
+      }
+    }
+
+    // Phase 1 -- revert live callers of the stale callees.  Union the callers
+    // across all freed callees (dedup), then scan each caller's own frozen
+    // call-site list exactly once against the whole stale set. Code remains
+    // allocated until after all incoming sites have been reverted.
+    if (!stale_entries.empty()) {
+      if (void* link = jitToJitLinkTrampoline()) {
+        auto link_addr = reinterpret_cast<uintptr_t>(link);
+        std::unordered_set<CompiledFunctionData*> stale_callers;
+        for (CompiledFunctionData* data : freed) {
+          stale_callers.insert(data->callers.begin(), data->callers.end());
+        }
+        for (CompiledFunctionData* caller : stale_callers) {
+          for (const auto& call_site : caller->jit_to_jit_call_sites) {
+            uintptr_t site = call_site.address;
+            if (!stale_entries.contains(decodeCallTarget(site))) {
+              continue;
+            }
+            // Every direct-patched site is reachable to the link trampoline --
+            // the link shim only patches sites that are (see jitToJitLinkShim).
+            JIT_CHECK(
+                inRelBranchRange(site, link_addr),
+                "stale-targeting JIT-to-JIT call site {:#x} cannot reach the "
+                "link trampoline",
+                site);
+            patchCall(site, link_addr);
+          }
+        }
+      }
+    }
+
+    // Phase 2 -- detach every freed blob from the reverse index so no live
+    // CompiledFunctionData is left holding a pointer to freed memory.
+    for (CompiledFunctionData* data : freed) {
+      for (CompiledFunctionData* callee : data->callees) {
+        callee->callers.erase(data);
+      }
+      for (CompiledFunctionData* caller : data->callers) {
+        caller->callees.erase(data);
+      }
+      data->callees.clear();
+      data->callers.clear();
+      data->jit_to_jit_registered = false;
+      data->jit_to_jit_owner = nullptr;
+      if (data->code.data() != nullptr) {
+        code_owner_index_.erase(reinterpret_cast<uintptr_t>(data->code.data()));
+      }
+    }
   });
 }
 

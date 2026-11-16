@@ -63,6 +63,157 @@ uintptr_t resolveDisplacement(uintptr_t from, int32_t displacement) {
   return disp;
 }
 
+// Encode a relative call (x86 CALL rel32 / aarch64 BL) from `from` to `target`.
+std::array<uint8_t, kJmpNopBytes.size()> encodeCall(
+    uintptr_t from,
+    uintptr_t target) {
+  int32_t disp = jumpDisplacement(from, target);
+  std::array<uint8_t, kJmpNopBytes.size()> buf{};
+
+#if defined(CINDER_X86_64)
+  // CALL rel32 - https://www.felixcloutier.com/x86/call
+  buf[0] = 0xe8;
+  std::memcpy(buf.data() + 1, &disp, sizeof(disp));
+#elif defined(CINDER_AARCH64)
+  JIT_CHECK(
+      disp % 4 == 0, "Call displacement must be a multiple of 4, got {}", disp);
+  disp /= 4;
+  JIT_CHECK(fitsSignedInt<26>(disp), "Not enough bits to encode relative call");
+  // BL imm26.
+  uint32_t insn = 0x94000000 | (static_cast<uint32_t>(disp) & 0x03ffffff);
+  std::memcpy(buf.data(), &insn, sizeof(uint32_t));
+#else
+  (void)disp;
+  CINDER_UNSUPPORTED
+#endif
+
+  return buf;
+}
+
+// Encode a relative jump (x86 JMP rel32 / aarch64 B) from `from` to `target`.
+std::array<uint8_t, kJmpNopBytes.size()> encodeJump(
+    uintptr_t from,
+    uintptr_t target) {
+  int32_t disp = jumpDisplacement(from, target);
+  std::array<uint8_t, kJmpNopBytes.size()> buf{};
+
+#if defined(CINDER_X86_64)
+  buf[0] = 0xe9;
+  std::memcpy(buf.data() + 1, &disp, sizeof(disp));
+#elif defined(CINDER_AARCH64)
+  JIT_CHECK(
+      disp % 4 == 0, "Jump displacement must be a multiple of 4, got {}", disp);
+  disp /= 4;
+  JIT_CHECK(fitsSignedInt<26>(disp), "Not enough bits to encode relative jump");
+  uint32_t insn = 0x14000000 | (static_cast<uint32_t>(disp) & 0x03ffffff);
+  std::memcpy(buf.data(), &insn, sizeof(uint32_t));
+#else
+  (void)disp;
+  CINDER_UNSUPPORTED
+#endif
+
+  return buf;
+}
+
+// Overwrite up to 8 bytes of live code at `dst` and flush the instruction
+// cache.  In free-threaded x86 builds this is a single atomic 8-byte store, so
+// `dst` must be 8-byte aligned; otherwise a thread executing the instruction
+// could observe a torn update.
+void writeCode(uint8_t* dst, std::span<const uint8_t> bytes) {
+  JIT_CHECK(bytes.size() <= 8, "Can only patch up to 8 bytes at a time");
+
+  if constexpr (kFreeThreadedBuild && kBuildArch == Arch::kX86_64) {
+    JIT_CHECK(
+        reinterpret_cast<uintptr_t>(dst) % 8 == 0,
+        "Not 8-byte aligned: {}",
+        static_cast<const void*>(dst));
+    // Read the existing word atomically (not via memcpy): a concurrently
+    // executing thread may be patching the same location with the atomic store
+    // below, and mixing a non-atomic read with that store would be a data race.
+    // We only modify the patched bytes; the remaining (high) bytes belong to
+    // the following, never-patched instruction, so reading them back is safe.
+    std::atomic_ref<uint64_t> word{*reinterpret_cast<uint64_t*>(dst)};
+    uint64_t qword = word.load(std::memory_order_relaxed);
+    std::memcpy(&qword, bytes.data(), bytes.size());
+    word.store(qword, std::memory_order_relaxed);
+  } else if constexpr (kFreeThreadedBuild && kBuildArch == Arch::kAarch64) {
+    // A64 instructions are a fixed 4 bytes; the architecture only guarantees a
+    // concurrently-executing core sees an all-or-nothing update for a single
+    // naturally-aligned 32-bit store of a CMODX-safe instruction
+    // (B/BL/NOP/...). memcpy is not guaranteed to be a single store, so use an
+    // aligned 4-byte atomic store.  All patch sites we modify are one 4-byte
+    // instruction.
+    JIT_CHECK(
+        bytes.size() == 4 && reinterpret_cast<uintptr_t>(dst) % 4 == 0,
+        "Not a 4-byte aligned word: {}",
+        static_cast<const void*>(dst));
+    uint32_t word;
+    std::memcpy(&word, bytes.data(), sizeof(word));
+    std::atomic_ref<uint32_t>{*reinterpret_cast<uint32_t*>(dst)}.store(
+        word, std::memory_order_relaxed);
+  } else {
+    // A plain non-atomic copy is only safe when nothing executes the code
+    // concurrently -- i.e. when the GIL serializes patching against execution.
+    JIT_CHECK(
+        !kFreeThreadedBuild,
+        "writeCode: non-atomic patch on an unhandled free-threaded "
+        "architecture");
+    std::memcpy(dst, bytes.data(), bytes.size());
+  }
+
+  // No-op on x86 (caches are coherent); performs the required i-cache
+  // maintenance for self-modifying code on aarch64.
+  __builtin___clear_cache(
+      reinterpret_cast<char*>(dst),
+      reinterpret_cast<char*>(dst) + bytes.size());
+}
+
+// Decode the signed relative displacement operand of the CALL/JMP at `addr`.
+//
+// On free-threaded builds a concurrent thread may be patching this call site
+// with a single atomic store (see writeCode), so the operand is read back with
+// a matching atomic load to avoid a torn read.  This makes the decode safe
+// without the world being stopped.
+int32_t decodeDisplacement(uintptr_t addr) {
+  int32_t disp = 0;
+
+#if defined(CINDER_X86_64)
+  if constexpr (kFreeThreadedBuild) {
+    // The patch is a single atomic 8-byte store to an 8-byte aligned site, so
+    // load the whole word atomically and extract the disp32 operand at
+    // offset 1.
+    JIT_CHECK(addr % 8 == 0, "Not 8-byte aligned: {:#x}", addr);
+    uint64_t qword =
+        std::atomic_ref<uint64_t>{*reinterpret_cast<uint64_t*>(addr)}.load(
+            std::memory_order_relaxed);
+    std::memcpy(
+        &disp, reinterpret_cast<const uint8_t*>(&qword) + 1, sizeof(disp));
+  } else {
+    std::memcpy(
+        &disp, reinterpret_cast<const uint8_t*>(addr) + 1, sizeof(disp));
+  }
+#elif defined(CINDER_AARCH64)
+  uint32_t insn;
+  if constexpr (kFreeThreadedBuild) {
+    // A64 instructions are a naturally-aligned 4-byte word patched with a
+    // single atomic store; read it back the same way.
+    JIT_CHECK(addr % 4 == 0, "Not 4-byte aligned: {:#x}", addr);
+    insn = std::atomic_ref<uint32_t>{*reinterpret_cast<uint32_t*>(addr)}.load(
+        std::memory_order_relaxed);
+  } else {
+    std::memcpy(&insn, reinterpret_cast<const uint8_t*>(addr), sizeof(insn));
+  }
+  // Extract 26-bit immediate and sign-extend to 32 bits.
+  disp = static_cast<int32_t>(insn << 6) >> 6;
+  disp *= 4;
+#else
+  (void)addr;
+  CINDER_UNSUPPORTED
+#endif
+
+  return disp;
+}
+
 } // namespace
 
 void CodePatcher::link(uintptr_t patchpoint, std::span<const uint8_t> data) {
@@ -261,6 +412,60 @@ uint8_t* JumpPatcher::jumpTarget() const {
 
   return reinterpret_cast<uint8_t*>(
       resolveDisplacement(reinterpret_cast<uintptr_t>(patchpoint_), disp));
+}
+
+void patchCall(uintptr_t call_site, uintptr_t target) {
+  std::array<uint8_t, kJmpNopBytes.size()> buf = encodeCall(call_site, target);
+  writeCode(reinterpret_cast<uint8_t*>(call_site), buf);
+}
+
+void patchJump(uintptr_t entry, uintptr_t target) {
+  std::array<uint8_t, kJmpNopBytes.size()> buf = encodeJump(entry, target);
+  writeCode(reinterpret_cast<uint8_t*>(entry), buf);
+}
+
+bool inRelBranchRange(uintptr_t from, uintptr_t to) {
+#if defined(CINDER_X86_64)
+  intptr_t disp = static_cast<intptr_t>(to - from) -
+      static_cast<intptr_t>(kJmpNopBytes.size());
+  return fitsSignedInt<32>(disp);
+#elif defined(CINDER_AARCH64)
+  intptr_t disp = static_cast<intptr_t>(to - from);
+  return (disp % 4 == 0) && fitsSignedInt<26>(disp / 4);
+#else
+  (void)from;
+  (void)to;
+  return false;
+#endif
+}
+
+uintptr_t decodeCallTarget(uintptr_t addr) {
+  return resolveDisplacement(addr, decodeDisplacement(addr));
+}
+
+uintptr_t callSiteFromReturnAddress(uintptr_t return_address) {
+  // A relative call/jump is the same size as kJmpNopBytes on each architecture
+  // (5 bytes on x86-64, 4 bytes on aarch64).
+  return return_address - kJmpNopBytes.size();
+}
+
+namespace {
+// Published once by the codegen factory; read on hot/cold paths thereafter.
+std::atomic<void*> g_jit_to_jit_link_trampoline{nullptr};
+std::atomic<void*> g_jit_to_jit_relink_trampoline{nullptr};
+} // namespace
+
+void* jitToJitLinkTrampoline() {
+  return g_jit_to_jit_link_trampoline.load(std::memory_order_acquire);
+}
+
+void* jitToJitRelinkTrampoline() {
+  return g_jit_to_jit_relink_trampoline.load(std::memory_order_acquire);
+}
+
+void setJitToJitTrampolines(void* link, void* relink) {
+  g_jit_to_jit_link_trampoline.store(link, std::memory_order_release);
+  g_jit_to_jit_relink_trampoline.store(relink, std::memory_order_release);
 }
 
 } // namespace cinderx::jit

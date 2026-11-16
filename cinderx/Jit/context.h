@@ -31,6 +31,7 @@
 #include <condition_variable>
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -564,6 +565,35 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // longer in use.
   void processDeferredCleanup();
 
+  // --- JIT-to-JIT reverse index -------------------------------------------
+  // Support O(callers) relinking of stale JIT-to-JIT call sites.  See the
+  // callers/callees fields on CompiledFunctionData.
+
+  // Index this blob so lookupCodeOwner() can map any address inside it back to
+  // its CompiledFunctionData.  No-op for code that never participates in
+  // JIT-to-JIT calls.  Called once when the CompiledFunction is created.
+  void registerCodeOwner(CompiledFunctionData* data);
+
+  // Map a code address (e.g. a call site) to the CompiledFunctionData whose
+  // blob contains it, or nullptr if none.  Thread-safe.
+  CompiledFunctionData* lookupCodeOwner(uintptr_t addr);
+
+  // Record that `caller` has a direct call patched into `callee`'s register
+  // entry (mirrored edge).  Thread-safe; called from the link shim.
+  void recordJitToJitEdge(
+      CompiledFunctionData* caller,
+      CompiledFunctionData* callee);
+
+  // Reclamation step for the set of blobs about to be freed: revert live
+  // callers of any stale callee back to the link trampoline, then detach every
+  // freed blob from the reverse index.  Must run with the world stopped (or GIL
+  // held) so no call site is executed or patched concurrently.
+  void retireJitToJitCode(CompiledFunctionData* data) override;
+  void retireJitToJitCodeBatch(const std::vector<CompiledFunctionData*>& data);
+
+  void relinkAndDetachStaleCode(
+      const std::vector<CompiledFunctionData*>& freed);
+
   // Map of all code objects to the functions that they were found in.
   // Needed for printing the name of the code object and for preloading.
   UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>&
@@ -605,6 +635,10 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // kFreeThreadedBuild instead of #ifdefs.
   mutable std::mutex deopt_stats_mutex_;
   mutable std::mutex deferred_compile_data_mutex_;
+  // Guards the JIT-to-JIT reverse index: code_owner_index_ and every
+  // CompiledFunctionData's callers/callees.  Leaf lock -- never
+  // acquire another lock while holding it.
+  static std::mutex reverse_index_mutex_;
 
   // Get the stat object for a given deopt. It will not exist if the deopt has
   // never been hit. Caller must hold deopt_stats_mutex_ in free-threaded
@@ -759,6 +793,12 @@ class Context : public IJitContext, public CompiledFunctionOwner {
 
   std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>
       deferred_compiled_data_;
+
+  // JIT-to-JIT reverse index: maps each compiled blob's start address to its
+  // CompiledFunctionData, so a call-site address can be resolved to its owning
+  // function.  Ordered by blob start for range lookups.  Guarded by
+  // reverse_index_mutex_.
+  static std::map<uintptr_t, CompiledFunctionData*> code_owner_index_;
 };
 
 // A CompilerContext is like a Context but it also holds a compiler object

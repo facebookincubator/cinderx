@@ -7,6 +7,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/disassembler.h"
@@ -15,6 +16,7 @@
 #include "cinderx/module_c_state.h"
 #include "cinderx/module_state.h"
 
+#include <algorithm>
 #include <iostream>
 #include <new>
 #include <utility>
@@ -112,12 +114,16 @@ void compiledfuncdata_dealloc(PyObject* self) {
   CompiledFunctionData* cfd = reinterpret_cast<CompiledFunctionData*>(self);
   PyObject_GC_UnTrack(self);
   cfd->releaseRuntimeResources();
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  JIT_CHECK(
+      !cfd->jit_to_jit_registered || mod_state == nullptr ||
+          mod_state->jit_context == nullptr,
+      "JIT-to-JIT code must be detached before deallocation");
 
   // Release the code buffer back to the allocator, which deregisters
   // the code's unwind info before the memory is freed.  For the contiguous
   // (immortal) case this is handled by the CompiledFunction destructor
   // instead.
-  cinderx::ModuleState* mod_state = cinderx::getModuleState();
   if (mod_state != nullptr && cfd->code.data() != nullptr) {
     auto code_allocator = mod_state->code_allocator.get();
     if (code_allocator != nullptr) {
@@ -352,6 +358,22 @@ Ref<CompiledFunction> CompiledFunction::create(
   return Ref<CompiledFunction>::steal(cf);
 }
 
+const JitToJitCallSite* CompiledFunctionData::findJitToJitCallSite(
+    uintptr_t address) const {
+  if (jit_to_jit_call_sites.size() == 0) {
+    return nullptr;
+  }
+  auto it = std::lower_bound(
+      jit_to_jit_call_sites.begin(),
+      jit_to_jit_call_sites.end(),
+      address,
+      [](const JitToJitCallSite& site, uintptr_t value) {
+        return site.address < value;
+      });
+  return it != jit_to_jit_call_sites.end() && it->address == address ? &*it
+                                                                     : nullptr;
+}
+
 CompiledFunctionData::~CompiledFunctionData() {
   releaseRuntimeResources();
 }
@@ -371,6 +393,9 @@ bool CompiledFunctionData::defer() {
 }
 
 void CompiledFunctionData::releaseRuntimeResources() {
+  if (jit_to_jit_registered && jit_to_jit_owner != nullptr) {
+    jit_to_jit_owner->retireJitToJitCode(this);
+  }
   auto* saved_owner = std::exchange(owner, nullptr);
   if (saved_owner == nullptr) {
     return;
@@ -486,6 +511,51 @@ void* CompiledFunction::staticEntry() const {
       JITRT_GET_STATIC_ENTRY(data_->vectorcall_entry));
 }
 
+void* CompiledFunction::registerEntry() const {
+  if (data_ == nullptr || !data_->jit_to_jit_target ||
+      data_->vectorcall_entry == nullptr) {
+    return nullptr;
+  }
+  return reinterpret_cast<void*>(
+      JITRT_GET_JIT_TO_JIT_ENTRY(data_->vectorcall_entry));
+}
+
+void CompiledFunction::patchRegisterEntryForDeopt() {
+  if (data_ == nullptr || !data_->jit_to_jit_target ||
+      data_->vectorcall_entry == nullptr ||
+      data_->jit_to_jit_far_relink_stub == nullptr) {
+    return;
+  }
+  // Don't touch the code while the runtime is being torn down: at interpreter
+  // shutdown the code allocator (and its pages) may already be gone, and
+  // patching is pointless anyway.  contains() also guards against a stale
+  // entry.
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  if (mod_state == nullptr) {
+    return;
+  }
+  CodeAllocator* code_allocator = mod_state->code_allocator.get();
+  if (code_allocator == nullptr) {
+    return;
+  }
+  auto entry = reinterpret_cast<uintptr_t>(
+      JITRT_GET_JIT_TO_JIT_ENTRY(data_->vectorcall_entry));
+  if (!code_allocator->contains(reinterpret_cast<void*>(entry))) {
+    return;
+  }
+  // Patch the register entry to branch to this function's own far-relink stub,
+  // which jumps to the relink trampoline.  The stub lives in the same code as
+  // the entry, so the relative branch always reaches it regardless of how far
+  // the relink trampoline is.
+  auto target = reinterpret_cast<uintptr_t>(data_->jit_to_jit_far_relink_stub);
+  JIT_CHECK(
+      inRelBranchRange(entry, target),
+      "JIT-to-JIT far-relink stub unreachable from register entry {:#x}",
+      entry);
+  patchJump(entry, target);
+  data_->jit_to_jit_entry_diverted = true;
+}
+
 void CompiledFunction::addFunction(BorrowedRef<PyFunctionObject> func) {
   // The vectorcall entry point is the marker that this function is
   // currently this compiled function.
@@ -508,6 +578,7 @@ Ref<CompiledFunction> CompiledFunction::stealFunction(
   functions_.erase(func.get());
 #endif
   num_functions_--;
+  patchRegisterEntryForDeopt();
   setVectorcall(func, getInterpretedVectorcall(func));
   return Ref<CompiledFunction>::steal(this);
 }
@@ -525,6 +596,7 @@ void CompiledFunction::deoptFunction(BorrowedRef<PyFunctionObject> func) {
   // No refcount change: the function keeps the reference it took in
   // addFunction(), which is what holds this compile together while the JIT is
   // disabled and nothing is running it.
+  patchRegisterEntryForDeopt();
   setVectorcall(func, getInterpretedVectorcall(func));
 }
 
@@ -598,6 +670,11 @@ void CompiledFunction::clear(bool context_finalizing) {
     return;
   }
 
+  // Divert any patched JIT-to-JIT callers away from this (now superseded) code
+  // before tearing it down.  Idempotent, so safe if clear() runs more than
+  // once.
+  patchRegisterEntryForDeopt();
+
   // During shutdown the Context and its prefork stable storage may be destroyed
   // while CFs still exist in function dicts. Null out borrowed pointers to
   // avoid dereferencing them later.
@@ -617,14 +694,14 @@ void CompiledFunction::clear(bool context_finalizing) {
   if (data_ != nullptr) {
     data_->retired = true;
   }
+  if (owner != nullptr && !context_finalizing) {
+    owner->forgetCompiledFunction(*this);
+  }
+
   bool deferred = false;
   if (!contiguous_data_ && !context_finalizing && owner != nullptr &&
       data_ != nullptr && data_->runtime != nullptr) {
     deferred = data_->defer();
-  }
-
-  if (owner != nullptr && !context_finalizing) {
-    owner->forgetCompiledFunction(*this);
   }
 
   if (!deferred && data_ != nullptr) {

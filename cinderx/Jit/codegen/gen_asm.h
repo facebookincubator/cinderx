@@ -19,6 +19,7 @@
 #include <atomic>
 #include <cstddef>
 #include <list>
+#include <mutex>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -60,6 +61,25 @@ class NativeGenerator {
   // Python call.
   void* getStaticEntry();
 
+  // Whether the compiled function was emitted with a register (native ABI)
+  // entry point.  Valid after getVectorcallEntry() has run.
+  bool emittedRegisterEntry() const {
+    return hasRegisterEntry();
+  }
+
+  // Absolute addresses of JIT-to-JIT call sites emitted in this function.
+  // Valid after getVectorcallEntry() has run.
+  const std::vector<JitToJitCallSite>& jitToJitCallSites() const {
+    return env_.jit_to_jit_call_sites;
+  }
+
+  // The far-relink stub for this function's JIT-to-JIT register entry, or
+  // nullptr if it has none.  The relink patch branches here.  Valid after
+  // getVectorcallEntry() has run.
+  void* jitToJitFarRelinkStub() const {
+    return jit_to_jit_far_relink_stub_;
+  }
+
   int getCompiledFunctionStackSize() const;
   int getCompiledFunctionSpillStackSize() const;
   const hir::Function* getFunction() const {
@@ -99,6 +119,7 @@ class NativeGenerator {
   const hir::Function* func_;
   void* code_start_{nullptr};
   void* vectorcall_entry_{nullptr};
+  void* jit_to_jit_far_relink_stub_{nullptr};
   arch::Builder* as_{nullptr};
   CodeHolderMetadata metadata_{CodeSection::kHot};
 
@@ -107,6 +128,11 @@ class NativeGenerator {
   int inline_stack_size_;
 
   bool hasStaticEntry() const;
+  // Whether this function should be given a register (native ABI) entry point.
+  // True for Static Python functions (which always have one) and, when the
+  // JIT-to-JIT calling convention is enabled, for ordinary functions a compiled
+  // caller could dispatch to directly.
+  bool hasRegisterEntry() const;
   int calcInlineStackSize(const hir::Function* func);
   void generatePrologueBlocks(lir::BasicBlock* frameSetupBlock);
   void generateCode(asmjit::CodeHolder& code, lir::BasicBlock* frameSetupBlock);
@@ -157,7 +183,8 @@ class NativeGenerator {
   Py_ssize_t giJITDataOffset();
   void generateStaticEntryPoint(
       asmjit::Label finish_frame_setup,
-      asmjit::Label static_jmp_location);
+      asmjit::Label static_jmp_location,
+      bool jit_to_jit);
 
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocation);
   friend class BackendTest;
@@ -173,7 +200,11 @@ class NativeGenerator {
 // trampolines.
 class NativeGeneratorFactory {
  public:
-  NativeGeneratorFactory();
+  explicit NativeGeneratorFactory(bool publishable_compiles = false);
+
+  bool publishableCompiles() const {
+    return publishable_compiles_;
+  }
 
   std::unique_ptr<NativeGenerator> operator()(const hir::Function* func);
 
@@ -184,10 +215,19 @@ class NativeGeneratorFactory {
   void* deoptTrampolineGenerators();
   void* failedDeferredCompileTrampoline();
 
+  // Lazily generate and globally publish the JIT-to-JIT link/relink
+  // trampolines.  Must be called before lowering any function that may emit a
+  // JIT-to-JIT call site.
+  void ensureJitToJitTrampolines();
+
  private:
+  bool publishable_compiles_{false};
   std::atomic<void*> deopt_trampoline_{nullptr};
   std::atomic<void*> deopt_trampoline_generators_{nullptr};
   std::atomic<void*> failed_deferred_compile_trampoline_{nullptr};
+  void* jit_to_jit_link_trampoline_{nullptr};
+  void* jit_to_jit_relink_trampoline_{nullptr};
+  std::once_flag jit_to_jit_trampolines_once_;
 };
 
 } // namespace cinderx::jit::codegen

@@ -388,6 +388,14 @@ class LIRGenerator {
       Instruction* self,
       std::span<hir::Register* const> values);
 
+  // Lower a VectorCall to a direct register-ABI call into the JIT-to-JIT link
+  // trampoline when the callee is a known Python function with a matching
+  // simple positional signature.  Returns false (and emits nothing) if any
+  // condition is unmet, so the caller falls back to the vectorcall lowering.
+  bool TranslateJitToJitCall(
+      BasicBlockBuilder& bbb,
+      const hir::VectorCall& instr);
+
   TranslatedBlock translateOneBasicBlock(
       const hir::BasicBlock* bb,
       const hir::FrameState* initial_caller_fs = nullptr,

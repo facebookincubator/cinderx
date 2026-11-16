@@ -105,6 +105,19 @@ struct Environ {
   };
   std::vector<CallsiteDeoptPending> callsite_deopt_pending;
 
+  // The kCall LIR instructions that are JIT-to-JIT call sites.  Marked by the
+  // LIR generator and recognized during assembly so they can be aligned and
+  // have a call-site label bound.
+  bool publishable_compile{false};
+  UnorderedMap<const jit::lir::Instruction*, JitToJitCallSite>
+      jit_to_jit_call_instrs;
+
+  // Labels and immutable call shapes, resolved after code finalization.
+  std::vector<std::pair<asmjit::Label, JitToJitCallSite>>
+      jit_to_jit_call_site_labels;
+
+  std::vector<JitToJitCallSite> jit_to_jit_call_sites;
+
   // Location of incoming arguments
   std::vector<PhyLocation> arg_locations;
 

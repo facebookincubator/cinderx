@@ -2211,6 +2211,61 @@ bool LIRGenerator::translateSpecializedCall(
   return false;
 }
 
+bool LIRGenerator::TranslateJitToJitCall(
+    BasicBlockBuilder& bbb,
+    const hir::VectorCall& hir_instr) {
+  if (!env_->publishable_compile || !useJitToJitCallingConvention()) {
+    return false;
+  }
+  // No keyword arguments: the register convention is purely positional.
+  if (hir_instr.flags() & CallFlags::KwArgs) {
+    return false;
+  }
+  // The callee must be a Python function known at compile time.
+  hir::Register* callable = hir_instr.func();
+  if (!(callable->type() <= TFunc)) {
+    return false;
+  }
+  PyObject* callee = callable->type().asObject();
+  if (callee == nullptr) {
+    return false;
+  }
+  // The link trampoline must have been published before lowering.
+  void* link = jit::jitToJitLinkTrampoline();
+  if (link == nullptr) {
+    return false;
+  }
+
+  ThreadedCompileGILHolder guard;
+
+  auto func = reinterpret_cast<PyFunctionObject*>(callee);
+  auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
+  size_t num_args = hir_instr.numArgs();
+
+  // All arguments must fit in registers (slot 0 holds the function object).
+  if (num_args + 1 > codegen::ARGUMENT_REGS.size()) {
+    return false;
+  }
+  // Callee must have a simple positional signature (no *args/**kwargs/kwonly).
+  if (!isJitToJitCallTarget(code)) {
+    return false;
+  }
+  // The number of arguments passed must be exactly what the callee expects.
+  if (static_cast<int>(num_args) != code->co_argcount) {
+    return false;
+  }
+
+  Instruction* lir = bbb.appendInstr(
+      hir_instr.output(), Opcode::kCall, Imm{reinterpret_cast<uint64_t>(link)});
+  // Operand 0 is the callable (-> ARGUMENT_REGS[0]); operands 1.. are the args
+  // (-> ARGUMENT_REGS[1..]), matching the register entry's calling convention.
+  for (hir::Register* operand : hir_instr.getOperands()) {
+    lir->addOperands(VReg{bbb.getDefInstr(operand)});
+  }
+  env_->jit_to_jit_call_instrs.emplace(lir, JitToJitCallSite{0, num_args});
+  return true;
+}
+
 void LIRGenerator::emitExceptionCheck(
     const jit::hir::DeoptBase& i,
     jit::lir::BasicBlockBuilder& bbb) {
@@ -4526,6 +4581,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case hir::Opcode::kVectorCall: {
         auto& hir_instr = i.as<VectorCall>();
         if (translateSpecializedCall(bbb, hir_instr)) {
+          break;
+        }
+        if (TranslateJitToJitCall(bbb, hir_instr)) {
           break;
         }
         const bool has_kwargs = hir_instr.flags() & CallFlags::KwArgs;

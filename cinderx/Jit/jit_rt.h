@@ -426,6 +426,28 @@ int unpackSequence(
  */
 StaticCallReturn failedDeferredCompileShim(PyObject** args);
 
+/*
+ * Body of the JIT-to-JIT "link" trampoline.  Reached the first time a compiled
+ * function makes a JIT-to-JIT direct call.  `args` points at the argument
+ * registers spilled by the trampoline (args[0] is the callee function object,
+ * and the caller's return address is recoverable from the saved stack slots).
+ *
+ * If the callee is JIT-compiled with a register entry that is reachable by a
+ * relative call, the caller's call site is patched to call that entry directly.
+ * In all cases the call is then served by marshalling the arguments into a
+ * vectorcall array and dispatching through the vectorcall ABI.
+ */
+StaticCallReturn jitToJitLinkShim(PyObject** args);
+
+/*
+ * Body of the JIT-to-JIT "relink" trampoline.  Reached when a patched direct
+ * call lands on a callee whose register entry has been patched because it
+ * became stale (recompiled or deallocated).  Reverts the caller's call site
+ * back to the link trampoline and serves the current call via the vectorcall
+ * ABI.
+ */
+StaticCallReturn jitToJitRelinkShim(PyObject** args);
+
 StaticCallReturn callStaticallyWithPrimitiveSignature(
     PyFunctionObject* func,
     PyObject** args,

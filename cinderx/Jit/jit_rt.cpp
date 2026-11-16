@@ -1820,6 +1820,84 @@ StaticCallReturn failedDeferredCompileShim(PyObject** args) {
   return StaticCallReturn{res, no_error};
 }
 
+namespace {
+
+constexpr size_t kJitToJitReturnAddrSlot = codegen::ARGUMENT_REGS.size() + 1;
+
+std::optional<size_t> resolveJitToJitCall(PyObject** args, bool relink) {
+  auto func = reinterpret_cast<PyFunctionObject*>(args[0]);
+  uintptr_t call_site = jit::callSiteFromReturnAddress(
+      reinterpret_cast<uintptr_t>(args[kJitToJitReturnAddrSlot]));
+  FreeThreadedJITEntrypointGuard guard;
+  jit::Context* ctx = jit::getContext();
+  if (ctx == nullptr) {
+    // Preserve the unpatched forwarding path after JIT teardown.
+    size_t nargs =
+        reinterpret_cast<PyCodeObject*>(func->func_code)->co_argcount;
+    if (nargs >= codegen::ARGUMENT_REGS.size()) {
+      PyErr_SetString(
+          PyExc_TypeError, "JIT-to-JIT argument count changed after teardown");
+      return std::nullopt;
+    }
+    return nargs;
+  }
+  jit::CompiledFunctionData* caller = ctx->lookupCodeOwner(call_site);
+  const jit::JitToJitCallSite* site =
+      caller == nullptr ? nullptr : caller->findJitToJitCallSite(call_site);
+  if (site == nullptr) {
+    PyErr_SetString(PyExc_SystemError, "Unregistered JIT-to-JIT call site");
+    return std::nullopt;
+  }
+  size_t nargs = site->nargs;
+  ctx = static_cast<jit::Context*>(caller->jit_to_jit_owner);
+  if (ctx == nullptr) {
+    return nargs;
+  }
+  JIT_CHECK(nargs + 1 <= codegen::ARGUMENT_REGS.size(), "Invalid call shape");
+
+  uintptr_t link = reinterpret_cast<uintptr_t>(jit::jitToJitLinkTrampoline());
+  if (relink) {
+    if (link != 0 && jit::inRelBranchRange(call_site, link)) {
+      jit::patchCall(call_site, link);
+    }
+  } else if (
+      BorrowedRef<jit::CompiledFunction> compiled = ctx->lookupFunc(func)) {
+    jit::CompiledFunctionData* data = compiled->data();
+    auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
+    if (compiled->vectorcallEntry() == func->vectorcall &&
+        data->jit_to_jit_target && !data->retired &&
+        !data->jit_to_jit_entry_diverted && data->runtime != nullptr &&
+        data->runtime->code() == code && code->co_argcount == nargs &&
+        jit::isJitToJitCallTarget(code) && link != 0 &&
+        jit::inRelBranchRange(call_site, link)) {
+      auto entry = reinterpret_cast<uintptr_t>(compiled->registerEntry());
+      if (entry != 0 && jit::inRelBranchRange(call_site, entry)) {
+        ctx->recordJitToJitEdge(caller, data);
+        jit::patchCall(call_site, entry);
+      }
+    }
+  }
+  return nargs;
+}
+
+StaticCallReturn jitToJitShim(PyObject** args, bool relink) {
+  auto nargs = resolveJitToJitCall(args, relink);
+  if (!nargs.has_value()) {
+    return {nullptr, nullptr};
+  }
+  return {_PyObject_Vectorcall(args[0], args + 1, *nargs, nullptr), nullptr};
+}
+
+} // namespace
+
+StaticCallReturn jitToJitLinkShim(PyObject** args) {
+  return jitToJitShim(args, false);
+}
+
+StaticCallReturn jitToJitRelinkShim(PyObject** args) {
+  return jitToJitShim(args, true);
+}
+
 PyObject* unpackExToTuple(
     PyThreadState* tstate,
     PyObject* iterable,

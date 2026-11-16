@@ -130,6 +130,36 @@ class CodePatcher {
   }
 };
 
+// Overwrite the relative CALL instruction at `call_site` so it targets
+// `target`.  Used to late-bind and re-bind JIT-to-JIT direct calls.  On
+// free-threaded x86 the write is a single atomic 8-byte store, so `call_site`
+// must be 8-byte aligned.
+void patchCall(uintptr_t call_site, uintptr_t target);
+
+// Overwrite the first bytes of a function entry point with a relative branch to
+// `target`.  Used to divert direct calls into a stale function to the relink
+// trampoline.  Same alignment requirement as patchCall.
+void patchJump(uintptr_t entry, uintptr_t target);
+
+// Whether a relative branch/call from `from` to `to` is encodable (fits the
+// architecture's relative displacement).
+bool inRelBranchRange(uintptr_t from, uintptr_t to);
+
+// Decode the absolute target of the relative CALL/JMP instruction at `addr`.
+uintptr_t decodeCallTarget(uintptr_t addr);
+
+// Recover the address of the relative CALL instruction given the return address
+// pushed by that call.
+uintptr_t callSiteFromReturnAddress(uintptr_t return_address);
+
+// Accessors for the globally-published JIT-to-JIT trampolines.  The link
+// trampoline late-binds a call site to its callee's register entry; the relink
+// trampoline reverts a call site back to the link trampoline when its callee
+// becomes stale.
+void* jitToJitLinkTrampoline();
+void* jitToJitRelinkTrampoline();
+void setJitToJitTrampolines(void* link, void* relink);
+
 // Subclass of a CodePatcher that is intended for patching in jumps.
 class JumpPatcher : public CodePatcher {
  public:

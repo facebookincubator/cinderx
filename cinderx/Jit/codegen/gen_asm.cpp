@@ -710,6 +710,24 @@ void* getOrCreateTrampoline(std::atomic<void*>& slot, Generator&& generator) {
   return trampoline;
 }
 
+// The JIT-to-JIT link/relink trampolines reuse the deferred-compile wrapper: it
+// spills the argument registers, passes a pointer to them as the first argument
+// (so the shim can recover both the args and the caller's return address),
+// calls the shim, and returns the shim's result.
+void* generateJitToJitLinkTrampoline() {
+  lir::Function lir_func;
+  lir::GenerateFailedDeferredCompileBlocks(
+      &lir_func, reinterpret_cast<void*>(rt::jitToJitLinkShim));
+  return emitAndRegisterTrampoline(&lir_func, "jitToJitLinkTrampoline");
+}
+
+void* generateJitToJitRelinkTrampoline() {
+  lir::Function lir_func;
+  lir::GenerateFailedDeferredCompileBlocks(
+      &lir_func, reinterpret_cast<void*>(rt::jitToJitRelinkShim));
+  return emitAndRegisterTrampoline(&lir_func, "jitToJitRelinkTrampoline");
+}
+
 #if defined(_WIN32) && defined(CINDER_X86_64)
 // Bridges the Microsoft x64 sret ABI to the JIT's internal reentry ABI.
 //
@@ -952,6 +970,14 @@ void* NativeGenerator::getVectorcallEntry() {
   env_.addReference(func->globals.getObj());
   for (auto& ref : func->env.references()) {
     env_.addReference(ref);
+  }
+
+  // Ensure the JIT-to-JIT link/relink trampolines exist and are published
+  // before lowering, so the LIR generator can emit call sites that target the
+  // link trampoline.
+  env_.publishable_compile = factory_.publishableCompiles();
+  if (env_.publishable_compile && useJitToJitCallingConvention()) {
+    factory_.ensureJitToJitTrampolines();
   }
 
   lir::LIRGenerator lirgen(getFunction(), &env_);
@@ -1278,10 +1304,21 @@ Py_ssize_t NativeGenerator::giJITDataOffset() {
 
 void NativeGenerator::generateStaticEntryPoint(
     Label finish_frame_setup,
-    Label static_jmp_location) {
+    Label static_jmp_location,
+    [[maybe_unused]] bool jit_to_jit) {
 #if defined(CINDER_X86_64)
   auto static_entry_cursor = as_->cursor();
   as_->bind(static_jmp_location);
+
+  if (jit_to_jit) {
+    // Leading patchable NOP slot: when the register entry goes stale the relink
+    // patch overwrites this with a JMP to the far-relink stub, a pure NOP->JMP
+    // store that never touches the prologue below.  It is a 5-byte NOP so it is
+    // exactly the width of the JMP rel32 that patchJump writes (kJmpNopBytes).
+    // Static Python static entries are never patched, so they omit this slot.
+    static constexpr uint8_t kJmpNopBytes[] = {0x0f, 0x1f, 0x44, 0x00, 0x00};
+    as_->embed(kJmpNopBytes, sizeof(kJmpNopBytes));
+  }
 
   generateFunctionEntry();
 
@@ -1309,6 +1346,14 @@ void NativeGenerator::generateStaticEntryPoint(
   auto static_entry_cursor = as_->cursor();
   as_->bind(static_jmp_location);
 
+  if (jit_to_jit) {
+    // Leading patchable NOP: the relink patch overwrites this single word with
+    // a B, which is a CMODX-safe (NOP->B) modification -- unlike overwriting
+    // the prologue, which is not safe to modify while another core executes it.
+    // Static Python static entries are never patched, so they omit this slot.
+    as_->nop();
+  }
+
   generateFunctionEntry();
 
   size_t total_args = (size_t)getFunction()->numArgs();
@@ -1331,6 +1376,11 @@ void NativeGenerator::generateStaticEntryPoint(
 bool NativeGenerator::hasStaticEntry() const {
   PyCodeObject* code = getFunction()->code;
   return (code->co_flags & CI_CO_STATICALLY_COMPILED);
+}
+
+bool NativeGenerator::hasRegisterEntry() const {
+  return hasStaticEntry() ||
+      (env_.publishable_compile && isJitToJitCallTarget(getFunction()->code));
 }
 
 void NativeGenerator::generatePrologueBlocks(lir::BasicBlock* frameSetupBlock) {
@@ -1461,9 +1511,37 @@ void NativeGenerator::generateCode(
   env_.correct_arg_count = as_->newLabel();
 
   Label static_jmp_location = as_->newLabel();
+  // Target for JIT-to-JIT call sites that cannot reach the link trampoline with
+  // a relative call (code chunks are independent mmaps).  Emitted in this
+  // function's own code below, so it is always reachable from its call sites.
+  Label jit_to_jit_far_link_stub = as_->newLabel();
+  // Target for the register-entry relink patch: this function's own register
+  // entry is patched to branch here when it goes stale, and this stub jumps to
+  // the relink trampoline.  Emitted in this function, so the patch's relative
+  // branch always reaches it regardless of how far the relink trampoline is.
+  Label jit_to_jit_far_relink_stub = as_->newLabel();
+  // Static Python functions get a static register entry; ordinary functions
+  // that are JIT-to-JIT call targets get a JIT-to-JIT register entry instead.
+  // The two are mutually exclusive (see isJitToJitCallTarget).
   bool has_static_entry = hasStaticEntry();
-  if (has_static_entry) {
-    generateStaticEntryPoint(env_.finish_frame_setup, static_jmp_location);
+  bool has_jit_to_jit_entry = !has_static_entry && env_.publishable_compile &&
+      isJitToJitCallTarget(getFunction()->code);
+  bool has_register_entry = has_static_entry || has_jit_to_jit_entry;
+  if (has_register_entry) {
+    // On free-threaded x86 a JIT-to-JIT entry is patched to the relink
+    // trampoline by overwriting its leading NOP slot with a single atomic
+    // 8-byte store, so the slot (i.e. the entry) must be 8-byte aligned.  The
+    // alignment padding precedes the entry and shifts it and the vectorcall
+    // entry equally, preserving the fixed entry offset.  (SP static entries are
+    // never patched, so they don't need this; aarch64 uses a naturally-aligned
+    // 4-byte store over its own leading NOP slot.)
+    if constexpr (kFreeThreadedBuild && kBuildArch == Arch::kX86_64) {
+      if (has_jit_to_jit_entry) {
+        as_->align(AlignMode::kCode, 8);
+      }
+    }
+    generateStaticEntryPoint(
+        env_.finish_frame_setup, static_jmp_location, has_jit_to_jit_entry);
   }
 
   // Reentry point: dispatched to from rt::callWithIncorrectArgcount and
@@ -1625,6 +1703,48 @@ void NativeGenerator::generateCode(
     generateFunctionExit();
   }
 
+  // Far-link stub: JIT-to-JIT call sites that cannot reach the link trampoline
+  // with a relative call target this stub instead.  It branches to the link
+  // trampoline with the argument registers intact (clobbering only a scratch
+  // register that is not live at a call boundary).  Such sites stay on the
+  // vectorcall path and are never optimized to a direct call.
+  if (!env_.jit_to_jit_call_site_labels.empty()) {
+    auto far_link_cursor = as_->cursor();
+    as_->bind(jit_to_jit_far_link_stub);
+    auto link = reinterpret_cast<uint64_t>(jitToJitLinkTrampoline());
+#if defined(CINDER_X86_64)
+    as_->mov(x86::rax, link);
+    as_->jmp(x86::rax);
+#elif defined(CINDER_AARCH64)
+    as_->mov(a64::x16, link);
+    as_->br(a64::x16);
+#else
+    CINDER_UNSUPPORTED
+#endif
+    env_.addAnnotation("JIT-to-JIT far-link stub", far_link_cursor);
+  }
+
+  // Far-relink stub: when this function's JIT-to-JIT register entry goes stale
+  // it is patched to branch here; this stub jumps to the relink trampoline with
+  // the argument registers intact.  Patching a relative branch from the entry
+  // always reaches this in-function stub, even when the relink trampoline is
+  // far.
+  if (has_jit_to_jit_entry) {
+    auto far_relink_cursor = as_->cursor();
+    as_->bind(jit_to_jit_far_relink_stub);
+    auto relink = reinterpret_cast<uint64_t>(jitToJitRelinkTrampoline());
+#if defined(CINDER_X86_64)
+    as_->mov(x86::rax, relink);
+    as_->jmp(x86::rax);
+#elif defined(CINDER_AARCH64)
+    as_->mov(a64::x16, relink);
+    as_->br(a64::x16);
+#else
+    CINDER_UNSUPPORTED
+#endif
+    env_.addAnnotation("JIT-to-JIT far-relink stub", far_relink_cursor);
+  }
+
 #if defined(CINDER_AARCH64)
   // Emit constant pool data for MovConstPool instructions. Each entry is an
   // 8-byte value loaded via PC-relative ldr.
@@ -1638,16 +1758,19 @@ void NativeGenerator::generateCode(
 
   // ------------- code_start_
   // ^
-  // | JITRT_STATIC_ENTRY_OFFSET
+  // | JITRT_STATIC_ENTRY_OFFSET / JITRT_JIT_TO_JIT_ENTRY_OFFSET
   // | JITRT_CALL_REENTRY_OFFSET (6 bytes, 9 on Windows)
   // v
   // ------------- vectorcall_entry_
-  if (has_static_entry) {
+  if (has_register_entry) {
+    int register_entry_offset = has_jit_to_jit_entry
+        ? JITRT_JIT_TO_JIT_ENTRY_OFFSET
+        : JITRT_STATIC_ENTRY_OFFSET;
     JIT_CHECK(
         codeholder.labelOffsetFromBase(static_jmp_location) ==
             codeholder.labelOffsetFromBase(vectorcall_entry_label) +
-                JITRT_STATIC_ENTRY_OFFSET,
-        "bad static-entry offset {} ",
+                register_entry_offset,
+        "bad register-entry offset {} ",
         codeholder.labelOffsetFromBase(vectorcall_entry_label) -
             codeholder.labelOffsetFromBase(static_jmp_location));
   }
@@ -1680,6 +1803,55 @@ void NativeGenerator::generateCode(
 
   vectorcall_entry_ = static_cast<char*>(code_start_) +
       codeholder.labelOffsetFromBase(vectorcall_entry_label);
+
+  // Resolve JIT-to-JIT call-site labels (bound at the first byte of each E8
+  // rel32 placeholder) to absolute addresses, and fill in the displacement to
+  // the link trampoline.  The addresses are also retained for the stale-code
+  // GC.
+  if (!env_.jit_to_jit_call_site_labels.empty()) {
+    uint64_t base = codeholder.baseAddress();
+    auto link = reinterpret_cast<uintptr_t>(jitToJitLinkTrampoline());
+    JIT_CHECK(link != 0, "JIT-to-JIT link trampoline not initialized");
+    uintptr_t far_link_stub =
+        base + codeholder.labelOffsetFromBase(jit_to_jit_far_link_stub);
+    env_.jit_to_jit_call_sites.clear();
+    env_.jit_to_jit_call_sites.reserve(env_.jit_to_jit_call_site_labels.size());
+    for (auto [label, site] : env_.jit_to_jit_call_site_labels) {
+      uintptr_t call_site = base + codeholder.labelOffsetFromBase(label);
+      // First execution dispatches to the link trampoline, which patches this
+      // site to the callee's register entry.  If the trampoline is too far for
+      // a relative call (code chunks are independent mmaps), route through the
+      // in-function far-link stub instead -- the site then stays on the
+      // vectorcall path and is never optimized (the link shim won't patch a
+      // site that cannot reach the trampoline directly).
+      uintptr_t target = link;
+      if (!inRelBranchRange(call_site, link)) {
+        JIT_DLOG(
+            "JIT-to-JIT call site at {:#x} cannot reach the link trampoline; "
+            "routing through the far-link stub",
+            call_site);
+        target = far_link_stub;
+        JIT_CHECK(
+            inRelBranchRange(call_site, far_link_stub),
+            "JIT-to-JIT far-link stub unreachable from call site {:#x}",
+            call_site);
+      }
+      patchCall(call_site, target);
+      site.address = call_site;
+      env_.jit_to_jit_call_sites.push_back(site);
+    }
+    std::sort(
+        env_.jit_to_jit_call_sites.begin(),
+        env_.jit_to_jit_call_sites.end(),
+        [](const auto& a, const auto& b) { return a.address < b.address; });
+  }
+
+  // Resolve the far-relink stub address so the register-entry relink patch can
+  // target it (it runs later, when the function is deopted/deallocated).
+  if (has_jit_to_jit_entry) {
+    jit_to_jit_far_relink_stub_ = static_cast<char*>(code_start_) +
+        codeholder.labelOffsetFromBase(jit_to_jit_far_relink_stub);
+  }
 
   for (auto& entry : env_.unresolved_gen_entry_labels) {
     entry.first->setResumeTarget(
@@ -1773,7 +1945,8 @@ int NativeGenerator::calcInlineStackSize(const hir::Function* func) {
   return result;
 }
 
-NativeGeneratorFactory::NativeGeneratorFactory() {}
+NativeGeneratorFactory::NativeGeneratorFactory(bool publishable_compiles)
+    : publishable_compiles_(publishable_compiles) {}
 
 void* NativeGeneratorFactory::deoptTrampoline() {
   return getOrCreateTrampoline(
@@ -1789,6 +1962,15 @@ void* NativeGeneratorFactory::deoptTrampolineGenerators() {
 void* NativeGeneratorFactory::failedDeferredCompileTrampoline() {
   return getOrCreateTrampoline(failed_deferred_compile_trampoline_, [] {
     return generateFailedDeferredCompileTrampoline();
+  });
+}
+
+void NativeGeneratorFactory::ensureJitToJitTrampolines() {
+  std::call_once(jit_to_jit_trampolines_once_, [this] {
+    jit_to_jit_link_trampoline_ = generateJitToJitLinkTrampoline();
+    jit_to_jit_relink_trampoline_ = generateJitToJitRelinkTrampoline();
+    setJitToJitTrampolines(
+        jit_to_jit_link_trampoline_, jit_to_jit_relink_trampoline_);
   });
 }
 

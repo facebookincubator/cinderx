@@ -5,6 +5,8 @@
 #include "cinderx/python.h"
 
 #ifdef Py_GIL_DISABLED
+#include "internal/pycore_interp_structs.h"
+#include "internal/pycore_pystate.h"
 #include "internal/pycore_stackref.h"
 #endif
 
@@ -90,6 +92,18 @@ using GenResumeFunc = PyObject* (*)(PyObject * gen,
                                     PyThreadState* tstate);
 
 namespace jit {
+
+// True when no other thread can be concurrently patching or executing JIT code:
+// the world is stopped (free-threaded build) or the GIL serializes execution
+// against patching (default build).  Reading or patching shared code without
+// this holding is a data race.
+inline bool isWorldStopped() {
+#ifdef Py_GIL_DISABLED
+  return _PyInterpreterState_GET()->stoptheworld.world_stopped;
+#else
+  return PyGILState_Check();
+#endif
+}
 
 // Tagged PyObject values follow CPython's _PyStackRef tagging scheme in
 // free-threaded builds. GIL builds keep using plain PyObject* values.

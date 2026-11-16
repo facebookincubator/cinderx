@@ -624,6 +624,13 @@ FlagProcessor initFlagProcessor() {
       "Allocate JIT code near rt::call to keep helper calls in branch range");
 
   flag_processor.addOption(
+      "cinderx-jit-to-jit-calls",
+      "CINDERX_JIT_TO_JIT_CALLS",
+      getMutableConfig().use_jit_to_jit_calling_convention,
+      "Use the native ABI calling convention for direct calls between "
+      "JIT-compiled functions (disabled under the prefork model)");
+
+  flag_processor.addOption(
       "cinderx-jit-enable-jit-list-wildcards",
       "CINDERX_JIT_ENABLE_JIT_LIST_WILDCARDS",
       getMutableConfig().allow_jit_list_wildcards,
@@ -5753,6 +5760,9 @@ void funcModified(BorrowedRef<PyFunctionObject> func) {
 
   // Context might already be destroyed.
   if (CompilerContext<Compiler>* ctx = jitCtx()) {
+    if (BorrowedRef<CompiledFunction> compiled = ctx->lookupFunc(func)) {
+      compiled->patchRegisterEntryForDeopt();
+    }
     // Patch any callers that inlined the old code object.
     ctx->notifyFuncModified(func);
 

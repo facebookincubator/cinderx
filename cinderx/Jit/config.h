@@ -302,6 +302,12 @@ struct Config {
   bool delay_adaptive_code{false};
   // Number of calls before adaptive specialization kicks in.
   uint64_t adaptive_threshold{80};
+
+  // Use the native ABI (register) calling convention for direct calls between
+  // JIT-compiled non-Static-Python functions, late-bound via trampolines.  Has
+  // no effect under the prefork model (see useJitToJitCallingConvention).
+  // Enabled by default; disable with CINDERX_JIT_TO_JIT_CALLS=0.
+  bool use_jit_to_jit_calling_convention{true};
 };
 
 // The JIT's config object. The accessors defined below are used in very hot
@@ -317,6 +323,20 @@ inline const Config& getConfig() {
 // Get the JIT's current config object with the intent of modifying it.
 inline Config& getMutableConfig() {
   return s_jit_config;
+}
+
+// Whether the JIT-to-JIT native calling convention is active.  Requires the
+// feature flag and is disabled under the prefork model: it patches call sites
+// at runtime (self-modifying code on the first call), which would fault in
+// copy-on-write code pages shared across forked workers.
+inline bool useJitToJitCallingConvention() {
+#if defined(__APPLE__)
+  // Not yet supported on macOS.
+  return false;
+#else
+  const Config& config = getConfig();
+  return config.use_jit_to_jit_calling_convention && !kPreforkModel;
+#endif
 }
 
 // Check that the JIT is initialized.  Though it might be paused and or
