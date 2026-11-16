@@ -15,6 +15,7 @@ import textwrap
 import types
 import unittest
 import weakref
+from collections.abc import Iterable
 from typing import Any, Callable, cast, TYPE_CHECKING
 
 import cinderx.jit
@@ -59,73 +60,73 @@ class ExampleException(Exception):
     pass
 
 
-def firstlineno(func):
+def firstlineno(func: Callable[..., object]) -> int:
     return func.__code__.co_firstlineno
 
 
 @cinder_support.failUnlessJITCompiled
-def func_to_be_inlined(x, y):
+def func_to_be_inlined(x: int, y: int) -> int:
     return x + y
 
 
 @cinder_support.failUnlessJITCompiled
-def func_with_defaults(x=1, y=2):
+def func_with_defaults(x: int = 1, y: int = 2) -> int:
     return x + y
 
 
 @cinder_support.failUnlessJITCompiled
-def func_with_varargs(x, *args):
+def func_with_varargs(x: int, *args: int) -> int:
     return x
 
 
 @cinder_support.failUnlessJITCompiled
-def func():
+def func() -> int:
     a = func_to_be_inlined(2, 3)
     b = func_with_defaults()
     c = func_with_varargs(1, 2, 3)
     return a + b + c
 
 
-def _compact_guard_calculate_ratio(matches, length):
+def _compact_guard_calculate_ratio(matches: int, length: int) -> float:
     if length:
         return 2.0 * matches / length
     return 1.0
 
 
-def _compact_guard_quick_ratio_like(a, b):
+def _compact_guard_quick_ratio_like(a: list[int], b: list[int]) -> float:
     matches = 0
     for _elt in a:
         matches = matches + 1
     return _compact_guard_calculate_ratio(matches, len(a) + len(b))
 
 
-def compiled_code_func():
+def compiled_code_func() -> None:
     pass
 
 
-def compiled_code_func_with_nested():
+def compiled_code_func_with_nested() -> Callable[[], int]:
     def nested():
         return 42
 
     return nested
 
 
-def compiled_code_func_with_nested_global():
+def compiled_code_func_with_nested_global() -> Callable[[], object]:
     def nested():
         return NESTED_GLOBAL  # noqa: F821
 
     return nested
 
 
-def compiled_code_func_with_nested_builtin():
+def compiled_code_func_with_nested_builtin() -> Callable[[], int]:
     def nested():
         return len(())
 
     return nested
 
 
-def make_runtime_reference_functions():
-    namespace = {}
+def make_runtime_reference_functions() -> tuple[dict[str, Any], Any, Any]:
+    namespace: dict[str, Any] = {}
     exec(
         """
 def callee():
@@ -211,15 +212,15 @@ class InlineCacheStatsTests(unittest.TestCase):
 
 class FaulthandlerTracebackTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def f1(self, fd):
+    def f1(self, fd: int) -> None:
         self.f2(fd)
 
     @cinder_support.failUnlessJITCompiled
-    def f2(self, fd):
+    def f2(self, fd: int) -> None:
         self.f3(fd)
 
     @cinder_support.failUnlessJITCompiled
-    def f3(self, fd):
+    def f3(self, fd: int) -> None:
         faulthandler.dump_traceback(fd)
 
     def test_dumptraceback(self) -> None:
@@ -242,12 +243,12 @@ class FaulthandlerTracebackTests(unittest.TestCase):
             self.assertEqual(lines[header + 1 : header + 1 + len(expected)], expected)
 
 
-def _simpleFunc(a, b):
+def _simpleFunc(a: object, b: object) -> tuple[object, object]:
     return a, b
 
 
 class _CallableObj:
-    def __call__(self, a, b):
+    def __call__(self, a: object, b: object) -> tuple[object, object, object]:
         return self, a, b
 
 
@@ -266,7 +267,7 @@ class CallKWArgsTests(unittest.TestCase):
         self.assertEqual(r, (1, 2))
 
     @staticmethod
-    def _f1(a, b):
+    def _f1(a: object, b: object) -> tuple[object, object]:
         return a, b
 
     @cinder_support.failUnlessJITCompiled
@@ -279,7 +280,7 @@ class CallKWArgsTests(unittest.TestCase):
         r = CallKWArgsTests._f1(b=2, a=1)
         self.assertEqual(r, (1, 2))
 
-    def _f2(self, a, b):
+    def _f2(self, a: object, b: object) -> tuple[object, object, object]:
         return self, a, b
 
     @cinder_support.failUnlessJITCompiled
@@ -322,7 +323,7 @@ class CallKWArgsTests(unittest.TestCase):
 
     @staticmethod
     @cinder_support.failUnlessJITCompiled
-    def _f3(a, b=2, c=3, d=4, e=5):
+    def _f3(a: int, b: int = 2, c: int = 3, d: int = 4, e: int = 5) -> tuple[int, ...]:
         return a, b, c, d, e
 
     def test_call_kw_order(self) -> None:
@@ -406,7 +407,7 @@ class CallExTests(unittest.TestCase):
             self._doCall(1, {})
 
     @staticmethod
-    def _f1(a, b):
+    def _f1(a: object, b: object) -> tuple[object, object]:
         return a, b
 
     @cinder_support.failUnlessJITCompiled
@@ -419,7 +420,7 @@ class CallExTests(unittest.TestCase):
         r = CallKWArgsTests._f1(**{"b": 2, "a": 1})
         self.assertEqual(r, (1, 2))
 
-    def _f2(self, a, b):
+    def _f2(self, a: object, b: object) -> tuple[object, object, object]:
         return self, a, b
 
     @cinder_support.failUnlessJITCompiled
@@ -468,10 +469,10 @@ class CallExTests(unittest.TestCase):
 class SetNonDataDescrAttrTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("STORE_ATTR")
-    def set_foo(self, obj, val):
+    def set_foo(self, obj: Any, val: object) -> None:
         obj.foo = val
 
-    def setUp(self):
+    def setUp(self) -> None:
         class Descr:
             def __init__(self, name):
                 self.name = name
@@ -480,7 +481,7 @@ class SetNonDataDescrAttrTests(unittest.TestCase):
                 return obj.__dict__[self.name]
 
         self.descr_type = Descr
-        self.descr = Descr("foo")
+        self.descr: Any = Descr("foo")
 
         class Test:
             foo = self.descr
@@ -513,10 +514,10 @@ class SetNonDataDescrAttrTests(unittest.TestCase):
 class GetSetNonDataDescrAttrTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LOAD_ATTR")
-    def get_foo(self, obj):
+    def get_foo(self, obj: Any) -> object:
         return obj.foo
 
-    def setUp(self):
+    def setUp(self) -> None:
         class NonDataDescr:
             def __init__(self, val):
                 self.val = val
@@ -530,7 +531,7 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
                 return self.val
 
         self.descr_type = NonDataDescr
-        self.descr = NonDataDescr("testing 123")
+        self.descr: Any = NonDataDescr("testing 123")
 
         class Test:
             foo = self.descr
@@ -742,7 +743,7 @@ class ClosureTests(unittest.TestCase):
 
 class TempNameTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def _tmp_name(self, a, b):
+    def _tmp_name(self, a: int, b: int) -> str:
         tmp1 = "hello"
         c = a + b  # noqa: F841
         return tmp1
@@ -766,7 +767,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         self.assertFalse(self.isinstance_optimization())
 
     @cinder_support.failUnlessJITCompiled
-    def _fstring(self, flag, it1, it2):
+    def _fstring(self, flag: bool, it1: list[int], it2: list[int]) -> str | None:
         for a in it1:
             for b in it2:  # noqa: B007
                 if flag:
@@ -1221,11 +1222,11 @@ class TypeCallSimplificationTests(unittest.TestCase):
 
 
 class DelObserver:
-    def __init__(self, id, cb):
+    def __init__(self, id: int, cb: Callable[[int], object]) -> None:
         self.id = id
         self.cb = cb
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.cb(self.id)
 
 
@@ -1294,18 +1295,18 @@ class DeoptGuiltyValueTests(unittest.TestCase):
 
 
 class UnwindStateTests(unittest.TestCase):
-    DELETED = []
+    DELETED: list[int] = []
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.DELETED.clear()
         self.addCleanup(lambda: self.DELETED.clear())
 
-    def get_del_observer(self, id):
+    def get_del_observer(self, id: int) -> DelObserver:
         return DelObserver(id, lambda i: self.DELETED.append(i))
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("RAISE_VARARGS")
-    def _copied_locals(self, a):
+    def _copied_locals(self, a: str) -> None:
         b = c = a  # noqa: F841
         raise RuntimeError()
 
@@ -1320,7 +1321,7 @@ class UnwindStateTests(unittest.TestCase):
             )
 
     @cinder_support.failUnlessJITCompiled
-    def _raise_with_del_observer_on_stack(self):
+    def _raise_with_del_observer_on_stack(self) -> None:
         for x in (1 for i in [self.get_del_observer(1)]):  # noqa: B007
             raise RuntimeError()
 
@@ -1336,7 +1337,7 @@ class UnwindStateTests(unittest.TestCase):
         self.assertEqual(deleted, [1])
 
     @cinder_support.failUnlessJITCompiled
-    def _raise_with_del_observer_on_stack_and_cell_arg(self):
+    def _raise_with_del_observer_on_stack_and_cell_arg(self) -> None:
         for x in (self for i in [self.get_del_observer(1)]):  # noqa: B007
             raise RuntimeError()
 
@@ -1363,7 +1364,7 @@ HAS_EAGER_IMPORT_NAME: bool = (
 class ImportTests(unittest.TestCase):
     _MISSING = object()
 
-    def _install_module(self, name, module):
+    def _install_module(self, name: str, module: types.ModuleType) -> None:
         previous = sys.modules.get(name, self._MISSING)
         sys.modules[name] = module
 
@@ -1375,7 +1376,7 @@ class ImportTests(unittest.TestCase):
 
         self.addCleanup(restore)
 
-    def _make_import_name(self, module_name):
+    def _make_import_name(self, module_name: str) -> Callable[[], object]:
         namespace: dict[str, Any] = {
             "__builtins__": builtins.__dict__,
             "__name__": __name__,
@@ -1391,7 +1392,9 @@ def load():
         self.assertTrue(is_jit_compiled(load))
         return load
 
-    def _make_import_from(self, module_name, member="value"):
+    def _make_import_from(
+        self, module_name: str, member: str = "value"
+    ) -> Callable[[], object]:
         namespace: dict[str, Any] = {
             "__builtins__": builtins.__dict__,
             "__name__": __name__,
@@ -1407,19 +1410,20 @@ def load():
         self.assertTrue(is_jit_compiled(load))
         return load
 
-    def _hir_opcodes(self, func):
+    def _hir_opcodes(self, func: Callable[..., object]) -> dict[str, int]:
         opcodes = cinderx.jit.get_function_hir_opcode_counts(func)
         self.assertIsNotNone(opcodes)
+        assert opcodes is not None
         return opcodes
 
-    def _assert_import_name_cached(self, func):
+    def _assert_import_name_cached(self, func: Callable[..., object]) -> None:
         opcodes = self._hir_opcodes(func)
         self.assertGreaterEqual(opcodes.get("LoadGlobalCached", 0), 1)
         self.assertGreaterEqual(opcodes.get("GuardIs", 0), 1)
         self.assertEqual(opcodes.get("ImportName", 0), 0)
         self.assertEqual(opcodes.get("EagerImportName", 0), 0)
 
-    def _assert_import_from_cached(self, func):
+    def _assert_import_from_cached(self, func: Callable[..., object]) -> None:
         opcodes = self._hir_opcodes(func)
         self.assertGreaterEqual(opcodes.get("LoadGlobalCached", 0), 2)
         self.assertGreaterEqual(opcodes.get("Guard", 0), 1)
@@ -1427,7 +1431,7 @@ def load():
         self.assertEqual(opcodes.get("ImportName", 0), 0)
         self.assertEqual(opcodes.get("EagerImportName", 0), 0)
 
-    def _assert_generic_import_name(self, func):
+    def _assert_generic_import_name(self, func: Callable[..., object]) -> None:
         opcodes = self._hir_opcodes(func)
         self.assertGreater(
             opcodes.get("ImportName", 0) + opcodes.get("EagerImportName", 0),
@@ -1443,7 +1447,7 @@ def load():
             and event["normal"]["reason"] == "GuardFailure"
         )
 
-    def _assert_eager_import_name(self, func):
+    def _assert_eager_import_name(self, func: Callable[..., object]) -> None:
         self.assertIn(
             "EAGER_IMPORT_NAME",
             {instruction.opname for instruction in dis.get_instructions(func)},
@@ -1857,17 +1861,17 @@ def load():
 class RaiseTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("RAISE_VARARGS")
-    def _jitRaise(self, exc):
+    def _jitRaise(self, exc: BaseException | type[BaseException]) -> None:
         raise exc
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("RAISE_VARARGS")
-    def _jitRaiseCause(self, exc, cause):
+    def _jitRaiseCause(self, exc: BaseException, cause: BaseException) -> None:
         raise exc from cause
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("RAISE_VARARGS")
-    def _jitReraise(self):
+    def _jitReraise(self) -> None:
         raise
 
     def test_raise_type(self) -> None:
@@ -2493,7 +2497,7 @@ class ResolveKwargsTests(unittest.TestCase):
 class UnpackSequenceTests(unittest.TestCase):
     @failUnlessHasOpcodes("UNPACK_SEQUENCE")
     @cinder_support.failUnlessJITCompiled
-    def _unpack_arg(self, seq, which):
+    def _unpack_arg(self, seq: Iterable[object], which: str) -> object:
         a, b, c, d = seq
         if which == "a":
             return a
@@ -2505,7 +2509,7 @@ class UnpackSequenceTests(unittest.TestCase):
 
     @failUnlessHasOpcodes("UNPACK_EX")
     @cinder_support.failUnlessJITCompiled
-    def _unpack_ex_arg(self, seq, which):
+    def _unpack_ex_arg(self, seq: Iterable[object], which: str) -> object:
         a, b, *c, d = seq
         if which == "a":
             return a
@@ -2582,7 +2586,9 @@ class UnpackSequenceTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("UNPACK_SEQUENCE")
-    def _unpack_twice(self, first, second):
+    def _unpack_twice(
+        self, first: Iterable[object], second: Iterable[object]
+    ) -> tuple[object, ...]:
         a, b, c, d = first
         a, b, c, d = second
         return (a, b, c, d)
@@ -2646,7 +2652,7 @@ class UnpackSequenceTests(unittest.TestCase):
 class DeleteSubscrTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("DELETE_SUBSCR")
-    def _delit(self, container, key):
+    def _delit(self, container: Any, key: object) -> None:
         del container[key]
 
     def test_builtin_types(self) -> None:
@@ -2688,13 +2694,13 @@ class DeleteSubscrTests(unittest.TestCase):
 class DeleteFastTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("DELETE_FAST")
-    def _del(self):
+    def _del(self) -> None:
         x = 2
         del x
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("DELETE_FAST")
-    def _del_arg(self, a):
+    def _del_arg(self, a: object) -> None:
         del a
 
     @cinder_support.failUnlessJITCompiled
@@ -2712,7 +2718,7 @@ class DeleteFastTests(unittest.TestCase):
 
     @failUnlessHasOpcodes("DELETE_FAST")
     @cinder_support.failUnlessJITCompiled
-    def _del_ex_no_raise(self):
+    def _del_ex_no_raise(self) -> int | None:
         try:
             return min(1, 2)
         except Exception as e:  # noqa: F841
@@ -2789,7 +2795,7 @@ class DictSubscrTests(unittest.TestCase):
 
 class KeywordOnlyArgTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def f1(self, *, val=10):
+    def f1(self, *, val: int = 10) -> int:
         return val
 
     @cinder_support.failUnlessJITCompiled
@@ -2851,7 +2857,7 @@ class PositionalDefaultsWithKeywordCallTest(unittest.TestCase):
     when the function is called with keyword arguments."""
 
     @cinder_support.failUnlessJITCompiled
-    def f(self, a, b=2, c=3):
+    def f(self, a: int, b: int = 2, c: int = 3) -> tuple[int, int, int]:
         return (a, b, c)
 
     def test_skip_default_with_kwarg(self) -> None:
@@ -2870,36 +2876,36 @@ class ClassA:
     z = 100
     x = 41
 
-    def g(self, a):
+    def g(self, a: int) -> int:
         return 42 + a
 
     @classmethod
-    def cls_g(cls, a):
+    def cls_g(cls, a: int) -> int:
         return 100 + a
 
 
 class ClassB(ClassA):
-    def f(self, a):
+    def f(self, a: int) -> int:
         return super().g(a=a)
 
-    def f_2arg(self, a):
+    def f_2arg(self, a: int) -> int:
         return super().g(a=a)
 
     @classmethod
-    def cls_f(cls, a):
+    def cls_f(cls, a: int) -> int:
         return super().cls_g(a=a)
 
     @classmethod
-    def cls_f_2arg(cls, a):
+    def cls_f_2arg(cls, a: int) -> int:
         return super().cls_g(a=a)
 
     @property
     # pyrefly: ignore [bad-override]
-    def x(self):
+    def x(self) -> int:
         return super().x + 1
 
     @property
-    def x_2arg(self):
+    def x_2arg(self) -> int:
         return super().x + 1
 
 
@@ -3019,7 +3025,7 @@ class DeleteAttrTests(unittest.TestCase):
     @failUnlessHasOpcodes(
         "STORE_ATTR" if sys.version_info >= (3, 16) else "DELETE_ATTR"
     )
-    def del_foo(self, obj):
+    def del_foo(self, obj: Any) -> None:
         del obj.foo
 
     def test_delete_attr(self) -> None:
@@ -3059,7 +3065,7 @@ class OtherTests(unittest.TestCase):
 class GetIterForIterTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("FOR_ITER", "GET_ITER")
-    def doit(self, iterable):
+    def doit(self, iterable: Iterable[object]) -> int:
         for _ in iterable:
             pass
         return 42
@@ -3124,10 +3130,10 @@ class GetIterForIterTests(unittest.TestCase):
 class SetUpdateTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("BUILD_SET", "SET_UPDATE")
-    def doit_unchecked(self, iterable):
+    def doit_unchecked(self, iterable: Any) -> set[object]:
         return {*iterable}
 
-    def doit(self, iterable):
+    def doit(self, iterable: Any) -> set[object]:
         result = self.doit_unchecked(iterable)
         self.assertIs(type(result), set)
         return result
@@ -3167,7 +3173,7 @@ class SetUpdateTests(unittest.TestCase):
 class UnpackSequenceTestsWithoutCompare(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("UNPACK_SEQUENCE")
-    def doit(self, iterable):
+    def doit(self, iterable: Iterable[object]) -> object:
         x, y = iterable
         return x
 
@@ -3200,7 +3206,7 @@ class UnpackSequenceTestsWithoutCompare(unittest.TestCase):
 class UnpackExTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("UNPACK_EX")
-    def doit(self, iterable):
+    def doit(self, iterable: Iterable[object]) -> object:
         x, *y = iterable
         return x
 
@@ -3230,7 +3236,7 @@ class UnpackExTests(unittest.TestCase):
 class StoreSubscrTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("STORE_SUBSCR")
-    def doit(self, obj, key, value):
+    def doit(self, obj: Any, key: object, value: object) -> None:
         obj[key] = value
 
     def test_store_subscr_with_list_sets_item(self) -> None:
@@ -3271,19 +3277,19 @@ SUBSCR_OP = "BINARY_SUBSCR" if sys.version_info < (3, 14) else "BINARY_OP"
 class ListSubscrTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes(SUBSCR_OP)
-    def positive_index(self):
+    def positive_index(self) -> int:
         lst = [10, 20, 30]
         return lst[1]
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes(SUBSCR_OP)
-    def negative_index(self):
+    def negative_index(self) -> int:
         lst = [10, 20, 30]
         return lst[-1]
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes(SUBSCR_OP)
-    def out_of_bounds(self):
+    def out_of_bounds(self) -> int:
         lst = [10, 20, 30]
         return lst[5]
 
@@ -3304,12 +3310,12 @@ FORMAT_OP = "FORMAT_VALUE" if sys.version_info < (3, 14) else "FORMAT_SIMPLE"
 class FormatValueTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("BUILD_STRING", FORMAT_OP)
-    def doit(self, obj):
+    def doit(self, obj: object) -> str:
         return f"hello{obj}world"
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("BUILD_STRING", FORMAT_OP)
-    def doit_repr(self, obj):
+    def doit_repr(self, obj: object) -> str:
         return f"hello{obj!r}world"
 
     def test_format_value_calls_str(self) -> None:
@@ -3346,7 +3352,7 @@ class FormatValueTests(unittest.TestCase):
 class ListExtendTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("LIST_EXTEND")
-    def extend_list(self, it):
+    def extend_list(self, it: Iterable[int]) -> list[int]:
         return [1, *it]
 
     def test_list_extend_with_list(self) -> None:
@@ -3377,7 +3383,7 @@ class SetupWithException(Exception):
 class SetupWithTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("WITH_EXCEPT_START")
-    def with_returns_value(self, mgr):
+    def with_returns_value(self, mgr: Any) -> object:
         with mgr as x:
             return x
 
@@ -3402,7 +3408,7 @@ class SetupWithTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("WITH_EXCEPT_START")
-    def with_raises(self, mgr):
+    def with_raises(self, mgr: Any) -> int:
         with mgr:
             raise SetupWithException("foo")
         return 100
@@ -3433,7 +3439,7 @@ class SetupWithTests(unittest.TestCase):
 
 class ListToTupleTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def it_to_tup(self, it):
+    def it_to_tup(self, it: Iterable[object]) -> tuple[object, ...]:
         return (*it,)
 
     def test_list_to_tuple_returns_tuple(self) -> None:
@@ -3457,27 +3463,27 @@ class CompareTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("COMPARE_OP")
-    def compare_op(self, left, right):
+    def compare_op(self, left: Any, right: Any) -> bool:
         return left < right
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("CONTAINS_OP")
-    def compare_in(self, left, right):
+    def compare_in(self, left: object, right: Any) -> bool:
         return left in right
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("CONTAINS_OP")
-    def compare_not_in(self, left, right):
+    def compare_not_in(self, left: object, right: Any) -> bool:
         return left not in right
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("IS_OP")
-    def compare_is(self, left, right):
+    def compare_is(self, left: object, right: object) -> bool:
         return left is right
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("IS_OP")
-    def compare_is_not(self, left, right):
+    def compare_is_not(self, left: object, right: object) -> bool:
         return left is not right
 
     def test_compare_op(self) -> None:
@@ -3578,7 +3584,7 @@ class MatchTests(unittest.TestCase):
 
 class CopyDictWithoutKeysTest(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def match_rest(self, obj):
+    def match_rest(self, obj: object) -> dict[object, object] | None:
         match obj:
             case {**rest}:
                 return rest
@@ -3664,7 +3670,7 @@ class CopyDictWithoutKeysTest(unittest.TestCase):
             self.match_keys_and_rest(obj)
 
 
-def globals_getter():
+def globals_getter() -> dict[str, Any]:
     return globals()
 
 
@@ -3677,7 +3683,7 @@ class GetGlobalsTests(unittest.TestCase):
 
 
 class LoadMethodEliminationTests(unittest.TestCase):
-    def lme_test_func(self, flag=False):
+    def lme_test_func(self, flag: bool = False) -> str:
         return "{}{}".format(
             1,
             "" if not flag else " flag",
@@ -4074,7 +4080,7 @@ class BadArgumentTests(unittest.TestCase):
     @skip_if_prefork(
         "Prefork builds immortalize compiled functions, so the function never deopts"
     )
-    def test_compiled_code_ref(self):
+    def test_compiled_code_ref(self) -> None:
         self.assertEqual(compiled_code_func.__dict__, {})
         cinder_support.failUnlessJITCompiled(compiled_code_func)
         # The compiled code is held as a logical reference, so compiling must not
@@ -4090,7 +4096,7 @@ class BadArgumentTests(unittest.TestCase):
     @skip_if_prefork(
         "Prefork builds immortalize compiled functions, so the function never deopts"
     )
-    def test_nested_compiled_code_ref(self):
+    def test_nested_compiled_code_ref(self) -> None:
         # CompiledCode should be re-used for nested functions, even if the outer
         # function is never compiled.  Nothing is published in either function's
         # __dict__ to make that happen.
@@ -4105,7 +4111,7 @@ class BadArgumentTests(unittest.TestCase):
 
         self.assertEqual(code1, id(cinderx.jit.get_compiled_function(nested2)))
 
-    def test_nested_compiled_code_globals_mismatch(self):
+    def test_nested_compiled_code_globals_mismatch(self) -> None:
         globals1 = {"NESTED_GLOBAL": 1}
         factory1 = with_globals(globals1)(compiled_code_func_with_nested_global)
         force_compile(factory1)
@@ -4119,7 +4125,7 @@ class BadArgumentTests(unittest.TestCase):
         nested2 = factory2()
         self.assertEqual(nested2(), 2)
 
-    def test_nested_compiled_code_builtins_mismatch(self):
+    def test_nested_compiled_code_builtins_mismatch(self) -> None:
         globals_dict = {"__builtins__": {"len": lambda _: 1}}
         factory1 = with_globals(globals_dict)(compiled_code_func_with_nested_builtin)
         force_compile(factory1)
@@ -4136,7 +4142,7 @@ class BadArgumentTests(unittest.TestCase):
     @skip_if_prefork(
         "Prefork builds immortalize compiled functions, so the function never deopts"
     )
-    def test_nested_compiled_code_ref_outer_destroyed(self):
+    def test_nested_compiled_code_ref_outer_destroyed(self) -> None:
         d = {}
         exec(
             textwrap.dedent("""
