@@ -3269,6 +3269,10 @@ bool checkSet(PyObject* op) {
   return PySet_CheckExact(op);
 }
 
+bool checkDict(PyObject* op) {
+  return PyDict_CheckExact(op);
+}
+
 bool checkBool(PyObject* op) {
   return op == Py_True || op == Py_False;
 }
@@ -4445,6 +4449,168 @@ SpecializedType ToBoolCache::specializedType() const {
   JIT_ABORT("Unknown ToBoolCache specialization");
 }
 
+ContainsCache::Specialization ContainsCache::getSpecialization() const {
+  return specialization_.load(std::memory_order_relaxed);
+}
+
+void ContainsCache::setSpecialization(
+    Specialization expected,
+    Specialization desired) {
+  if constexpr (kFreeThreadedBuild) {
+    specialization_.compare_exchange_strong(
+        expected, desired, std::memory_order_relaxed);
+  } else {
+    specialization_.store(desired, std::memory_order_relaxed);
+  }
+}
+
+// Fast paths for ContainsCache, mirroring the ones CompareBool codegen emits
+// for statically known container types. Each takes (container, needle) and
+// returns -1 on error, 0/1 otherwise. The set path uses the set sequence
+// slot rather than PySet_Contains, which skips the fallback for set keys,
+// e.g. `{1} in {frozenset({1})}`.
+static inline int containsUnicode(PyObject* container, PyObject* needle) {
+  return PyUnicode_Contains(container, needle);
+}
+
+static inline int containsDict(PyObject* container, PyObject* needle) {
+  return PyDict_Contains(container, needle);
+}
+
+static inline int containsSet(PyObject* container, PyObject* needle) {
+  return PySet_Type.tp_as_sequence->sq_contains(container, needle);
+}
+
+template <
+    auto Current,
+    auto ContainerKind,
+    auto Op,
+    auto Fallback,
+    auto ReDispatch>
+int ContainsCache::invokeSpecialized(
+    PyObject* needle,
+    PyObject* container,
+    ContainsCache* cache) {
+  constexpr CheckFn containerCheck = checkFor(ContainerKind);
+  if (containerCheck(container)) {
+    return Op(container, needle);
+  }
+
+  cache->setSpecialization(Current, Fallback);
+  return ReDispatch(needle, container, cache);
+}
+
+int ContainsCache::containsGeneric(
+    PyObject* needle,
+    PyObject* container,
+    ContainsCache* /* cache */) {
+  return PySequence_Contains(container, needle);
+}
+
+int ContainsCache::populateAndInvoke(
+    PyObject* needle,
+    PyObject* container,
+    ContainsCache* cache) {
+  if (checkUnicode(container)) {
+    cache->setSpecialization(
+        Specialization::kUninitialized, Specialization::kUnicode);
+    return contains(needle, container, cache);
+  }
+  if (checkDict(container)) {
+    cache->setSpecialization(
+        Specialization::kUninitialized, Specialization::kDict);
+    return contains(needle, container, cache);
+  }
+  if (checkSet(container)) {
+    cache->setSpecialization(
+        Specialization::kUninitialized, Specialization::kSet);
+    return contains(needle, container, cache);
+  }
+  if (checkFrozenSet(container)) {
+    cache->setSpecialization(
+        Specialization::kUninitialized, Specialization::kFrozenSet);
+    return contains(needle, container, cache);
+  }
+
+  cache->setSpecialization(
+      Specialization::kUninitialized, Specialization::kGeneric);
+  return containsGeneric(needle, container, cache);
+}
+
+int ContainsCache::contains(
+    PyObject* needle,
+    PyObject* container,
+    ContainsCache* cache) {
+  switch (cache->getSpecialization()) {
+    case Specialization::kUninitialized:
+      return populateAndInvoke(needle, container, cache);
+    case Specialization::kGeneric:
+      return containsGeneric(needle, container, cache);
+    case Specialization::kUnicode:
+      return invokeSpecialized<
+          Specialization::kUnicode,
+          SpecializedType::kUnicode,
+          containsUnicode,
+          Specialization::kGeneric,
+          &ContainsCache::contains>(needle, container, cache);
+    case Specialization::kDict:
+      return invokeSpecialized<
+          Specialization::kDict,
+          SpecializedType::kDict,
+          containsDict,
+          Specialization::kGeneric,
+          &ContainsCache::contains>(needle, container, cache);
+    case Specialization::kSet:
+      return invokeSpecialized<
+          Specialization::kSet,
+          SpecializedType::kSet,
+          containsSet,
+          Specialization::kGeneric,
+          &ContainsCache::contains>(needle, container, cache);
+    case Specialization::kFrozenSet:
+      return invokeSpecialized<
+          Specialization::kFrozenSet,
+          SpecializedType::kFrozenSet,
+          containsSet,
+          Specialization::kGeneric,
+          &ContainsCache::contains>(needle, container, cache);
+    default:
+      JIT_ABORT("Unexpected specialization in ContainsCache::contains");
+  }
+}
+
+int ContainsCache::notContains(
+    PyObject* needle,
+    PyObject* container,
+    ContainsCache* cache) {
+  int result = contains(needle, container, cache);
+  return result < 0 ? -1 : !result;
+}
+
+ContainsCache::ContainsSpecialization ContainsCache::specializedTypes() const {
+  switch (getSpecialization()) {
+    case Specialization::kUninitialized:
+      return ContainsSpecialization{
+          SpecializedType::kUninitialized, SpecializedType::kUninitialized};
+    case Specialization::kGeneric:
+      return ContainsSpecialization{
+          SpecializedType::kGeneric, SpecializedType::kGeneric};
+    case Specialization::kUnicode:
+      return ContainsSpecialization{
+          SpecializedType::kUnicode, SpecializedType::kBool};
+    case Specialization::kDict:
+      return ContainsSpecialization{
+          SpecializedType::kDict, SpecializedType::kBool};
+    case Specialization::kSet:
+      return ContainsSpecialization{
+          SpecializedType::kSet, SpecializedType::kBool};
+    case Specialization::kFrozenSet:
+      return ContainsSpecialization{
+          SpecializedType::kFrozenSet, SpecializedType::kBool};
+  }
+  JIT_ABORT("Unknown ContainsCache specialization");
+}
+
 void notifyICsTypeChanged(BorrowedRef<PyTypeObject> type) {
   ac_watcher.typeChanged(type);
   ac_descr_watcher.typeChanged(
@@ -4474,6 +4640,8 @@ std::optional<hir::Type> specializedTypeToHirType(SpecializedType type) {
       return hir::TComplexExact;
     case SpecializedType::kSet:
       return hir::TSetExact;
+    case SpecializedType::kDict:
+      return hir::TDictExact;
     case SpecializedType::kBool:
       // Only comparison specializations produce bools; no binary-op row uses
       // this, so mapping it here is unreachable for binary ops.

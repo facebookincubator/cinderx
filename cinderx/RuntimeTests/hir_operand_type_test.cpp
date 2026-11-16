@@ -108,6 +108,32 @@ TEST_F(HIROperandTypeTest, LoadMethodSuperReturnsTypesForMultipleOperands) {
   EXPECT_EQ(op_type.kind, Constraint::kType);
 }
 
+TEST_F(HIROperandTypeTest, CompareBoolDemandsRightOperandCurrentType) {
+  Function func;
+  auto dst = func.env.allocateRegister();
+  auto left = func.env.allocateRegister();
+  auto right = func.env.allocateRegister();
+  left->setType(TObject);
+  right->setType(TDictExact);
+  FrameState frame;
+  std::unique_ptr<Instr> instr(
+      CompareBool::create(dst, CompareOp::kIn, left, right, frame));
+
+  OperandType op_type = instr->getOperandType(0);
+  EXPECT_EQ(op_type.type, TObject);
+  EXPECT_EQ(op_type.kind, Constraint::kType);
+
+  op_type = instr->getOperandType(1);
+  EXPECT_EQ(op_type.type, TDictExact);
+  EXPECT_EQ(op_type.kind, Constraint::kType);
+
+  // An unrefined container demands only TObject, not a fast-path union:
+  // any container is a valid operand.
+  right->setType(TObject);
+  op_type = instr->getOperandType(1);
+  EXPECT_EQ(op_type.type, TObject);
+}
+
 TEST_F(HIROperandTypeTest, PrimitiveBoxGetOperandTypeImplReturnsCorrectType) {
   Function func;
   auto dst = func.env.allocateRegister();

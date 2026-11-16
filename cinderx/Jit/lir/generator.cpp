@@ -4280,34 +4280,92 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
       case hir::Opcode::kCompareBool: {
         auto instr = &i.as<CompareBool>();
         Instruction* call_instr;
-        if (instr->op() == CompareOp::kIn) {
-          if (instr->right()->type() <= TUnicodeExact) {
-            call_instr = bbb.appendCallInstruction(
-                instr->output(),
-                PyUnicode_Contains,
-                instr->right(),
-                instr->left());
-          } else if (instr->right()->type() <= TDictExact) {
-            call_instr = bbb.appendCallInstruction(
-                instr->output(),
-                PyDict_Contains,
-                instr->right(),
-                instr->left());
-          } else if (instr->right()->type() <= (TSetExact | TFrozenSetExact)) {
-            // Not PySet_Contains, which skips the fallback for set keys, e.g.
-            // `{1} in {frozenset({1})}`.
-            call_instr = bbb.appendCallInstruction(
-                instr->output(),
-                PySet_Type.tp_as_sequence->sq_contains,
-                instr->right(),
-                instr->left());
+        // Set when a `not in` fast path calls into a temporary: the
+        // result is negated after the guard below, so the guard still
+        // sees the unnegated contains result.
+        Instruction* contains_result = nullptr;
+        const bool is_contains =
+            instr->op() == CompareOp::kIn || instr->op() == CompareOp::kNotIn;
+        const Type rhs_type = instr->right()->type();
+        const bool rhs_type_known = rhs_type <= TUnicodeExact ||
+            rhs_type <= TDictExact || rhs_type <= (TSetExact | TFrozenSetExact);
+        if (is_contains && rhs_type_known) {
+          if (instr->op() == CompareOp::kIn) {
+            if (rhs_type <= TUnicodeExact) {
+              call_instr = bbb.appendCallInstruction(
+                  instr->output(),
+                  PyUnicode_Contains,
+                  instr->right(),
+                  instr->left());
+            } else if (rhs_type <= TDictExact) {
+              call_instr = bbb.appendCallInstruction(
+                  instr->output(),
+                  PyDict_Contains,
+                  instr->right(),
+                  instr->left());
+            } else if (rhs_type <= (TSetExact | TFrozenSetExact)) {
+              // Not PySet_Contains, which skips the fallback for set keys,
+              // e.g. `{1} in {frozenset({1})}`.
+              call_instr = bbb.appendCallInstruction(
+                  instr->output(),
+                  PySet_Type.tp_as_sequence->sq_contains,
+                  instr->right(),
+                  instr->left());
+            } else {
+              call_instr = bbb.appendCallInstruction(
+                  instr->output(),
+                  PySequence_Contains,
+                  instr->right(),
+                  instr->left());
+            }
           } else {
-            call_instr = bbb.appendCallInstruction(
-                instr->output(),
-                PySequence_Contains,
-                instr->right(),
-                instr->left());
+            if (rhs_type <= TUnicodeExact) {
+              contains_result = bbb.appendCallInstruction(
+                  OutVReg{Operand::k8bit},
+                  PyUnicode_Contains,
+                  instr->right(),
+                  instr->left());
+            } else if (rhs_type <= TDictExact) {
+              contains_result = bbb.appendCallInstruction(
+                  OutVReg{Operand::k8bit},
+                  PyDict_Contains,
+                  instr->right(),
+                  instr->left());
+            } else {
+              // Not PySet_Contains, which skips the fallback for set keys,
+              // e.g. `{1} in {frozenset({1})}`.
+              contains_result = bbb.appendCallInstruction(
+                  OutVReg{Operand::k8bit},
+                  PySet_Type.tp_as_sequence->sq_contains,
+                  instr->right(),
+                  instr->left());
+            }
+            call_instr = contains_result;
           }
+        } else if (is_contains && getConfig().binary_op_caches) {
+          // The container type is not known statically. The ContainsCache
+          // gathers the type observed at runtime so a recompile can
+          // specialize from the profile. Its entry points take the
+          // operands in CompareBool order: the needle first, then the
+          // container.
+          ContainsCache* cache = stable_storage_.allocateContainsCache();
+          env_->profileCollector().add(
+              instr->frameState()->code, instr->bytecodeOffset(), cache);
+          int (*cache_entry)(PyObject*, PyObject*, ContainsCache*) =
+              instr->op() == CompareOp::kIn ? ContainsCache::contains
+                                            : ContainsCache::notContains;
+          call_instr = bbb.appendCallInstruction(
+              instr->output(),
+              cache_entry,
+              instr->left(),
+              instr->right(),
+              cache);
+        } else if (instr->op() == CompareOp::kIn) {
+          call_instr = bbb.appendCallInstruction(
+              instr->output(),
+              PySequence_Contains,
+              instr->right(),
+              instr->left());
         } else if (instr->op() == CompareOp::kNotIn) {
           call_instr = bbb.appendCallInstruction(
               instr->output(),
@@ -4345,6 +4403,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               static_cast<int>(instr->op()));
         }
         appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, call_instr);
+        if (contains_result != nullptr) {
+          bbb.appendInstr(
+              instr->output(),
+              Opcode::kXor,
+              contains_result,
+              Imm{1, DataType::k8bit});
+        }
         break;
       }
       case hir::Opcode::kCopyDictWithoutKeys: {

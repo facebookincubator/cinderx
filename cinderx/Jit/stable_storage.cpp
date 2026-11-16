@@ -123,6 +123,10 @@ ToBoolCache* PerCompilationStableStorage::allocateToBoolCache() {
   return arena_.allocate<ToBoolCache>();
 }
 
+ContainsCache* PerCompilationStableStorage::allocateContainsCache() {
+  return arena_.allocate<ContainsCache>();
+}
+
 void PerCompilationStableStorage::addLoadTypeAttrCacheSite(
     BCOffset bytecode_offset,
     LoadTypeAttrCache* cache) {
@@ -192,6 +196,10 @@ CompareCache* ContextStableStorage::allocateCompareCache(hir::CompareOp op) {
 
 ToBoolCache* ContextStableStorage::allocateToBoolCache() {
   return to_bool_caches_.allocate();
+}
+
+ContainsCache* ContextStableStorage::allocateContainsCache() {
+  return contains_caches_.allocate();
 }
 
 void ContextStableStorage::addLoadTypeAttrCacheSite(

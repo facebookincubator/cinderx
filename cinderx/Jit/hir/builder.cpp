@@ -2754,14 +2754,47 @@ void HIRBuilder::emitIsOp(TranslationContext& tc, int oparg) {
   stack.push(result);
 }
 
+bool HIRBuilder::emitContainsProfileGuards(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr,
+    Register* container) {
+  if (profile_ == nullptr) {
+    return false;
+  }
+  ProfileLocation location{tc.frame.code, bc_instr.baseOffset()};
+  const CompareProfile* profile = profile_->find<CompareProfile>(location);
+  if (profile == nullptr) {
+    return false;
+  }
+  // An unspecialized container means the cache saw several container types:
+  // emit no guard, but still report the profile as used so the caller does
+  // not fall back to the interpreter's specialization.
+  if (profile->right_type != TObject) {
+    auto guard =
+        tc.emit<GuardType>(container, profile->right_type, container, tc.frame);
+    guard->setProfileCause(location.bytecode_offset);
+  }
+  tc.emit<ProfileUseTypes>(std::move(location), ProfileEntry{*profile});
+  return true;
+}
+
 void HIRBuilder::emitContainsOp(
     CFG& cfg,
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   auto& stack = tc.frame.stack;
 
-  if (getConfig().specialized_opcodes) {
-    Register* container = stack.top();
+  Register* container = stack.top();
+  bool used_profile = emitContainsProfileGuards(tc, bc_instr, container);
+
+  // When this compile will be replaced by a recompile, the ContainsCache
+  // gathers the container type at runtime and the recompile specializes
+  // from that profile, so do not lock in the interpreter's specialization
+  // of this bytecode. Without a recompilation threshold there is no
+  // recompile to specialize from, so keep the interpreter specialization,
+  // unless this is a recompile whose profile showed the site is polymorphic.
+  if (!used_profile && recompile_threshold_ == 0 &&
+      getConfig().specialized_opcodes) {
     switch (bc_instr.specializedOpcode()) {
       case CONTAINS_OP_DICT:
         tc.emit<GuardType>(container, TDictExact, container, tc.frame);

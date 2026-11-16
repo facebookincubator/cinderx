@@ -59,6 +59,27 @@ std::optional<ProfileEntry> toBoolPayload(const ToBoolCache& cache) {
   return ToBoolProfile{*operand_type, TBool};
 }
 
+// Profile feedback from a ContainsCache. The needle is never specialized,
+// so only the container type is reported, as a CompareProfile: the HIR
+// builder consumes it with the same profile-guard machinery as Compare.
+// The result is always a bool.
+std::optional<ProfileEntry> containsPayload(const ContainsCache& cache) {
+  const ContainsCache::ContainsSpecialization specialization =
+      cache.specializedTypes();
+  // A cache that saw several container types reports an unspecialized
+  // container, so the recompile leaves the site generic rather than falling
+  // back to the interpreter's specialization of the bytecode.
+  if (specialization.rhs == SpecializedType::kGeneric) {
+    return CompareProfile{TObject, TObject, TBool};
+  }
+  const std::optional<Type> container_type =
+      specializedTypeToHirType(specialization.rhs);
+  if (!container_type.has_value()) {
+    return std::nullopt;
+  }
+  return CompareProfile{TObject, *container_type, TBool};
+}
+
 std::optional<ProfileEntry> loadAttrPayload(const LoadAttrCache& cache) {
   const std::vector<LoadAttrCache::ProfiledEntry> entries =
       cache.profiledEntries();
@@ -117,6 +138,10 @@ std::optional<ProfileEntry> cachePayload(const ProfileSource& source) {
   }
   if (const auto* cache = std::get_if<ToBoolCache*>(&source)) {
     return toBoolPayload(**cache);
+  }
+
+  if (const auto* cache = std::get_if<ContainsCache*>(&source)) {
+    return containsPayload(**cache);
   }
   if constexpr (kFreeThreadedBuild) {
     return std::nullopt;

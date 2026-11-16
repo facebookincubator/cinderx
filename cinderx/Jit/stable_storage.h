@@ -75,6 +75,7 @@ class PerCompilationStableStorage final {
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
   CompareCache* allocateCompareCache(hir::CompareOp op);
   ToBoolCache* allocateToBoolCache();
+  ContainsCache* allocateContainsCache();
 
 #ifdef CINDERX_RUNTIME_TESTS_STATIC_CINDERX
   template <typename T, typename... Args>
@@ -129,6 +130,7 @@ class ContextStableStorage final {
   StoreAttrCache* allocateStoreAttrCache(BCOffset bytecode_offset);
   CompareCache* allocateCompareCache(hir::CompareOp op);
   ToBoolCache* allocateToBoolCache();
+  ContainsCache* allocateContainsCache();
   void addLoadTypeAttrCacheSite(
       BCOffset bytecode_offset,
       LoadTypeAttrCache* cache);
@@ -152,6 +154,7 @@ class ContextStableStorage final {
   SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
   SlabArena<CompareCache> compare_caches_;
   SlabArena<ToBoolCache> to_bool_caches_;
+  SlabArena<ContainsCache> contains_caches_;
 };
 
 #ifdef ENABLE_PREFORK_MODEL

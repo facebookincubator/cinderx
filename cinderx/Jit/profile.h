@@ -233,6 +233,7 @@ using ProfileSource = std::variant<
     BinaryOpCache*,
     CompareCache*,
     ToBoolCache*,
+    ContainsCache*,
     LoadAttrCache*,
     LoadMethodCache*,
     StoreAttrCache*>;

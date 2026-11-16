@@ -2224,7 +2224,7 @@ class INSTR_CLASS(
 
 // Like Compare but has an Int32 output so it can be used to replace
 // a Compare + IsTruthy.
-class INSTR_CLASS(CompareBool, (TObject, TObject), Operands<2>, DeoptBase) {
+class INSTR_CLASS(CompareBool, (kDynamicOperandTypes), Operands<2>, DeoptBase) {
  public:
   CompareBool(
       Register* dst,
@@ -2244,6 +2244,18 @@ class INSTR_CLASS(CompareBool, (TObject, TObject), Operands<2>, DeoptBase) {
 
   Register* right() const {
     return getOperand(1);
+  }
+
+  OperandType getOperandTypeImpl(std::size_t i) const {
+    // Lowering selects the helper from the right operand's static type,
+    // so a guard narrowing it is load-bearing even though any container
+    // is accepted. Demanding the type it currently has makes widening
+    // it fail the demand check in GuardTypeRemoval.
+    if (i == 1) {
+      Register* container = right();
+      return container != nullptr ? container->type() : TObject;
+    }
+    return TObject;
   }
 
  private:

@@ -9,6 +9,7 @@
 // clang-format on
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/config.h"
@@ -21,6 +22,8 @@
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+
+#include <optional>
 
 #ifdef Py_GIL_DISABLED
 #include <barrier>
@@ -1128,6 +1131,597 @@ def test(a, b):
   EXPECT_EQ(rerecompiled_result.get(), Py_False);
 }
 
+TEST_F(BinaryOpCacheCodegenTest, ContainsCacheSpecializesOnContainerTypes) {
+  ContainsCache cache;
+  EXPECT_EQ(
+      cache.specializedTypes(),
+      (ContainsCache::ContainsSpecialization{
+          SpecializedType::kUninitialized, SpecializedType::kUninitialized}));
+
+  auto expect_container_type = [](const ContainsCache& cache,
+                                  SpecializedType container_type) {
+    EXPECT_EQ(
+        cache.specializedTypes(),
+        (ContainsCache::ContainsSpecialization{
+            container_type, SpecializedType::kBool}));
+  };
+
+  // Unicode containers specialize on the container type; the needle is
+  // never specialized.
+  auto hello = Ref<>::steal(PyUnicode_FromString("hello"));
+  auto needle = Ref<>::steal(PyUnicode_FromString("ell"));
+  EXPECT_EQ(ContainsCache::contains(needle, hello, &cache), 1);
+  expect_container_type(cache, SpecializedType::kUnicode);
+  auto missing = Ref<>::steal(PyUnicode_FromString("z"));
+  EXPECT_EQ(ContainsCache::contains(missing, hello, &cache), 0);
+  expect_container_type(cache, SpecializedType::kUnicode);
+
+  // A container of a different specialized type steps the cache down to
+  // the generic path, which still answers correctly.
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  EXPECT_EQ(ContainsCache::contains(one, dict, &cache), 1);
+  EXPECT_EQ(
+      cache.specializedTypes(),
+      (ContainsCache::ContainsSpecialization{
+          SpecializedType::kGeneric, SpecializedType::kGeneric}));
+
+  // Dict containers specialize, and an unhashable needle is an error
+  // (from PyDict_Contains) rather than a step-down.
+  ContainsCache dict_cache;
+  EXPECT_EQ(ContainsCache::contains(one, dict, &dict_cache), 1);
+  EXPECT_EQ(
+      dict_cache.specializedTypes(),
+      (ContainsCache::ContainsSpecialization{
+          SpecializedType::kDict, SpecializedType::kBool}));
+  auto unhashable = Ref<>::steal(PyList_New(0));
+  EXPECT_EQ(ContainsCache::contains(unhashable, dict, &dict_cache), -1);
+  EXPECT_TRUE(PyErr_Occurred());
+  PyErr_Clear();
+  EXPECT_EQ(
+      dict_cache.specializedTypes(),
+      (ContainsCache::ContainsSpecialization{
+          SpecializedType::kDict, SpecializedType::kBool}));
+
+  // notContains negates, preserves errors, and shares the specialization.
+  EXPECT_EQ(ContainsCache::notContains(one, dict, &dict_cache), 0);
+  EXPECT_EQ(ContainsCache::notContains(two, dict, &dict_cache), 1);
+  EXPECT_EQ(ContainsCache::notContains(unhashable, dict, &dict_cache), -1);
+  EXPECT_TRUE(PyErr_Occurred());
+  PyErr_Clear();
+
+  // Set containers specialize.
+  ContainsCache set_cache;
+  auto set = Ref<>::steal(PySet_New(nullptr));
+  ASSERT_NE(set, nullptr);
+  ASSERT_EQ(PySet_Add(set.get(), one.get()), 0);
+  EXPECT_EQ(ContainsCache::contains(one, set, &set_cache), 1);
+  expect_container_type(set_cache, SpecializedType::kSet);
+  EXPECT_EQ(ContainsCache::contains(two, set, &set_cache), 0);
+  EXPECT_EQ(
+      set_cache.specializedTypes(),
+      (ContainsCache::ContainsSpecialization{
+          SpecializedType::kSet, SpecializedType::kBool}));
+
+  // Frozenset containers specialize separately from sets, and the set
+  // sequence slot's fallback answers set-key membership.
+  ContainsCache frozenset_cache;
+  auto inner = Ref<>::steal(PyFrozenSet_New(set.get()));
+  ASSERT_NE(inner, nullptr);
+  auto outer_items = Ref<>::steal(PyTuple_Pack(1, inner.get()));
+  auto outer = Ref<>::steal(PyFrozenSet_New(outer_items.get()));
+  ASSERT_NE(outer, nullptr);
+  EXPECT_EQ(ContainsCache::contains(inner, outer, &frozenset_cache), 1);
+  EXPECT_EQ(
+      frozenset_cache.specializedTypes(),
+      (ContainsCache::ContainsSpecialization{
+          SpecializedType::kFrozenSet, SpecializedType::kBool}));
+
+  // Anything else (here, a list) goes generic.
+  ContainsCache generic_cache;
+  auto list = Ref<>::steal(PyList_New(2));
+  ASSERT_NE(list, nullptr);
+  PyList_SET_ITEM(list.get(), 0, Ref<>::steal(PyLong_FromLong(1)).release());
+  PyList_SET_ITEM(list.get(), 1, Ref<>::steal(PyLong_FromLong(2)).release());
+  EXPECT_EQ(ContainsCache::contains(one, list, &generic_cache), 1);
+  EXPECT_EQ(ContainsCache::contains(two, list, &generic_cache), 1);
+  EXPECT_EQ(
+      generic_cache.specializedTypes(),
+      (ContainsCache::ContainsSpecialization{
+          SpecializedType::kGeneric, SpecializedType::kGeneric}));
+}
+
+TEST_F(BinaryOpCacheCodegenTest, ProfileIndexesContainsCachesByLocation) {
+  PerCompilationStableStorage storage;
+  ProfileCollector collector;
+
+  const BCOffset dict_offset{24};
+  ContainsCache* dict_cache = storage.allocateContainsCache();
+  collector.add(nullptr, dict_offset, dict_cache);
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  EXPECT_EQ(ContainsCache::contains(one, dict, dict_cache), 1);
+
+  const BCOffset set_offset{48};
+  ContainsCache* set_cache = storage.allocateContainsCache();
+  collector.add(nullptr, set_offset, set_cache);
+  auto set = Ref<>::steal(PySet_New(nullptr));
+  ASSERT_NE(set, nullptr);
+  ASSERT_EQ(PySet_Add(set.get(), one.get()), 0);
+  EXPECT_EQ(ContainsCache::contains(one, set, set_cache), 1);
+
+  const BCOffset unicode_offset{12};
+  ContainsCache* unicode_cache = storage.allocateContainsCache();
+  collector.add(nullptr, unicode_offset, unicode_cache);
+  auto hello = Ref<>::steal(PyUnicode_FromString("hello"));
+  auto needle = Ref<>::steal(PyUnicode_FromString("ell"));
+  EXPECT_EQ(ContainsCache::contains(needle, hello, unicode_cache), 1);
+
+  const BCOffset frozenset_offset{6};
+  ContainsCache* frozenset_cache = storage.allocateContainsCache();
+  collector.add(nullptr, frozenset_offset, frozenset_cache);
+  auto frozenset = Ref<>::steal(PyFrozenSet_New(set.get()));
+  ASSERT_NE(frozenset, nullptr);
+  EXPECT_EQ(ContainsCache::contains(one, frozenset, frozenset_cache), 1);
+
+  const BCOffset generic_offset{60};
+  ContainsCache* generic_cache = storage.allocateContainsCache();
+  collector.add(nullptr, generic_offset, generic_cache);
+  auto list = Ref<>::steal(PyList_New(1));
+  ASSERT_NE(list, nullptr);
+  PyList_SET_ITEM(list.get(), 0, Ref<>::steal(PyLong_FromLong(1)).release());
+  EXPECT_EQ(ContainsCache::contains(one, list, generic_cache), 1);
+
+  const BCOffset cold_offset{72};
+  ContainsCache* cold_cache = storage.allocateContainsCache();
+  collector.add(nullptr, cold_offset, cold_cache);
+
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 5);
+
+  const CompareProfile* dict_profile =
+      profile.find<CompareProfile>(nullptr, dict_offset);
+  ASSERT_NE(dict_profile, nullptr);
+  EXPECT_EQ(dict_profile->left_type, TObject);
+  EXPECT_EQ(dict_profile->right_type, TDictExact);
+  EXPECT_EQ(dict_profile->res_type, TBool);
+
+  const CompareProfile* set_profile =
+      profile.find<CompareProfile>(nullptr, set_offset);
+  ASSERT_NE(set_profile, nullptr);
+  EXPECT_EQ(set_profile->left_type, TObject);
+  EXPECT_EQ(set_profile->right_type, TSetExact);
+  EXPECT_EQ(set_profile->res_type, TBool);
+
+  const CompareProfile* unicode_profile =
+      profile.find<CompareProfile>(nullptr, unicode_offset);
+  ASSERT_NE(unicode_profile, nullptr);
+  EXPECT_EQ(unicode_profile->left_type, TObject);
+  EXPECT_EQ(unicode_profile->right_type, TUnicodeExact);
+  EXPECT_EQ(unicode_profile->res_type, TBool);
+
+  const CompareProfile* frozenset_profile =
+      profile.find<CompareProfile>(nullptr, frozenset_offset);
+  ASSERT_NE(frozenset_profile, nullptr);
+  EXPECT_EQ(frozenset_profile->left_type, TObject);
+  EXPECT_EQ(frozenset_profile->right_type, TFrozenSetExact);
+  EXPECT_EQ(frozenset_profile->res_type, TBool);
+
+  // Generic containers produce an unspecialized entry so a recompile knows the
+  // site is polymorphic. Caches that were never called produce no entry.
+  const CompareProfile* generic_profile =
+      profile.find<CompareProfile>(nullptr, generic_offset);
+  ASSERT_NE(generic_profile, nullptr);
+  EXPECT_EQ(generic_profile->left_type, TObject);
+  EXPECT_EQ(generic_profile->right_type, TObject);
+  EXPECT_EQ(generic_profile->res_type, TBool);
+  EXPECT_EQ(profile.find<CompareProfile>(nullptr, cold_offset), nullptr);
+}
+
+TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesFromContainsProfile) {
+  const char* src = R"(
+def test(a, b):
+  return a in b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  PyObject* args[] = {one.get(), dict.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result.get(), Py_True);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kCompareBool)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const CompareProfile* contains_profile =
+      profile.find<CompareProfile>(profile.entries().begin()->first);
+  ASSERT_NE(contains_profile, nullptr);
+  EXPECT_EQ(contains_profile->left_type, TObject);
+  EXPECT_EQ(contains_profile->right_type, TDictExact);
+  EXPECT_EQ(contains_profile->res_type, TBool);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kCompareBool)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+  // The container guard from the profile survives GuardTypeRemoval: it is
+  // what enforces the specialization the recompile was built from.
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(recompiled_result.get(), Py_True);
+
+  // A container of a different type still answers correctly: the profile
+  // guard deopts to the interpreter rather than mis-answering.
+  auto list = Ref<>::steal(PyList_New(2));
+  ASSERT_NE(list, nullptr);
+  PyList_SET_ITEM(list.get(), 0, Ref<>::steal(PyLong_FromLong(1)).release());
+  PyList_SET_ITEM(list.get(), 1, Ref<>::steal(PyLong_FromLong(2)).release());
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  PyObject* list_args[] = {three.get(), list.get()};
+  auto list_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), list_args, 2, nullptr));
+  ASSERT_NE(list_result, nullptr);
+  EXPECT_EQ(list_result.get(), Py_False);
+}
+
+TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesNotInFromContainsProfile) {
+  const char* src = R"(
+def test(a, b):
+  return a not in b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  PyObject* args[] = {one.get(), dict.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result.get(), Py_False);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kCompareBool)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+  const CompareProfile* contains_profile =
+      profile.find<CompareProfile>(profile.entries().begin()->first);
+  ASSERT_NE(contains_profile, nullptr);
+  EXPECT_EQ(contains_profile->left_type, TObject);
+  EXPECT_EQ(contains_profile->right_type, TDictExact);
+  EXPECT_EQ(contains_profile->res_type, TBool);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = recompiled.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kCompareBool)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+
+  // The recompile's container type is statically known from the profile
+  // guard, so it uses the dict fast path with the result negated.
+  auto recompiled_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(recompiled_result.get(), Py_False);
+
+  // A container of a different type still answers correctly: the profile
+  // guard deopts to the interpreter rather than mis-answering.
+  auto list = Ref<>::steal(PyList_New(2));
+  ASSERT_NE(list, nullptr);
+  PyList_SET_ITEM(list.get(), 0, Ref<>::steal(PyLong_FromLong(1)).release());
+  PyList_SET_ITEM(list.get(), 1, Ref<>::steal(PyLong_FromLong(2)).release());
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  PyObject* list_args[] = {three.get(), list.get()};
+  auto list_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), list_args, 2, nullptr));
+  ASSERT_NE(list_result, nullptr);
+  EXPECT_EQ(list_result.get(), Py_True);
+}
+
+TEST_F(
+    BinaryOpCacheCodegenTest,
+    RecompilePersistsContainsProfileAcrossRecompiles) {
+  const char* src = R"(
+def test(a, b):
+  return a in b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  PyObject* args[] = {one.get(), dict.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result.get(), Py_True);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  const hir::OpcodeCounts& first_counts = first->hirOpcodeCounts();
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kCompareBool)], 1);
+  EXPECT_EQ(first_counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 0);
+
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+
+  CompiledFunctionData second = recompileWithProfile(func, profile);
+  const hir::OpcodeCounts& counts = second.hir_opcode_counts;
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kCompareBool)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+  EXPECT_EQ(counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+
+  auto recompiled_result = Ref<>::steal(second.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(recompiled_result, nullptr);
+  EXPECT_EQ(recompiled_result.get(), Py_True);
+
+  // The profile is carried forward, whether from the recompiled code's
+  // own ContainsCache or from the ProfileUseTypes the recompile emitted.
+  ASSERT_NE(second.profile_collector, nullptr);
+  Profile carried_profile = second.profile_collector->snapshot();
+  ASSERT_EQ(carried_profile.entries().size(), 1);
+  const CompareProfile* carried = carried_profile.find<CompareProfile>(
+      carried_profile.entries().begin()->first);
+  ASSERT_NE(carried, nullptr);
+  EXPECT_EQ(carried->left_type, TObject);
+  EXPECT_EQ(carried->right_type, TDictExact);
+  EXPECT_EQ(carried->res_type, TBool);
+
+  CompiledFunctionData third = recompileWithProfile(func, carried_profile);
+  const hir::OpcodeCounts& third_counts = third.hir_opcode_counts;
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kCompareBool)], 1);
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kProfileUseTypes)], 1);
+  EXPECT_EQ(third_counts[static_cast<size_t>(Opcode::kGuardType)], 1);
+
+  auto rerecompiled_result = Ref<>::steal(third.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(rerecompiled_result, nullptr);
+  EXPECT_EQ(rerecompiled_result.get(), Py_True);
+}
+
+TEST_F(BinaryOpCacheCodegenTest, ContainsCacheCodegenExecutesCorrectly) {
+  const char* src = R"(
+def test(a, b):
+  return a in b
+)";
+  Ref<PyFunctionObject> funcobj(compileAndGet(src, "test"));
+  ASSERT_NE(funcobj, nullptr);
+
+  std::unique_ptr<Function> irfunc(buildHIR(funcobj));
+  ASSERT_NE(irfunc, nullptr);
+  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+  ASSERT_THAT(
+      HIRPrinter{}.toString(*irfunc), ::testing::HasSubstr("CompareBool<In>"));
+
+  NativeGeneratorFactory factory;
+  NativeGenerator gen(irfunc.get(), factory);
+  auto jitfunc = reinterpret_cast<vectorcallfunc>(gen.getVectorcallEntry());
+  ASSERT_NE(jitfunc, nullptr);
+  PyObject* self = reinterpret_cast<PyObject*>(funcobj.get());
+
+  auto run = [&](PyObject* needle, PyObject* container) {
+    PyObject* args[] = {needle, container};
+    return Ref<>::steal(jitfunc(self, args, 2, nullptr));
+  };
+
+  // Dict: cold cache specializes to the dict fast path.
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  ASSERT_EQ(run(one, dict).get(), Py_True);
+  ASSERT_EQ(run(two, dict).get(), Py_False);
+
+  // Str and frozenset fast paths answer correctly on the same cache.
+  // (The cache is dict-specialized, so these go through the generic
+  // fallback after the step-down; correctness is what matters here.)
+  auto hello = Ref<>::steal(PyUnicode_FromString("hello"));
+  auto ell = Ref<>::steal(PyUnicode_FromString("ell"));
+  ASSERT_EQ(run(ell, hello).get(), Py_True);
+  auto set = Ref<>::steal(PySet_New(nullptr));
+  ASSERT_NE(set, nullptr);
+  ASSERT_EQ(PySet_Add(set.get(), one.get()), 0);
+  auto frozenset = Ref<>::steal(PyFrozenSet_New(set.get()));
+  ASSERT_NE(frozenset, nullptr);
+  ASSERT_EQ(run(one, frozenset).get(), Py_True);
+  ASSERT_EQ(run(two, frozenset).get(), Py_False);
+
+  // A list steps the cache down to generic and still answers correctly,
+  // as do later dict calls through the generic path.
+  auto list = Ref<>::steal(PyList_New(2));
+  ASSERT_NE(list, nullptr);
+  PyList_SET_ITEM(list.get(), 0, Ref<>::steal(PyLong_FromLong(1)).release());
+  PyList_SET_ITEM(list.get(), 1, Ref<>::steal(PyLong_FromLong(2)).release());
+  ASSERT_EQ(run(one, list).get(), Py_True);
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  ASSERT_EQ(run(three, list).get(), Py_False);
+  ASSERT_EQ(run(one, dict).get(), Py_True);
+}
+
+#if PY_VERSION_HEX >= 0x030E0000
+TEST_F(
+    BinaryOpCacheCodegenTest,
+    ContainsOpSkipsInterpreterSpecializationWithRecompileThreshold) {
+  const char* src = R"(
+def test(a, b):
+  return a in b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+
+  // Warm up the specializing interpreter so CONTAINS_OP becomes
+  // CONTAINS_OP_DICT, as it would be for a hot function.
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  for (int i = 0; i < 8; ++i) {
+    PyObject* args[] = {one.get(), dict.get()};
+    auto result = Ref<>::steal(func->vectorcall(
+        reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result.get(), Py_True);
+  }
+
+  auto funcs = jit::preloadFuncAndDeps(func, true /* forcePreload */);
+  ASSERT_FALSE(funcs.empty());
+  const jit::hir::Preloader* preloader = nullptr;
+  for (const auto& unit : funcs) {
+    if (unit.func == func) {
+      preloader = unit.preloader;
+    }
+  }
+  ASSERT_NE(preloader, nullptr);
+
+  auto count_specialization_guards = [](const Function& irfunc) {
+    int count = 0;
+    for (const auto& block : irfunc.cfg.blocks) {
+      for (const auto& instr : block) {
+        if (instr.isGuardType() || instr.isCondBranchCheckType()) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  // Without a recompilation threshold, the interpreter's specialization
+  // is locked in with a guard.
+  std::unique_ptr<Function> unthresholded(
+      jit::hir::buildHIR(*preloader, 0, nullptr));
+  ASSERT_NE(unthresholded, nullptr);
+  EXPECT_GT(count_specialization_guards(*unthresholded), 0);
+
+  // With a recompilation threshold, no guard is emitted: the ContainsCache
+  // gathers the container type and the recompile specializes from it.
+  std::unique_ptr<Function> thresholded(
+      jit::hir::buildHIR(*preloader, 2, nullptr));
+  ASSERT_NE(thresholded, nullptr);
+  EXPECT_EQ(count_specialization_guards(*thresholded), 0);
+}
+
+TEST_F(
+    BinaryOpCacheCodegenTest,
+    RecompileWithGenericContainsProfileSkipsInterpreterSpecialization) {
+  const char* src = R"(
+def test(a, b):
+  return a in b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  for (int i = 0; i < 8; ++i) {
+    PyObject* args[] = {one.get(), dict.get()};
+    auto result = Ref<>::steal(func->vectorcall(
+        reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result.get(), Py_True);
+  }
+
+  auto funcs = jit::preloadFuncAndDeps(func, true /* forcePreload */);
+  ASSERT_FALSE(funcs.empty());
+  const jit::hir::Preloader* preloader = nullptr;
+  for (const auto& unit : funcs) {
+    if (unit.func == func) {
+      preloader = unit.preloader;
+    }
+  }
+  ASSERT_NE(preloader, nullptr);
+
+  std::optional<BCOffset> contains_offset;
+  for (const auto& instr : BytecodeInstructionBlock{preloader->code()}) {
+    if (instr.opcode() == CONTAINS_OP) {
+      contains_offset = instr.baseOffset();
+    }
+  }
+  ASSERT_TRUE(contains_offset.has_value());
+
+  // A cache that saw both a dict and a list goes generic.
+  PerCompilationStableStorage storage;
+  ProfileCollector collector;
+  ContainsCache* cache = storage.allocateContainsCache();
+  collector.add(preloader->code(), *contains_offset, cache);
+  EXPECT_EQ(ContainsCache::contains(one, dict, cache), 1);
+  auto list = Ref<>::steal(PyList_New(1));
+  ASSERT_NE(list, nullptr);
+  PyList_SET_ITEM(list.get(), 0, Ref<>::steal(PyLong_FromLong(1)).release());
+  EXPECT_EQ(ContainsCache::contains(one, list, cache), 1);
+  Profile profile = collector.snapshot();
+  ASSERT_EQ(profile.entries().size(), 1);
+
+  auto count_specialization_guards = [](const Function& irfunc) {
+    int count = 0;
+    for (const auto& block : irfunc.cfg.blocks) {
+      for (const auto& instr : block) {
+        if (instr.isGuardType() || instr.isCondBranchCheckType()) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+
+  std::unique_ptr<Function> unprofiled(
+      jit::hir::buildHIR(*preloader, 0, nullptr));
+  ASSERT_NE(unprofiled, nullptr);
+  EXPECT_GT(count_specialization_guards(*unprofiled), 0);
+
+  // The recompile has no threshold, but the generic profile shows the site is
+  // polymorphic, so the interpreter's dict specialization is not locked in.
+  std::unique_ptr<Function> recompiled(jit::hir::buildHIR(*preloader, profile));
+  ASSERT_NE(recompiled, nullptr);
+  EXPECT_EQ(count_specialization_guards(*recompiled), 0);
+}
+#endif
+
 TEST_F(BinaryOpCacheCodegenTest, ProfileDropsEntryOnGuardFailure) {
   const char* src = R"(
 def test(a, b):
@@ -1165,6 +1759,54 @@ def test(a, b):
       reinterpret_cast<PyObject*>(func.get()), float_args, 2, nullptr));
   ASSERT_NE(float_result, nullptr);
   EXPECT_EQ(PyFloat_AsDouble(float_result), 4.0);
+
+  Profile after = first->snapshotProfile();
+  EXPECT_TRUE(after.entries().empty());
+}
+
+TEST_F(BinaryOpCacheCodegenTest, ProfileDropsContainsEntryOnGuardFailure) {
+  const char* src = R"(
+def test(a, b):
+  return a in b
+)";
+  Ref<PyFunctionObject> func(compileAndGet(src, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  ASSERT_EQ(PyDict_SetItem(dict.get(), one.get(), two.get()), 0);
+  PyObject* args[] = {one.get(), dict.get()};
+  auto result = Ref<>::steal(func->vectorcall(
+      reinterpret_cast<PyObject*>(func.get()), args, 2, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result.get(), Py_True);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  Profile profile = first->snapshotProfile();
+  ASSERT_EQ(profile.entries().size(), 1);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+
+  // A container of a different type fails the retained profile guard and
+  // deopts back to the interpreter, still answering correctly. The
+  // recompiled code is never installed, so the deopt attributes the stale
+  // entry to the installed compilation and drops it from that collector.
+  auto list = Ref<>::steal(PyList_New(2));
+  ASSERT_NE(list, nullptr);
+  PyList_SET_ITEM(list.get(), 0, Ref<>::steal(PyLong_FromLong(1)).release());
+  PyList_SET_ITEM(list.get(), 1, Ref<>::steal(PyLong_FromLong(2)).release());
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  PyObject* list_args[] = {three.get(), list.get()};
+  auto list_result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), list_args, 2, nullptr));
+  ASSERT_NE(list_result, nullptr);
+  EXPECT_EQ(list_result.get(), Py_False);
 
   Profile after = first->snapshotProfile();
   EXPECT_TRUE(after.entries().empty());

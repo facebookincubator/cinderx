@@ -194,11 +194,15 @@ class HIRBuilder {
   void emitCompareOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  bool emitCompareProfileGuards(
+  // Emit the container-type guard from a ContainsCache profile gathered on
+  // a previous compile, if one exists for this bytecode. Only the
+  // container is guarded: ContainsCache never specializes on the needle.
+  // Returns whether a profile was found, including one for a polymorphic
+  // site, which emits no guard.
+  bool emitContainsProfileGuards(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
-      Register* left,
-      Register* right);
+      Register* container);
   void emitToBool(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,

@@ -994,6 +994,7 @@ class LoadModuleMethodCache {
   X(Tuple)                             \
   X(Complex)                           \
   X(Set)                               \
+  X(Dict)                              \
   X(Bool)                              \
   X(None)                              \
   X(FrozenSet)
@@ -1286,6 +1287,86 @@ class ToBoolCache {
   void setSpecialization(Specialization expected, Specialization desired);
 
   std::atomic<Specialization> specialization_;
+};
+
+// A cache for an individual CompareBool<In/NotIn> instruction.
+//
+// Mirrors CompareCache, but for membership rather than rich comparison: the
+// entry points return an int (-1 on error, 0/1 otherwise) instead of a
+// PyObject*, matching CompareBool's CBool output and the kNotNegative guard
+// codegen emits for it. Specialization is on the container (rhs) type alone;
+// the needle (lhs) is never specialized, since none of the fast paths
+// constrain it. Only the container types CompareBool already dispatches on
+// are specialized: unicode, dict, set, and frozenset. Anything else steps
+// the cache down to the generic PySequence_Contains path.
+//
+// Codegen emits a direct call to contains() for kIn or notContains() for
+// kNotIn, passing the operands in CompareBool order (needle, container).
+class ContainsCache {
+ public:
+  enum class Specialization : uint8_t {
+    kUninitialized,
+    kUnicode,
+    kDict,
+    kSet,
+    kFrozenSet,
+    kGeneric,
+  };
+
+  // The (container, return) operand/result types a cache has specialized
+  // to. The needle is not tracked: ContainsCache never specializes on it.
+  struct ContainsSpecialization {
+    SpecializedType rhs;
+    SpecializedType ret;
+
+    bool operator==(const ContainsSpecialization&) const = default;
+  };
+
+  ContainsCache() = default;
+
+  // Dispatch entry points called directly by codegen. Each switches on the
+  // cache's specialization and runs the corresponding containment check,
+  // returning -1 with an exception set on error.
+  static int
+  contains(PyObject* needle, PyObject* container, ContainsCache* cache);
+  static int
+  notContains(PyObject* needle, PyObject* container, ContainsCache* cache);
+
+  // Returns the (container, return) operand types the cache has settled
+  // on ({kUninitialized, ...} before the first call).
+  ContainsSpecialization specializedTypes() const;
+
+  ContainsCache(const ContainsCache&) = delete;
+  ContainsCache& operator=(const ContainsCache&) = delete;
+
+ private:
+  static int populateAndInvoke(
+      PyObject* needle,
+      PyObject* container,
+      ContainsCache* cache);
+
+  static int
+  containsGeneric(PyObject* needle, PyObject* container, ContainsCache* cache);
+
+  // Specialized entry for a container type. Guards that container passes
+  // checkFor(ContainerKind) and, if so, runs the fast-path Op. When the
+  // container stops matching, sets specialization_ to Fallback (the generic
+  // state) and re-dispatches through ReDispatch.
+  template <
+      auto Current,
+      auto ContainerKind,
+      auto Op,
+      auto Fallback,
+      auto ReDispatch>
+  static int invokeSpecialized(
+      PyObject* needle,
+      PyObject* container,
+      ContainsCache* cache);
+
+  Specialization getSpecialization() const;
+  void setSpecialization(Specialization expected, Specialization desired);
+
+  std::atomic<Specialization> specialization_{Specialization::kUninitialized};
 };
 
 // Invalidate all load/store attr caches for type
