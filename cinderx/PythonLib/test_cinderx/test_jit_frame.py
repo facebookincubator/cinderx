@@ -393,6 +393,65 @@ class FinalizerAtShutdownTests(unittest.TestCase):
         self.assertEqual(proc.stdout, "probe compiled: True\nfinalized\n")
 
 
+# Each daemon thread's function is still in its first call, which scheduled a
+# background compile, when the interpreter exits. On 3.12 the threads unwind
+# when they next try to take the GIL during finalization.
+_DAEMON_THREADS_AT_SHUTDOWN = textwrap.dedent(
+    """\
+    import _thread
+    import time
+
+    import cinderx.jit
+
+    started = []
+
+
+    def make_heartbeat(i):
+        ns = {"time": time, "started": started}
+        exec(
+            f"def heartbeat_{i}():\\n"
+            "    started.append(1)\\n"
+            "    while True:\\n"
+            "        time.sleep(0.002)\\n",
+            ns,
+        )
+        return ns[f"heartbeat_{i}"]
+
+
+    for i in range(64):
+        _thread.start_new_thread(make_heartbeat(i), ())
+    while len(started) < 64:
+        time.sleep(0.001)
+    time.sleep(0.05)
+    print("jit enabled:", cinderx.jit.is_enabled())
+    """
+)
+
+
+class DaemonThreadsAtShutdownTests(unittest.TestCase):
+    def test_background_compile_entry(self) -> None:
+        for _ in range(3):
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "cinderx-jit-all",
+                    "-c",
+                    _DAEMON_THREADS_AT_SHUTDOWN,
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                encoding=ENCODING,
+                env=subprocess_env(),
+            )
+            self.assertEqual(
+                proc.returncode,
+                0,
+                f"child failed\nstdout={proc.stdout!r}\nstderr={proc.stderr!r}",
+            )
+            self.assertEqual(proc.stdout, "jit enabled: True\n")
+
+
 class GetGenFrameDuringThrowTest(unittest.TestCase):
     def setUp(self) -> None:
         loop = asyncio.new_event_loop()

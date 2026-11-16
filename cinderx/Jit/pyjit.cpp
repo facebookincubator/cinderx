@@ -125,23 +125,56 @@ CompilerContext<Compiler>* jitCtx() {
   return nullptr;
 }
 
-Ref<> retainModuleOwner() {
+// Temporary strong reference to the _cinderx module, held while a JIT entry
+// point compiles a function or runs it. On Python 3.12 a daemon thread that
+// tries to take the GIL during finalization exits via PyThread_exit_thread(),
+// whose forced unwind runs this destructor with no thread state attached. If
+// that was the last reference, releasing it would deallocate the module
+// without the GIL, so the reference is leaked instead; the process is exiting.
+class ModuleOwner {
+ public:
+  ModuleOwner() = default;
+  explicit ModuleOwner(Ref<> module) : module_{std::move(module)} {}
+  ModuleOwner(const ModuleOwner&) = delete;
+  ModuleOwner(ModuleOwner&&) = delete;
+  ModuleOwner& operator=(const ModuleOwner&) = delete;
+  ModuleOwner& operator=(ModuleOwner&&) = delete;
+
+  ~ModuleOwner() {
+    if (module_ != nullptr && PyThreadState_GetUnchecked() == nullptr) {
+      [[maybe_unused]] PyObject* leaked = module_.release();
+    }
+  }
+
+  BorrowedRef<> get() const {
+    return module_;
+  }
+
+  bool operator!=(std::nullptr_t) const {
+    return module_ != nullptr;
+  }
+
+ private:
+  Ref<> module_;
+};
+
+ModuleOwner retainModuleOwner() {
   FreeThreadedJITEntrypointGuard guard;
   auto* state = cinderx::getModuleState();
   BorrowedRef<> module = state == nullptr ? nullptr : state->cinderx_module;
   if (module == nullptr) {
-    return nullptr;
+    return {};
   }
 #if PY_VERSION_HEX >= 0x030E0000
   if (!PyUnstable_TryIncRef(module)) {
-    return nullptr;
+    return {};
   }
-  return Ref<>::steal(module);
+  return ModuleOwner{Ref<>::steal(module)};
 #else
   if (Py_REFCNT(module) == 0) {
-    return nullptr;
+    return {};
   }
-  return Ref<>::create(module);
+  return ModuleOwner{Ref<>::create(module)};
 #endif
 }
 
@@ -186,10 +219,9 @@ PyObject* forcedJitVectorcall(
   auto code = Ref<PyCodeObject>::create(func->func_code);
 
   // Compile the function.
-  Ref<> owner;
+  ModuleOwner owner = retainModuleOwner();
   Result result;
   try {
-    owner = retainModuleOwner();
     result = owner != nullptr ? compileFunction(func) : Result::NOT_INITIALIZED;
   } catch (const std::exception& exn) {
     // Gently fall back to the interpreter when C++ exceptions happen.
@@ -277,7 +309,7 @@ PyObject* jitVectorcall(
   // runs concurrently with most of the compilation work.
   try {
     if (getConfig().background_compile) {
-      Ref<> owner = retainModuleOwner();
+      ModuleOwner owner = retainModuleOwner();
       if (owner != nullptr) {
         scheduleBackgroundCompile(func);
       }
@@ -2263,14 +2295,15 @@ PyObject* callInstrumentedSysFunction(
     PyObject* original,
     PyObject* const* args,
     Py_ssize_t nargs) {
-  Ref<> owner = retainModuleOwner();
+  ModuleOwner owner = retainModuleOwner();
   Ref<> result =
       Ref<>::steal(PyObject_Vectorcall(original, args, nargs, nullptr));
   if (result == nullptr) {
     return nullptr;
   }
   if (owner != nullptr &&
-      !toggleJitBasedOnInstrumentationState(*cinderx::getModuleState(owner))) {
+      !toggleJitBasedOnInstrumentationState(
+          *cinderx::getModuleState(owner.get()))) {
     return nullptr;
   }
   return result.release();
