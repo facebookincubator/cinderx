@@ -133,6 +133,8 @@ int ModuleState::traverse(visitproc visit, void* arg) {
   Py_VISIT(orig_sys_monitoring_free_tool_id);
   Py_VISIT(orig_sys_setprofile);
   Py_VISIT(orig_sys_settrace);
+  Py_VISIT(orig_sys_setprofileallthreads);
+  Py_VISIT(orig_sys_settraceallthreads);
   return 0;
 }
 

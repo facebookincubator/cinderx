@@ -741,6 +741,87 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
 
 
 @skip_unless_jit("Tests functionality on the JIT")
+class JitAllThreadsTracingIntegrationTest(unittest.TestCase):
+    """
+    Test that the JIT behaves correctly when threading.setprofile_all_threads
+    or threading.settrace_all_threads is used. These go through
+    sys._setprofileallthreads and sys._settraceallthreads rather than
+    sys.setprofile and sys.settrace.
+    """
+
+    def tearDown(self) -> None:
+        threading.setprofile_all_threads(None)
+        threading.settrace_all_threads(None)
+
+    @run_with_instrumentation
+    def test_setprofile_all_threads(self) -> None:
+        def foo(a: int, b: int) -> int:
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        calls_seen: list[str] = []
+
+        def profile_func(frame: FrameType, event: str, arg: object) -> None:
+            if event == "call" and frame.f_code.co_name == "foo":
+                calls_seen.append(frame.f_code.co_name)
+
+        threading.setprofile_all_threads(profile_func)
+        self.assertFalse(
+            is_jit_compiled(foo),
+            "Compiled function should be deoptimized when profiler is set",
+        )
+
+        foo(1, 2)
+        self.assertEqual(calls_seen, ["foo"])
+
+        threading.setprofile_all_threads(None)
+        self.assertTrue(
+            is_jit_compiled(foo),
+            "Function should be re-JIT compiled after profiler is cleared",
+        )
+
+        calls_seen.clear()
+        foo(1, 2)
+        self.assertEqual(calls_seen, [])
+
+    @run_with_instrumentation
+    def test_settrace_all_threads(self) -> None:
+        def foo(a: int, b: int) -> int:
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        calls_seen: list[str] = []
+
+        def trace_func(frame: FrameType, event: str, arg: object):
+            if event == "call" and frame.f_code.co_name == "foo":
+                calls_seen.append(frame.f_code.co_name)
+            return trace_func
+
+        threading.settrace_all_threads(trace_func)
+        self.assertFalse(
+            is_jit_compiled(foo),
+            "Compiled function should be deoptimized when tracer is set",
+        )
+
+        foo(1, 2)
+        self.assertEqual(calls_seen, ["foo"])
+
+        threading.settrace_all_threads(None)
+        self.assertTrue(
+            is_jit_compiled(foo),
+            "Function should be re-JIT compiled after tracer is cleared",
+        )
+
+        calls_seen.clear()
+        foo(1, 2)
+        self.assertEqual(calls_seen, [])
+
+
+@skip_unless_jit("Tests functionality on the JIT")
 class JitCombinedTracingIntegrationTest(unittest.TestCase):
     """
     Test that the JIT behaves correctly when multiple instrumentation mechanisms are used.

@@ -168,6 +168,8 @@ struct ModuleState {
   Ref<> orig_sys_monitoring_free_tool_id;
   Ref<> orig_sys_setprofile;
   Ref<> orig_sys_settrace;
+  Ref<> orig_sys_setprofileallthreads;
+  Ref<> orig_sys_settraceallthreads;
 
   // Function objects registered for pre-fork perf-trampoline compilation.
   UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;

@@ -2314,6 +2314,20 @@ PyMethodDef instrumented_sys_settrace_def = {
     METH_FASTCALL,
     nullptr};
 
+PyMethodDef instrumented_sys_setprofileallthreads_def = {
+    "_setprofileallthreads",
+    reinterpret_cast<PyCFunction>(
+        reinterpret_cast<void (*)(void)>(callInstrumentedSysFunction)),
+    METH_FASTCALL,
+    nullptr};
+
+PyMethodDef instrumented_sys_settraceallthreads_def = {
+    "_settraceallthreads",
+    reinterpret_cast<PyCFunction>(
+        reinterpret_cast<void (*)(void)>(callInstrumentedSysFunction)),
+    METH_FASTCALL,
+    nullptr};
+
 // Patched version of sys.monitoring.register_callback().
 // Intercepts callback registration/deregistration to disable/enable the JIT
 // This is to handle debuggers/profilers attaching or detaching.
@@ -2415,6 +2429,34 @@ patched_sys_settrace(PyObject* mod, PyObject* const* args, Py_ssize_t nargs) {
   }
 
   return result;
+}
+
+// Patched version of sys._setprofileallthreads(), which backs
+// threading.setprofile_all_threads().
+PyObject* patched_sys_setprofileallthreads(
+    PyObject* mod,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  BorrowedRef<> original =
+      cinderx::getModuleState(mod)->orig_sys_setprofileallthreads;
+  JIT_CHECK(
+      original != nullptr,
+      "Expecting to have sys._setprofileallthreads already saved");
+  return callInstrumentedSysFunction(original, args, nargs);
+}
+
+// Patched version of sys._settraceallthreads(), which backs
+// threading.settrace_all_threads().
+PyObject* patched_sys_settraceallthreads(
+    PyObject* mod,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  BorrowedRef<> original =
+      cinderx::getModuleState(mod)->orig_sys_settraceallthreads;
+  JIT_CHECK(
+      original != nullptr,
+      "Expecting to have sys._settraceallthreads already saved");
+  return callInstrumentedSysFunction(original, args, nargs);
 }
 
 int compile_after_n_calls_impl(uint32_t calls) {
@@ -3929,6 +3971,18 @@ void patchSysSetProfileAndSetTrace() {
       "settrace", instrumented_sys_settrace_def, [&](BorrowedRef<> func) {
         mod_state->orig_sys_settrace = Ref<>::create(func);
       });
+  patchSysFunc(
+      "_setprofileallthreads",
+      instrumented_sys_setprofileallthreads_def,
+      [&](BorrowedRef<> func) {
+        mod_state->orig_sys_setprofileallthreads = Ref<>::create(func);
+      });
+  patchSysFunc(
+      "_settraceallthreads",
+      instrumented_sys_settraceallthreads_def,
+      [&](BorrowedRef<> func) {
+        mod_state->orig_sys_settraceallthreads = Ref<>::create(func);
+      });
 }
 
 void restoreSysMonitoringRegisterCallback() {
@@ -3967,6 +4021,18 @@ void restoreSysSetProfileAndSetTrace() {
 
   if (BorrowedRef<> original_settrace = mod_state->orig_sys_settrace) {
     if (PySys_SetObject("settrace", original_settrace) < 0) {
+      PyErr_Clear();
+    }
+  }
+
+  if (BorrowedRef<> original = mod_state->orig_sys_setprofileallthreads) {
+    if (PySys_SetObject("_setprofileallthreads", original) < 0) {
+      PyErr_Clear();
+    }
+  }
+
+  if (BorrowedRef<> original = mod_state->orig_sys_settraceallthreads) {
+    if (PySys_SetObject("_settraceallthreads", original) < 0) {
       PyErr_Clear();
     }
   }
@@ -4017,6 +4083,18 @@ PyMethodDef jit_methods[] = {
      METH_FASTCALL,
      PyDoc_STR(
          "Patched version of sys.settrace that "
+         "disables/enables the JIT when debuggers/profilers attach/detach.")},
+    {"patched_sys_setprofileallthreads",
+     _PyCFunction_CAST(patched_sys_setprofileallthreads),
+     METH_FASTCALL,
+     PyDoc_STR(
+         "Patched version of sys._setprofileallthreads that "
+         "disables/enables the JIT when profilers attach/detach.")},
+    {"patched_sys_settraceallthreads",
+     _PyCFunction_CAST(patched_sys_settraceallthreads),
+     METH_FASTCALL,
+     PyDoc_STR(
+         "Patched version of sys._settraceallthreads that "
          "disables/enables the JIT when debuggers/profilers attach/detach.")},
     {"auto",
      auto_jit,
