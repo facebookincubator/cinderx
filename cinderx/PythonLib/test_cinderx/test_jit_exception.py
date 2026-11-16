@@ -143,14 +143,20 @@ class ExceptionHandlingTests(unittest.TestCase):
             yield 123
 
     def test_except_in_generator(self) -> None:
+        calls: list[int] = []
+
         def f(i: int) -> None:
+            calls.append(i)
             if i == 1:
                 raise Exception("hello")
             return
 
         g = self.try_except_in_generator(f)
-        next(g)
+        self.assertIsNone(next(g))
         self.assertEqual(next(g), 123)
+        with self.assertRaises(StopIteration):
+            next(g)
+        self.assertEqual(calls, [0, 1])
 
     @failUnlessJITCompiled
     @failUnlessHasOpcodes("PUSH_EXC_INFO", "RERAISE")
