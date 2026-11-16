@@ -178,7 +178,8 @@ int JITList::lookupFunc(BorrowedRef<PyFunctionObject> func) const {
 
 int JITList::lookupCode(BorrowedRef<PyCodeObject> code) const {
   JIT_DCHECK(
-      !ThreadedCompileContext::compileRunning(), "Unexpected multithreading");
+      ThreadedCompileContext::canAccessSharedData(),
+      "JIT list read requires shared-data access");
 
   auto name =
       Ref<>::create(code->co_qualname ? code->co_qualname : code->co_name);
@@ -217,7 +218,8 @@ int JITList::lookupName(BorrowedRef<> module_name, BorrowedRef<> qualname)
 
 Ref<> JITList::getList() const {
   JIT_DCHECK(
-      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
+      ThreadedCompileContext::canAccessSharedData(),
+      "JIT list read requires shared-data access");
   return Ref<>::steal(
       PyTuple_Pack(2, qualnames_.get(), name_file_line_no_.get()));
 }
@@ -241,7 +243,8 @@ std::unique_ptr<WildcardJITList> WildcardJITList::create() {
 
 Ref<> JITList::pathBasename(BorrowedRef<> path) const {
   JIT_DCHECK(
-      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
+      ThreadedCompileContext::canAccessSharedData(),
+      "JIT list read requires shared-data access");
   Py_ssize_t len = PyUnicode_GetLength(path);
   if (len < 0) {
     return nullptr;
@@ -298,7 +301,8 @@ int WildcardJITList::lookupName(
   }
 
   JIT_DCHECK(
-      !ThreadedCompileContext::compileRunning(), "unexpected multithreading");
+      ThreadedCompileContext::canAccessSharedData(),
+      "JIT list read requires shared-data access");
   auto func_name = Ref<>::steal(PyUnicode_Substring(qualname, idx + 1, len));
   if (func_name == nullptr) {
     return -1;

@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/jit_list.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <stdexcept>
@@ -120,6 +121,48 @@ TEST_F(JITListTest, LookupFuncCode) {
   ASSERT_EQ(jitlist->lookupCode(code), 0);
 }
 
+TEST_F(JITListTest, LookupCodeFromAttachedThreadedCompile) {
+  auto jitlist = JITList::create();
+  ASSERT_NE(jitlist, nullptr);
+  auto obj = compileAndGet("def f(): pass", "f");
+  ASSERT_NE(obj, nullptr);
+  BorrowedRef<PyFunctionObject> func{obj};
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  ASSERT_TRUE(jitlist->parseLine("f@fake_runtime_tests_filename.py:1"));
+  ASSERT_EQ(jitlist->lookupCode(code), 1);
+
+  jit::ThreadedCompileContext compile;
+  EXPECT_TRUE(jit::ThreadedCompileContext::compileRunning());
+  EXPECT_TRUE(jit::ThreadedCompileContext::canAccessSharedData());
+  EXPECT_EQ(jitlist->lookupCode(code), 1);
+  EXPECT_EQ(jitlist->lookupFunc(func), 1);
+  auto entries = jitlist->getList();
+  ASSERT_NE(entries, nullptr);
+  EXPECT_EQ(PyTuple_Size(entries), 2);
+}
+
+TEST_F(JITListTest, LookupCodeWithThreadedCompileGilHolder) {
+  auto jitlist = JITList::create();
+  ASSERT_NE(jitlist, nullptr);
+  auto obj = compileAndGet("def f(): pass", "f");
+  ASSERT_NE(obj, nullptr);
+  BorrowedRef<PyFunctionObject> func{obj};
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  ASSERT_TRUE(jitlist->parseLine("f@fake_runtime_tests_filename.py:1"));
+
+  jit::ThreadedCompileContext compile;
+  compile.releaseGil();
+  EXPECT_FALSE(jit::ThreadedCompileContext::canAccessSharedData());
+  {
+    jit::ThreadedCompileGILHolder guard;
+    EXPECT_TRUE(jit::ThreadedCompileContext::compileRunning());
+    EXPECT_TRUE(jit::ThreadedCompileContext::canAccessSharedData());
+    EXPECT_EQ(jitlist->lookupCode(code), 1);
+  }
+  EXPECT_FALSE(jit::ThreadedCompileContext::canAccessSharedData());
+  EXPECT_TRUE(compile.endCompile());
+}
+
 TEST_F(JITListTest, ParseLineWithWindowsPath) {
   auto jitlist = JITList::create();
   ASSERT_NE(jitlist, nullptr);
@@ -128,6 +171,21 @@ TEST_F(JITListTest, ParseLineWithWindowsPath) {
   // last colon (before the line number), not the drive letter colon.
   EXPECT_TRUE(jitlist->parseLine("func@D:/a/cinderx/test.py:42"));
   EXPECT_TRUE(jitlist->parseLine("func@D:\\a\\cinderx\\test.py:42"));
+}
+
+TEST_F(WildcardJITListTest, LookupNameFromAttachedThreadedCompile) {
+  auto jitlist = WildcardJITList::create();
+  ASSERT_NE(jitlist, nullptr);
+  ASSERT_TRUE(jitlist->parseLine("*:*.method"));
+  auto module = Ref<>::steal(PyUnicode_FromString("test_module"));
+  auto qualname = Ref<>::steal(PyUnicode_FromString("Cls.method"));
+  ASSERT_NE(module, nullptr);
+  ASSERT_NE(qualname, nullptr);
+  ASSERT_EQ(jitlist->lookupName(module, qualname), 1);
+
+  jit::ThreadedCompileContext compile;
+  EXPECT_TRUE(jit::ThreadedCompileContext::canAccessSharedData());
+  EXPECT_EQ(jitlist->lookupName(module, qualname), 1);
 }
 
 TEST_F(WildcardJITListTest, ParseLine) {
