@@ -243,6 +243,33 @@ the value on the first access.\n\
 \n\
 If slot descriptor is provided it will be used for storing the value.");
 
+// Store `value` (a new reference, which this steals) in an empty slot, and
+// return a new reference to the slot's value.  Computing `value` can release
+// the GIL or re-enter the property, so another caller may have filled the slot
+// in the meantime.  The value that is already cached wins, so that every caller
+// gets the same object and the losing value is released.
+static PyObject*
+cache_in_empty_slot(PyObject* obj, PyObject** addr, PyObject* value) {
+  PyObject* cached;
+#ifdef Py_GIL_DISABLED
+  Py_BEGIN_CRITICAL_SECTION(obj);
+#endif
+  cached = *addr;
+  if (cached == NULL) {
+    *addr = Py_NewRef(value);
+  } else {
+    Py_INCREF(cached);
+  }
+#ifdef Py_GIL_DISABLED
+  Py_END_CRITICAL_SECTION();
+#endif
+  if (cached == NULL) {
+    return value;
+  }
+  Py_DECREF(value);
+  return cached;
+}
+
 static PyObject*
 cached_property_get(PyObject* self, PyObject* obj, PyObject* cls) {
   PyObject *res, *dict;
@@ -283,8 +310,7 @@ cached_property_get(PyObject* self, PyObject* obj, PyObject* cls) {
       return NULL;
     }
 
-    *addr = res;
-    Py_INCREF(res);
+    res = cache_in_empty_slot(obj, addr, res);
   } else {
     dict = PyObject_GenericGetDict(obj, NULL);
     if (dict == NULL) {
@@ -722,8 +748,7 @@ async_cached_property_get(PyObject* self, PyObject* obj, PyObject* cls) {
       return NULL;
     }
 
-    *addr = res;
-    Py_INCREF(res);
+    res = cache_in_empty_slot(obj, addr, res);
   } else {
     if (import_async_lazy_value() < 0) {
       return NULL;

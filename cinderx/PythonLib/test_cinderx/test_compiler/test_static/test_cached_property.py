@@ -2,9 +2,15 @@
 
 # pyre-unsafe
 import asyncio
+import gc
 import sys
+import threading
 import types
+import unittest
+import weakref
+from typing import Any, Callable
 
+import cinderx
 from cinderx import async_cached_property, cached_property
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -945,3 +951,109 @@ class CachedClassPropertyTests(StaticTestBase):
 
             self.assertEqual(asyncio.run(get_base_x()), 3)
             self.assertEqual(asyncio.run(get_child_x()), 7)
+
+
+class _Box:
+    pass
+
+
+def _cache_in_slot(cls: type[object], name: str, getter: Callable[[Any], _Box]) -> Any:
+    """Replace the slot `name` of `cls` with a cached_property backed by it.
+
+    Returns the slot descriptor.  Type checkers don't model `__slots__`
+    descriptors as class attributes, so this goes through `__dict__`.
+    """
+    slot = cls.__dict__[name]
+    setattr(cls, name, cached_property(getter, slot))
+    return slot
+
+
+@unittest.skipUnless(cinderx.is_initialized(), "tests the native cached_property")
+class CachedPropertySlotTests(unittest.TestCase):
+    def test_first_read_race_caches_one_value(self) -> None:
+        class C:
+            __slots__ = ("value",)
+            value: _Box
+
+        barrier = threading.Barrier(2, timeout=30)
+        made: list[weakref.ref[_Box]] = []
+
+        def compute(self: C) -> _Box:
+            # Both readers start computing before either stores its result.
+            barrier.wait()
+            box = _Box()
+            made.append(weakref.ref(box))
+            return box
+
+        _cache_in_slot(C, "value", compute)
+        c = C()
+        reads: list[_Box] = []
+        reads_lock = threading.Lock()
+
+        def reader(obj: C) -> None:
+            value = obj.value
+            with reads_lock:
+                reads.append(value)
+
+        threads = [threading.Thread(target=reader, args=(c,)) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+
+        self.assertEqual(len(made), 2)
+        self.assertIs(reads[0], reads[1])
+        self.assertIs(c.value, reads[0])
+        reads.clear()
+        gc.collect()
+        self.assertEqual(sum(ref() is not None for ref in made), 1)
+
+        del c
+        gc.collect()
+        self.assertEqual(sum(ref() is not None for ref in made), 0)
+
+    def test_value_cached_by_the_getter_wins(self) -> None:
+        class C:
+            __slots__ = ("value",)
+            value: _Box
+
+        stored = [_Box()]
+        discarded: list[weakref.ref[_Box]] = []
+
+        def compute(self: C) -> _Box:
+            slot.__set__(self, stored[0])
+            box = _Box()
+            discarded.append(weakref.ref(box))
+            return box
+
+        slot = _cache_in_slot(C, "value", compute)
+        c = C()
+
+        self.assertIs(c.value, stored[0])
+        self.assertIs(c.value, stored[0])
+        self.assertEqual(len(discarded), 1)
+        gc.collect()
+        self.assertIsNone(discarded[0]())
+
+        stored_ref = weakref.ref(stored[0])
+        stored.clear()
+        del c
+        gc.collect()
+        self.assertIsNone(stored_ref())
+
+    def test_cached_value_is_released_with_the_instance(self) -> None:
+        class C:
+            __slots__ = ("value",)
+            value: _Box
+
+        def compute(self: C) -> _Box:
+            return _Box()
+
+        _cache_in_slot(C, "value", compute)
+        c = C()
+        value_ref = weakref.ref(c.value)
+        self.assertIs(c.value, value_ref())
+
+        del c
+        gc.collect()
+        self.assertIsNone(value_ref())
