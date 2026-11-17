@@ -3,6 +3,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/StaticPython/checked_list.h"
 
 #include <unordered_set>
 
@@ -39,6 +40,22 @@ static void takeObject(PyObject*) {}
 static void takeType(PyTypeObject*) {}
 static void stealRef(Ref<>) {}
 static void takeBorrowedRef(BorrowedRef<>) {}
+
+TEST_F(RefTest, BuiltinListAppendUsesRuntimeStorage) {
+  auto list = Ref<PyListObject>::steal(PyList_New(0));
+  auto value = Ref<>::steal(PyDict_New());
+  ASSERT_NE(list, nullptr);
+  ASSERT_NE(value, nullptr);
+  const Py_ssize_t refcnt = Py_REFCNT(value);
+
+  ASSERT_EQ(Ci_ListOrCheckedList_Append(list.get(), value.get()), 0);
+  EXPECT_EQ(PyList_GET_SIZE(list), 1);
+  EXPECT_EQ(PyList_GET_ITEM(list, 0), value.get());
+  EXPECT_EQ(Py_REFCNT(value), refcnt + 1);
+
+  list.reset();
+  EXPECT_EQ(Py_REFCNT(value), refcnt);
+}
 
 TEST_F(RefTest, Equality) {
   auto obj = Ref<>::create(Py_None);

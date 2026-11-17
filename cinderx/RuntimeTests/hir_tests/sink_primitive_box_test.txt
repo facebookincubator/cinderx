@@ -150,6 +150,29 @@ fun test {
     Return v12
   }
 }
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v3:FloatExact = RefineType<FloatExact> v0
+    v4:FloatExact = RefineType<FloatExact> v1
+    v5:FloatExact = RefineType<FloatExact> v2
+    v6:CDouble = PrimitiveUnbox<CDouble> v3
+    v7:CDouble = PrimitiveUnbox<CDouble> v4
+    v8:CDouble = DoubleBinaryOp<Add> v6 v7
+    v10:CDouble = PrimitiveUnbox<CDouble> v5
+    v11:CDouble = DoubleBinaryOp<Add> v8 v10
+    v12:FloatExact = PrimitiveBox<CDouble> v11 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v8 v4 v5
+      }
+    }
+    Return v12
+  }
+}
 --- Test Name ---
 KeepsEscapingFloatBox
 --- Input ---
@@ -229,6 +252,21 @@ fun test {
   }
 }
 --- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:FloatExact = RefineType<FloatExact> v0
+    v2:CDouble = PrimitiveUnbox<CDouble> v1
+    v3:FloatExact = PrimitiveBox<CDouble> v2 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v1
+      }
+    }
+    Return v3
+  }
+}
+--- Expected 3.15t ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -349,6 +387,22 @@ fun test {
     Return v5
   }
 }
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CInt64[7] = LoadConst<CInt64[7]>
+    v4:CInt64[9] = LoadConst<CInt64[9]>
+    v5:LongExact = PrimitiveBox<CInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v1
+      }
+    }
+    Return v5
+  }
+}
 --- Test Name ---
 SinksNonEscapingUnsignedIntBoxIntoDeoptFrameState
 --- Input ---
@@ -440,6 +494,22 @@ fun test {
   }
 }
 --- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:CUInt64[7] = LoadConst<CUInt64[7]>
+    v4:CUInt64[9] = LoadConst<CUInt64[9]>
+    v5:LongExact = PrimitiveBox<CUInt64> v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v1
+      }
+    }
+    Return v5
+  }
+}
+--- Expected 3.15t ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -603,6 +673,35 @@ fun test {
   }
 }
 --- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:CInt64 = Phi<1, 2> v1 v3
+    v6:CInt64[11] = LoadConst<CInt64[11]>
+    v7:LongExact = PrimitiveBox<CInt64> v6 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v5
+      }
+    }
+    Return v7
+  }
+}
+--- Expected 3.15t ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -823,6 +922,38 @@ fun test {
     Return v5
   }
 }
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:CInt64[9] = LoadConst<CInt64[9]>
+    v4:LongExact = PrimitiveBox<CInt64> v3 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:LongExact = Phi<1, 2> v2 v4
+    Return v5
+  }
+}
 --- Test Name ---
 KeepsBoxFeedingUsedNullablePhi
 --- Input ---
@@ -994,6 +1125,40 @@ fun test {
   }
 }
 --- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    CondBranch<1, 2> v0
+  }
+
+  bb 1 (preds 0) {
+    v1:CInt64[7] = LoadConst<CInt64[7]>
+    v2:LongExact = PrimitiveBox<CInt64> v1 {
+      FrameState {
+        CurInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3:Nullptr = LoadConst<Nullptr>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v4:OptLongExact = Phi<1, 2> v2 v3
+    v5:CInt64[11] = LoadConst<CInt64[11]>
+    v6:LongExact = PrimitiveBox<CInt64> v5 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v4
+      }
+    }
+    Return v6
+  }
+}
+--- Expected 3.15t ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>

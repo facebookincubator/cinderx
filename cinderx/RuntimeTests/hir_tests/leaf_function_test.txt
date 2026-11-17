@@ -57,4 +57,15 @@ fun jittestmodule:test {
     Return v2
   }
 }
+--- Expected 3.15t ---
+fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadCurrentFunc
+    LoadFrame
+    v2 = TagIfDeferred v0
+    Snapshot
+    Return v2
+  }
+}
 --- End ---

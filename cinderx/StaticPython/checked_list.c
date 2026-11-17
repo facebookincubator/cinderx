@@ -3708,6 +3708,11 @@ _PyGenericTypeDef Ci_CheckedList_GenericType = {
 PyTypeObject* Ci_CheckedList_Type;
 
 int Ci_ListOrCheckedList_Append(PyListObject* self, PyObject* v) {
+#ifdef Py_GIL_DISABLED
+  if (PyList_Check((PyObject*)self)) {
+    return PyList_Append((PyObject*)self, v);
+  }
+#endif
   Py_ssize_t n = Ci_ListOrCheckedList_GET_SIZE(self);
 
   assert(v != NULL);

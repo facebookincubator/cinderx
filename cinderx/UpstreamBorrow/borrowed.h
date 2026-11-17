@@ -14,10 +14,12 @@
 // we also need function prototypes for them.
 
 #ifdef Py_GIL_DISABLED
+#if PY_VERSION_HEX < 0x030F0000
 #define _PyCode_GetTLBC _CiCode_GetTLBC
-#define _PyDict_KeysSize _CiDict_KeysSize
 #define _PyList_GetItemRef _CiList_GetItemRef
 #define _PyList_GetItemRefNoLock _CiList_GetItemRefNoLock
+#endif
+#define _PyDict_KeysSize _CiDict_KeysSize
 #define _Py_ExplicitMergeRefcount _Ci_ExplicitMergeRefcount
 #define _PyMem_FreeDelayed _CiMem_FreeDelayed
 #define _PyMem_ProcessDelayed _CiMem_ProcessDelayed

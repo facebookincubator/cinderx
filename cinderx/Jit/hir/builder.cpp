@@ -808,8 +808,10 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 
   addPrimitiveLocalInits(entry_tc, preloader_.numArgs());
 
-  // Generators tag their args after GEN_START.
-  if ((code_->co_flags & kCoFlagsAnyGenerator) == 0) {
+  // Generators tag their args after GEN_START. Inlined callees share the
+  // caller's registers, which may hold owned references, so they are not
+  // tagged.
+  if (is_root_function && (code_->co_flags & kCoFlagsAnyGenerator) == 0) {
     addTagIfDeferredArgs(entry_tc, preloader_.numArgs());
   }
 

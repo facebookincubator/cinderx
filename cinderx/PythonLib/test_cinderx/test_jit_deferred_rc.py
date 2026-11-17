@@ -69,6 +69,14 @@ def save_reduce_with_owned_dead_branch(pickler, func, args):
     return sys.getrefcount(abs)
 
 
+def inlined_deferred_arg_callee(obj):
+    return obj.self is obj
+
+
+def call_inlined_deferred_arg(box: dict[str, Any]) -> bool:
+    return inlined_deferred_arg_callee(box["obj"])
+
+
 @cinder_support.failUnlessJITCompiled
 def yield_arg_after_start(obj):
     yield None
@@ -204,6 +212,26 @@ class JITDeferredRCTests(unittest.TestCase):
         self.assertEqual(scenario["deopt_count"], 0)
         self.assertTrue(scenario["result_is_same"])
         self.assertTrue(scenario["result_self_cycle"])
+
+    @cinderx.jit.jit_suppress
+    def test_inlined_owned_arg_is_released(self):
+        inliner_enabled = cinderx.jit.is_hir_inliner_enabled()
+        cinderx.jit.enable_hir_inliner()
+        try:
+            cinderx.jit.force_uncompile(call_inlined_deferred_arg)
+            self.assertTrue(cinderx.jit.force_compile(call_inlined_deferred_arg))
+        finally:
+            if not inliner_enabled:
+                cinderx.jit.disable_hir_inliner()
+        self.assertEqual(
+            cinderx.jit.get_num_inlined_functions(call_inlined_deferred_arg), 1
+        )
+
+        box, weak_obj = make_cycle()
+        self.assertTrue(call_inlined_deferred_arg(box))
+        del box
+        gc.collect()
+        self.assertIsNone(weak_obj())
 
     @cinderx.jit.jit_suppress
     def test_generator_arg_survives_suspend_and_materializes_on_yield(self):

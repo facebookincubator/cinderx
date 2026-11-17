@@ -109,8 +109,13 @@ inline bool isWorldStopped() {
 // free-threaded builds. GIL builds keep using plain PyObject* values.
 #ifdef Py_GIL_DISABLED
 using TaggedPyObject = _PyStackRef;
+#if PY_VERSION_HEX >= 0x030F0000
+constexpr uintptr_t kDeferredRcTag = Py_TAG_REFCNT;
+constexpr uintptr_t kPyObjectPtrTag = 0;
+#else
 constexpr uintptr_t kDeferredRcTag = Py_TAG_DEFERRED;
 constexpr uintptr_t kPyObjectPtrTag = Py_TAG_PTR;
+#endif
 constexpr uintptr_t kPyObjectTagBits = Py_TAG_BITS;
 #else
 using TaggedPyObject = PyObject*;

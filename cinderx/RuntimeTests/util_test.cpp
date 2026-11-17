@@ -12,6 +12,23 @@ namespace cinderx {
 
 using UtilTest = RuntimeTest;
 
+#ifdef Py_GIL_DISABLED
+using TaggedPyObjectTest = RuntimeTest;
+
+TEST_F(TaggedPyObjectTest, MatchesStackRef) {
+  auto obj = Ref<>::steal(PyDict_New());
+  ASSERT_NE(obj, nullptr);
+  const _PyStackRef owned = PyStackRef_FromPyObjectSteal(obj.get());
+  const _PyStackRef borrowed = PyStackRef_Borrow(owned);
+
+  EXPECT_EQ(jit::untaggedPyObjectRef(obj.get()).bits, owned.bits);
+  EXPECT_EQ(jit::addDeferredRcTag(obj.get()).bits, borrowed.bits);
+  EXPECT_FALSE(jit::isDeferredRcTagged(owned));
+  EXPECT_TRUE(jit::isDeferredRcTagged(borrowed));
+  EXPECT_EQ(jit::untaggedPyObject(borrowed), obj.get());
+}
+#endif
+
 TEST(UtilTestNoFixture, Worklist) {
   Worklist<int> wl;
   ASSERT_TRUE(wl.empty());
