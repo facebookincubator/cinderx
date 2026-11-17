@@ -23,33 +23,39 @@ class CodegenTest : public RuntimeTest {};
 TEST_F(CodegenTest, TestPhyRegisterSet) {
   auto set = PhyRegisterSet(2) | PhyRegisterSet(3) | PhyRegisterSet(5);
 
-  ASSERT_EQ(set.empty(), false);
+  ASSERT_FALSE(set.empty());
   ASSERT_EQ(set.count(), 3);
   ASSERT_EQ(set.getFirst(), 2);
   ASSERT_EQ(set.getLast(), 5);
-  ASSERT_EQ(set.has(3), true);
+  ASSERT_TRUE(set.has(2));
+  ASSERT_TRUE(set.has(3));
+  ASSERT_FALSE(set.has(4));
+  ASSERT_TRUE(set.has(5));
 
   set.removeFirst();
 
-  ASSERT_EQ(set.empty(), false);
+  ASSERT_FALSE(set.empty());
   ASSERT_EQ(set.count(), 2);
   ASSERT_EQ(set.getFirst(), 3);
   ASSERT_EQ(set.getLast(), 5);
-  ASSERT_EQ(set.has(3), true);
+  ASSERT_FALSE(set.has(2));
+  ASSERT_TRUE(set.has(3));
+  ASSERT_TRUE(set.has(5));
 
   set.removeLast();
 
-  ASSERT_EQ(set.empty(), false);
+  ASSERT_FALSE(set.empty());
   ASSERT_EQ(set.count(), 1);
   ASSERT_EQ(set.getFirst(), 3);
   ASSERT_EQ(set.getLast(), 3);
-  ASSERT_EQ(set.has(3), true);
+  ASSERT_TRUE(set.has(3));
+  ASSERT_FALSE(set.has(5));
 
   set.removeFirst();
 
-  ASSERT_EQ(set.empty(), true);
+  ASSERT_TRUE(set.empty());
   ASSERT_EQ(set.count(), 0);
-  ASSERT_EQ(set.has(3), false);
+  ASSERT_FALSE(set.has(3));
 }
 
 TEST_F(CodegenTest, PopulateCodeSectionsIncludesNonemptyExecutableSections) {
