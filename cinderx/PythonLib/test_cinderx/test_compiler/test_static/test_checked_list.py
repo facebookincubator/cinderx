@@ -4,6 +4,8 @@
 
 from __static__ import CheckedList
 
+import sys
+
 from cinderx.static import SEQ_CHECKED_LIST, SEQ_SUBSCR_UNCHECKED
 
 from .common import bad_ret_type, StaticTestBase, type_mismatch
@@ -447,6 +449,22 @@ class CheckedListTests(StaticTestBase):
             self.assertEqual(repr(li), "[1, 2, 3, 4]")
             # pyrefly: ignore [unsupported-operation]
             self.assertEqual(type(li), CheckedList[int])
+
+    def test_checked_list_literal_refcount(self) -> None:
+        codestr = """
+            from __static__ import CheckedList
+            def testfunc(x: object) -> CheckedList[object]:
+                a: CheckedList[object] = [x, x]
+                return a
+        """
+        with self.in_module(codestr) as mod:
+            x = object()
+            before = sys.getrefcount(x)
+            li = mod.testfunc(x)
+            self.assertInBytecode(mod.testfunc, "BUILD_CHECKED_LIST")
+            self.assertEqual(sys.getrefcount(x), before + 2)
+            del li
+            self.assertEqual(sys.getrefcount(x), before)
 
     def test_checked_list_literal_type_error(self) -> None:
         codestr = """

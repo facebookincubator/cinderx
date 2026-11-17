@@ -6227,7 +6227,7 @@
                 }
                 for (Py_ssize_t i = 0; i < list_size; i++) {
                     _PyFrame_SetStackPointer(frame, stack_pointer);
-                    Ci_ListOrCheckedList_SET_ITEM(list, i, PyStackRef_AsPyObjectBorrow(args[i]));
+                    Ci_ListOrCheckedList_SET_ITEM(list, i, PyStackRef_AsPyObjectNew(args[i]));
                     stack_pointer = _PyFrame_GetStackPointer(frame);
                 }
                 stack_pointer += -(oparg>>2) + (oparg&0x03);

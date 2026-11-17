@@ -6836,7 +6836,7 @@
                     assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                     _PyFrame_StackPointerValidate(frame);
                     Ci_ListOrCheckedList_SET_ITEM(
-                                        list, i, PyStackRef_AsPyObjectBorrow(args[i]));
+                                        list, i, PyStackRef_AsPyObjectNew(args[i]));
                     _PyFrame_StackPointerInvalidate(frame);
                 }
                 stack_pointer += -(oparg >> 2) + (oparg & 0x03);

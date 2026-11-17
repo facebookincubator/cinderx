@@ -504,7 +504,7 @@ pop_1_error:
 
         for (Py_ssize_t i = 0; i < list_size; i++) {
           Ci_ListOrCheckedList_SET_ITEM(
-              list, i, PyStackRef_AsPyObjectBorrow(args[i]));
+              list, i, PyStackRef_AsPyObjectNew(args[i]));
         }
         DECREF_INPUTS();
         top[0] = PyStackRef_FromPyObjectSteal(list);
