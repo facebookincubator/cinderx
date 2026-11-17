@@ -1127,10 +1127,8 @@ bool reoptFunc(Context& ctx, BorrowedRef<PyFunctionObject> func) {
 }
 
 // Check if we have exceeded the max code size limit.
-bool isOverMaxCodeSize() {
+bool isOverMaxCodeSize(CodeAllocator* code_allocator) {
   auto max_code_size = getConfig().max_code_size;
-  CodeAllocator* code_allocator =
-      cinderx::getModuleState()->code_allocator.get();
   return max_code_size && code_allocator->usedBytes() >= max_code_size;
 }
 
@@ -1260,9 +1258,10 @@ AdmitResult admitCompile(
 // second time and see them as in-flight.
 std::pair<Result, Ref<PyFunctionObject>> compileAdmittedPreloader(
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func) {
-  if (isOverMaxCodeSize()) {
+  if (isOverMaxCodeSize(&code_allocator)) {
     // Give the admission back, since we're not going to compile it.
     jit_ctx->removeActiveCompile(
         CompilationKey{
@@ -1274,9 +1273,10 @@ std::pair<Result, Ref<PyFunctionObject>> compileAdmittedPreloader(
 
 std::pair<Result, Ref<PyFunctionObject>> compilePreloader(
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     const hir::Preloader& preloader,
     Ref<PyFunctionObject>&& func) {
-  if (isOverMaxCodeSize()) {
+  if (isOverMaxCodeSize(&code_allocator)) {
     return {Result::OVER_MAX_CODE_SIZE, std::move(func)};
   }
 
@@ -1471,9 +1471,10 @@ using PreloadedUnitMap = UnorderedMap<BorrowedRef<>, const hir::Preloader*>;
 // something that outlives this call has taken the function over.
 std::pair<Result, CompilationUnit> tryCompilePreloaded(
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     CompilationUnit&& unit) {
-  auto [result, unclaimed] =
-      compileAdmittedPreloader(jit_ctx, *unit.preloader, std::move(unit.func));
+  auto [result, unclaimed] = compileAdmittedPreloader(
+      jit_ctx, code_allocator, *unit.preloader, std::move(unit.func));
   CompilationUnit res = {
       unit.preloader,
       Ref<>::steal(reinterpret_cast<PyObject*>(unclaimed.release()))};
@@ -1484,6 +1485,7 @@ void compile_worker_thread(
     size_t thread_id,
     PyInterpreterState* interp,
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     std::atomic<int>& compile_attempts,
     std::atomic<int>& compile_retries,
     std::shared_ptr<ThreadedCompileQueue> context,
@@ -1514,7 +1516,7 @@ void compile_worker_thread(
       // the function can take it over instead of creating a reference here
       // with the GIL released.
       auto [result, unclaimed] =
-          tryCompilePreloaded(jit_ctx, std::move(unit).value());
+          tryCompilePreloaded(jit_ctx, code_allocator, std::move(unit).value());
 
       // Hand back whatever the compile did not take over.  Dropping a
       // reference on this thread would decref with the GIL released, which is
@@ -1550,10 +1552,11 @@ void compile_worker_thread(
 
 void compile_units_preloaded(
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     ThreadedCompileQueue::WorkList&& units) {
   for (auto& unit : units) {
     // Runs with the GIL held, so releasing whatever comes back is fine.
-    tryCompilePreloaded(jit_ctx, std::move(unit));
+    tryCompilePreloaded(jit_ctx, code_allocator, std::move(unit));
   }
   jit_ctx->finalizePendingCompiles();
 }
@@ -1561,6 +1564,7 @@ void compile_units_preloaded(
 bool multithread_compile_units_preloaded(
     ModuleState& mod_state,
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     ThreadedCompileQueue::WorkList units,
     size_t worker_count,
     std::shared_ptr<hir::IsolatedPreloaders> isolated) {
@@ -1596,6 +1600,7 @@ bool multithread_compile_units_preloaded(
           i,
           interp,
           jit_ctx,
+          std::ref(code_allocator),
           std::ref(mod_state.compile_workers_attempted),
           std::ref(mod_state.compile_workers_retries),
           compilation,
@@ -1621,7 +1626,7 @@ bool multithread_compile_units_preloaded(
   JIT_DLOG(
       "multithread_compile_units_preloaded retrying {} units serially",
       retry_list.size());
-  compile_units_preloaded(jit_ctx, std::move(retry_list));
+  compile_units_preloaded(jit_ctx, code_allocator, std::move(retry_list));
   if (creation_error) {
     std::rethrow_exception(creation_error);
   }
@@ -1914,9 +1919,15 @@ bool compile_all(ModuleState& mod_state, size_t workers = 0) {
 
   if (workers > 1) {
     return multithread_compile_units_preloaded(
-        mod_state, jit_ctx, std::move(compilation_units), workers, isolated);
+        mod_state,
+        jit_ctx,
+        *mod_state.code_allocator,
+        std::move(compilation_units),
+        workers,
+        isolated);
   } else {
-    compile_units_preloaded(jit_ctx, std::move(compilation_units));
+    compile_units_preloaded(
+        jit_ctx, *mod_state.code_allocator, std::move(compilation_units));
   }
 
   return true;
@@ -1965,12 +1976,12 @@ std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
 // The JIT will not keep the function alive, instead it will be informed that
 // the function is being de-allocated via funcDestroyed() before the function
 // goes away.
-bool canCompileFunctionLater() {
+bool canCompileFunctionLater(CodeAllocator* code_allocator) {
   if (!isJitUsable()) {
     return false;
   }
 
-  if (isOverMaxCodeSize()) {
+  if (isOverMaxCodeSize(code_allocator)) {
     return false;
   }
 
@@ -1997,7 +2008,9 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
     return true;
   }
 
-  return canCompileFunctionLater();
+  auto* state = cinderx::getModuleState();
+  return canCompileFunctionLater(
+      state == nullptr ? nullptr : state->code_allocator.get());
 }
 
 PyObject* multithreaded_compile_test(PyObject* mod, PyObject*) {
@@ -4859,6 +4872,7 @@ void ensureForkHandlersRegistered() {}
 // the GIL held.
 void processBackgroundCompile(
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     std::unique_ptr<BackgroundCompileTask>& task) {
   PyCodeObject* code = task->code.get();
 
@@ -4867,7 +4881,7 @@ void processBackgroundCompile(
 
   hir::Preloader* preloader =
       hir::preloaderManager().find(code, task->builtins, task->globals);
-  if (preloader != nullptr && !isOverMaxCodeSize()) {
+  if (preloader != nullptr && !isOverMaxCodeSize(&code_allocator)) {
     {
       // Hand the task's reference to the function down into the compile so
       // whatever ends up owning the function can take it over rather than
@@ -4898,6 +4912,7 @@ void processBackgroundCompile(
 // pool has more live workers than its target size and this worker is idle.
 void backgroundCompileWorkerLoop(
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     PyInterpreterState* interp,
     size_t worker_id) try {
   std::string thread_name = fmt::format("bg_compile_{}", worker_id);
@@ -4954,7 +4969,7 @@ void backgroundCompileWorkerLoop(
           continue;
         }
         hir::preloaderManager().install(std::move(task->preloaders));
-        processBackgroundCompile(jit_ctx, task);
+        processBackgroundCompile(jit_ctx, code_allocator, task);
       }
 
       jit_ctx->finalizePendingCompiles();
@@ -4978,6 +4993,7 @@ void backgroundCompileWorkerLoop(
 
 bool startBackgroundWorkerThread(
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     BackgroundCompileRegistry& reg) {
   // Pre-warm lazily-initialized JIT state that reads raw interpreter
   // state (e.g. Builtins::init() -> findBuiltinsModule() ->
@@ -4998,7 +5014,11 @@ bool startBackgroundWorkerThread(
   size_t worker_id = reg.next_worker_id++;
   try {
     reg.workers.emplace_back(
-        backgroundCompileWorkerLoop, jit_ctx, interp, worker_id);
+        backgroundCompileWorkerLoop,
+        jit_ctx,
+        std::ref(code_allocator),
+        interp,
+        worker_id);
     reg.live_workers++;
     reg.worker_started = true;
   } catch (const std::system_error& exn) {
@@ -5012,13 +5032,14 @@ bool startBackgroundWorkerThread(
 // reg.mutex held, from the scheduler.
 bool ensureBackgroundWorkerPool(
     CompilerContext<Compiler>* jit_ctx,
+    CodeAllocator& code_allocator,
     BackgroundCompileRegistry& reg) {
   if (!reg.worker_started) {
     reg.worker_target = std::max<size_t>(
         std::min<size_t>(getConfig().background_compile_workers, 1000), 1);
   }
   while (reg.live_workers < reg.worker_target) {
-    if (!startBackgroundWorkerThread(jit_ctx, reg)) {
+    if (!startBackgroundWorkerThread(jit_ctx, code_allocator, reg)) {
       break;
     }
   }
@@ -5185,7 +5206,8 @@ void scheduleBackgroundCompile(
     if (reg->shutdown || reg->generation != generation) {
       return;
     }
-    if (!ensureBackgroundWorkerPool(jit_ctx, *reg)) {
+    if (!ensureBackgroundWorkerPool(
+            jit_ctx, *cinderx::getModuleState()->code_allocator, *reg)) {
       return;
     }
     reg->queue.push_back(std::move(task));
@@ -5576,6 +5598,7 @@ bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
 // true/false if we've decisively scheduled or not scheduled the compilation.
 // std::nullopt if we need to do a full lookup to schedule the function.
 inline std::optional<bool> scheduleNestedFunction(
+    CodeAllocator* code_allocator,
     BorrowedRef<PyFunctionObject> func,
     NestedCompileData* data) {
   // The entry only speaks for functions still carrying the code's own name;
@@ -5613,7 +5636,7 @@ inline std::optional<bool> scheduleNestedFunction(
   }
 
   setVectorcall(func, jitVectorcall);
-  if (!canCompileFunctionLater()) {
+  if (!canCompileFunctionLater(code_allocator)) {
     setVectorcall(func, getInterpretedVectorcall(func));
     return false;
   }
@@ -5633,7 +5656,11 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   // The preloader registers a code object's NestedCompileData on the code
   // object itself, so this works no matter how the function was created.
   if (NestedCompileData* data = nestedCompileData(func->func_code)) {
-    if (std::optional<bool> result = scheduleNestedFunction(func, data)) {
+    auto* state = cinderx::getModuleState();
+    if (std::optional<bool> result = scheduleNestedFunction(
+            state == nullptr ? nullptr : state->code_allocator.get(),
+            func,
+            data)) {
       return *result;
     }
   }
@@ -5753,10 +5780,12 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     }
 
     // Holds the GIL, so any reference handed back is released right here.
-    auto target_result =
-        compilePreloader(
-            jit_ctx, *preloader, Ref<PyFunctionObject>::create(target))
-            .first;
+    auto target_result = compilePreloader(
+                             jit_ctx,
+                             *cinderx::getModuleState()->code_allocator,
+                             *preloader,
+                             Ref<PyFunctionObject>::create(target))
+                             .first;
     JIT_CHECK(
         target_result != Result::PYTHON_EXCEPTION,
         "Raised a Python exception while JIT-compiling function {}, which is "
