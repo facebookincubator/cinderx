@@ -2134,6 +2134,7 @@ _PyErr_GetTopmostException(PyThreadState *tstate)
 #else
 #define validate_list(x, y) do{}while(0)
 #endif
+#define DEBUG_LINE_FIXED_LEN 32
 #endif  // !Py_GIL_DISABLED
 typedef struct _gc_runtime_state GCState;
 static inline void
