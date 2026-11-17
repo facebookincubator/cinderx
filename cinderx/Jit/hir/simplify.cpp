@@ -2741,45 +2741,6 @@ Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
   return nullptr;
 }
 
-// Translate VectorCall to CallStatic whenever possible, saving stack
-// manipulation costs (pushing args to stack).
-static Register* trySpecializeCCall(Env& env, const VectorCall* instr) {
-  Register* callable = instr->func();
-  Type callable_type = callable->type();
-  PyObject* callable_obj = callable_type.asObject();
-  if (callable_obj == nullptr) {
-    return nullptr;
-  }
-
-  // Non METH_STATIC and METH_CLASS tp_methods on types are stored as
-  // PyMethodDescr inside tp_dict. Check out:
-  // Objects/typeobject.c#type_add_method
-  if (Py_TYPE(callable_obj) == &PyMethodDescr_Type) {
-    auto meth = reinterpret_cast<PyMethodDescrObject*>(callable_obj);
-    PyMethodDef* def = meth->d_method;
-    if (def->ml_flags & METH_NOARGS && instr->numArgs() == 1) {
-      Register* result = env.emitVariadic<CallStatic>(
-          1,
-          reinterpret_cast<void*>(def->ml_meth),
-          instr->output()->type() | TNullptr,
-          def->ml_name != nullptr ? def->ml_name : "",
-          /* self */ instr->arg(0));
-      return env.emit<CheckExc>(result, *instr->frameState());
-    }
-    if (def->ml_flags & METH_O && instr->numArgs() == 2) {
-      Register* result = env.emitVariadic<CallStatic>(
-          2,
-          reinterpret_cast<void*>(def->ml_meth),
-          instr->output()->type() | TNullptr,
-          def->ml_name != nullptr ? def->ml_name : "",
-          /* self */ instr->arg(0),
-          /* arg */ instr->arg(1));
-      return env.emit<CheckExc>(result, *instr->frameState());
-    }
-  }
-  return nullptr;
-}
-
 Register* simplifyVectorCallStatic(Env& env, const VectorCall* instr) {
   if (!(instr->flags() & CallFlags::Static)) {
     return nullptr;
@@ -2791,7 +2752,7 @@ Register* simplifyVectorCallStatic(Env& env, const VectorCall* instr) {
     return env.emit<LoadConst>(TNoneType);
   }
 
-  return trySpecializeCCall(env, instr);
+  return nullptr;
 }
 
 // Special case here where we are testing `if isinstance`. In that case we do

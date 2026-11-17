@@ -8,6 +8,7 @@ import faulthandler
 import gc
 import inspect
 import pickle
+import re
 import subprocess
 import sys
 import tempfile
@@ -2015,6 +2016,191 @@ class RaiseTests(unittest.TestCase):
         self.assertEqual(next(gen), 1)
         with self.assertRaises(RuntimeError):
             next(gen)
+
+
+_METHOD_DESCR_STR_UPPER = str.upper
+_METHOD_DESCR_STR_JOIN = str.join
+_METHOD_DESCR_LIST_APPEND = list.append
+_METHOD_DESCR_DICT_GET = dict.get
+_METHOD_DESCR_STR_SPLIT = str.split
+_METHOD_DESCR_LIST_SORT = list.sort
+_METHOD_DESCR_PATTERN = re.compile("a+")
+_METHOD_DESCR_PATTERN_MATCH = re.Pattern.match
+
+
+class MethodDescrCallTests(unittest.TestCase):
+    """
+    Calls through method descriptors held in module globals are not
+    static calls, so the HIR leaves them as VectorCalls and the LIR
+    generator specializes METH_NOARGS/METH_O/METH_FASTCALL/
+    METH_FASTCALL|METH_KEYWORDS calls to them directly, passing the
+    receiver as the C function's `self` argument.
+    """
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_noargs(self, s):
+        return _METHOD_DESCR_STR_UPPER(s)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_noargs_literal(self):
+        return _METHOD_DESCR_STR_UPPER("abc")
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_o(self, sep, items):
+        return _METHOD_DESCR_STR_JOIN(sep, items)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_o_list(self, lst, value):
+        _METHOD_DESCR_LIST_APPEND(lst, value)
+        return lst
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_noargs_wrong_receiver(self):
+        return _METHOD_DESCR_STR_UPPER(123)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_o_wrong_count(self):
+        return _METHOD_DESCR_STR_JOIN(",")
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_noargs_kwargs(self):
+        return _METHOD_DESCR_STR_UPPER("abc", x=1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall(self, d, k):
+        return _METHOD_DESCR_DICT_GET(d, k)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_default(self, d, k):
+        return _METHOD_DESCR_DICT_GET(d, k, 99)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_keywords(self, s, sep):
+        return _METHOD_DESCR_STR_SPLIT(s, sep=sep)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_keywords_no_kw(self, s, sep):
+        return _METHOD_DESCR_STR_SPLIT(s, sep)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_keywords_sort(self, lst):
+        _METHOD_DESCR_LIST_SORT(lst, reverse=True)
+        return lst
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_wrong_receiver(self):
+        return _METHOD_DESCR_DICT_GET(123, "k")
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_keywords_wrong_receiver(self):
+        return _METHOD_DESCR_STR_SPLIT(123, sep=",")
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_too_few(self, d):
+        return _METHOD_DESCR_DICT_GET(d)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_subclass_receiver(self, d, k):
+        return _METHOD_DESCR_DICT_GET(d, k)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_tuple_index(self):
+        return (1, 2).index(2)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_tuple_index_start(self):
+        return (1, 2, 2).index(2, 2)
+
+    def test_method_descr_results(self) -> None:
+        self.assertEqual(self._method_descr_noargs("abc"), "ABC")
+        self.assertEqual(self._method_descr_noargs_literal(), "ABC")
+        self.assertEqual(self._method_descr_o(",", ["a", "b"]), "a,b")
+        self.assertEqual(self._method_descr_o_list([1], 2), [1, 2])
+        self.assertEqual(self._method_descr_fastcall({"a": 1}, "a"), 1)
+        self.assertEqual(self._method_descr_fastcall_default({}, "a"), 99)
+        self.assertEqual(self._method_descr_fastcall_keywords("a,b", ","), ["a", "b"])
+        self.assertEqual(
+            self._method_descr_fastcall_keywords_no_kw("a,b", ","), ["a", "b"]
+        )
+        self.assertEqual(
+            self._method_descr_fastcall_keywords_sort([3, 1, 2]), [3, 2, 1]
+        )
+
+    def test_method_descr_fastcall_constant_receiver(self) -> None:
+        # Tuple literals are constants, so the method lookup folds to a
+        # method-descriptor VectorCall and the LIR generator takes the
+        # specialized METH_FASTCALL path instead of the generic
+        # vectorcall.
+        self.assertEqual(self._method_descr_fastcall_tuple_index(), 1)
+        self.assertEqual(self._method_descr_fastcall_tuple_index_start(), 2)
+
+    def test_method_descr_subclass_receiver(self) -> None:
+        class DictSubclass(dict):
+            pass
+
+        self.assertEqual(
+            self._method_descr_fastcall_subclass_receiver(DictSubclass(a=1), "a"),
+            1,
+        )
+
+    def test_method_descr_errors_raise(self) -> None:
+        with self.assertRaises(TypeError):
+            self._method_descr_noargs_wrong_receiver()
+        with self.assertRaises(TypeError):
+            self._method_descr_o_wrong_count()
+        with self.assertRaises(TypeError):
+            self._method_descr_noargs_kwargs()
+        with self.assertRaises(TypeError):
+            self._method_descr_fastcall_wrong_receiver()
+        with self.assertRaises(TypeError):
+            self._method_descr_fastcall_keywords_wrong_receiver()
+        with self.assertRaises(TypeError):
+            self._method_descr_fastcall_too_few({})
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_meth_method(self):
+        return _METHOD_DESCR_PATTERN.match("baa", 1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_meth_method_keywords(self):
+        return _METHOD_DESCR_PATTERN.match(string="baa", pos=1)
+
+    def test_method_descr_meth_method(self) -> None:
+        match = self._method_descr_meth_method()
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(), "aa")
+
+    def test_method_descr_meth_method_keywords(self) -> None:
+        match = self._method_descr_meth_method_keywords()
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(), "aa")
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_meth_method_unbound(self):
+        return _METHOD_DESCR_PATTERN_MATCH(_METHOD_DESCR_PATTERN, "baa", 1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_meth_method_unbound_keywords(self):
+        return _METHOD_DESCR_PATTERN_MATCH(_METHOD_DESCR_PATTERN, string="baa", pos=1)
+
+    def test_method_descr_meth_method_unbound(self) -> None:
+        match = self._method_descr_meth_method_unbound()
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(), "aa")
+
+    def test_method_descr_meth_method_unbound_keywords(self) -> None:
+        match = self._method_descr_meth_method_unbound_keywords()
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(), "aa")
+
+    @skip_unless_jit("Requires inspecting JIT-compiled HIR")
+    def test_method_descr_stays_vector_call(self) -> None:
+        opcodes = cinderx.jit.get_function_hir_opcode_counts(
+            MethodDescrCallTests._method_descr_noargs_literal
+        )
+        self.assertIsNotNone(opcodes)
+        self.assertIn("VectorCall", opcodes)
+        self.assertNotIn("CallStatic", opcodes)
 
 
 class SpecializeCCallTests(unittest.TestCase):

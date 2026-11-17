@@ -2132,11 +2132,57 @@ bool LIRGenerator::translateSpecializedCall(
     return false;
   }
 
-  if (type != &PyCFunction_Type) {
+  if (type != &PyCFunction_Type && type != &PyMethodDescr_Type) {
     return false;
   }
 
-  const int method_flags = PyCFunction_GET_FLAGS(callee) &
+  // Resolve the method definition before reading its flags: the
+  // PyCFunction accessors assume a PyCFunctionObject layout, which a
+  // method descriptor does not have (its d_method follows d_common).
+  PyMethodDef* def = nullptr;
+  // Index of the first method argument, and the value used for `self`.
+  // C functions take their bound self from the callable object; method
+  // descriptors take the receiver, the first call argument.
+  size_t arg_offset = 0;
+  hir::Register* self_reg = nullptr;
+  PyObject* self_obj = nullptr;
+  if (type == &PyCFunction_Type) {
+    auto* cfunc = reinterpret_cast<PyCFunctionObject*>(callee);
+    def = cfunc->m_ml;
+    self_obj = PyCFunction_GET_SELF(callee);
+  } else {
+    auto* meth = reinterpret_cast<PyMethodDescrObject*>(callee);
+    def = meth->d_method;
+    if (hir_instr.numArgs() < 1) {
+      return false;
+    }
+    // The generic method-descriptor vectorcall rejects a receiver that is
+    // not an instance of the descriptor's type before calling ml_meth;
+    // only specialize when the receiver's type proves that check passes.
+    Type receiver_type = hir_instr.arg(0)->type();
+    PyTypeObject* receiver_pytype = nullptr;
+    if (receiver_type.hasObjectSpec()) {
+      receiver_pytype = Py_TYPE(receiver_type.objectSpec());
+    } else {
+      receiver_pytype = receiver_type.uniquePyType();
+    }
+    if (receiver_pytype == nullptr ||
+        !PyType_IsSubtype(receiver_pytype, meth->d_common.d_type)) {
+      return false;
+    }
+    self_reg = hir_instr.arg(0);
+    arg_offset = 1;
+  }
+
+  // METH_METHOD functions are PyCMethod, called as (self, defining_class,
+  // args, nargs, kwnames). None of the specializations below pass the
+  // defining class, so leave these calls on the generic vectorcall path
+  // rather than letting them reach the flag comparisons below.
+  if (def->ml_flags & METH_METHOD) {
+    return false;
+  }
+
+  const int method_flags = def->ml_flags &
       (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS);
   const bool has_kw_args = hir_instr.flags() & CallFlags::KwArgs;
   if (has_kw_args && method_flags != (METH_FASTCALL | METH_KEYWORDS)) {
@@ -2158,65 +2204,80 @@ bool LIRGenerator::translateSpecializedCall(
     }
   }
 
+  // Materialize the C function's `self` value: the receiver register for
+  // a method descriptor, or a constant holding the bound self for a
+  // C function.
+  auto selfInstr = [&]() -> Instruction* {
+    if (self_reg != nullptr) {
+      return bbb.getDefInstr(self_reg);
+    }
+    return bbb.appendInstr(
+        OutVReg{DataType::kObject},
+        Opcode::kMove,
+        Imm{reinterpret_cast<uint64_t>(self_obj), DataType::kObject});
+  };
+
   // This is where we can go bananas with specializing calls to things like
   // tuple(), list(), etc, hardcoding or inlining calls to tp_new and tp_init as
   // appropriate. For now, we simply support any native callable with a
   // vectorcall.
   switch (method_flags) {
     case METH_NOARGS:
-      if (hir_instr.numArgs() == 0) {
-        bbb.appendIndirectCallInstruction(
-            hir_instr.output(),
-            &reinterpret_cast<PyCFunctionObject*>(callee)->m_ml->ml_meth,
-            PyCFunction_GET_SELF(callee),
-            nullptr);
+      if (hir_instr.numArgs() == arg_offset) {
+        if (self_reg != nullptr) {
+          bbb.appendIndirectCallInstruction(
+              hir_instr.output(), &def->ml_meth, self_reg, nullptr);
+        } else {
+          bbb.appendIndirectCallInstruction(
+              hir_instr.output(), &def->ml_meth, self_obj, nullptr);
+        }
         return true;
       }
       break;
     case METH_O:
-      if (hir_instr.numArgs() == 1) {
-        bbb.appendIndirectCallInstruction(
-            hir_instr.output(),
-            &reinterpret_cast<PyCFunctionObject*>(callee)->m_ml->ml_meth,
-            PyCFunction_GET_SELF(callee),
-            hir_instr.arg(0));
+      if (hir_instr.numArgs() == arg_offset + 1) {
+        if (self_reg != nullptr) {
+          bbb.appendIndirectCallInstruction(
+              hir_instr.output(),
+              &def->ml_meth,
+              self_reg,
+              hir_instr.arg(arg_offset));
+        } else {
+          bbb.appendIndirectCallInstruction(
+              hir_instr.output(),
+              &def->ml_meth,
+              self_obj,
+              hir_instr.arg(arg_offset));
+        }
         return true;
       }
       break;
     case METH_FASTCALL: {
-      Instruction* self = bbb.appendInstr(
-          OutVReg{DataType::kObject},
-          Opcode::kMove,
-          Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_SELF(callee)),
-              DataType::kObject});
       auto operands = hir_instr.getOperands();
+      const size_t num_values = operands.size() - 1 - arg_offset;
       appendFastCall(
           bbb,
           hir_instr.output(),
-          reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(callee)),
-          self,
-          operands.subspan(1));
+          reinterpret_cast<uint64_t>(def->ml_meth),
+          selfInstr(),
+          operands.subspan(1 + arg_offset, num_values));
       return true;
     }
     case METH_FASTCALL | METH_KEYWORDS: {
       // PyCFunctionFastWithKeywords has the same ABI as vectorcallfunc when
       // PY_VECTORCALL_ARGUMENTS_OFFSET isn't set: (self, args, nargs,
       // kwnames).
-      Instruction* self = bbb.appendInstr(
-          OutVReg{DataType::kObject},
-          Opcode::kMove,
-          Imm{reinterpret_cast<uint64_t>(PyCFunction_GET_SELF(callee)),
-              DataType::kObject});
       auto operands = hir_instr.getOperands();
-      const size_t num_values = operands.size() - 1 - (has_kw_args ? 1 : 0);
+      const size_t num_values =
+          operands.size() - 1 - (has_kw_args ? 1 : 0) - arg_offset;
       hir::Register* kwnames =
           has_kw_args ? operands[operands.size() - 1] : nullptr;
       appendVectorCall(
           bbb,
           hir_instr.output(),
-          reinterpret_cast<uint64_t>(PyCFunction_GET_FUNCTION(callee)),
-          {self},
-          operands.subspan(1, num_values),
+          reinterpret_cast<uint64_t>(def->ml_meth),
+          {selfInstr()},
+          operands.subspan(1 + arg_offset, num_values),
           kwnames,
           /*args_offset=*/false);
       return true;
