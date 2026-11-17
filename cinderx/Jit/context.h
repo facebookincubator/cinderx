@@ -40,6 +40,10 @@
 #include <unordered_set>
 #include <vector>
 
+namespace cinderx {
+struct ModuleState;
+} // namespace cinderx
+
 namespace cinderx::jit {
 
 // Identifies the path that reserved an active compilation. Background
@@ -368,7 +372,7 @@ class Context : public IJitContext, public CompiledFunctionOwner {
    * Needed when the JIT list changes, as eligibility is only sampled when an
    * entry is created.
    */
-  void refreshNestedCompileData();
+  void refreshNestedCompileData(ModuleState& state);
 
   // Methods moved from Runtime class
 

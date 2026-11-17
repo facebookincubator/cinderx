@@ -129,59 +129,6 @@ CompilerContext<Compiler>* jitCtx() {
   return nullptr;
 }
 
-// Temporary strong reference to the _cinderx module, held while a JIT entry
-// point compiles a function or runs it. On Python 3.12 a daemon thread that
-// tries to take the GIL during finalization exits via PyThread_exit_thread(),
-// whose forced unwind runs this destructor with no thread state attached. If
-// that was the last reference, releasing it would deallocate the module
-// without the GIL, so the reference is leaked instead; the process is exiting.
-class ModuleOwner {
- public:
-  ModuleOwner() = default;
-  explicit ModuleOwner(Ref<> module) : module_{std::move(module)} {}
-  ModuleOwner(const ModuleOwner&) = delete;
-  ModuleOwner(ModuleOwner&&) = delete;
-  ModuleOwner& operator=(const ModuleOwner&) = delete;
-  ModuleOwner& operator=(ModuleOwner&&) = delete;
-
-  ~ModuleOwner() {
-    if (module_ != nullptr && PyThreadState_GetUnchecked() == nullptr) {
-      [[maybe_unused]] PyObject* leaked = module_.release();
-    }
-  }
-
-  BorrowedRef<> get() const {
-    return module_;
-  }
-
-  bool operator!=(std::nullptr_t) const {
-    return module_ != nullptr;
-  }
-
- private:
-  Ref<> module_;
-};
-
-ModuleOwner retainModuleOwner() {
-  FreeThreadedJITEntrypointGuard guard;
-  auto* state = cinderx::getModuleState();
-  BorrowedRef<> module = state == nullptr ? nullptr : state->cinderx_module;
-  if (module == nullptr) {
-    return {};
-  }
-#if PY_VERSION_HEX >= 0x030E0000
-  if (!PyUnstable_TryIncRef(module)) {
-    return {};
-  }
-  return ModuleOwner{Ref<>::steal(module)};
-#else
-  if (Py_REFCNT(module) == 0) {
-    return {};
-  }
-  return ModuleOwner{Ref<>::create(module)};
-#endif
-}
-
 // Simple wrapper functions to turn nullptr or -1 return values from C-API
 // functions into a thrown exception. Meant for repetitive runs of C-API calls
 // and not intended for use in public APIs.
@@ -206,6 +153,7 @@ bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
 // Must be called while attached. A non-null expected requests a replacement
 // for that generation; null requests the first compilation.
 void scheduleBackgroundCompile(
+    ModuleState& state,
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> expected = nullptr);
 
@@ -315,7 +263,7 @@ PyObject* jitVectorcall(
     if (getConfig().background_compile) {
       ModuleOwner owner = retainModuleOwner();
       if (owner != nullptr) {
-        scheduleBackgroundCompile(func);
+        scheduleBackgroundCompile(*cinderx::getModuleState(owner.get()), func);
       }
       auto entry = getInterpretedVectorcall(func);
       return entry(func_obj, stack, nargsf, kwnames);
@@ -1636,10 +1584,12 @@ bool multithread_compile_units_preloaded(
 // Both defined further down, next to their other user
 // (trackEligibleCodeObjects).
 std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
+    ModuleState& state,
     BorrowedRef<> module,
     BorrowedRef<> root_consts);
 bool trackNestedCode(
     Context* ctx,
+    ModuleState& state,
     BorrowedRef<PyFunctionObject> outer_func,
     BorrowedRef<> module,
     BorrowedRef<PyCodeObject> code);
@@ -1723,12 +1673,13 @@ std::vector<Ref<>> discoverCompilationUnits(
   for (const Candidate& candidate : candidates) {
     BorrowedRef<PyFunctionObject> func{candidate.func};
     if (jit_list &&
-        getCompilationEligibility(func) == JitEligibility::JitListEligible) {
+        getCompilationEligibility(mod_state, func) ==
+            JitEligibility::JitListEligible) {
       BorrowedRef<> module{func->func_module};
       BorrowedRef<PyCodeObject> code{func->func_code};
       for (BorrowedRef<PyCodeObject> nested :
-           findNestedCodes(module, code->co_consts)) {
-        trackNestedCode(jitCtx(mod_state), func, module, nested);
+           findNestedCodes(mod_state, module, code->co_consts)) {
+        trackNestedCode(jitCtx(mod_state), mod_state, func, module, nested);
         add(nested.getObj());
       }
     }
@@ -1937,6 +1888,7 @@ bool compile_all(ModuleState& mod_state, size_t workers = 0) {
 // on the current jit-list, using the given module name to form a
 // fully-qualified function name.
 std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
+    ModuleState& state,
     BorrowedRef<> module,
     BorrowedRef<> root_consts) {
   std::queue<PyObject*> consts_tuples;
@@ -1952,7 +1904,7 @@ std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
       BorrowedRef<PyCodeObject> code = PyTuple_GET_ITEM(consts, i);
       if (!PyCode_Check(code) || !visited.insert(code).second ||
           code->co_qualname == nullptr ||
-          getCompilationEligibility(module, code) ==
+          getCompilationEligibility(state, module, code) ==
               JitEligibility::Ineligible) {
         continue;
       }
@@ -1995,7 +1947,7 @@ bool canCompileFunctionLater(CodeAllocator* code_allocator) {
   return true;
 }
 
-bool registerFunction(BorrowedRef<PyFunctionObject> func) {
+bool registerFunction(ModuleState& state, BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
   if (isJitFinalizing()) {
     return false;
@@ -2003,14 +1955,12 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
 
   // Attempt to attach already-compiled code even if the JIT is disabled, as
   // long as it hasn't been finalized.
-  auto* ctx = jitCtx();
+  auto* ctx = jitCtx(state);
   if (ctx != nullptr && reoptFunc(*ctx, func)) {
     return true;
   }
 
-  auto* state = cinderx::getModuleState();
-  return canCompileFunctionLater(
-      state == nullptr ? nullptr : state->code_allocator.get());
+  return canCompileFunctionLater(state.code_allocator.get());
 }
 
 PyObject* multithreaded_compile_test(PyObject* mod, PyObject*) {
@@ -2520,7 +2470,7 @@ PyObject* patched_sys_settraceallthreads(
   return callInstrumentedSysFunction(original, args, nargs);
 }
 
-int compile_after_n_calls_impl(uint32_t calls) {
+int compile_after_n_calls_impl(ModuleState& state, uint32_t calls) {
   if (isJitFinalizing()) {
     PyErr_SetString(PyExc_RuntimeError, "Cannot configure JIT during shutdown");
     return -1;
@@ -2532,9 +2482,9 @@ int compile_after_n_calls_impl(uint32_t calls) {
   getMutableConfig().compile_after_n_calls = calls;
 
   // Schedule all pre-existing functions for compilation.
-  walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
+  walkFunctionObjects([&state](BorrowedRef<PyFunctionObject> func) {
     if (!isJitCompiled(func)) {
-      scheduleJitCompile(func);
+      scheduleJitCompile(state, func);
     }
   });
 
@@ -2543,7 +2493,7 @@ int compile_after_n_calls_impl(uint32_t calls) {
   return 0;
 }
 
-int compile_after_n_bytecodes_impl(uint32_t bytecodes) {
+int compile_after_n_bytecodes_impl(ModuleState& state, uint32_t bytecodes) {
   if (isJitFinalizing()) {
     PyErr_SetString(PyExc_RuntimeError, "Cannot configure JIT during shutdown");
     return -1;
@@ -2553,8 +2503,9 @@ int compile_after_n_bytecodes_impl(uint32_t bytecodes) {
   }
 
   getMutableConfig().compile_after_n_bytecodes = bytecodes;
-  walkFunctionObjects(
-      [](BorrowedRef<PyFunctionObject> func) { scheduleJitCompile(func); });
+  walkFunctionObjects([&state](BorrowedRef<PyFunctionObject> func) {
+    scheduleJitCompile(state, func);
+  });
 
   JIT_DLOG(
       "Configuring JIT to compile functions after {} interpreted bytecodes",
@@ -2562,7 +2513,7 @@ int compile_after_n_bytecodes_impl(uint32_t bytecodes) {
   return 0;
 }
 
-PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
+PyObject* compile_after_n_calls(PyObject* mod, PyObject* arg) {
   Py_ssize_t calls = -1;
   if (!PyArg_Parse(arg, "n:compile_after_n_calls", &calls)) {
     return nullptr;
@@ -2575,14 +2526,14 @@ PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  if (compile_after_n_calls_impl(calls) < 0) {
+  if (compile_after_n_calls_impl(*cinderx::getModuleState(mod), calls) < 0) {
     return nullptr;
   }
 
   Py_RETURN_NONE;
 }
 
-PyObject* compile_after_n_bytecodes(PyObject* /* self */, PyObject* arg) {
+PyObject* compile_after_n_bytecodes(PyObject* mod, PyObject* arg) {
   Py_ssize_t bytecodes = -1;
   if (!PyArg_Parse(arg, "n:compile_after_n_bytecodes", &bytecodes)) {
     return nullptr;
@@ -2594,7 +2545,9 @@ PyObject* compile_after_n_bytecodes(PyObject* /* self */, PyObject* arg) {
         bytecodes);
     return nullptr;
   }
-  if (compile_after_n_bytecodes_impl(static_cast<uint32_t>(bytecodes)) < 0) {
+  if (compile_after_n_bytecodes_impl(
+          *cinderx::getModuleState(mod), static_cast<uint32_t>(bytecodes)) <
+      0) {
     return nullptr;
   }
   Py_RETURN_NONE;
@@ -2701,11 +2654,13 @@ bool reclaimQueuedBackgroundCompile(
   return true;
 }
 
-PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
-  if (compile_after_n_calls_impl(kDefaultAutoJitCallThreshold) < 0) {
+PyObject* auto_jit(PyObject* mod, PyObject* /* arg */) {
+  ModuleState& state = *cinderx::getModuleState(mod);
+  if (compile_after_n_calls_impl(state, kDefaultAutoJitCallThreshold) < 0) {
     return nullptr;
   }
-  if (compile_after_n_bytecodes_impl(kDefaultAutoJitBytecodeThreshold) < 0) {
+  if (compile_after_n_bytecodes_impl(state, kDefaultAutoJitBytecodeThreshold) <
+      0) {
     return nullptr;
   }
 
@@ -2865,7 +2820,7 @@ PyObject* force_compile(PyObject* mod, PyObject* arg) {
   return nullptr;
 }
 
-PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
+PyObject* lazy_compile(PyObject* mod, PyObject* arg) {
   BorrowedRef<PyFunctionObject> func = get_func_arg("lazy_compile", arg);
   if (func == nullptr) {
     return nullptr;
@@ -2881,7 +2836,7 @@ PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
   }
 
   setVectorcall(func, forcedJitVectorcall);
-  if (!registerFunction(func)) {
+  if (!registerFunction(*cinderx::getModuleState(mod), func)) {
     setVectorcall(func, getInterpretedVectorcall(func));
     Py_RETURN_FALSE;
   }
@@ -3212,14 +3167,14 @@ int rescheduleJitList(ModuleState& state) {
   // Cached nested-function eligibility was computed against the old JIT list,
   // so it has to be recomputed before anything consults it again.
   if (auto* ctx = static_cast<Context*>(state.jit_context.get())) {
-    ctx->refreshNestedCompileData();
+    ctx->refreshNestedCompileData(state);
   }
 
   walkFunctionObjects([&state](BorrowedRef<PyFunctionObject> func) {
     auto jit_list = state.jit_list.get();
     if (jit_list->lookupFunc(func)) {
       if (!isJitCompiled(func)) {
-        scheduleJitCompile(func);
+        scheduleJitCompile(state, func);
       }
     }
   });
@@ -4488,6 +4443,7 @@ int initJitMethods(PyObject* mod) {
 // function existing yet.  Returns false if the code was already tracked.
 bool trackNestedCode(
     Context* ctx,
+    ModuleState& state,
     BorrowedRef<PyFunctionObject> outer_func,
     BorrowedRef<> module,
     BorrowedRef<PyCodeObject> code) {
@@ -4502,22 +4458,24 @@ bool trackNestedCode(
   // only ever runs in the interpreter loses its compile along with its first
   // instance and is compiled again for the next one.
   ctx->getOrCreateNestedCompileData(
-      module, code, getCompilationEligibility(module, code));
+      module, code, getCompilationEligibility(state, module, code));
   return true;
 }
 
 void trackEligibleCodeObjects(
+    ModuleState& state,
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<PyCodeObject> func_code) {
   // We need to maintain a mapping for all functions which are eligible for
   // compilation at some point - we track the code object and their parent
   // function.  Map this function's code object to itself.
-  auto& jit_code_outer_funcs = jitCtx()->codeOuterFunctions();
+  auto& jit_code_outer_funcs = jitCtx(state)->codeOuterFunctions();
   auto [_, inserted] = jit_code_outer_funcs.try_emplace(func_code, func);
   if (!inserted) {
     return;
   }
-  if (NestedCompileData* data = jitCtx()->findNestedCompileData(func_code)) {
+  if (NestedCompileData* data =
+          jitCtx(state)->findNestedCompileData(func_code)) {
     data->markOwnsCodeOuterFuncEntry();
   }
 
@@ -4525,8 +4483,9 @@ void trackEligibleCodeObjects(
   // compiled.
   BorrowedRef<> mod{func->func_module};
   BorrowedRef<> top_consts{func_code->co_consts};
-  for (BorrowedRef<PyCodeObject> code : findNestedCodes(mod, top_consts)) {
-    trackNestedCode(jitCtx(), func, mod, code);
+  for (BorrowedRef<PyCodeObject> code :
+       findNestedCodes(state, mod, top_consts)) {
+    trackNestedCode(jitCtx(state), state, func, mod, code);
   }
 }
 
@@ -4662,8 +4621,12 @@ void unregisterFunctionCodes(
       jit_code_outer_funcs.erase(it);
       PyObject* module = func->func_module;
       BorrowedRef<> top_consts{top_code->co_consts};
+      auto* state = cinderx::getModuleState();
+      if (state == nullptr) {
+        return;
+      }
       for (BorrowedRef<PyCodeObject> code :
-           findNestedCodes(module, top_consts)) {
+           findNestedCodes(*state, module, top_consts)) {
         auto existing = jit_code_outer_funcs.find(code);
         if (existing != jit_code_outer_funcs.end() &&
             existing->second == func) {
@@ -5047,6 +5010,7 @@ bool ensureBackgroundWorkerPool(
 }
 
 void scheduleBackgroundCompile(
+    ModuleState& state,
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> expected) {
   Ref<CompiledFunction> expected_ref;
@@ -5066,7 +5030,7 @@ void scheduleBackgroundCompile(
     }
     code = Ref<PyCodeObject>::create(func->func_code);
     key = CompilationKey{func};
-    jit_ctx = jitCtx();
+    jit_ctx = jitCtx(state);
     if (jit_ctx == nullptr) {
       return;
     }
@@ -5106,7 +5070,7 @@ void scheduleBackgroundCompile(
       }
       expected_ref = Ref<CompiledFunction>::create(expected);
     } else {
-      trackEligibleCodeObjects(func, code);
+      trackEligibleCodeObjects(state, func, code);
       auto admitted =
           admitCompile(jit_ctx, func, CompilationOrigin::kBackground);
       if (admitted.admission != CompileAdmission::kCompile) {
@@ -5206,8 +5170,7 @@ void scheduleBackgroundCompile(
     if (reg->shutdown || reg->generation != generation) {
       return;
     }
-    if (!ensureBackgroundWorkerPool(
-            jit_ctx, *cinderx::getModuleState()->code_allocator, *reg)) {
+    if (!ensureBackgroundWorkerPool(jit_ctx, *state.code_allocator, *reg)) {
       return;
     }
     reg->queue.push_back(std::move(task));
@@ -5226,6 +5189,36 @@ void scheduleBackgroundCompile(
 } // namespace
 
 namespace cinderx::jit {
+
+ModuleOwner::~ModuleOwner() {
+  if (module_ != nullptr && PyThreadState_GetUnchecked() == nullptr) {
+    [[maybe_unused]] PyObject* leaked = module_.release();
+  }
+}
+
+ModuleOwner retainModuleOwner(ModuleState& state) {
+  BorrowedRef<> module = state.cinderx_module;
+  if (module == nullptr) {
+    return {};
+  }
+#if PY_VERSION_HEX >= 0x030E0000
+  if (!PyUnstable_TryIncRef(module)) {
+    return {};
+  }
+  return ModuleOwner{Ref<>::steal(module)};
+#else
+  if (Py_REFCNT(module) == 0) {
+    return {};
+  }
+  return ModuleOwner{Ref<>::create(module)};
+#endif
+}
+
+ModuleOwner retainModuleOwner() {
+  FreeThreadedJITEntrypointGuard guard;
+  auto* state = cinderx::getModuleState();
+  return state == nullptr ? ModuleOwner{} : retainModuleOwner(*state);
+}
 
 int initialize(BorrowedRef<> cinderx_module) {
   if (isJitFinalizing()) {
@@ -5362,14 +5355,14 @@ int initialize(BorrowedRef<> cinderx_module) {
   bool has_auto_jit_threshold = false;
   if (auto compile_n = getConfig().compile_after_n_calls;
       compile_n.has_value()) {
-    if (compile_after_n_calls_impl(*compile_n) < 0) {
+    if (compile_after_n_calls_impl(*mod_state, *compile_n) < 0) {
       return -1;
     }
     has_auto_jit_threshold = true;
   }
   if (auto bytecodes = getConfig().compile_after_n_bytecodes;
       bytecodes.has_value()) {
-    if (compile_after_n_bytecodes_impl(*bytecodes) < 0) {
+    if (compile_after_n_bytecodes_impl(*mod_state, *bytecodes) < 0) {
       return -1;
     }
     has_auto_jit_threshold = true;
@@ -5420,6 +5413,10 @@ void rt::checkRecompile(PyFunctionObject* func) {
 void scheduleRecompile(
     BorrowedRef<PyFunctionObject> func,
     BorrowedRef<CompiledFunction> expected) {
+  ModuleOwner owner = retainModuleOwner();
+  if (owner.get() == nullptr) {
+    return;
+  }
   {
     FreeThreadedJITEntrypointGuard guard;
     Context* ctx = getContext();
@@ -5439,7 +5436,8 @@ void scheduleRecompile(
       return;
     }
   }
-  scheduleBackgroundCompile(func, expected);
+  scheduleBackgroundCompile(
+      *cinderx::getModuleState(owner.get()), func, expected);
 }
 
 void cancelBackgroundCompiles(Context& ctx) {
@@ -5643,7 +5641,9 @@ inline std::optional<bool> scheduleNestedFunction(
   return true;
 }
 
-bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
+bool scheduleJitCompile(
+    ModuleState& state,
+    BorrowedRef<PyFunctionObject> func) {
   FreeThreadedJITEntrypointGuard guard;
 
   // Re-entrant creation during a threaded compile (e.g. a worker preloading
@@ -5656,20 +5656,17 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   // The preloader registers a code object's NestedCompileData on the code
   // object itself, so this works no matter how the function was created.
   if (NestedCompileData* data = nestedCompileData(func->func_code)) {
-    auto* state = cinderx::getModuleState();
-    if (std::optional<bool> result = scheduleNestedFunction(
-            state == nullptr ? nullptr : state->code_allocator.get(),
-            func,
-            data)) {
+    if (std::optional<bool> result =
+            scheduleNestedFunction(state.code_allocator.get(), func, data)) {
       return *result;
     }
   }
 
-  auto eligible = getCompilationEligibility(func);
+  auto eligible = getCompilationEligibility(state, func);
   if (eligible == JitEligibility::Ineligible) {
     return false;
   }
-  trackEligibleCodeObjects(func, func->func_code);
+  trackEligibleCodeObjects(state, func, func->func_code);
 
   // If we're not eligible due to the JIT list check if we have config (e.g.
   // auto jit, jit all, or jit all static methods) that makes compilation happen
@@ -5692,7 +5689,7 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   // everything.  This is a weird behavior though, to have "new" functions get
   // JIT-compiled code despite the JIT being disabled.
   if (!isInstrumentationActive()) {
-    auto* ctx = jitCtx();
+    auto* ctx = jitCtx(state);
     if (ctx != nullptr && reoptFunc(*ctx, func)) {
       return true;
     }
@@ -5703,7 +5700,7 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   }
 
   setVectorcall(func, jitVectorcall);
-  if (!registerFunction(func)) {
+  if (!registerFunction(state, func)) {
     setVectorcall(func, getInterpretedVectorcall(func));
     return false;
   }
@@ -5715,6 +5712,12 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
 //
 // Failing to compile a dependent function is a soft failure, and is ignored.
 Result compileFunction(BorrowedRef<PyFunctionObject> func) {
+  auto* module_state = cinderx::getModuleState();
+  if (module_state == nullptr) {
+    return Result::NOT_INITIALIZED;
+  }
+  ModuleOwner owner = retainModuleOwner(*module_state);
+  ModuleState& state = *module_state;
   // Preloading can execute arbitrary Python code, so run it without
   // holding the entry lock to avoid deadlocks.
   hir::IsolatedPreloaders ip;
@@ -5737,7 +5740,7 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     // in codeOuterFunctions. We will treat whatever remains as new top-level
     // functions.
     auto code = Ref<PyCodeObject>::create(func->func_code);
-    trackEligibleCodeObjects(func, code);
+    trackEligibleCodeObjects(state, func, code);
   }
 
   auto targets = preloadFuncAndDeps(func);
@@ -5756,7 +5759,7 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     return Result::UNKNOWN_ERROR;
   }
 
-  auto* jit_ctx = jitCtx();
+  auto* jit_ctx = jitCtx(state);
 
   if (targets.size() > 1) {
     JIT_DLOG(
@@ -5782,7 +5785,7 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     // Holds the GIL, so any reference handed back is released right here.
     auto target_result = compilePreloader(
                              jit_ctx,
-                             *cinderx::getModuleState()->code_allocator,
+                             *state.code_allocator,
                              *preloader,
                              Ref<PyFunctionObject>::create(target))
                              .first;
@@ -5812,6 +5815,12 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
 std::vector<CompilationUnit> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func,
     bool forcePreload) {
+  auto* module_state = cinderx::getModuleState();
+  if (module_state == nullptr) {
+    return {};
+  }
+  ModuleOwner owner = retainModuleOwner(*module_state);
+  ModuleState& state = *module_state;
   // Add one for the original function itself.  When forcePreload is set the
   // caller wants all dependents regardless of the configured limit.
   size_t limit = forcePreload ? std::numeric_limits<size_t>::max()
@@ -5827,7 +5836,7 @@ std::vector<CompilationUnit> preloadFuncAndDeps(
   auto shouldPreload = [&](BorrowedRef<PyFunctionObject> f) {
     return !isPreloaded(f) &&
         (forcePreload ||
-         getCompilationEligibility(f) != JitEligibility::Ineligible);
+         getCompilationEligibility(state, f) != JitEligibility::Ineligible);
   };
 
   auto* jit_ctx = jitCtx();

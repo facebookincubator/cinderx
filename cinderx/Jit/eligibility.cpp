@@ -27,10 +27,10 @@ bool hasRequiredCodeFlags(BorrowedRef<PyCodeObject> code) {
   return (code->co_flags & kRequiredCodeFlags) == kRequiredCodeFlags;
 }
 
-JitEligibility getCompilationEligibility(BorrowedRef<PyFunctionObject> func) {
-  auto* state = cinderx::getModuleState();
-  if (state == nullptr || state->jit_context == nullptr ||
-      isCinderModule(func->func_module)) {
+JitEligibility getCompilationEligibility(
+    ModuleState& state,
+    BorrowedRef<PyFunctionObject> func) {
+  if (state.jit_context == nullptr || isCinderModule(func->func_module)) {
     return JitEligibility::Ineligible;
   }
 
@@ -39,7 +39,7 @@ JitEligibility getCompilationEligibility(BorrowedRef<PyFunctionObject> func) {
     return JitEligibility::Ineligible;
   }
 
-  if (auto* jit_list = state->jit_list.get()) {
+  if (auto* jit_list = state.jit_list.get()) {
     if (jit_list->lookupFunc(func) == 1) {
       return JitEligibility::JitListEligible;
     }
@@ -50,15 +50,15 @@ JitEligibility getCompilationEligibility(BorrowedRef<PyFunctionObject> func) {
 }
 
 JitEligibility getCompilationEligibility(
+    ModuleState& state,
     BorrowedRef<> module_name,
     BorrowedRef<PyCodeObject> code) {
-  auto* state = cinderx::getModuleState();
-  if (state == nullptr || state->jit_context == nullptr ||
-      isCinderModule(module_name) || !hasRequiredCodeFlags(code)) {
+  if (state.jit_context == nullptr || isCinderModule(module_name) ||
+      !hasRequiredCodeFlags(code)) {
     return JitEligibility::Ineligible;
   }
 
-  if (auto* jit_list = state->jit_list.get()) {
+  if (auto* jit_list = state.jit_list.get()) {
     if (jit_list->lookupCode(code) == 1 ||
         jit_list->lookupName(module_name, code->co_qualname) == 1) {
       return JitEligibility::JitListEligible;

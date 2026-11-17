@@ -24,6 +24,7 @@
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/symbolizer.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/_static.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -478,11 +479,21 @@ int ensurePyFunctionVectorcall() {
 // Schedule a function to be JIT-compiled.  If that fails, then also try
 // compiling a perf trampoline for the Python function.
 void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
-  bool scheduled = jit::scheduleJitCompile(func);
+  jit::ModuleOwner owner = jit::retainModuleOwner();
+  if (owner.get() == nullptr) {
+    return;
+  }
+  auto* state = cinderx::getModuleState(owner.get());
+  bool scheduled = false;
+  {
+    jit::FreeThreadedJITEntrypointGuard guard;
+    if (!jit::ThreadedCompileContext::compileRunning()) {
+      scheduled = jit::scheduleJitCompile(*state, func);
+    }
+  }
 #ifndef WIN32
   if (!scheduled && jit::isPreforkCompilationEnabled()) {
-    auto& perf_trampoline_worklist =
-        cinderx::getModuleState()->perf_trampoline_worklist;
+    auto& perf_trampoline_worklist = state->perf_trampoline_worklist;
     perf_trampoline_worklist.emplace(func);
   }
 #endif

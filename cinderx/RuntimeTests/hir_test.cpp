@@ -1858,7 +1858,7 @@ def helper():
   bool scheduled;
   {
     ThreadedCompileContext threaded_compile;
-    scheduled = scheduleJitCompile(func);
+    scheduled = scheduleJitCompile(*moduleState(), func);
   }
   getMutableConfig().compile_after_n_calls = saved_calls;
   EXPECT_FALSE(scheduled);

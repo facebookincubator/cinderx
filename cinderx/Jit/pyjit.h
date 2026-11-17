@@ -33,6 +33,40 @@ namespace cinderx::jit {
  */
 int initialize(BorrowedRef<> cinderx_module);
 
+// Temporary strong reference to the _cinderx module, held while a JIT entry
+// point compiles a function or runs it. On Python 3.12 a daemon thread that
+// tries to take the GIL during finalization exits via PyThread_exit_thread(),
+// whose forced unwind runs this destructor with no thread state attached. If
+// that was the last reference, releasing it would deallocate the module
+// without the GIL, so the reference is leaked instead; the process is exiting.
+class ModuleOwner {
+ public:
+  ModuleOwner() = default;
+  explicit ModuleOwner(Ref<> module) : module_{std::move(module)} {}
+  ModuleOwner(const ModuleOwner&) = delete;
+  ModuleOwner(ModuleOwner&&) = delete;
+  ModuleOwner& operator=(const ModuleOwner&) = delete;
+  ModuleOwner& operator=(ModuleOwner&&) = delete;
+
+  ~ModuleOwner();
+
+  BorrowedRef<> get() const {
+    return module_;
+  }
+
+  bool operator!=(std::nullptr_t) const {
+    return module_ != nullptr;
+  }
+
+ private:
+  Ref<> module_;
+};
+
+// Returns an empty owner if the native module is unavailable or being
+// destroyed.
+ModuleOwner retainModuleOwner();
+ModuleOwner retainModuleOwner(ModuleState& state);
+
 /*
  * Clean up any resources allocated by the JIT.
  *
@@ -68,7 +102,7 @@ void cancelBackgroundCompiles(Context& ctx);
  * Return true if the function was successfully scheduled for compilation, or if
  * it is already compiled.
  */
-bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func);
+bool scheduleJitCompile(ModuleState& state, BorrowedRef<PyFunctionObject> func);
 
 /*
  * JIT compile func and patch its entry point.

@@ -435,7 +435,8 @@ void registerNestedCompileData(
   }
 
   if (register_root) {
-    JitEligibility eligibility = getCompilationEligibility(module, root_code);
+    JitEligibility eligibility =
+        getCompilationEligibility(*state, module, root_code);
     if (eligibility == JitEligibility::Ineligible) {
       return;
     }
@@ -448,7 +449,8 @@ void registerNestedCompileData(
     if (!PyCode_Check(code) || code->co_qualname == nullptr) {
       continue;
     }
-    JitEligibility eligibility = getCompilationEligibility(module, code);
+    JitEligibility eligibility =
+        getCompilationEligibility(*state, module, code);
     if (eligibility != JitEligibility::Ineligible) {
       state->jit_context->getOrCreateNestedCompileData(
           module, code, eligibility);

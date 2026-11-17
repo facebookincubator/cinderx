@@ -7,13 +7,20 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/context_iface.h"
 
+namespace cinderx {
+struct ModuleState;
+}
+
 namespace cinderx::jit {
 
 bool hasRequiredCodeFlags(BorrowedRef<PyCodeObject> code);
 
-JitEligibility getCompilationEligibility(BorrowedRef<PyFunctionObject> func);
+JitEligibility getCompilationEligibility(
+    ModuleState& state,
+    BorrowedRef<PyFunctionObject> func);
 
 JitEligibility getCompilationEligibility(
+    ModuleState& state,
     BorrowedRef<> module_name,
     BorrowedRef<PyCodeObject> code);
 

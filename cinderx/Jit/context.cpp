@@ -370,11 +370,11 @@ BorrowedRef<PyFunctionObject> Context::nestedCompileAnchor(
   return it != code_outer_funcs_.end() ? it->second : func;
 }
 
-void Context::refreshNestedCompileData() {
+void Context::refreshNestedCompileData(ModuleState& state) {
   JITCompilationLock lock;
   for (auto& [code, data] : nested_compile_data_) {
     data->setEligibility(
-        getCompilationEligibility(data->moduleName(), data->code()));
+        getCompilationEligibility(state, data->moduleName(), data->code()));
   }
 }
 
