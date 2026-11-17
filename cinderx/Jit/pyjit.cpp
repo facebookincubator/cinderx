@@ -3438,16 +3438,17 @@ PyObject* would_tag_if_deferred(
   Py_RETURN_FALSE;
 }
 
-PyObject* mlock_profiler_dependencies(PyObject* /* self */, PyObject*) {
-  if (jitCtx() == nullptr) {
+PyObject* mlock_profiler_dependencies(PyObject* mod, PyObject*) {
+  auto* ctx = jitCtx(mod);
+  if (ctx == nullptr) {
     Py_RETURN_NONE;
   }
-  jitCtx()->mlockProfilerDependencies();
+  ctx->mlockProfilerDependencies();
   Py_RETURN_NONE;
 }
 
-PyObject* page_in_profiler_dependencies(PyObject*, PyObject*) {
-  Ref<> qualnames = jitCtx()->pageInProfilerDependencies();
+PyObject* page_in_profiler_dependencies(PyObject* mod, PyObject*) {
+  Ref<> qualnames = jitCtx(mod)->pageInProfilerDependencies();
   return qualnames.release();
 }
 
@@ -3624,7 +3625,8 @@ PyObject* get_compiled_spill_stack_size(PyObject* mod, PyObject* arg) {
   return PyLong_FromLong(size);
 }
 
-PyObject* get_and_clear_inline_cache_stats(PyObject* /* self */, PyObject*) {
+PyObject* get_and_clear_inline_cache_stats(PyObject* mod, PyObject*) {
+  auto* ctx = jitCtx(mod);
   auto stats = Ref<>::steal(PyDict_New());
   if (stats == nullptr) {
     return nullptr;
@@ -3655,14 +3657,14 @@ PyObject* get_and_clear_inline_cache_stats(PyObject* /* self */, PyObject*) {
   };
   auto load_method_stats = Ref<>::steal(check(PyList_New(0)));
   check(PyDict_SetItemString(stats, "load_method_stats", load_method_stats));
-  for (auto& cache_stats : jitCtx()->getAndClearLoadMethodCacheStats()) {
+  for (auto& cache_stats : ctx->getAndClearLoadMethodCacheStats()) {
     make_inline_cache_stats(load_method_stats, cache_stats);
   }
 
   auto load_type_method_stats = Ref<>::steal(check(PyList_New(0)));
   check(PyDict_SetItemString(
       stats, "load_type_method_stats", load_type_method_stats));
-  for (auto& cache_stats : jitCtx()->getAndClearLoadTypeMethodCacheStats()) {
+  for (auto& cache_stats : ctx->getAndClearLoadTypeMethodCacheStats()) {
     make_inline_cache_stats(load_type_method_stats, cache_stats);
   }
 
