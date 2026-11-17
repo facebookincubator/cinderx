@@ -3893,7 +3893,7 @@ PyObject* release_fork_locks(PyObject* imp) {
 
 // Patch sys.monitoring.register_callback to intercept debugger/profiler
 // attachment.
-void patchSysMonitoringFunctions() {
+void patchSysMonitoringFunctions(ModuleState& mod_state) {
   BorrowedRef<> monitoring = PySys_GetObject("monitoring");
   if (monitoring == nullptr) {
     JIT_DLOG("sys.monitoring not found, skipping JIT monitoring integration");
@@ -3910,8 +3910,7 @@ void patchSysMonitoringFunctions() {
     return;
   }
 
-  auto mod_state = cinderx::getModuleState();
-  mod_state->orig_sys_monitoring_register_callback = Ref<>::create(original);
+  mod_state.orig_sys_monitoring_register_callback = Ref<>::create(original);
 
   Ref<> patched_func = makeInstrumentedSysFunction(
       instrumented_sys_monitoring_register_callback_def, original);
@@ -3936,7 +3935,7 @@ void patchSysMonitoringFunctions() {
   Ref<> orig_free_tool_id =
       Ref<>::steal(PyObject_GetAttrString(monitoring, "free_tool_id"));
   if (orig_free_tool_id != nullptr) {
-    mod_state->orig_sys_monitoring_free_tool_id =
+    mod_state.orig_sys_monitoring_free_tool_id =
         Ref<>::create(orig_free_tool_id);
 
     Ref<> patched_free_tool_id = makeInstrumentedSysFunction(
@@ -3963,15 +3962,13 @@ void patchSysMonitoringFunctions() {
 
 // Patch sys.setprofile and sys.settrace to intercept profiler/debugger
 // attachment.
-void patchSysSetProfileAndSetTrace() {
+void patchSysSetProfileAndSetTrace(ModuleState& mod_state) {
   Ref<> sys = Ref<>::steal(PyImport_ImportModule("sys"));
   if (sys == nullptr) {
     PyErr_Clear();
     JIT_DLOG("sys module not found, skipping sys.setprofile/settrace patching");
     return;
   }
-
-  auto mod_state = cinderx::getModuleState();
 
   auto patchSysFunc =
       [&](const char* attr_name,
@@ -4001,35 +3998,34 @@ void patchSysSetProfileAndSetTrace() {
 
   patchSysFunc(
       "setprofile", instrumented_sys_setprofile_def, [&](BorrowedRef<> func) {
-        mod_state->orig_sys_setprofile = Ref<>::create(func);
+        mod_state.orig_sys_setprofile = Ref<>::create(func);
       });
   patchSysFunc(
       "settrace", instrumented_sys_settrace_def, [&](BorrowedRef<> func) {
-        mod_state->orig_sys_settrace = Ref<>::create(func);
+        mod_state.orig_sys_settrace = Ref<>::create(func);
       });
   patchSysFunc(
       "_setprofileallthreads",
       instrumented_sys_setprofileallthreads_def,
       [&](BorrowedRef<> func) {
-        mod_state->orig_sys_setprofileallthreads = Ref<>::create(func);
+        mod_state.orig_sys_setprofileallthreads = Ref<>::create(func);
       });
   patchSysFunc(
       "_settraceallthreads",
       instrumented_sys_settraceallthreads_def,
       [&](BorrowedRef<> func) {
-        mod_state->orig_sys_settraceallthreads = Ref<>::create(func);
+        mod_state.orig_sys_settraceallthreads = Ref<>::create(func);
       });
 }
 
-void restoreSysMonitoringRegisterCallback() {
-  auto mod_state = cinderx::getModuleState();
+void restoreSysMonitoringRegisterCallback(ModuleState& mod_state) {
   BorrowedRef<> monitoring = PySys_GetObject("monitoring");
   if (monitoring == nullptr) {
     return;
   }
 
   BorrowedRef<> orig_register_callback =
-      mod_state->orig_sys_monitoring_register_callback;
+      mod_state.orig_sys_monitoring_register_callback;
   if (orig_register_callback != nullptr) {
     if (PyObject_SetAttrString(
             monitoring, "register_callback", orig_register_callback) < 0) {
@@ -4037,7 +4033,7 @@ void restoreSysMonitoringRegisterCallback() {
     }
   }
 
-  BorrowedRef<> orig_free_tool_id = mod_state->orig_sys_monitoring_free_tool_id;
+  BorrowedRef<> orig_free_tool_id = mod_state.orig_sys_monitoring_free_tool_id;
   if (orig_free_tool_id != nullptr) {
     if (PyObject_SetAttrString(monitoring, "free_tool_id", orig_free_tool_id) <
         0) {
@@ -4046,28 +4042,26 @@ void restoreSysMonitoringRegisterCallback() {
   }
 }
 
-void restoreSysSetProfileAndSetTrace() {
-  auto mod_state = cinderx::getModuleState();
-
-  if (BorrowedRef<> original_setprofile = mod_state->orig_sys_setprofile) {
+void restoreSysSetProfileAndSetTrace(ModuleState& mod_state) {
+  if (BorrowedRef<> original_setprofile = mod_state.orig_sys_setprofile) {
     if (PySys_SetObject("setprofile", original_setprofile) < 0) {
       PyErr_Clear();
     }
   }
 
-  if (BorrowedRef<> original_settrace = mod_state->orig_sys_settrace) {
+  if (BorrowedRef<> original_settrace = mod_state.orig_sys_settrace) {
     if (PySys_SetObject("settrace", original_settrace) < 0) {
       PyErr_Clear();
     }
   }
 
-  if (BorrowedRef<> original = mod_state->orig_sys_setprofileallthreads) {
+  if (BorrowedRef<> original = mod_state.orig_sys_setprofileallthreads) {
     if (PySys_SetObject("_setprofileallthreads", original) < 0) {
       PyErr_Clear();
     }
   }
 
-  if (BorrowedRef<> original = mod_state->orig_sys_settraceallthreads) {
+  if (BorrowedRef<> original = mod_state.orig_sys_settraceallthreads) {
     if (PySys_SetObject("_settraceallthreads", original) < 0) {
       PyErr_Clear();
     }
@@ -5304,8 +5298,8 @@ int initialize(BorrowedRef<> cinderx_module) {
   }
 
   if (getConfig().support_instrumentation) {
-    patchSysMonitoringFunctions();
-    patchSysSetProfileAndSetTrace();
+    patchSysMonitoringFunctions(*mod_state);
+    patchSysSetProfileAndSetTrace(*mod_state);
   }
 
   // Set up perf event writers.
@@ -5552,8 +5546,8 @@ void finalize(ModuleState& mod_state) {
   g_aot_ctx.destroy();
 #endif
 
-  restoreSysMonitoringRegisterCallback();
-  restoreSysSetProfileAndSetTrace();
+  restoreSysMonitoringRegisterCallback(mod_state);
+  restoreSysSetProfileAndSetTrace(mod_state);
 
   std::atomic_ref{getMutableConfig().state}.store(State::kNotInitialized);
 }
