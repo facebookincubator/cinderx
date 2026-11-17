@@ -5855,6 +5855,19 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.bar(), {1: 5})
 
+    def test_comprehension_ifexp_condition_compiles(self) -> None:
+        codestr = """
+        S = {1, 2}
+
+        def f(xs: list[int], a: bool, b: bool) -> list[int]:
+            return [x for x in xs for y in xs if (a if y in S else b)]
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.f([1, 3], True, False), [1, 3])
+            self.assertEqual(mod.f([1, 3], False, True), [1, 3])
+            self.assertEqual(mod.f([1, 3], False, False), [])
+            self.assertEqual(mod.f([2], True, False), [2])
+
     def test_dunder_name(self) -> None:
         codestr = """
         class MyClass:

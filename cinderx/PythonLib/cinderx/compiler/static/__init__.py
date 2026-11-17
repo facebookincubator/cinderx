@@ -1146,13 +1146,13 @@ class StaticCodeGenBase(StrictCodeGenBase):
             end = self.newBlock("end")
             orelse = self.newBlock("orelse")
             # Jump directly to orelse if test matches
-            self.get_type(test.test).emit_jumpif(test.test, orelse, False, self)
+            self.compileJumpIf(test.test, orelse, False)
             # Jump directly to target if test is true and body is matches
-            self.get_type(test.body).emit_jumpif(test.body, next, is_if_true, self)
+            self.compileJumpIf(test.body, next, is_if_true)
             self.emit_jump_forward_noline(end)
             # Jump directly to target if test is true and orelse matches
             self.nextBlock(orelse)
-            self.get_type(test.orelse).emit_jumpif(test.orelse, next, is_if_true, self)
+            self.compileJumpIf(test.orelse, next, is_if_true)
             self.nextBlock(end)
             return
 
