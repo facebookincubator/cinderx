@@ -391,6 +391,9 @@ class CompiledFunction {
   // Drop the profile state for a location whose profile guard deopted.
   // Silently ignores missing collectors: deopt must never fail.
   void removeProfileEntry(const ProfileLocation& location);
+  // Whether the profile state for a location has already been dropped. True
+  // when there is no collector, as there is nothing left to drop.
+  bool isProfileEntryRemoved(const ProfileLocation& location) const;
 
   // Associate a function with this CompiledFunction and set its vectorcall
   // entry point, the function will keep the compiled code alive.

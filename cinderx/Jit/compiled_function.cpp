@@ -281,6 +281,14 @@ void CompiledFunction::removeProfileEntry(const ProfileLocation& location) {
   data_->profile_collector->remove(location);
 }
 
+bool CompiledFunction::isProfileEntryRemoved(
+    const ProfileLocation& location) const {
+  if (data_ == nullptr || data_->profile_collector == nullptr) {
+    return true;
+  }
+  return data_->profile_collector->isRemoved(location);
+}
+
 bool CompiledFunction::isContiguous() const {
   return contiguous_data_;
 }

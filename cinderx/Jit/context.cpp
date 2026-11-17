@@ -21,6 +21,7 @@
 #include "cinderx/module_state.h"
 #include "cinderx/python_runtime.h"
 
+#include <algorithm>
 #include <optional>
 #include <utility>
 
@@ -83,6 +84,41 @@ void collectAndClearInlineCacheStats(
   }
 }
 #endif
+
+// Indexes of the locals in the innermost frame of `meta` that hold its guilty
+// value.
+std::vector<size_t> guiltyLocals(const DeoptMetadata& meta) {
+  std::vector<size_t> locals;
+  if (meta.guilty_value == -1) {
+    return locals;
+  }
+  const DeoptFrameMetadata& frame = meta.innermostFrame();
+  for (size_t i = 0; i < frame.localsplus.size(); ++i) {
+    if (frame.localsplus[i] == meta.guilty_value) {
+      locals.push_back(i);
+    }
+  }
+  return locals;
+}
+
+// Whether `meta` is a profile guard in `code` whose guilty value is held by one
+// of `locals`.
+bool guardsAnyLocal(
+    const DeoptMetadata& meta,
+    BorrowedRef<PyCodeObject> code,
+    const std::vector<size_t>& locals) {
+  if (meta.reason != DeoptReason::kGuardFailure || meta.guilty_value == -1) {
+    return false;
+  }
+  const DeoptFrameMetadata& frame = meta.innermostFrame();
+  if (frame.code() != code || !frame.profile_cause().has_value()) {
+    return false;
+  }
+  return std::any_of(locals.begin(), locals.end(), [&](size_t i) {
+    return i < frame.localsplus.size() &&
+        frame.localsplus[i] == meta.guilty_value;
+  });
+}
 
 } // namespace
 
@@ -505,8 +541,26 @@ void Context::guardFailed(
   if (compiled == nullptr) {
     return;
   }
-  compiled->removeProfileEntry(
-      ProfileLocation{frame_meta.code(), *profile_cause});
+  BorrowedRef<PyCodeObject> code = frame_meta.code();
+  ProfileLocation location{code, *profile_cause};
+  // Only the first failure of a guard drops profile state; repeated failures
+  // have nothing new to remove.
+  if (compiled->isProfileEntryRemoved(location)) {
+    return;
+  }
+  compiled->removeProfileEntry(location);
+  // The profiled type of the guarded local is stale too, so also drop the
+  // entries behind every other profile guard on that local.
+  std::vector<size_t> locals = guiltyLocals(deopt_meta);
+  if (locals.empty()) {
+    return;
+  }
+  for (const DeoptMetadata& other : code_runtime->deoptMetadatas()) {
+    if (guardsAnyLocal(other, code, locals)) {
+      compiled->removeProfileEntry(
+          ProfileLocation{code, *other.innermostFrame().profile_cause()});
+    }
+  }
 }
 
 void Context::clearGuardFailureCallback() {

@@ -221,6 +221,16 @@ void ProfileCollector::remove(const ProfileLocation& location) {
 #endif
 }
 
+bool ProfileCollector::isRemoved(const ProfileLocation& location) const {
+#ifdef ENABLE_PREFORK_MODEL
+  // Nothing is tracked, so there is never anything left to remove.
+  return true;
+#else
+  std::lock_guard<std::mutex> guard(mutex_);
+  return deopted_locations_.contains(location);
+#endif
+}
+
 Profile ProfileCollector::snapshot() const {
 #ifdef ENABLE_PREFORK_MODEL
   return Profile{};

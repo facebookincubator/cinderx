@@ -269,6 +269,8 @@ class ProfileCollector {
   // snapshots suppress it via Profile::find even if a callee profile
   // re-merges it; unknown locations are still recorded.
   void remove(const ProfileLocation& location);
+  // Whether remove() has already been called for a location.
+  bool isRemoved(const ProfileLocation& location) const;
 
  private:
 #ifndef ENABLE_PREFORK_MODEL

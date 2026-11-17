@@ -23,7 +23,9 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#include <algorithm>
 #include <optional>
+#include <vector>
 
 #ifdef Py_GIL_DISABLED
 #include <barrier>
@@ -1810,6 +1812,113 @@ def test(a, b):
 
   Profile after = first->snapshotProfile();
   EXPECT_TRUE(after.entries().empty());
+}
+
+namespace {
+
+const char* kSameLocalGuardsSrc = R"(
+def test(a, b, c, flag):
+  if flag:
+    return a + b
+  x = a - b
+  return c * c
+)";
+
+// Runs both branches of kSameLocalGuardsSrc's `test` with ints, so the
+// installed compilation profiles all three binary ops.
+void warmSameLocalGuards(BorrowedRef<PyFunctionObject> func) {
+  auto one = Ref<>::steal(PyLong_FromLong(1));
+  auto two = Ref<>::steal(PyLong_FromLong(2));
+  auto three = Ref<>::steal(PyLong_FromLong(3));
+  for (PyObject* flag : {Py_True, Py_False}) {
+    PyObject* args[] = {one.get(), two.get(), three.get(), flag};
+    auto result = Ref<>::steal(func->vectorcall(
+        reinterpret_cast<PyObject*>(func.get()), args, 4, nullptr));
+    ASSERT_NE(result, nullptr);
+  }
+}
+
+// Calls the `flag` branch with a float `a`, failing the profile guard on `a`
+// at `a + b`.
+void failAddGuard(
+    CompiledFunctionData& recompiled,
+    BorrowedRef<PyFunctionObject> func) {
+  auto a = Ref<>::steal(PyFloat_FromDouble(1.5));
+  auto b = Ref<>::steal(PyLong_FromLong(2));
+  auto c = Ref<>::steal(PyLong_FromLong(3));
+  PyObject* args[] = {a.get(), b.get(), c.get(), Py_True};
+  auto result = Ref<>::steal(recompiled.vectorcall_entry(
+      reinterpret_cast<PyObject*>(func.get()), args, 4, nullptr));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(PyFloat_AsDouble(result), 3.5);
+}
+
+// The profiled locations in bytecode order: `a + b`, `a - b`, `c * c`.
+std::vector<ProfileLocation> sortedLocations(const Profile& profile) {
+  std::vector<ProfileLocation> locations;
+  for (const auto& [location, entry] : profile.entries()) {
+    locations.push_back(location);
+  }
+  std::sort(locations.begin(), locations.end());
+  return locations;
+}
+
+} // namespace
+
+TEST_F(BinaryOpCacheCodegenTest, ProfileGuardFailureDropsGuardsOnSameLocal) {
+  Ref<PyFunctionObject> func(compileAndGet(kSameLocalGuardsSrc, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  warmSameLocalGuards(func);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  Profile profile = first->snapshotProfile();
+  std::vector<ProfileLocation> locations = sortedLocations(profile);
+  ASSERT_EQ(locations.size(), 3);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  failAddGuard(recompiled, func);
+
+  // The failure at `a + b` also drops `a - b`, which guards `a` on the other
+  // branch, but keeps `c * c`, which only guards `c`.
+  Profile after = first->snapshotProfile();
+  EXPECT_TRUE(after.isDeopted(locations[0]));
+  EXPECT_TRUE(after.isDeopted(locations[1]));
+  EXPECT_FALSE(after.isDeopted(locations[2]));
+  ASSERT_EQ(after.entries().size(), 1);
+  EXPECT_EQ(after.entries().begin()->first, locations[2]);
+}
+
+TEST_F(
+    BinaryOpCacheCodegenTest,
+    ProfileGuardFailureOnRemovedEntryKeepsOtherGuards) {
+  Ref<PyFunctionObject> func(compileAndGet(kSameLocalGuardsSrc, "test"));
+  ASSERT_NE(func, nullptr);
+  ASSERT_EQ(compileFunction(func), Result::OK);
+  warmSameLocalGuards(func);
+
+  Context* ctx = getContext();
+  ASSERT_NE(ctx, nullptr);
+  BorrowedRef<CompiledFunction> first = ctx->lookupFunc(func);
+  ASSERT_NE(first, nullptr);
+  Profile profile = first->snapshotProfile();
+  std::vector<ProfileLocation> locations = sortedLocations(profile);
+  ASSERT_EQ(locations.size(), 3);
+
+  CompiledFunctionData recompiled = recompileWithProfile(func, profile);
+  first->removeProfileEntry(locations[0]);
+  failAddGuard(recompiled, func);
+
+  // The failing guard's entry was already gone, so the failure drops nothing
+  // else.
+  Profile after = first->snapshotProfile();
+  EXPECT_TRUE(after.isDeopted(locations[0]));
+  EXPECT_FALSE(after.isDeopted(locations[1]));
+  EXPECT_FALSE(after.isDeopted(locations[2]));
+  EXPECT_EQ(after.entries().size(), 2);
 }
 
 TEST_F(BinaryOpCacheCodegenTest, RecompileSpecializesInlinedBinaryOp) {
