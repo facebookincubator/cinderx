@@ -312,7 +312,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 dedent(
                     """
                     import importlib
-                    importlib.set_lazy_imports(True)
+                    importlib.set_lazy_imports(True, excluding=None, eager=None)
                     from tmp_b import B
 
                     A = 1
@@ -383,7 +383,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 dedent(
                     """
                     import importlib
-                    importlib.set_lazy_imports(True)
+                    importlib.set_lazy_imports(True, excluding=None, eager=None)
                     from tmp_b import B
 
                     A = 1
