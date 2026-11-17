@@ -2,6 +2,7 @@
 
 # pyre-strict
 
+import dis
 import subprocess
 import sys
 import tempfile
@@ -180,6 +181,32 @@ class DisableEnableTests(unittest.TestCase):
 
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
+
+    def test_deopt_all_raise_traceback(self) -> None:
+        class Operand:
+            def __add__(self, other: object) -> object:
+                disable_jit(deopt_all=True)
+                raise RuntimeError("add failed")
+
+        def foo(a: Operand, b: object) -> object:
+            result = a + b
+            return result
+
+        force_compile(foo)
+        try:
+            foo(Operand(), 1)
+        except RuntimeError as error:
+            tb = error.__traceback__
+        else:
+            self.fail("foo should have raised")
+        finally:
+            enable_jit()
+
+        while tb is not None and tb.tb_frame.f_code is not foo.__code__:
+            tb = tb.tb_next
+        assert tb is not None
+        faulting = [i for i in dis.get_instructions(foo) if i.offset <= tb.tb_lasti]
+        self.assertEqual(faulting[-1].opname, "BINARY_OP")
 
     def test_already_disabled(self) -> None:
         def foo(a: int, b: int) -> int:

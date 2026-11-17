@@ -219,12 +219,16 @@ BCIndex getDeoptResumeIndex(
   bool is_innermost = &frame == &meta.innermostFrame();
 
   // For instrumentation deopts: kPeriodicTaskFailure means the bytecode
-  // hasn't completed (RunPeriodicTasks) — re-execute. Other reasons mean
-  // the bytecode's C call completed — advance past it.
+  // hasn't completed (RunPeriodicTasks) — re-execute.  Otherwise a successful
+  // C call advances past the bytecode, and a failed one is handled like any
+  // other raise below.
   if (is_instrumentation_deopt && is_innermost) {
-    return meta.reason == DeoptReason::kPeriodicTaskFailure
-        ? frame.causeInstrIdx()
-        : frame.nextInstrIdx();
+    if (meta.reason == DeoptReason::kPeriodicTaskFailure) {
+      return frame.causeInstrIdx();
+    }
+    if (!PyErr_Occurred()) {
+      return frame.nextInstrIdx();
+    }
   }
 
   if ((is_innermost &&
@@ -260,7 +264,7 @@ void reifyFrameImpl(
   // cache data or a negative location.
   //
   // For instrumentation deopts, getDeoptResumeIndex re-executes for
-  // kPeriodicTaskFailure and advances for all other reasons.
+  // kPeriodicTaskFailure and advances past calls that didn't raise.
   int prev_idx =
       (getDeoptResumeIndex(
            meta, frame_meta, forced_deopt, is_instrumentation_deopt) -
