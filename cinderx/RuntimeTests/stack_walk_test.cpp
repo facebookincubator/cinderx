@@ -285,19 +285,6 @@ walkBelowKnownFrames(size_t remaining, F&& walk) {
   return result;
 }
 
-// The frames a walk of `stack` should produce: the innermost record paired with
-// the interrupted PC, then every caller paired with the address its callee
-// returns to.
-std::vector<FramePair> expectedFrames(const FakeStack& stack) {
-  std::vector<FramePair> expected;
-  expected.emplace_back(
-      stack.innermost(), StackWalkTestAccess::interruptedPc());
-  for (size_t i = 1; i < stack.depth(); i++) {
-    expected.emplace_back(stack.at(i), FakeStack::returnAddressFor(i - 1));
-  }
-  return expected;
-}
-
 TEST(StackWalkCursorTest, StepFollowsAChainToItsEnd) {
   FakeStack stack{4};
   StackWalk::Cursor cursor{stack.innermost()};
