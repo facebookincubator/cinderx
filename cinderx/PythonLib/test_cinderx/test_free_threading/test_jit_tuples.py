@@ -120,7 +120,7 @@ class JITTupleTest(CinderXTestCase):
         self.assertTrue(read_item_deopts)
         for deopt in read_item_deopts:
             self.assertEqual(deopt["normal"]["reason"], "GuardFailure")
-            self.assertEqual(deopt["normal"]["description"], "GuardType")
+            self.assertEqual(deopt["normal"]["description"], "GuardType<tuple>")
         self.assertEqual(
             sum(deopt["int"]["count"] for deopt in read_item_deopts), call_count
         )

@@ -1383,7 +1383,9 @@ class ImportTests(unittest.TestCase):
 
         self.addCleanup(restore)
 
-    def _make_import_name(self, module_name: str) -> Callable[[], object]:
+    def _make_import_name(
+        self, module_name: str, return_expr: str = "imported"
+    ) -> Callable[[], object]:
         namespace: dict[str, Any] = {
             "__builtins__": builtins.__dict__,
             "__name__": __name__,
@@ -1391,7 +1393,7 @@ class ImportTests(unittest.TestCase):
         source = f"""
 def load():
     import {module_name} as imported
-    return imported
+    return {return_expr}
 """
         exec(compile(source, f"<{module_name}>", "exec"), namespace, namespace)
         load = namespace["load"]
@@ -1468,6 +1470,56 @@ def load():
 
         self.assertIs(load(), module)
         self._assert_import_name_cached(load)
+
+    def test_import_name_guard_failure_description(self) -> None:
+        name = "_cinderx_import_cache_descr"
+        self._install_module(name, types.ModuleType(name))
+        load = self._make_import_name(name)
+        load()
+
+        replacement = types.ModuleType(name)
+        sys.modules[name] = replacement
+        cinderx.jit.clear_runtime_stats()
+        self.assertIs(load(), replacement)
+        deopts = cinderx.jit.get_and_clear_runtime_stats().get("deopt") or []
+        if not isinstance(deopts, list):
+            self.fail("Deopt runtime stats are not a list")
+        self.assertIn(
+            (f"IMPORT_NAME full: {name}", "module"),
+            {
+                (event["normal"]["description"], event["normal"]["guilty_type"])
+                for event in deopts
+                if event["normal"]["func_qualname"] == load.__qualname__
+                and event["normal"]["reason"] == "GuardFailure"
+            },
+        )
+
+    @skip_if_ft("Inline attribute caches are not supported in free-threaded builds")
+    def test_module_attr_guard_failure_description(self) -> None:
+        name = "_cinderx_import_cache_descr"
+        module = types.ModuleType(name)
+        child = types.ModuleType(f"{name}.child")
+        module.__dict__["child"] = child
+        self._install_module(name, module)
+        load = self._make_import_name(name, "imported.child")
+        self.assertIs(load(), child)
+
+        replacement = types.ModuleType(f"{name}.child")
+        module.__dict__["child"] = replacement
+        cinderx.jit.clear_runtime_stats()
+        self.assertIs(load(), replacement)
+        deopts = cinderx.jit.get_and_clear_runtime_stats().get("deopt") or []
+        if not isinstance(deopts, list):
+            self.fail("Deopt runtime stats are not a list")
+        self.assertIn(
+            ("GuardIs<module instance>", "module"),
+            {
+                (event["normal"]["description"], event["normal"]["guilty_type"])
+                for event in deopts
+                if event["normal"]["func_qualname"] == load.__qualname__
+                and event["normal"]["reason"] == "GuardFailure"
+            },
+        )
 
     def test_import_name_sys_modules_mutations_deopt(self) -> None:
         for mutation in ("replace", "delete", "readd"):

@@ -9,6 +9,7 @@
 #include "internal/pycore_ceval.h"
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/bytecode_offsets.h"
@@ -72,6 +73,56 @@ hir::Register* guardedReg(const hir::DeoptBase& instr) {
     return instr.getOperand(0);
   }
   return nullptr;
+}
+
+// What a type or identity guard expects: the target type of a GuardType or the
+// target object of a GuardIs.  The LIR generator keeps both alive for the
+// lifetime of the compiled code.
+BorrowedRef<> guardExpectation(const hir::DeoptBase& instr) {
+  if (instr.isGuardIs()) {
+    return instr.as<hir::GuardIs>().target();
+  }
+  if (instr.isGuardType()) {
+    BorrowedRef<PyTypeObject> type =
+        instr.as<hir::GuardType>().target().uniquePyType();
+    return type != nullptr ? BorrowedRef<>{type.getObj()} : nullptr;
+  }
+  return nullptr;
+}
+
+// Name a type like the guilty types in deopt stats do.  Reading the module name
+// needs the GIL, so fall back to the bare name without it.
+std::string guardTypeName(BorrowedRef<PyTypeObject> type) {
+  return PyGILState_Check() ? typeFullname(type) : type->tp_name;
+}
+
+std::string describeGuardExpectation(
+    hir::DeoptDescr descr,
+    BorrowedRef<> expected) {
+  if (descr == hir::DeoptDescr::kOpcodeGuardType) {
+    return guardTypeName(BorrowedRef<PyTypeObject>{expected});
+  }
+  if (expected == Py_None) {
+    return "None";
+  }
+  if (expected == Py_True) {
+    return "True";
+  }
+  if (expected == Py_False) {
+    return "False";
+  }
+  if (PyType_Check(expected)) {
+    return fmt::format(
+        "type {}", guardTypeName(BorrowedRef<PyTypeObject>{expected}));
+  }
+  if (PyLong_CheckExact(expected)) {
+    int overflow = 0;
+    long long value = PyLong_AsLongLongAndOverflow(expected, &overflow);
+    if (overflow == 0) {
+      return fmt::format("int {}", value);
+    }
+  }
+  return fmt::format("{} instance", guardTypeName(Py_TYPE(expected)));
 }
 
 void reifyLocalsplus(
@@ -545,6 +596,14 @@ std::string DeoptMetadata::descrString() const {
   if (descr == hir::DeoptDescr::kNone) {
     return {};
   }
+  if (eh_name != nullptr &&
+      (descr == hir::DeoptDescr::kOpcodeGuardType ||
+       descr == hir::DeoptDescr::kOpcodeGuardIs)) {
+    return fmt::format(
+        "{}<{}>",
+        hir::deoptDescrPrefix(descr),
+        describeGuardExpectation(descr, eh_name));
+  }
   return hir::deoptDescrString(descr, eh_name);
 }
 
@@ -655,6 +714,12 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
         meta.eh_name.get() == nullptr,
         "instruction has both an error name and a description name");
     meta.eh_name = descr_name;
+  } else if (
+      meta.descr == hir::DeoptDescr::kOpcodeGuardType ||
+      meta.descr == hir::DeoptDescr::kOpcodeGuardIs) {
+    // Guard failures never read eh_name as an error name, so it can hold what
+    // the guard expected for descrString().
+    meta.eh_name = guardExpectation(instr);
   }
 
   return meta;

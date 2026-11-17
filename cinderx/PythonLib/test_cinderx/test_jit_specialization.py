@@ -112,12 +112,12 @@ class SpecializationTests(CinderXTestCase):
             self.fail("Deopt runtime stats are not a list")
         self.assertEqual(
             {
-                e["normal"]["guilty_type"]
+                (e["normal"]["description"], e["normal"]["guilty_type"])
                 for e in deopts
                 if e["normal"]["func_qualname"].endswith(".f")
                 and e["normal"]["reason"] == "GuardFailure"
             },
-            {"float"},
+            {("GuardType<int>", "float")},
         )
 
     def test_binary_op_subtract_int(self) -> None:

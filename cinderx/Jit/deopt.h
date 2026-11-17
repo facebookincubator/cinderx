@@ -200,9 +200,9 @@ struct DeoptMetadata {
   // The name of the unbound local or attribute, if we are deopting
   // because of an undefined value. Also reused to hold the name that
   // follows a description kind for which hir::deoptDescrHasName() is
-  // true. The two uses never coincide: descriptions with a name are
-  // only set on guard instructions, whose deopt reason never reads
-  // this field as an error name.
+  // true, or the type or object a GuardType or GuardIs expected. The
+  // uses never coincide: both are only set on guard instructions, whose
+  // deopt reason never reads this field as an error name.
   BorrowedRef<> eh_name;
 
   // All live values
