@@ -2217,6 +2217,37 @@ bool LIRGenerator::translateSpecializedCall(
         Imm{reinterpret_cast<uint64_t>(self_obj), DataType::kObject});
   };
 
+  // Build a borrowed array of the call arguments on the stack. The array is
+  // read by C code, so in free-threaded builds the deferred-RC tag is stripped.
+  auto build_args_array = [&](size_t nargs) {
+    const int aligned_size =
+        static_cast<int>((nargs * kPointerSize + 15) & ~15);
+    env_->reserve_stack_size = std::max(env_->reserve_stack_size, aligned_size);
+    Instruction* args_array = bbb.appendInstr(
+        OutVReg{Operand::k64bit},
+        Opcode::kReserveStack,
+        Imm{static_cast<uint64_t>(StackRegion::kLongLived)});
+    for (size_t i = 0; i < nargs; ++i) {
+      Instruction* value = bbb.getDefInstr(hir_instr.arg(arg_offset + i));
+      if constexpr (kFreeThreadedBuild) {
+        // The array only borrows the arguments, so strip the
+        // deferred-RC tag: the array is read by C code that expects a
+        // clean pointer.
+        value = bbb.appendInstr(
+            OutVReg{DataType::kObjectUntagged},
+            Opcode::kAnd,
+            value,
+            Imm{~static_cast<uint64_t>(jit::kPyObjectTagBits),
+                DataType::k64bit});
+      }
+      bbb.appendInstr(
+          OutInd{args_array, static_cast<int32_t>(i * kPointerSize)},
+          Opcode::kStore,
+          value);
+    }
+    return args_array;
+  };
+
   // This is where we can go bananas with specializing calls to things like
   // tuple(), list(), etc, hardcoding or inlining calls to tp_new and tp_init as
   // appropriate. For now, we simply support any native callable with a
@@ -2280,6 +2311,31 @@ bool LIRGenerator::translateSpecializedCall(
           operands.subspan(1 + arg_offset, num_values),
           kwnames,
           /*args_offset=*/false);
+      return true;
+    }
+    case METH_VARARGS: {
+      // METH_VARARGS functions take (self, args), where args is a tuple
+      // of the call arguments.
+      const size_t nargs = hir_instr.numArgs() - arg_offset;
+      Instruction* args_array = build_args_array(nargs);
+      Instruction* args_tuple = bbb.appendCallInstruction(
+          OutVReg{DataType::kObject},
+          rt::tupleFromArray,
+          args_array,
+          static_cast<Py_ssize_t>(nargs));
+      // If the tuple allocation failed, deopt to the interpreter, which
+      // reports the allocation error; never call ml_meth with a null tuple.
+      appendGuard(bbb, InstrGuardKind::kNotZero, hir_instr, args_tuple);
+      if (self_reg != nullptr) {
+        bbb.appendIndirectCallInstruction(
+            hir_instr.output(), &def->ml_meth, self_reg, args_tuple);
+      } else {
+        bbb.appendIndirectCallInstruction(
+            hir_instr.output(), &def->ml_meth, self_obj, args_tuple);
+      }
+      // The tuple is owned by this call; release it once ml_meth has
+      // read through it.
+      makeDecref(bbb, args_tuple, nullptr, PyTuple_Type.tp_dealloc, false);
       return true;
     }
   }

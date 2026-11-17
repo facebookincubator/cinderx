@@ -93,6 +93,12 @@ PyObject* callWithKeywordArgsSimple(
     size_t nargsf,
     PyObject* kwnames);
 
+/*
+ * Build a tuple from `nargs` borrowed references, increfing each one.
+ * Returns a new reference, or nullptr on allocation failure.
+ */
+PyObject* tupleFromArray(PyObject* const* args, Py_ssize_t nargs);
+
 StaticCallReturn callWithIncorrectArgcount(
     PyFunctionObject* func,
     PyObject** args,

@@ -6,6 +6,7 @@ import copy
 import dis
 import faulthandler
 import gc
+import importlib
 import inspect
 import pickle
 import re
@@ -18,6 +19,11 @@ import unittest
 import weakref
 from collections.abc import Iterable
 from typing import Any, Callable, cast, TYPE_CHECKING
+
+try:
+    _testcapi = importlib.import_module("_testcapi")
+except ImportError:
+    _testcapi = None
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
@@ -2026,6 +2032,7 @@ _METHOD_DESCR_STR_SPLIT = str.split
 _METHOD_DESCR_LIST_SORT = list.sort
 _METHOD_DESCR_PATTERN = re.compile("a+")
 _METHOD_DESCR_PATTERN_MATCH = re.Pattern.match
+_METHOD_DESCR_SET_UNION = set.union
 
 
 class MethodDescrCallTests(unittest.TestCase):
@@ -2033,8 +2040,8 @@ class MethodDescrCallTests(unittest.TestCase):
     Calls through method descriptors held in module globals are not
     static calls, so the HIR leaves them as VectorCalls and the LIR
     generator specializes METH_NOARGS/METH_O/METH_FASTCALL/
-    METH_FASTCALL|METH_KEYWORDS calls to them directly, passing the
-    receiver as the C function's `self` argument.
+    METH_FASTCALL|METH_KEYWORDS/METH_VARARGS calls to them directly,
+    passing the receiver as the C function's `self` argument.
     """
 
     @cinder_support.failUnlessJITCompiled
@@ -2111,6 +2118,21 @@ class MethodDescrCallTests(unittest.TestCase):
     def _method_descr_fastcall_tuple_index_start(self):
         return (1, 2, 2).index(2, 2)
 
+    def _method_descr_fastcall_literal(self):
+        return _METHOD_DESCR_DICT_GET({"a": 1}, "a")
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_fastcall_default_literal(self):
+        return _METHOD_DESCR_DICT_GET({}, "a", 99)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_varargs_literal(self):
+        return _METHOD_DESCR_SET_UNION({1, 2}, {2, 3})
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_varargs_multi_literal(self):
+        return _METHOD_DESCR_SET_UNION({1}, {2}, {3})
+
     def test_method_descr_results(self) -> None:
         self.assertEqual(self._method_descr_noargs("abc"), "ABC")
         self.assertEqual(self._method_descr_noargs_literal(), "ABC")
@@ -2133,6 +2155,15 @@ class MethodDescrCallTests(unittest.TestCase):
         # vectorcall.
         self.assertEqual(self._method_descr_fastcall_tuple_index(), 1)
         self.assertEqual(self._method_descr_fastcall_tuple_index_start(), 2)
+
+    def test_method_descr_literal_receivers(self) -> None:
+        # Literal receivers prove the receiver's type, so the LIR
+        # generator takes the specialized METH_FASTCALL/METH_VARARGS
+        # paths instead of the generic vectorcall.
+        self.assertEqual(self._method_descr_fastcall_literal(), 1)
+        self.assertEqual(self._method_descr_fastcall_default_literal(), 99)
+        self.assertEqual(self._method_descr_varargs_literal(), {1, 2, 3})
+        self.assertEqual(self._method_descr_varargs_multi_literal(), {1, 2, 3})
 
     def test_method_descr_subclass_receiver(self) -> None:
         class DictSubclass(dict):
@@ -2203,6 +2234,11 @@ class MethodDescrCallTests(unittest.TestCase):
         self.assertNotIn("CallStatic", opcodes)
 
 
+# CPython's calling-convention fixture keeps METH_VARARGS across versions.
+_VARARGS_INSTANCE = _testcapi.MethInstance() if _testcapi is not None else None
+_VARARGS_PROPERTY: property = property()
+
+
 class SpecializeCCallTests(unittest.TestCase):
     """
     The JIT performs direct calls of C functions with CallStatic when possible.
@@ -2216,6 +2252,86 @@ class SpecializeCCallTests(unittest.TestCase):
     def test_c_call_error_raised(self) -> None:
         with self.assertRaises(TypeError):
             self._c_func_that_sets_pyerr()
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_call(self, a, b, c):
+        return _VARARGS_INSTANCE.meth_varargs(a, b, c)
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_no_args(self):
+        return _VARARGS_INSTANCE.meth_varargs()
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_keyword(self):
+        return _VARARGS_INSTANCE.meth_varargs(a=None)
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_property_set_name(self, owner, name):
+        return _VARARGS_PROPERTY.__set_name__(owner, name)
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_property_set_name_wrong_count(self):
+        return _VARARGS_PROPERTY.__set_name__(int)
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_refcount_call(self, key):
+        return _VARARGS_INSTANCE.meth_varargs(key, None, None)
+
+    @unittest.skipUnless(_testcapi is not None, "requires _testcapi")
+    def test_varargs_returns_correct_results(self) -> None:
+        self.assertEqual(
+            self._varargs_call(None, None, None),
+            (_VARARGS_INSTANCE, (None, None, None)),
+        )
+        self.assertEqual(self._varargs_no_args(), (_VARARGS_INSTANCE, ()))
+        self.assertIsNone(self._varargs_property_set_name(int, "x"))
+
+    def test_varargs_wrong_arg_count_raises(self) -> None:
+        with self.assertRaises(TypeError):
+            self._varargs_property_set_name_wrong_count()
+
+    @unittest.skipUnless(_testcapi is not None, "requires _testcapi")
+    def test_varargs_keyword_arg_raises(self) -> None:
+        with self.assertRaises(TypeError):
+            self._varargs_keyword()
+
+    @unittest.skipUnless(_testcapi is not None, "requires _testcapi")
+    def test_varargs_arg_refcount_stable(self) -> None:
+        # The argument tuple is built for the call and released after it,
+        # so repeatedly calling with the same argument must neither leak
+        # nor drop a reference.
+        key = "".join(["ab", "c"])
+        before = sys.getrefcount(key)
+        for _ in range(100):
+            self.assertEqual(
+                self._varargs_refcount_call(key),
+                (_VARARGS_INSTANCE, (key, None, None)),
+            )
+        self.assertEqual(sys.getrefcount(key), before)
+        self.assertEqual(key, "abc")
+
+    @unittest.skipUnless(_testcapi is not None, "requires _testcapi")
+    @skip_unless_jit("Requires inspecting JIT-compiled HIR")
+    def test_varargs_stays_vector_call(self) -> None:
+        # METH_VARARGS calls are specialized by the LIR generator, so the
+        # HIR keeps a VectorCall and builds no argument tuple.
+        opcodes = cinderx.jit.get_function_hir_opcode_counts(
+            SpecializeCCallTests._varargs_call
+        )
+        self.assertIsNotNone(opcodes)
+        self.assertIn("VectorCall", opcodes)
+        self.assertNotIn("CallStatic", opcodes)
+        self.assertNotIn("MakeTuple", opcodes)
+        self.assertNotIn("InitTupleElements", opcodes)
+        self.assertNotIn("ReserveStack", opcodes)
+        self.assertNotIn("StoreArrayItem", opcodes)
+
+        opcodes = cinderx.jit.get_function_hir_opcode_counts(
+            SpecializeCCallTests._varargs_keyword
+        )
+        self.assertIsNotNone(opcodes)
+        self.assertIn("VectorCall", opcodes)
+        self.assertNotIn("CallStatic", opcodes)
 
 
 def _resolve_varargs_callee(x, *args):

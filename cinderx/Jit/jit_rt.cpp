@@ -279,6 +279,10 @@ static int bindKeywordArgsSimple(
       bindDefaults(argcount, arg_space, co, func);
 }
 
+PyObject* tupleFromArray(PyObject* const* args, Py_ssize_t nargs) {
+  return Cix_PyTuple_FromArray(args, nargs);
+}
+
 // This uses bindKeywordArgs() to get the newly bound keyword arguments.  We
 // then turn around and dispatch to the JITed function with the newly packed
 // args.  Rather than copying over all of the error reporting we instead just
