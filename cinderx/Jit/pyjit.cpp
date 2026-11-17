@@ -71,6 +71,7 @@
 #include <deque>
 #include <exception>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -112,9 +113,12 @@ class PyBeginAllowThreads {
 };
 
 // Ordinary cinderjit APIs are bound to the native module that owns their state.
+CompilerContext<Compiler>* jitCtx(ModuleState& state) {
+  return static_cast<CompilerContext<Compiler>*>(state.jit_context.get());
+}
+
 CompilerContext<Compiler>* jitCtx(BorrowedRef<> mod) {
-  auto* state = cinderx::getModuleState(mod);
-  return static_cast<CompilerContext<Compiler>*>(state->jit_context.get());
+  return jitCtx(*cinderx::getModuleState(mod));
 }
 
 CompilerContext<Compiler>* jitCtx() {
@@ -1480,6 +1484,8 @@ void compile_worker_thread(
     size_t thread_id,
     PyInterpreterState* interp,
     CompilerContext<Compiler>* jit_ctx,
+    std::atomic<int>& compile_attempts,
+    std::atomic<int>& compile_retries,
     std::shared_ptr<ThreadedCompileQueue> context,
     std::shared_ptr<hir::IsolatedPreloaders> isolated) try {
   std::string thread_name = fmt::format("cx_compile_{}", thread_id);
@@ -1528,8 +1534,8 @@ void compile_worker_thread(
       }
     }
 
-    cinderx::getModuleState()->compile_workers_attempted.fetch_add(attempts);
-    cinderx::getModuleState()->compile_workers_retries.fetch_add(retries);
+    compile_attempts.fetch_add(attempts);
+    compile_retries.fetch_add(retries);
 
     JIT_DLOG(
         "Finished compile worker in thread {}. Compile attempts: {}, scheduled "
@@ -1553,6 +1559,7 @@ void compile_units_preloaded(
 }
 
 bool multithread_compile_units_preloaded(
+    ModuleState& mod_state,
     CompilerContext<Compiler>* jit_ctx,
     ThreadedCompileQueue::WorkList units,
     size_t worker_count,
@@ -1574,20 +1581,25 @@ bool multithread_compile_units_preloaded(
   // Track the worker threads on the module state so the runtime can wait for
   // them to finish (e.g. during finalization) if we don't get to join them
   // here.
-  auto* mod_state = cinderx::getModuleState();
-  lockWithThreadStateDetachment(mod_state->compile_worker_mutex);
-  std::unique_lock worker_lock{
-      mod_state->compile_worker_mutex, std::adopt_lock};
+  lockWithThreadStateDetachment(mod_state.compile_worker_mutex);
+  std::unique_lock worker_lock{mod_state.compile_worker_mutex, std::adopt_lock};
   if (!isJitUsable()) {
     PyErr_SetString(PyExc_RuntimeError, "JIT stopped before worker creation");
     return false;
   }
-  std::vector<std::thread>& worker_threads = mod_state->compile_worker_threads;
+  std::vector<std::thread>& worker_threads = mod_state.compile_worker_threads;
   std::exception_ptr creation_error;
   try {
     for (size_t i = 0; i < worker_count; i++) {
       worker_threads.emplace_back(
-          compile_worker_thread, i, interp, jit_ctx, compilation, isolated);
+          compile_worker_thread,
+          i,
+          interp,
+          jit_ctx,
+          std::ref(mod_state.compile_workers_attempted),
+          std::ref(mod_state.compile_workers_retries),
+          compilation,
+          isolated);
     }
   } catch (...) {
     creation_error = std::current_exception();
@@ -1597,7 +1609,7 @@ bool multithread_compile_units_preloaded(
   // workers wait in PyEval_AcquireThread() until this point.
   compilation->releaseGil();
 
-  mod_state->joinCompileWorkers(std::move(worker_lock));
+  mod_state.joinCompileWorkers(std::move(worker_lock));
 
   auto retry_list = compilation->finalizeCompile();
   while (auto unit = compilation->nextUnit()) {
@@ -1622,6 +1634,7 @@ std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
     BorrowedRef<> module,
     BorrowedRef<> root_consts);
 bool trackNestedCode(
+    Context* ctx,
     BorrowedRef<PyFunctionObject> outer_func,
     BorrowedRef<> module,
     BorrowedRef<PyCodeObject> code);
@@ -1664,12 +1677,13 @@ bool hasNestedCode(BorrowedRef<PyCodeObject> code) {
 // Code objects aren't GC-tracked, so the walk can't find them directly.
 // Instead, every function the JIT list matched has its code scanned recursively
 // through co_consts for nested code, mirroring trackEligibleCodeObjects().
-std::vector<Ref<>> discoverCompilationUnits(UnorderedSet<BorrowedRef<>>& seen) {
+std::vector<Ref<>> discoverCompilationUnits(
+    ModuleState& mod_state,
+    UnorderedSet<BorrowedRef<>>& seen) {
   // Nested code is only ever compiled ahead of its function when the JIT list
   // names it, and the list can only name it relative to an outer function it
   // matched as well.  Without a list there is nothing to scan for.
-  auto* mod_state = cinderx::getModuleState();
-  const bool jit_list = mod_state != nullptr && mod_state->jit_list != nullptr;
+  const bool jit_list = mod_state.jit_list != nullptr;
 
   struct Candidate {
     Ref<PyFunctionObject> func;
@@ -1709,7 +1723,7 @@ std::vector<Ref<>> discoverCompilationUnits(UnorderedSet<BorrowedRef<>>& seen) {
       BorrowedRef<PyCodeObject> code{func->func_code};
       for (BorrowedRef<PyCodeObject> nested :
            findNestedCodes(module, code->co_consts)) {
-        trackNestedCode(func, module, nested);
+        trackNestedCode(jitCtx(mod_state), func, module, nested);
         add(nested.getObj());
       }
     }
@@ -1723,12 +1737,12 @@ std::vector<Ref<>> discoverCompilationUnits(UnorderedSet<BorrowedRef<>>& seen) {
 
 // Compile all functions registered via a JIT list that haven't been executed
 // yet.
-bool compile_all(size_t workers = 0) {
+bool compile_all(ModuleState& mod_state, size_t workers = 0) {
   if (!isJitUsable()) {
     PyErr_SetString(PyExc_RuntimeError, "JIT is not available for compilation");
     return false;
   }
-  JIT_CHECK(jitCtx(), "JIT not initialized");
+  JIT_CHECK(jitCtx(mod_state), "JIT not initialized");
 
   if (workers == 0) {
     workers = std::max<size_t>(getConfig().batch_compile_workers, 1);
@@ -1801,7 +1815,7 @@ bool compile_all(size_t workers = 0) {
     while (true) {
       {
         FreeThreadedJITEntrypointGuard guard;
-        std::vector<Ref<>> batch = discoverCompilationUnits(seen);
+        std::vector<Ref<>> batch = discoverCompilationUnits(mod_state, seen);
         if (batch.empty()) {
           break;
         }
@@ -1814,7 +1828,7 @@ bool compile_all(size_t workers = 0) {
           auto [func, code] = splitUnit(unit);
           Ref<PyFunctionObject> outer;
           if (func == nullptr) {
-            auto& outer_funcs = jitCtx()->codeOuterFunctions();
+            auto& outer_funcs = jitCtx(mod_state)->codeOuterFunctions();
             auto it = outer_funcs.find(code);
             if (it != outer_funcs.end()) {
               outer = Ref<PyFunctionObject>::create(it->second);
@@ -1831,14 +1845,14 @@ bool compile_all(size_t workers = 0) {
         const auto& target = owned_units[next_unit];
         {
           FreeThreadedJITEntrypointGuard guard;
-          auto* current_ctx = jitCtx();
+          auto* current_ctx = jitCtx(mod_state);
           if (!target.isCurrent(current_ctx)) {
             continue;
           }
         }
         // Preloading can execute arbitrary Python code, so run without a lock.
         try {
-          auto* preload_ctx = jitCtx();
+          auto* preload_ctx = jitCtx(mod_state);
           hir::Preloader* preloader =
               preload(preload_ctx, target.unit, target.outer);
           // A null preloader means we hit a Python exception while executing
@@ -1867,7 +1881,7 @@ bool compile_all(size_t workers = 0) {
       PyErr_SetString(PyExc_RuntimeError, "JIT stopped during preloading");
       return false;
     }
-    jit_ctx = jitCtx();
+    jit_ctx = jitCtx(mod_state);
     compilation_units.reserve(owned_units.size());
     for (const auto& target : owned_units) {
       const hir::Preloader* preloader = findPreloader(jit_ctx, target.unit);
@@ -1900,7 +1914,7 @@ bool compile_all(size_t workers = 0) {
 
   if (workers > 1) {
     return multithread_compile_units_preloaded(
-        jit_ctx, std::move(compilation_units), workers, isolated);
+        mod_state, jit_ctx, std::move(compilation_units), workers, isolated);
   } else {
     compile_units_preloaded(jit_ctx, std::move(compilation_units));
   }
@@ -1986,7 +2000,8 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   return canCompileFunctionLater();
 }
 
-PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
+PyObject* multithreaded_compile_test(PyObject* mod, PyObject*) {
+  ModuleState& mod_state = *cinderx::getModuleState(mod);
   {
     FreeThreadedJITEntrypointGuard guard;
     if (!getConfig().multithreaded_compile_test) {
@@ -1999,14 +2014,14 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
           PyExc_RuntimeError, "JIT is not available for compilation");
       return nullptr;
     }
-    cinderx::getModuleState()->compile_workers_attempted = 0;
-    cinderx::getModuleState()->compile_workers_retries = 0;
+    mod_state.compile_workers_attempted = 0;
+    mod_state.compile_workers_retries = 0;
     JIT_LOG("(Re)compiling every unit the JIT still owes a compile");
-    jitCtx()->clearForMultithreadedCompileTest();
+    jitCtx(mod_state)->clearForMultithreadedCompileTest();
   }
 
   std::chrono::time_point start = std::chrono::steady_clock::now();
-  if (!compile_all()) {
+  if (!compile_all(mod_state)) {
     return nullptr;
   }
   std::chrono::time_point end = std::chrono::steady_clock::now();
@@ -2016,8 +2031,8 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   JIT_LOG(
       "Took {} ms, compiles attempted: {}, compiles retried: {}",
       batch_compilation_time.count(),
-      cinderx::getModuleState()->compile_workers_attempted.load(),
-      cinderx::getModuleState()->compile_workers_retries.load());
+      mod_state.compile_workers_attempted.load(),
+      mod_state.compile_workers_retries.load());
   Py_RETURN_NONE;
 }
 
@@ -2714,8 +2729,7 @@ BorrowedRef<PyFunctionObject> get_func_arg(
   return nullptr;
 }
 
-PyObject*
-precompile_all(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
+PyObject* precompile_all(PyObject* mod, PyObject* args, PyObject* kwargs) {
   if (!isJitUsable()) {
     Py_RETURN_FALSE;
   }
@@ -2745,7 +2759,7 @@ precompile_all(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
   }
 
   try {
-    if (!compile_all(workers)) {
+    if (!compile_all(*cinderx::getModuleState(mod), workers)) {
       return nullptr;
     }
   } catch (const std::exception& exn) {
@@ -4460,10 +4474,10 @@ int initJitMethods(PyObject* mod) {
 // JIT can preload and compile the code without an instance of the nested
 // function existing yet.  Returns false if the code was already tracked.
 bool trackNestedCode(
+    Context* ctx,
     BorrowedRef<PyFunctionObject> outer_func,
     BorrowedRef<> module,
     BorrowedRef<PyCodeObject> code) {
-  CompilerContext<Compiler>* ctx = jitCtx();
   if (ctx == nullptr ||
       !ctx->codeOuterFunctions().try_emplace(code, outer_func).second) {
     return false;
@@ -4499,7 +4513,7 @@ void trackEligibleCodeObjects(
   BorrowedRef<> mod{func->func_module};
   BorrowedRef<> top_consts{func_code->co_consts};
   for (BorrowedRef<PyCodeObject> code : findNestedCodes(mod, top_consts)) {
-    trackNestedCode(func, mod, code);
+    trackNestedCode(jitCtx(), func, mod, code);
   }
 }
 
