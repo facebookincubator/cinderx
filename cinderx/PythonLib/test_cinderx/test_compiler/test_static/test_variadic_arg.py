@@ -236,6 +236,19 @@ class VariadicArgTests(StaticTestBase):
             ):
                 self.assertTrue(y_callable())
 
+    def test_load_mapping_arg_missing_required(self) -> None:
+        codestr = """
+        def x(a, b):
+            return a, b
+
+        def y(d):
+            return x(1, **d)
+        """
+        with self.in_module(codestr) as mod:
+            self.assertInBytecode(mod.y, "LOAD_MAPPING_ARG", 2)
+            with self.assertRaisesRegex(TypeError, "missing argument b"):
+                mod.y({})
+
     def test_load_mapping_arg_use_defaults(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float=-0.1, e: float=1.1, f: str="something") -> bool:

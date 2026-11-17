@@ -1382,7 +1382,7 @@ dummy_func(
                     if (_PyErr_Occurred(tstate)) {
                         DECREF_INPUTS();
                         ERROR_IF(true);
-                    } else if (oparg == 2) {
+                    } else if (extoparg == 2) {
                         PyErr_Format(PyExc_TypeError, "missing argument %U", name);
                         assert(defaultval == NULL);
                         DECREF_INPUTS();

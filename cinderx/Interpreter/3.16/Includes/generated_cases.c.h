@@ -7811,7 +7811,7 @@
                         stack_pointer += -(oparg & 0x03);
                         ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                         JUMP_TO_LABEL(error);
-                    } else if (oparg == 2) {
+                    } else if (extoparg == 2) {
                         assert(stack_pointer == _PyFrame_GetStackPointer(frame));
                         _PyFrame_StackPointerValidate(frame);
                         PyErr_Format(PyExc_TypeError, "missing argument %U", name);

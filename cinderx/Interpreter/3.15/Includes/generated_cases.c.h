@@ -7417,7 +7417,7 @@
                         stack_pointer += -(oparg & 0x03);
                         ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
                         JUMP_TO_LABEL(error);
-                    } else if (oparg == 2) {
+                    } else if (extoparg == 2) {
                         _PyFrame_SetStackPointer(frame, stack_pointer);
                         PyErr_Format(PyExc_TypeError, "missing argument %U", name);
                         stack_pointer = _PyFrame_GetStackPointer(frame);
