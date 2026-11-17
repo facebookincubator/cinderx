@@ -2912,9 +2912,9 @@ int aot_func_visitor(PyObject* obj, void* arg) {
 }
 
 #ifndef WIN32
-PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
+PyObject* load_aot_bundle(PyObject* mod, PyObject* arg) {
   JIT_CHECK(
-      jitCtx() != nullptr,
+      jitCtx(mod) != nullptr,
       "Loading an AOT bundle currently requires the JIT to be enabled");
 
   if (!PyUnicode_Check(arg)) {
@@ -3102,9 +3102,10 @@ PyObject* disassemble(PyObject* mod, PyObject* func) {
 }
 
 #ifndef WIN32
-PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
+PyObject* dump_elf(PyObject* mod, PyObject* arg) {
+  auto* ctx = jitCtx(mod);
   JIT_CHECK(
-      jitCtx() != nullptr,
+      ctx != nullptr,
       "JIT context not initialized despite JIT APIs having been registered");
   if (!PyUnicode_Check(arg)) {
     PyErr_SetString(PyExc_ValueError, "dump_elf expects a filename string");
@@ -3118,7 +3119,7 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   // only gather the functions during the visit and do the work afterwards.
   std::vector<elf::CodeEntry> entries;
   for (auto& func : getCompiledFunctions()) {
-    CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
+    CompiledFunction* compiled_func = ctx->lookupFunc(func);
     if (compiled_func == nullptr) {
       continue;
     }
