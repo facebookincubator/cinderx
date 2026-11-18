@@ -381,8 +381,10 @@ bool inputMustBeRegister(Opcode opcode, size_t idx) {
       return idx <= 1;
 
     case Opcode::kMulAdd:
-    case Opcode::kSelect:
       return idx <= 2;
+
+    case Opcode::kSelect:
+      return idx == 0;
 
 #if defined(CINDER_AARCH64)
     case Opcode::kA64SelectCC:

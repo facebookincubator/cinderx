@@ -118,6 +118,64 @@ TEST_F(LIRTargetSelectTest, SelectsRegInputForLargeConstantStore) {
                     .outInd(base->id(), 0x8)
                     .inImm(0, 4294967296ULL));
 }
+
+TEST_F(LIRTargetSelectTest, LegalizesSelectImmediateConditionAndTrueValue) {
+  // Generic Select accepts arbitrary operands, including immediates for
+  // the condition and both values.  x86-64 cannot encode an immediate
+  // condition (tested directly) or an immediate true value (the cmov
+  // source), but an immediate false value stays as the mov's source.
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      Imm{1, DataType::k64bit},
+      Imm{111, DataType::k64bit},
+      Imm{222, DataType::k64bit});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
+
+  selectTargetOpcodes(&function);
+
+  EXPECT_LIR(Query(function)
+                 .opcode(Opcode::kSelect)
+                 .outVreg(selected->id())
+                 .inDefOpcode(0, Opcode::kMove)
+                 .inDefImm(0, 0, 1)
+                 .inDefOpcode(1, Opcode::kMove)
+                 .inDefImm(1, 0, 111)
+                 .inImm(2, 222));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kSelect).inImm(0, 1));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kSelect).inImm(1, 111));
+}
+
+TEST_F(LIRTargetSelectTest, KeepsSelectMemoryValuesOnX64) {
+  // Memory value operands need no narrowing on x86-64: mov/cmov encode
+  // them directly, so target selection leaves them in place.
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* condition = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      VReg{condition},
+      Stk{PhyLocation(-16), DataType::k64bit},
+      Stk{PhyLocation(-24), DataType::k64bit});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
+
+  selectTargetOpcodes(&function);
+
+  EXPECT_LIR(Query(function)
+                 .opcode(Opcode::kSelect)
+                 .outVreg(selected->id())
+                 .with([](const Instruction* select) {
+                   return select->getInput(1)->isStack() &&
+                       select->getInput(2)->isStack();
+                 }));
+  EXPECT_NO_LIR(Query(function).opcode(Opcode::kLoad));
+}
 #endif
 
 #if defined(CINDER_AARCH64)
@@ -596,6 +654,43 @@ TEST_F(LIRTargetSelectTest, SelectsA64SelectCCAcrossFlagClobber) {
           .inVreg(2, right->id()));
   EXPECT_NO_LIR(Query(function).opcode(Opcode::kCompare));
   EXPECT_NO_LIR(Query(function).opcode(Opcode::kSelect));
+}
+
+TEST_F(LIRTargetSelectTest, LegalizesSelectArbitraryInputsForA64) {
+  // Generic Select accepts arbitrary operands; csel/cmp encode only
+  // registers, so immediate, stack, and memory inputs are all
+  // materialized or loaded into virtual registers.
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* base = block->allocateInstr(
+      Opcode::kMove, nullptr, OutVReg{DataType::k64bit}, Imm{1});
+  Instruction* selected = block->allocateInstr(
+      Opcode::kSelect,
+      nullptr,
+      OutVReg{DataType::k64bit},
+      Imm{1, DataType::k64bit},
+      Ind{base, 0x8, DataType::k64bit},
+      Imm{222, DataType::k64bit});
+  block->allocateInstr(Opcode::kReturn, nullptr, VReg{selected});
+
+  selectTargetOpcodes(&function);
+
+  EXPECT_LIR(Query(function)
+                 .opcode(Opcode::kSelect)
+                 .outVreg(selected->id())
+                 .inDefOpcode(0, Opcode::kMove)
+                 .inDefOpcode(1, Opcode::kLoad)
+                 .inDefOpcode(2, Opcode::kMove)
+                 .with([](const Instruction* select) {
+                   for (size_t i = 0; i < select->getNumInputs(); i++) {
+                     const Operand* input = select->getInput(i);
+                     if (input->isImm() || input->isStack() || input->isMem() ||
+                         input->isInd()) {
+                       return false;
+                     }
+                   }
+                   return true;
+                 }));
 }
 
 TEST_F(LIRTargetSelectTest, LegalizesGuardFPInputToGPInput) {

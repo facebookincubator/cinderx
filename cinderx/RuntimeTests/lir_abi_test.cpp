@@ -1483,6 +1483,18 @@ TEST_F(LIRABITest, TestkSelect_OutPhyReg_PhyReg_PhyReg_PhyReg) {
 #endif
 }
 
+#if defined(CINDER_X86_64)
+// kSelect R r m m
+TEST_F(LIRABITest, TestkSelect_OutPhyReg_PhyReg_Stk_Stk) {
+  translateInstr(
+      Opcode::kSelect,
+      makeOutPhyReg(0),
+      makePhyReg(1),
+      makeStk(),
+      makeStk(-24));
+}
+#endif
+
 // kIntToBool R r
 TEST_F(LIRABITest, TestkIntToBool_OutPhyReg_PhyReg) {
   translateInstr(

@@ -75,33 +75,44 @@ void selectX64StoreLargeConstant(BasicBlock* block, instr_iter_t instr_iter) {
   instr->setInput(0, std::make_unique<Operand>(move, Operand::kLinked));
 }
 
-/* x86-64 Select lowers to mov+test+cmov. The true value (input 1) feeds
- * cmov and must be in a register, while the false value (input 2) can be
- * an immediate encoded in the mov. Materialize an immediate true value:
+/* Narrow the general Select to what x86-64 encodes as mov+test+cmov:
  *
- *     Select(cond, Imm(true), false_val)
+ *   - the condition input is tested directly, so it cannot be an
+ *     immediate;
+ *   - the true value feeds cmov, whose source cannot be an immediate;
+ *   - the false value is copied into the output with a mov, so it may stay
+ *     an immediate, and both value inputs may stay memory operands, which
+ *     mov/cmov encode directly.
+ *
+ * Materialize each immediate that cannot be encoded:
+ *
+ *     Select(Imm(cond), Imm(true), false_val)
  *
  * to:
  *
- *     tmp = Move(Imm(true))
- *     Select(cond, tmp, false_val)
+ *     tmp_cond = Move(Imm(cond))
+ *     tmp_true = Move(Imm(true))
+ *     Select(tmp_cond, tmp_true, false_val)
  */
-void selectX64SelectTrueImmediate(BasicBlock* block, instr_iter_t instr_iter) {
+void legalizeX64Select(BasicBlock* block, instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
   JIT_DCHECK(instr->isSelect(), "Expected Select, got {}", instr->opname());
 
-  Operand* input = instr->getInput(1);
-  if (!input->isImm()) {
-    return;
-  }
+  auto materialize_immediate = [&](size_t idx) {
+    Operand* input = instr->getInput(idx);
+    if (!input->isImm()) {
+      return;
+    }
+    auto move = block->allocateInstrBefore(
+        instr_iter,
+        Opcode::kMove,
+        OutVReg(input->dataType()),
+        Imm(input->getConstant(), input->dataType()));
+    instr->setInput(idx, std::make_unique<Operand>(move, Operand::kLinked));
+  };
 
-  auto move = block->allocateInstrBefore(
-      instr_iter,
-      Opcode::kMove,
-      OutVReg(input->dataType()),
-      Imm(input->getConstant(), input->dataType()));
-
-  instr->setInput(1, std::make_unique<Operand>(move, Operand::kLinked));
+  materialize_immediate(0);
+  materialize_immediate(1);
 }
 
 void selectX64Opcodes(Function* func) {
@@ -117,7 +128,7 @@ void selectX64Opcodes(Function* func) {
           selectX64StoreLargeConstant(block, cur_iter);
           break;
         case Opcode::kSelect:
-          selectX64SelectTrueImmediate(block, cur_iter);
+          legalizeX64Select(block, cur_iter);
           break;
         default:
           break;
@@ -290,7 +301,8 @@ void legalizeA64UnaryStackInput(BasicBlock* block, instr_iter_t instr_iter) {
   moveA64StackInputToVreg(block, instr_iter, 0);
 }
 
-/* AArch64 Select lowers to register-only csel. */
+/* AArch64 Select lowers to register-only csel (with a register cmp for the
+ * condition input), so stack inputs are loaded into virtual registers. */
 void legalizeA64SelectStackInputs(BasicBlock* block, instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
   JIT_DCHECK(instr->isSelect(), "Expected Select, got {}", instr->opname());
@@ -302,16 +314,44 @@ void legalizeA64SelectStackInputs(BasicBlock* block, instr_iter_t instr_iter) {
   }
 }
 
-/* AArch64 Select lowers to register-only csel, so immediate true/false
- * values must be materialized into registers:
+/* Memory inputs of a general Select likewise have no csel encoding, so
+ * load them into virtual registers:
  *
- *     Select(cond, Imm(true), Imm(false))
+ *     Select(cond, [base + offset], false_val)
  *
  * to:
  *
+ *     tmp = Load([base + offset])
+ *     Select(cond, tmp, false_val)
+ */
+void legalizeA64SelectMemoryInputs(BasicBlock* block, instr_iter_t instr_iter) {
+  Instruction* instr = instr_iter->get();
+  JIT_DCHECK(instr->isSelect(), "Expected Select, got {}", instr->opname());
+
+  for (size_t i = 0; i < instr->getNumInputs(); i++) {
+    Operand* input = instr->getInput(i);
+    if (!input->isMem() && !input->isInd()) {
+      continue;
+    }
+    Instruction* load = block->allocateInstrBefore(
+        instr_iter, Opcode::kLoad, OutVReg{input->dataType()});
+    load->appendInput(instr->releaseInput(i));
+    instr->setInput(i, std::make_unique<Operand>(load, Operand::kLinked));
+  }
+}
+
+/* AArch64 Select lowers to register-only csel, so immediate inputs must
+ * be materialized into registers.  This covers the condition input as well
+ * as both value inputs:
+ *
+ *     Select(Imm(cond), Imm(true), Imm(false))
+ *
+ * to:
+ *
+ *     tmp_cond = Move(Imm(cond))
  *     tmp_true = Move(Imm(true))
  *     tmp_false = Move(Imm(false))
- *     Select(cond, tmp_true, tmp_false)
+ *     Select(tmp_cond, tmp_true, tmp_false)
  */
 void legalizeA64SelectImmediateInputs(
     BasicBlock* block,
@@ -319,7 +359,7 @@ void legalizeA64SelectImmediateInputs(
   Instruction* instr = instr_iter->get();
   JIT_DCHECK(instr->isSelect(), "Expected Select, got {}", instr->opname());
 
-  for (size_t i = 1; i <= 2; i++) {
+  for (size_t i = 0; i < instr->getNumInputs(); i++) {
     Operand* input = instr->getInput(i);
     if (!input->isImm()) {
       continue;
@@ -869,6 +909,7 @@ void selectA64Opcodes(Function* func) {
           break;
         case Opcode::kSelect:
           legalizeA64SelectStackInputs(block, cur_iter);
+          legalizeA64SelectMemoryInputs(block, cur_iter);
           selectA64SelectXor(block, cur_iter);
           legalizeA64SelectImmediateInputs(block, cur_iter);
           selectA64Select(block, cur_iter, use_counts);

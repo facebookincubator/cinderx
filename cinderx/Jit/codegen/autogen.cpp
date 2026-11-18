@@ -567,6 +567,65 @@ void translateIntToBool(Environ* env, const Instruction* instr) {
 #endif
 }
 
+void translateSelect(Environ* env, const Instruction* instr) {
+  const lir::Operand* true_op = instr->getInput(1);
+  const lir::Operand* false_op = instr->getInput(2);
+#if defined(CINDER_X86_64)
+  auto* as = env->as;
+  auto output = getReg(instr->output());
+
+  // False value can be an immediate on x86-64.
+  if (false_op->isImm()) {
+    as->mov(output, getImm(false_op));
+  } else if (false_op->isReg()) {
+    as->mov(output, getReg(false_op));
+  } else {
+    as->mov(output, getMem(false_op));
+  }
+
+  auto condition = getReg(instr->getInput(0));
+  as->test(condition, condition);
+
+  JIT_THROW_IF(
+      true_op->isImm(),
+      "Select true value must not be an immediate on x86-64 (it should "
+      "have been materialized by target selection): {}",
+      *instr);
+  if (true_op->isReg()) {
+    as->cmovnz(output, getReg(true_op));
+  } else {
+    as->cmovnz(output, getMem(true_op));
+  }
+#elif defined(CINDER_AARCH64)
+  auto* as = env->as;
+  auto output = AutoTranslator::getGpOutput(instr->output());
+  auto true_val = AutoTranslator::getGpWiden(true_op);
+  auto false_val = AutoTranslator::getGpWiden(false_op);
+
+  auto condition_op = instr->getInput(0);
+  arch::Gp condition_reg;
+  switch (condition_op->dataType()) {
+    case jit::lir::Operand::k8bit:
+    case jit::lir::Operand::k16bit:
+      condition_reg = AutoTranslator::getGp(
+          DataType::k32bit, condition_op->getPhyRegister());
+      as->and_(
+          condition_reg,
+          condition_reg,
+          (1 << bitSize(condition_op->dataType())) - 1);
+      break;
+    default:
+      condition_reg = AutoTranslator::getGp(condition_op);
+      break;
+  }
+
+  as->cmp(condition_reg, 0);
+  as->csel(output, true_val, false_val, a64::CondCode::kNE);
+#else
+  CINDER_UNSUPPORTED
+#endif
+}
+
 // Store meta-data about this yield in a generator suspend data pointed to by
 // suspend_data_r. Data includes things like the address to resume execution at,
 // and owned entries in the suspended spill data needed for GC operations etc.
@@ -2635,33 +2694,6 @@ void translateTst(Environ* env, const Instruction* instr) {
   }
 }
 
-void translateSelect(Environ* env, const Instruction* instr) {
-  a64::Builder* as = env->as;
-
-  auto output = AT::getGpOutput(instr->output());
-  auto condition_op = instr->getInput(0);
-  arch::Gp condition_reg;
-  switch (condition_op->dataType()) {
-    case jit::lir::Operand::k8bit:
-    case jit::lir::Operand::k16bit:
-      condition_reg =
-          AT::getGp(DataType::k32bit, condition_op->getPhyRegister());
-      as->and_(
-          condition_reg,
-          condition_reg,
-          (1 << bitSize(condition_op->dataType())) - 1);
-      break;
-    default:
-      condition_reg = AT::getGp(condition_op);
-      break;
-  }
-  auto true_val_reg = AT::getGpWiden(instr->getInput(1));
-  auto false_val_reg = AT::getGpWiden(instr->getInput(2));
-
-  as->cmp(condition_reg, 0);
-  as->csel(output, true_val_reg, false_val_reg, a64::CondCode::kNE);
-}
-
 void translateA64SelectCC(Environ* env, const Instruction* instr) {
   auto output = AT::getGpOutput(instr->output());
   auto true_val = AT::getGpWiden(instr->getInput(1));
@@ -2981,20 +3013,9 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
       }
       return;
     }
-    case Opcode::kSelect: {
-      auto output = getReg(instr->output());
-      auto condition = getReg(instr->getInput(0));
-      auto false_val = instr->getInput(2);
-
-      if (false_val->isImm()) {
-        env->as->mov(output, getImm(false_val));
-      } else {
-        env->as->mov(output, getReg(false_val));
-      }
-      env->as->test(condition, condition);
-      env->as->cmovnz(output, getReg(instr->getInput(1)));
+    case Opcode::kSelect:
+      translateSelect(env, instr);
       return;
-    }
     case Opcode::kFadd: {
       if (instr->getNumOutputs() > 0) {
         env->as->movsd(getVecD(instr->output()), getVecD(instr->getInput(0)));
