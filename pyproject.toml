@@ -34,7 +34,7 @@ filterwarnings = [
 ]
 
 [tool.cibuildwheel]
-# TODO(D107415749): muxllinux still has issues with FT.
+# TODO(D107415749): musllinux still has issues with FT.
 build = [
     # Python 3.14.
     "cp314-macosx_arm64",
@@ -53,10 +53,9 @@ build = [
     "cp315-musllinux_aarch64",
     "cp315-musllinux_x86_64",
     "cp315-win_amd64",
-    # No UpstreamBorrow/ file for 3.15t yet.
-    #
-    # "cp315t-manylinux_aarch64",
-    # "cp315t-manylinux_x86_64",
+    # Python 3.15t, only tested on Linux so far.
+    "cp315t-manylinux_aarch64",
+    "cp315t-manylinux_x86_64",
 ]
 # If it exists, pass through CINDERX_VERSION_PATCH to setuptools to specify the
 # patch version.
