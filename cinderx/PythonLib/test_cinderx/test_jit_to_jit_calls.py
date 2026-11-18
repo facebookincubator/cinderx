@@ -9,12 +9,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from cinderx.test_support import (
-    ENCODING,
-    skip_if_prefork,
-    skip_unless_jit,
-    subprocess_env,
-)
+from cinderx.test_support import ENCODING, skip_if_prefork, subprocess_env
 
 
 # Enable the native ABI calling convention for JIT-to-JIT calls.  Huge pages are
@@ -29,7 +24,6 @@ _JIT_TO_JIT_ENV: dict[str, str] = {
 }
 
 
-@skip_unless_jit("Exercises the JIT-to-JIT native calling convention")
 @skip_if_prefork(
     "JIT-to-JIT calls are disabled under the prefork model: runtime call-site "
     "patching would un-share copy-on-write code pages across forked workers"

@@ -13,7 +13,7 @@ import unittest
 import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.jit import force_compile, is_jit_compiled, jit_suppress
-from cinderx.test_support import ENCODING, skip_unless_jit, subprocess_env
+from cinderx.test_support import ENCODING, subprocess_env
 
 
 def firstlineno(func):
@@ -170,7 +170,6 @@ class GetFrameLineNumberTests(unittest.TestCase):
         self.assertEqual(stack[-1].lineno, firstlineno(StackGetter.__del__) + 2)
         self.assertEqual(stack[-2].lineno, firstlineno(double) + 4)
 
-    @skip_unless_jit("Compares lineno behavior between JIT and interpreter")
     def test_line_numbers_after_jit_disabled(self):
         def f():
             frame = sys._getframe(0)
@@ -310,7 +309,6 @@ class GetFrameTests(unittest.TestCase):
 
 class FreeThreadedGCFrameTests(unittest.TestCase):
     @jit_suppress
-    @skip_unless_jit("Exercises FT GC reification for JIT frames")
     @cinder_support.passUnless(
         cinder_support.FREE_THREADING_BUILD,
         "Exercises stop-the-world GC reification in free-threaded builds",

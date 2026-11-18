@@ -8,7 +8,7 @@ import gc
 import unittest
 
 import cinderx.jit
-from cinderx.test_support import failUnlessJITCompiled, skip_unless_jit
+from cinderx.test_support import failUnlessJITCompiled
 
 
 class CoroutinesTest(unittest.TestCase):
@@ -87,7 +87,6 @@ class CoroutinesTest(unittest.TestCase):
             self._obj = None
             return i
 
-    @skip_unless_jit("Exercises JIT-specific bug")
     def test_jit_coro_awaits_interp_coro(self):
         @cinderx.jit.jit_suppress
         async def eager_suspend(suffix):

@@ -333,7 +333,6 @@ class GeneratorsTest(unittest.TestCase):
 
     # The _cinderx module must outlive every JIT generator.  Freeing one after
     # the module state is gone crashes, e.g. in the last GC pass at shutdown.
-    @cinder_support.skip_unless_jit("Only JIT generators reference _cinderx")
     def test_heap_allocated_generator_keeps_cinderx_alive(self):
         import _cinderx
 
@@ -344,7 +343,6 @@ class GeneratorsTest(unittest.TestCase):
         self.assertEqual(sys.getrefcount(_cinderx), base_count)
 
     @jit_suppress
-    @cinder_support.skip_unless_jit("Exercises the patched generator deallocator")
     def test_plain_generator_dealloc_does_not_reference_cinderx(self):
         import _cinderx
 
@@ -577,10 +575,6 @@ class GeneratorsTest(unittest.TestCase):
         self.assertIsNone(g_ref())
         self.assertEqual(callbacks, [g_ref])
 
-    @cinder_support.skip_unless_jit(
-        "Exercises gen_dealloc_with_custom_free, the JIT's own generator "
-        "dealloc, not plain CPython's"
-    )
     def test_resurrection_from_dealloc_finalizer_is_demoted_to_generation_0(self):
         # Regression test: gen_dealloc_with_custom_free must untrack the
         # generator before, and re-track it before, calling

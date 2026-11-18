@@ -13,20 +13,12 @@ import unittest
 from pathlib import Path
 
 import cinderx.jit
-from cinderx.test_support import (
-    ENCODING,
-    is_oss,
-    passIf,
-    passUnless,
-    skip_unless_jit,
-    subprocess_env,
-)
+from cinderx.test_support import ENCODING, is_oss, passIf, passUnless, subprocess_env
 
 
 OSS: bool = is_oss()
 
 
-@skip_unless_jit("Tests JIT list behavior")
 @passUnless(
     cinderx.jit.get_compile_after_n_calls() is None
     or cinderx.jit.get_compile_after_n_calls() == 0,

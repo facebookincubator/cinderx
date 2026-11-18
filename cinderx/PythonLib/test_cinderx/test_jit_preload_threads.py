@@ -9,10 +9,9 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 
 import cinderx.jit
-from cinderx.test_support import passIf, run_in_fork, skip_unless_jit
+from cinderx.test_support import passIf, run_in_fork
 
 
-@skip_unless_jit("Requires JIT compilation")
 @passIf(sys.version_info < (3, 14), "Requires deferred annotations")
 class OverlappingPreloadTests(unittest.TestCase):
     @run_in_fork

@@ -25,7 +25,6 @@ from cinderx.test_support import (
     passUnless,
     skip_if_ft,
     skip_if_prefork,
-    skip_unless_jit,
     subprocess_env,
 )
 
@@ -1384,7 +1383,6 @@ class BackgroundCompilePoolForkTest(unittest.TestCase):
         except OSError:
             proc.kill()
 
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_pool_fork_during_background_compile(self) -> None:
         stalled, returncode, stdout, stderr = self._run_pool_workload("1")
         self.assertFalse(
@@ -1396,7 +1394,6 @@ class BackgroundCompilePoolForkTest(unittest.TestCase):
         self.assertEqual(returncode, 0, stderr)
         self.assertIn("ok ", stdout, stderr)
 
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_pool_fork_without_background_compile(self) -> None:
         """Control: the same workload must be fine without background compile."""
         stalled, returncode, stdout, stderr = self._run_pool_workload("0")

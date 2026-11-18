@@ -8,7 +8,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from cinderx.test_support import skip_unless_jit, subprocess_env
+from cinderx.test_support import subprocess_env
 
 # Standalone check run in a subprocess: flag values are read once at JIT
 # init, so the check cannot enable the flag in-process. The subprocess
@@ -150,7 +150,6 @@ _CHECK_SCRIPT = textwrap.dedent(
 )
 
 
-@skip_unless_jit("JIT is not enabled")
 class TestJitUnwind(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()

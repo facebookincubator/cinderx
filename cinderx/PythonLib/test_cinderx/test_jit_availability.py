@@ -6,7 +6,6 @@ import unittest
 from unittest.mock import patch
 
 import cinderx.jit
-from cinderx.test_support import skip_unless_jit
 
 
 class JitAvailabilityTests(unittest.TestCase):
@@ -16,7 +15,6 @@ class JitAvailabilityTests(unittest.TestCase):
         self.assertFalse(fallback["is_available"]())
         self.assertFalse(fallback["is_enabled"]())
 
-    @skip_unless_jit("Requires an enabled JIT")
     def test_available_while_paused(self) -> None:
         self.assertTrue(cinderx.jit.is_available())
         with cinderx.jit.pause():

@@ -16,13 +16,7 @@ import cinderx
 
 cinderx.init()
 
-from cinderx.test_support import (
-    ENCODING,
-    passIf,
-    passUnless,
-    skip_unless_jit,
-    subprocess_env,
-)
+from cinderx.test_support import ENCODING, passIf, passUnless, subprocess_env
 
 # Magic word at the start of every jitdump FileHeader (see perf_jitdump.cpp),
 # stored little-endian.
@@ -190,7 +184,6 @@ class PerfMapTests(unittest.TestCase):
             return self._read_jitdump_timestamps(path)
 
     @passUnless(hasattr(os, "fork"), "fork not available on Windows")
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_forked_pid_map(self) -> None:
         stdout = self._run_perf_helper("perf_fork_helper.py")
 
@@ -205,7 +198,6 @@ class PerfMapTests(unittest.TestCase):
         )
 
     @passUnless(hasattr(os, "fork"), "fork not available on Windows")
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_child_inherits_pre_fork_entries(self) -> None:
         # The child never calls before_fork itself; if the post-fork copy
         # works, its map still contains the parent's pre-fork entry, while
@@ -222,7 +214,6 @@ class PerfMapTests(unittest.TestCase):
         )
 
     @passUnless(hasattr(os, "fork"), "fork not available on Windows")
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_child_jitdump_preserves_header(self) -> None:
         # Reopening the copied JIT dump must not truncate it: every forked
         # process's dump has to start with the FileHeader copied from its
@@ -254,7 +245,6 @@ class PerfMapTests(unittest.TestCase):
                 )
 
     @passUnless(hasattr(os, "fork"), "fork not available on Windows")
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_after_fork_child_reentrant(self) -> None:
         # Invoking the post-fork reinitialization twice in a row (as nested
         # fork handling can) must not crash on already-moved file state, e.g.
@@ -282,7 +272,6 @@ class PerfMapTests(unittest.TestCase):
         self.assertIn("survived(", stdout)
 
     @passUnless(hasattr(os, "fork"), "fork not available on Windows")
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_forked_jitdump_records(self) -> None:
         # Data buffered in the parent at fork time must land in the parent's
         # dump exactly once, so every dump parses cleanly and holds the same
@@ -305,7 +294,6 @@ class PerfMapTests(unittest.TestCase):
                 self.assertEqual(funcs, {"main", which, "compute"})
 
     @passIf(sys.platform == "win32", "Perf JIT dumps are not supported on Windows")
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_jitdump_written_while_running(self) -> None:
         # perf reads the dump of a live process, so entries must reach the
         # file as soon as the code is compiled, not when the process exits.
@@ -336,7 +324,6 @@ class PerfMapTests(unittest.TestCase):
         self.assertIn(f"{_FUNC_PREFIX}compute", names)
 
     @passIf(sys.platform == "win32", "Perf JIT dumps are not supported on Windows")
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_jitdump_timestamps_are_monotonic(self) -> None:
         # Both an unset variable and "0" select CLOCK_MONOTONIC.
         for extra_env in (None, {"JITDUMP_USE_ARCH_TIMESTAMP": "0"}):
@@ -357,7 +344,6 @@ class PerfMapTests(unittest.TestCase):
         platform.machine() in ("x86_64", "AMD64"),
         "Architecture timestamps need x86-64",
     )
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_jitdump_timestamps_use_arch_timestamp(self) -> None:
         flags, _header_ts, record_tss = self._run_compute_timestamps(
             {"JITDUMP_USE_ARCH_TIMESTAMP": "1"}
@@ -370,7 +356,6 @@ class PerfMapTests(unittest.TestCase):
         self.assertGreater(len(record_tss), 0, "dump has no records")
 
     @passUnless(hasattr(os, "fork"), "fork not available on Windows")
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_child_survives_failed_jitdump_copy(self) -> None:
         # With the parent's dump gone the child can't copy it; the child must
         # carry on without a dump rather than keep using the parent's

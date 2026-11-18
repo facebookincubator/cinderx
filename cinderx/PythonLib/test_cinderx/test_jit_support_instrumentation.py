@@ -17,7 +17,6 @@ from cinderx.test_support import (
     get_cinderjit_xargs,
     passUnless,
     run_in_fresh_process,
-    skip_unless_jit,
     subprocess_env,
 )
 
@@ -42,7 +41,6 @@ def dummy_callback(
     return None
 
 
-@skip_unless_jit("Tests functionality on the JIT")
 class JitMonitoringIntegrationTest(unittest.TestCase):
     """
     Test that the JIT behaves correctly in debugger/profiler workflows. These
@@ -452,7 +450,6 @@ class JitMonitoringIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
 
-@skip_unless_jit("Tests functionality on the JIT")
 class JitSetProfileIntegrationTest(unittest.TestCase):
     """
     Test that the JIT behaves correctly when sys.setprofile is used.
@@ -549,7 +546,6 @@ class JitSetProfileIntegrationTest(unittest.TestCase):
         )
 
 
-@skip_unless_jit("Tests functionality on the JIT")
 class JitSetTraceIntegrationTest(unittest.TestCase):
     """
     Test that the JIT behaves correctly when sys.settrace is used.
@@ -740,7 +736,6 @@ class JitSetTraceIntegrationTest(unittest.TestCase):
         )
 
 
-@skip_unless_jit("Tests functionality on the JIT")
 class JitAllThreadsTracingIntegrationTest(unittest.TestCase):
     """
     Test that the JIT behaves correctly when threading.setprofile_all_threads
@@ -821,7 +816,6 @@ class JitAllThreadsTracingIntegrationTest(unittest.TestCase):
         self.assertEqual(calls_seen, [])
 
 
-@skip_unless_jit("Tests functionality on the JIT")
 class JitCombinedTracingIntegrationTest(unittest.TestCase):
     """
     Test that the JIT behaves correctly when multiple instrumentation mechanisms are used.
@@ -903,7 +897,6 @@ class JitCombinedTracingIntegrationTest(unittest.TestCase):
         sys.monitoring.free_tool_id(sys.monitoring.DEBUGGER_ID)
 
 
-@skip_unless_jit("Tests functionality on the JIT")
 @skip_unless_stack_deopt
 class JitStackFrameDeoptTest(unittest.TestCase):
     """

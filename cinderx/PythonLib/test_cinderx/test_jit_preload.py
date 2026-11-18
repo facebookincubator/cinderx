@@ -16,7 +16,6 @@ from cinderx.test_support import (
     passUnless,
     run_in_fork,
     skip_if_ft,
-    skip_unless_jit,
     subprocess_env,
 )
 
@@ -140,7 +139,6 @@ class PreloadTests(unittest.TestCase):
             "replacement code was not compiled on the next call",
         )
 
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
     @skip_if_ft("Batch multi-threaded compile not supported with free threading")
     @passIf(
@@ -180,7 +178,6 @@ class PreloadTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("ok ", proc.stdout, proc.stdout)
 
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     @passUnless(META_LAZY_IMPORTS, "Uses -L to enable Meta Python Lazy Imports")
     @skip_if_ft("Batch multi-threaded compile not supported with free threading")
     def test_func_destroyed_during_preload(self) -> None:

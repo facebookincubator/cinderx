@@ -8,10 +8,9 @@ from concurrent.futures import ThreadPoolExecutor
 from types import CodeType
 
 import cinderx.jit
-from cinderx.test_support import passIf, run_in_fresh_process, skip_unless_jit
+from cinderx.test_support import passIf, run_in_fresh_process
 
 
-@skip_unless_jit("Requires JIT compilation")
 class BatchPreloadErrorTest(unittest.TestCase):
     def setUp(self) -> None:
         cinderx.jit.background_compile(False)
@@ -100,7 +99,6 @@ class BatchPreloadErrorTest(unittest.TestCase):
         self.assertEqual(inner(), 0)
 
 
-@skip_unless_jit("Requires JIT compilation")
 @passIf(sys.version_info < (3, 14), "Requires deferred annotations")
 class BatchPreloadTests(unittest.TestCase):
     @run_in_fresh_process
