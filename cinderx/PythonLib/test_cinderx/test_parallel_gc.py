@@ -69,6 +69,15 @@ if test_gc_module is not None:
         def test_get_objects_arguments(self) -> None:
             pass
 
+        def test_get_count(self) -> None:
+            background_compile = cinderx.jit.get_background_compile()
+            try:
+                cinderx.jit.background_compile(False)
+                cinderx.jit.wait_for_background_compiles()
+                super().test_get_count()
+            finally:
+                cinderx.jit.background_compile(background_compile)
+
     if cinderx.has_parallel_gc():
 
         class ParallelGCCallbackTests(test_gc_module.GCCallbackTests):
