@@ -252,7 +252,7 @@ constexpr std::size_t combineHash(std::size_t seed, std::size_t hash) {
 template <class... Args>
 constexpr std::size_t
 combineHash(std::size_t seed, std::size_t hash, Args&&... args) {
-  return combineHash(combineHash(seed, hash), std::forward<Args&&>(args)...);
+  return combineHash(combineHash(seed, hash), std::forward<Args>(args)...);
 }
 
 template <class T>
