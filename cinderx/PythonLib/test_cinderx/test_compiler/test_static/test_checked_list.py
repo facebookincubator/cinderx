@@ -233,13 +233,28 @@ class CheckedListTests(StaticTestBase):
         # pyrefly: ignore [unsupported-operation]
         x = CheckedList[int]()
         x.extend([1, 2, 3])
-        self.assertEqual(x < x, False)
-        self.assertEqual(x <= x, True)
+        self.assertIs(x < x, False)
+        self.assertIs(x <= x, True)
+        self.assertIs(x == x, True)
+        self.assertIs(x != x, False)
         # pyrefly: ignore [unsupported-operation]
         y = CheckedList[int]()
         y.extend([2, 2, 3])
-        self.assertEqual(y <= x, False)
-        self.assertEqual(x < y, True)
+        self.assertIs(y <= x, False)
+        self.assertIs(x < y, True)
+        self.assertIs(y > x, True)
+        self.assertIs(x >= y, False)
+        self.assertIs(x == y, False)
+        self.assertIs(x != y, True)
+
+        # A list that is a prefix of another orders before it and is unequal.
+        # pyrefly: ignore [unsupported-operation]
+        w = CheckedList[int]()
+        w.extend([1, 2])
+        self.assertIs(w < x, True)
+        self.assertIs(x <= w, False)
+        self.assertIs(w == x, False)
+        self.assertIs(w != x, True)
 
         # Compare CheckedLists of different types.
         # pyrefly: ignore [unsupported-operation]
@@ -250,11 +265,12 @@ class CheckedListTests(StaticTestBase):
             x < z  # noqa: B015
 
         # Compare CheckedLists to lists.
-        self.assertEqual(x < [2, 2, 3], True)
-        self.assertEqual([1, 2, 2] < x, True)
+        self.assertIs(x < [2, 2, 3], True)
+        self.assertIs([1, 2, 2] < x, True)
 
         # This is a bit weird, but consistent with our chkdict semantics.
-        self.assertEqual(x == [1, 2, 3], True)
+        self.assertIs(x == [1, 2, 3], True)
+        self.assertIs(x != [1, 2, 3], False)
 
     def test_checked_list_assign_subscript(self) -> None:
         # pyrefly: ignore [unsupported-operation]
