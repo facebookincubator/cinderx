@@ -1966,6 +1966,65 @@ class RaiseTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("RAISE_VARARGS")
+    def _jitReraiseWith(self, exc: BaseException) -> None:
+        raise
+
+    def test_reraise_adds_no_traceback_entry(self) -> None:
+        try:
+            try:
+                raise ValueError(1)
+            except ValueError as exc:
+                self._jitReraiseWith(exc)
+        except ValueError as exc:
+            names = []
+            tb = exc.__traceback__
+            while tb is not None:
+                names.append(tb.tb_frame.f_code.co_name)
+                tb = tb.tb_next
+            self.assertNotIn("_jitReraiseWith", names)
+        else:
+            self.fail("should have raised ValueError")
+
+    def test_reraise_does_not_keep_exception_alive(self) -> None:
+        class Error(Exception):
+            pass
+
+        error = Error()
+        error_ref = weakref.ref(error)
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            try:
+                try:
+                    raise error
+                except Error as exc:
+                    self._jitReraiseWith(exc)
+            except Error:
+                pass
+            del error
+            self.assertIsNone(error_ref())
+        finally:
+            if gc_was_enabled:
+                gc.enable()
+
+    def test_raise_traceback_records_raise_instruction(self) -> None:
+        exc = ValueError(1)
+        try:
+            self._jitRaise(exc)
+        except ValueError:
+            pass
+        tb = exc.__traceback__
+        while tb is not None and tb.tb_frame.f_code.co_name != "_jitRaise":
+            tb = tb.tb_next
+        self.assertIsNotNone(tb)
+        opnames = {
+            instr.offset: instr.opname
+            for instr in dis.get_instructions(tb.tb_frame.f_code)
+        }
+        self.assertEqual(opnames[tb.tb_lasti], "RAISE_VARARGS")
+
+    @cinder_support.failUnlessJITCompiled
+    @failUnlessHasOpcodes("RAISE_VARARGS")
     def _jitRaiseTraceback(self):
         raise ValueError(1)
 

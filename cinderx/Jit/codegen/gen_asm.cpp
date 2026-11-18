@@ -275,11 +275,18 @@ void setupTraceForDeoptedFrame(
 // The exception is already set and no handler covers this raise, so there
 // is nothing for the interpreter to resume. Record the traceback against
 // the reified frame, then pop the frame the way the interpreter's
-// exit_unwind path does.
+// exit_unwind path does. Like the interpreter, a bare `raise` re-raises the
+// active exception without adding this frame to its traceback.
 PyObject* handleRaiseUnhandled(
     PyThreadState* tstate,
-    _PyInterpreterFrame* frame) {
-  if (!_PyFrame_IsIncomplete(frame)) {
+    _PyInterpreterFrame* frame,
+    bool is_reraise) {
+#if PY_VERSION_HEX < 0x030E0000
+  // The frame was reified to resume at the raise, so prev_instr sits just
+  // before it. The traceback must record the raise itself.
+  frame->prev_instr++;
+#endif
+  if (!is_reraise && !_PyFrame_IsIncomplete(frame)) {
     PyFrameObject* fobj = _PyFrame_GetFrameObject(frame);
     if (fobj != nullptr) {
       PyTraceBack_Here(fobj);
@@ -492,7 +499,11 @@ PyObject* deoptAndResumeInInterpreter(
       deopt_meta.inline_depth() == 0 &&
       !(_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) &&
       err_occurred) {
-    return handleRaiseUnhandled(tstate, frame);
+    BytecodeInstruction raise_instr{
+        deopt_meta.code(), deopt_meta.innermostFrame().causeInstrIdx()};
+    bool is_reraise =
+        raise_instr.opcode() == RAISE_VARARGS && raise_instr.oparg() == 0;
+    return handleRaiseUnhandled(tstate, frame, is_reraise);
   }
 
   PyObject* result = nullptr;
