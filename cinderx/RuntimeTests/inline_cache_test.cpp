@@ -3321,6 +3321,150 @@ c = C()
   EXPECT_EQ(profile.find<LoadAttrProfile>(location), nullptr);
 }
 
+TEST_F(InlineCacheTest, LoadMethodCacheLayout) {
+  EXPECT_EQ(sizeof(LoadMethodCache::Entry), 24);
+  EXPECT_EQ(sizeof(LoadMethodCache), 104);
+}
+
+TEST_F(InlineCacheTest, LoadMethodProfileSkipsTypeReceivers) {
+  auto locals = runToLocals(this, R"(
+class C:
+  @staticmethod
+  def meth():
+    return 1
+
+c = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "C");
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  auto name = Ref<>::steal(PyUnicode_FromString("meth"));
+  ASSERT_NE(cls.get(), nullptr);
+  ASSERT_NE(obj.get(), nullptr);
+  ASSERT_NE(name.get(), nullptr);
+
+  LoadMethodCache cache{};
+  for (BorrowedRef<> receiver : {cls, obj, cls}) {
+    LoadMethodResult res = cache.lookup(receiver, name);
+    ASSERT_NE(res.callable, nullptr);
+    Py_DECREF(res.callable);
+    Py_XDECREF(res.self_or_null);
+  }
+  const std::vector<LoadMethodCache::ProfiledEntry> entries =
+      cache.profiledEntries();
+  ASSERT_EQ(entries.size(), kFreeThreadedBuild ? 1 : 2);
+  EXPECT_EQ(entries.front().type, Py_TYPE(obj));
+  EXPECT_FALSE(entries.front().is_bound_method);
+  EXPECT_FALSE(entries.front().is_type_receiver);
+  if constexpr (!kFreeThreadedBuild) {
+    EXPECT_EQ(entries.back().type, &PyType_Type);
+    EXPECT_FALSE(entries.back().is_bound_method);
+    EXPECT_TRUE(entries.back().is_type_receiver);
+  }
+
+  ASSERT_EQ(PyObject_SetAttrString(cls, "meth", Py_None), 0);
+  EXPECT_EQ(cache.profiledEntries().size(), kFreeThreadedBuild ? 0 : 1);
+  LoadMethodResult res = cache.lookup(cls, name);
+  ASSERT_NE(res.callable, nullptr);
+  Py_DECREF(res.callable);
+  Py_XDECREF(res.self_or_null);
+  EXPECT_EQ(cache.profiledEntries().size(), kFreeThreadedBuild ? 0 : 1);
+
+  // A site that only saw class receivers produces no profile.
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, &cache);
+  EXPECT_EQ(collector.snapshot().find<LoadAttrProfile>(location), nullptr);
+}
+
+TEST_F(InlineCacheTest, LoadMethodInstancesReclaimTypeReceiverSlots) {
+  auto locals = runToLocals(this, R"(
+classes = [type(f"C{i}", (), {"meth": lambda self: 1}) for i in range(4)]
+c = classes[0]()
+d = classes[1]()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> classes = PyDict_GetItemString(locals, "classes");
+  BorrowedRef<> c = PyDict_GetItemString(locals, "c");
+  BorrowedRef<> d = PyDict_GetItemString(locals, "d");
+  auto name = Ref<>::steal(PyUnicode_FromString("meth"));
+  ASSERT_NE(classes.get(), nullptr);
+  ASSERT_NE(c.get(), nullptr);
+  ASSERT_NE(d.get(), nullptr);
+  ASSERT_NE(name.get(), nullptr);
+
+  LoadMethodCache cache{};
+  for (Py_ssize_t i = 0; i < 4; i++) {
+    LoadMethodResult res =
+        cache.lookup(PyList_GET_ITEM(classes.get(), i), name);
+    ASSERT_NE(res.callable, nullptr);
+    Py_DECREF(res.callable);
+    Py_XDECREF(res.self_or_null);
+  }
+  for (BorrowedRef<> obj : {c, d}) {
+    LoadMethodResult res = cache.lookup(obj, name);
+    ASSERT_NE(res.callable, nullptr);
+    Py_DECREF(res.callable);
+    Py_XDECREF(res.self_or_null);
+  }
+  const std::vector<LoadMethodCache::ProfiledEntry> entries =
+      cache.profiledEntries();
+  ASSERT_EQ(entries.size(), kFreeThreadedBuild ? 2 : 3);
+  EXPECT_EQ(entries[0].type, Py_TYPE(c));
+  EXPECT_EQ(entries[1].type, Py_TYPE(d));
+  EXPECT_TRUE(entries[0].is_bound_method);
+  EXPECT_TRUE(entries[1].is_bound_method);
+  if constexpr (!kFreeThreadedBuild) {
+    EXPECT_TRUE(entries[2].is_type_receiver);
+  }
+
+  ProfileCollector collector;
+  const ProfileLocation location{nullptr, BCOffset{8}};
+  collector.add(location.code, location.bytecode_offset, &cache);
+  Profile profile = collector.snapshot();
+  if constexpr (!kFreeThreadedBuild) {
+    const LoadAttrProfile* payload = profile.find<LoadAttrProfile>(location);
+    ASSERT_NE(payload, nullptr);
+    EXPECT_TRUE(payload->polymorphic);
+  }
+}
+
+TEST_F(InlineCacheTest, LoadMethodMixedReceiverProfileIsPolymorphic) {
+  auto locals = runToLocals(this, R"(
+class C:
+  def meth(self):
+    return 1
+c = C()
+)");
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> cls = PyDict_GetItemString(locals, "C");
+  BorrowedRef<> obj = PyDict_GetItemString(locals, "c");
+  auto name = Ref<>::steal(PyUnicode_FromString("meth"));
+  ASSERT_NE(cls.get(), nullptr);
+  ASSERT_NE(obj.get(), nullptr);
+  ASSERT_NE(name.get(), nullptr);
+
+  for (const auto& receivers : {std::array{obj, cls}, std::array{cls, obj}}) {
+    LoadMethodCache cache{};
+    for (BorrowedRef<> receiver : receivers) {
+      LoadMethodResult res = cache.lookup(receiver, name);
+      ASSERT_NE(res.callable, nullptr);
+      Py_DECREF(res.callable);
+      Py_XDECREF(res.self_or_null);
+    }
+    ProfileCollector collector;
+    const ProfileLocation location{nullptr, BCOffset{8}};
+    collector.add(location.code, location.bytecode_offset, &cache);
+    Profile profile = collector.snapshot();
+    if constexpr (!kFreeThreadedBuild) {
+      const LoadAttrProfile* payload = profile.find<LoadAttrProfile>(location);
+      ASSERT_NE(payload, nullptr);
+      EXPECT_TRUE(payload->polymorphic);
+      EXPECT_EQ(payload->receiver_type, nullptr);
+    }
+  }
+}
+
 TEST_F(InlineCacheTest, LoadMethodProfileCarriesForward) {
   // A carried use is snapshotted into the new profile.
   ProfileCollector collector;

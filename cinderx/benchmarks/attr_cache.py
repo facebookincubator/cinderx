@@ -36,7 +36,11 @@ covered:
 
 plus the lookup kinds that bypass instance storage entirely: ``classvar``,
 ``property``, ``descriptor``, ``getset``, ``method``, ``typeattr``, ``module``,
-``getattr`` and ``getattribute``.
+``getattr`` and ``getattribute``.  ``typemethod`` and ``typeclassmethod`` are
+the method-call form on a class object -- ``cls.method()``, or the
+``object.__setattr__(self, name, value)`` that a frozen dataclass's ``__init__``
+runs for every field -- where every receiver has the same ``Py_TYPE()``
+(``type``), so per-type cache entries can't tell them apart.
 
 The ``poly*`` workloads point a single site at several receiver types at once.
 CinderX's attribute caches hold ``CINDERX_JIT_ATTR_CACHE_SIZE`` entries (4 by
@@ -45,7 +49,8 @@ megamorphic -- they pay a full scan plus a failed refill on every execution.
 ``polytype`` thrashes the type-attribute cache, which holds a single entry.
 ``metatypeattr`` and ``polymetatype`` are the same two shapes for classes that
 have a metaclass of their own -- the ``cls.class_var`` of a classmethod -- which
-need the metatype guarded on top of the class.
+need the metatype guarded on top of the class.  ``polytypemethod`` alternates two
+class objects at one method-call site.
 
 Results are reported in nanoseconds per attribute operation, so workloads with
 different receiver counts stay comparable.
@@ -308,6 +313,29 @@ def _build_typeattr() -> list[object]:
     return [cls] * RECEIVERS
 
 
+def _new_type_methods_class(name: str) -> type:
+    # Zero-argument functions, so `cls.m0()` can call them straight off the
+    # class with nothing to bind.
+    return _new_class(name, {method: (lambda: 1) for method in METHOD_NAMES})
+
+
+def _build_typemethod() -> list[object]:
+    return [_new_type_methods_class("TypeMethods")] * RECEIVERS
+
+
+def _build_typeclassmethod() -> list[object]:
+    cls = _new_class(
+        "TypeClassMethods",
+        {method: classmethod(lambda cls: 1) for method in METHOD_NAMES},
+    )
+    return [cls] * RECEIVERS
+
+
+def _build_poly_typemethod() -> list[object]:
+    classes = [_new_type_methods_class(f"PolyTypeMethods{i}") for i in range(2)]
+    return [classes[i % len(classes)] for i in range(RECEIVERS)]
+
+
 def _new_metaclass_instance(name: str) -> type:
     meta = type("Meta" + name, (type,), {})
     return meta(name, (), {n: i for i, n in enumerate(NAMES)})
@@ -476,6 +504,20 @@ LAYOUTS: dict[str, Layout] = {
         _build_metatypeattr,
         store=False,
     ),
+    "typemethod": Layout(
+        "method-call form of LOAD_ATTR on a class object",
+        _build_typemethod,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
+    ),
+    "typeclassmethod": Layout(
+        "classmethod called off a class object",
+        _build_typeclassmethod,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
+    ),
     "module": Layout(
         "attribute read off a module global",
         _build_module,
@@ -533,6 +575,13 @@ LAYOUTS: dict[str, Layout] = {
         "2 metaclass instances at one type-attribute site",
         _build_poly_metatype,
         store=False,
+    ),
+    "polytypemethod": Layout(
+        "2 class objects at one method-call site",
+        _build_poly_typemethod,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
     ),
 }
 

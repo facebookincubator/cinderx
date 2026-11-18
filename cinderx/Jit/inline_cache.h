@@ -808,6 +808,8 @@ struct CacheStats {
 class LoadMethodCache {
  public:
   struct Entry {
+    // Low bit set: a class receiver rather than its Py_TYPE(). Tagged keys
+    // are borrowed, never dereferenced, and guarded by keys_version.
     BorrowedRef<PyTypeObject> type;
     // Borrowed cached attribute, tagged in the low bit. When the low bit is
     // clear the value is an untagged PyObject* for a bound method (the common,
@@ -820,6 +822,7 @@ class LoadMethodCache {
     //     binding) -- unless is_class_method is set (see below).
     // Use the tag helpers in inline_cache.cpp to read it.
     uintptr_t value{0};
+    // Split-key dict version for instances; tp_version_tag for tagged types.
     uint32_t keys_version;
 
     // For a NULL sentinel entry (value == nullptr), records whether the type
@@ -828,11 +831,14 @@ class LoadMethodCache {
     // value != nullptr.
     bool has_getattr_hook{false};
 
-    // Set when the entry caches a class method (a Python-level classmethod or a
-    // C-level classmethod_descriptor). The (tagged, unbound) value is the
-    // underlying callable, which lookup() binds to the receiver's type rather
-    // than to the receiver itself. Only meaningful for unbound entries.
+    // Set when the entry caches a class method. lookup() binds its callable
+    // to the receiving class (or the type of an instance receiver).
     bool is_class_method{false};
+
+    // value holds a Python staticmethod/classmethod descriptor. Its callable
+    // is read on each hit because descriptor.__init__ can replace it without
+    // changing the owning type's version tag.
+    bool is_python_descriptor{false};
 
     bool isValidKeysVersion(BorrowedRef<> obj);
   };
@@ -857,21 +863,30 @@ class LoadMethodCache {
     // specialized as a receiver-type guard; unbound entries (staticmethods,
     // class variables, __getattr__ sentinels) and class methods cannot.
     bool is_bound_method;
+    // True for the marker standing in for class receivers.  `type` is then
+    // PyType_Type, not the class, so it must not be used to bind attributes.
+    bool is_type_receiver;
   };
 
   // Snapshot the populated entries for recompile profiling, in slot order.
+  // Class receivers contribute one is_type_receiver marker, never a key, as
+  // their entries may refer to dead classes.
   // The GIL must be held, as for all cache operations.
   std::vector<ProfiledEntry> profiledEntries() const;
 
  private:
   LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookupTypeReceiverSlowPath(
+      BorrowedRef<PyTypeObject> type,
+      BorrowedRef<> name);
   void fill(
       BorrowedRef<PyTypeObject> type,
       BorrowedRef<> value,
       BorrowedRef<> name,
       bool has_getattr_hook,
       bool is_bound_method = true,
-      bool is_class_method = false);
+      bool is_class_method = false,
+      bool is_python_descriptor = false);
 
   std::array<Entry, 4> entries_;
   std::unique_ptr<CacheStats> cache_stats_;

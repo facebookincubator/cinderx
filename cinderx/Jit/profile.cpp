@@ -107,6 +107,10 @@ std::optional<ProfileEntry> loadMethodPayload(const LoadMethodCache& cache) {
     return LoadAttrProfile{{}, std::nullopt, true};
   }
   const LoadMethodCache::ProfiledEntry& entry = entries.front();
+  if (entry.is_type_receiver) {
+    // Class receivers aren't specialized yet.
+    return std::nullopt;
+  }
   if (!entry.is_bound_method) {
     // Unbound entries (staticmethods, class variables, __getattr__ sentinels)
     // and class methods are not plain method calls on the receiver, so they

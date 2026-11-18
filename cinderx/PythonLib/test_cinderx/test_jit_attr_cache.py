@@ -11,6 +11,8 @@ import importlib.metadata
 import subprocess
 import sys
 import unittest
+import weakref
+from dataclasses import dataclass, FrozenInstanceError
 from textwrap import dedent
 from unittest.mock import patch
 
@@ -59,6 +61,33 @@ def call_fromkeys(obj):
     # `fromkeys` resolves to a classmethod_descriptor (a C-level classmethod)
     # when accessed via an instance.
     return obj.fromkeys([1, 2])
+
+
+@cinder_support.failUnlessJITCompiled
+def call_on_class(cls, obj):
+    # `cls` isn't known to be a type at compile time, so this goes through
+    # LoadMethodCache rather than LoadTypeMethodCache.
+    return cls.method(obj)
+
+
+@cinder_support.failUnlessJITCompiled
+def call_on_class_no_args(cls):
+    return cls.method()
+
+
+@cinder_support.failUnlessJITCompiled
+def call_name_on_class(cls, obj):
+    return cls.__name__(obj)
+
+
+@cinder_support.failUnlessJITCompiled
+def call_mro_on_class(cls):
+    return cls.mro()
+
+
+@cinder_support.failUnlessJITCompiled
+def object_setattr(base, obj, value):
+    base.__setattr__(obj, "x", value)
 
 
 class LoadMethodCacheTests(unittest.TestCase):
@@ -837,6 +866,378 @@ class LoadMethodGetAttributeTests(unittest.TestCase):
 
         del Oracle.__getattribute__
         self.assertEqual(get_meaning_of_life(obj), 42)
+
+
+@dataclass(frozen=True)
+class FrozenPoint:
+    x: int
+    y: int
+
+
+class LoadMethodTypeReceiverTests(unittest.TestCase):
+    """LoadMethodCache caches lookups on a receiver that is a class whose
+    metaclass is `type`, keyed on that class and its version tag."""
+
+    def test_function(self):
+        class C:
+            def method(self):
+                return 42
+
+        obj = C()
+        for _ in range(3):
+            self.assertEqual(call_on_class(C, obj), 42)
+
+        C.method = lambda self: 0
+        self.assertEqual(call_on_class(C, obj), 0)
+
+        del C.method
+        with self.assertRaises(AttributeError):
+            call_on_class(C, obj)
+
+    def test_base_modified(self):
+        class Base:
+            def method(self):
+                return 42
+
+        class Derived(Base):
+            pass
+
+        obj = Derived()
+        for _ in range(3):
+            self.assertEqual(call_on_class(Derived, obj), 42)
+
+        Base.method = lambda self: 0
+        self.assertEqual(call_on_class(Derived, obj), 0)
+
+    def test_bases_reassigned(self):
+        class Base1:
+            def method(self):
+                return 1
+
+        class Base2:
+            def method(self):
+                return 2
+
+        class Derived(Base1):
+            pass
+
+        obj = Derived()
+        for _ in range(3):
+            self.assertEqual(call_on_class(Derived, obj), 1)
+
+        Derived.__bases__ = (Base2,)
+        self.assertEqual(call_on_class(Derived, obj), 2)
+
+    def test_alternating_receivers(self):
+        class A:
+            def method(self):
+                return "a"
+
+        class B:
+            def method(self):
+                return "b"
+
+        for _ in range(3):
+            self.assertEqual(call_on_class(A, None), "a")
+            self.assertEqual(call_on_class(B, None), "b")
+
+    def test_object_setattr(self):
+        class Frozen:
+            def __setattr__(self, name, value):
+                raise AttributeError("frozen")
+
+        obj = Frozen()
+        for i in range(3):
+            object_setattr(object, obj, i)
+            self.assertEqual(obj.x, i)
+        with self.assertRaises(AttributeError):
+            obj.x = 100
+
+    def test_object_setattr_rejected_for_builtin_override(self):
+        # object.__setattr__ can't skip a C-level __setattr__ override; the
+        # cached descriptor must still apply that check.
+        for _ in range(3):
+            with self.assertRaisesRegex(TypeError, "can't apply this __setattr__"):
+                object_setattr(object, type("T", (), {}), 1)
+
+    def test_frozen_dataclass(self):
+        if cinderx.jit.is_enabled():
+            self.assertTrue(cinderx.jit.force_compile(FrozenPoint.__init__))
+        for i in range(3):
+            p = FrozenPoint(i, y=i + 1)
+            self.assertEqual((p.x, p.y), (i, i + 1))
+        with self.assertRaises(FrozenInstanceError):
+            p.x = 5
+
+    def test_static_method(self):
+        class C:
+            @staticmethod
+            def method(arg):
+                return arg
+
+        for _ in range(3):
+            self.assertEqual(call_on_class(C, 42), 42)
+
+    def test_class_method_binds_to_receiver(self):
+        class Base:
+            @classmethod
+            def method(cls):
+                return cls
+
+        class Derived(Base):
+            pass
+
+        for _ in range(3):
+            self.assertIs(call_on_class_no_args(Base), Base)
+            self.assertIs(call_on_class_no_args(Derived), Derived)
+
+    def test_builtin_class_method(self):
+        class D(dict):
+            pass
+
+        for _ in range(3):
+            self.assertIs(type(call_fromkeys(dict)), dict)
+            self.assertIs(type(call_fromkeys(D)), D)
+        self.assertEqual(call_fromkeys(D), {1: None, 2: None})
+
+    def test_method_descriptor(self):
+        class S(str):
+            method = str.upper
+
+        for _ in range(3):
+            self.assertEqual(call_on_class(S, "a"), "A")
+
+    def test_class_var_descriptor_added_later(self):
+        class C:
+            method = Caller(42)
+
+        for _ in range(3):
+            self.assertEqual(call_on_class_no_args(C), 42)
+
+        # Caller is a heap type, so it could become a descriptor; the lookup
+        # must not have been cached.
+        Caller.__get__ = lambda self, obj, objtype: lambda: "descr"
+        try:
+            self.assertEqual(call_on_class_no_args(C), "descr")
+        finally:
+            del Caller.__get__
+        self.assertEqual(call_on_class_no_args(C), 42)
+
+    def test_metaclass_data_descriptor_wins(self):
+        class C:
+            def __name__(self):
+                return "method"
+
+        for _ in range(3):
+            with self.assertRaisesRegex(TypeError, "'str' object is not callable"):
+                call_name_on_class(C, C())
+
+    def test_metaclass_method(self):
+        class C:
+            pass
+
+        for _ in range(3):
+            self.assertEqual(call_mro_on_class(C), [C, object])
+            self.assertEqual(call_mro_on_class(int), [int, object])
+
+    def test_custom_metaclass(self):
+        class Meta(type):
+            def method(cls, obj):
+                return "meta"
+
+        class C(metaclass=Meta):
+            def method(self):
+                return "class"
+
+        for _ in range(3):
+            self.assertEqual(call_on_class(C, C()), "class")
+        del C.method
+        self.assertEqual(call_on_class(C, C()), "meta")
+
+    def test_static_method_reinitialized(self):
+        class C:
+            @staticmethod
+            @cinderx.jit.jit_suppress
+            def method():
+                return 1
+
+        descriptor = C.__dict__["method"]
+        old_callable = weakref.ref(descriptor.__func__)
+        receivers = (C, C())
+        for _ in range(3):
+            for receiver in receivers:
+                self.assertEqual(call_on_class_no_args(receiver), 1)
+        descriptor.__init__(lambda: 2)
+        gc.collect()
+        self.assertIsNone(old_callable())
+        for receiver in receivers:
+            self.assertEqual(call_on_class_no_args(receiver), 2)
+
+    def test_class_method_reinitialized(self):
+        class Base:
+            @classmethod
+            @cinderx.jit.jit_suppress
+            def method(cls):
+                return cls
+
+        class Derived(Base):
+            pass
+
+        descriptor = Base.__dict__["method"]
+        old_callable = weakref.ref(descriptor.__func__)
+        receivers = (Base(), Base, Derived)
+        for _ in range(3):
+            for receiver in receivers:
+                expected = receiver if isinstance(receiver, type) else Base
+                self.assertIs(call_on_class_no_args(receiver), expected)
+        descriptor.__init__(lambda cls: (cls, 42))
+        gc.collect()
+        self.assertIsNone(old_callable())
+        for receiver in receivers:
+            expected = receiver if isinstance(receiver, type) else Base
+            self.assertEqual(call_on_class_no_args(receiver), (expected, 42))
+
+    def test_class_method_reinitialized_with_descriptor(self):
+        class Callable:
+            def __call__(self, cls):
+                return ("call", cls)
+
+            def __get__(self, obj, objtype):
+                return lambda: ("get", obj, objtype)
+
+        class C:
+            @classmethod
+            def method(cls):
+                return cls
+
+        obj = C()
+        for _ in range(3):
+            self.assertIs(call_on_class_no_args(C), C)
+            self.assertIs(call_on_class_no_args(obj), C)
+        descriptor = C.__dict__["method"]
+        descriptor.__init__(Callable())
+        for receiver in (C, obj):
+            # The oracle must not use another JIT method-load site.
+            expected = getattr(receiver, "method")()  # noqa: B009
+            self.assertEqual(call_on_class_no_args(receiver), expected)
+        descriptor.__init__(lambda cls: (cls, 42))
+        self.assertEqual(call_on_class_no_args(C), (C, 42))
+        self.assertEqual(call_on_class_no_args(obj), (C, 42))
+
+    def test_descriptor_reinitialized_with_noncallable(self):
+        for wrapper in (staticmethod, classmethod):
+            with self.subTest(wrapper=wrapper):
+                descriptor = wrapper(lambda *args: 1)
+                cls = type("C", (), {"method": descriptor})
+                obj = cls()
+                for _ in range(3):
+                    self.assertEqual(call_on_class_no_args(cls), 1)
+                    self.assertEqual(call_on_class_no_args(obj), 1)
+                descriptor.__init__(None)
+                for receiver in (cls, obj):
+                    with self.assertRaises(TypeError):
+                        call_on_class_no_args(receiver)
+                descriptor.__init__(lambda *args: 2)
+                self.assertEqual(call_on_class_no_args(cls), 2)
+                self.assertEqual(call_on_class_no_args(obj), 2)
+
+    def test_descriptor_new_without_callable(self):
+        for wrapper in (staticmethod, classmethod):
+            with self.subTest(wrapper=wrapper):
+                if sys.version_info >= (3, 15):
+                    # __new__ initializes the wrapped value on these versions.
+                    with self.assertRaises(TypeError):
+                        wrapper.__new__(wrapper)
+                    descriptor = wrapper.__new__(wrapper, None)
+                else:
+                    descriptor = wrapper.__new__(wrapper)
+                cls = type("C", (), {"method": descriptor})
+                for receiver in (cls, cls()):
+                    try:
+                        # The oracle must not use another JIT method-load site.
+                        getattr(receiver, "method")()  # noqa: B009
+                    except (RuntimeError, TypeError) as error:
+                        error_type = type(error)
+                    else:
+                        self.fail("descriptor without a callable unexpectedly callable")
+                    with self.assertRaises(error_type):
+                        call_on_class_no_args(receiver)
+
+    def test_mixed_instance_and_class_receivers(self):
+        class C:
+            @staticmethod
+            def method(arg):
+                return arg
+
+        obj = C()
+        for _ in range(10):
+            self.assertEqual(call_on_class(obj, 1), 1)
+            self.assertEqual(call_on_class(C, 2), 2)
+        C.method = staticmethod(lambda arg: arg + 10)
+        self.assertEqual(call_on_class(obj, 1), 11)
+        self.assertEqual(call_on_class(C, 2), 12)
+
+    def test_mixed_classmethod_binding(self):
+        class Base:
+            @classmethod
+            def method(cls):
+                return cls
+
+        class Derived(Base):
+            pass
+
+        obj = Base()
+        for _ in range(10):
+            self.assertIs(call_on_class_no_args(obj), Base)
+            self.assertIs(call_on_class_no_args(Derived), Derived)
+
+    def test_more_than_four_class_receivers(self):
+        classes = [
+            type(f"C{i}", (), {"method": staticmethod(lambda arg, i=i: i)})
+            for i in range(6)
+        ]
+        for _ in range(10):
+            for i, cls in enumerate(classes):
+                self.assertEqual(call_on_class(cls, None), i)
+        classes[2].method = staticmethod(lambda arg: 42)
+        self.assertEqual(call_on_class(classes[2], None), 42)
+        for i in (0, 1, 3, 4, 5):
+            self.assertEqual(call_on_class(classes[i], None), i)
+
+    def test_full_instance_cache_then_class_receiver(self):
+        classes = [
+            type(f"C{i}", (), {"method": staticmethod(lambda arg, i=i: i)})
+            for i in range(4)
+        ]
+        objects = [cls() for cls in classes]
+        for _ in range(10):
+            for i, obj in enumerate(objects):
+                self.assertEqual(call_on_class(obj, None), i)
+            self.assertEqual(call_on_class(classes[0], None), 0)
+        classes[0].method = staticmethod(lambda arg: 42)
+        self.assertEqual(call_on_class(objects[0], None), 42)
+        self.assertEqual(call_on_class(classes[0], None), 42)
+
+    def test_receiver_collection_and_replacement(self):
+        for i in range(20):
+            cls = type("Temporary", (), {"method": staticmethod(lambda arg, i=i: i)})
+            self.assertEqual(call_on_class(cls, None), i)
+            del cls
+            gc.collect()
+
+    def test_polymorphic_classmethod_invalidation(self):
+        class Base:
+            @classmethod
+            def method(cls):
+                return cls
+
+        classes = [type(f"C{i}", (Base,), {}) for i in range(4)]
+        for _ in range(10):
+            for cls in classes:
+                self.assertIs(call_on_class_no_args(cls), cls)
+        Base.method = classmethod(lambda cls: (cls, 42))
+        for cls in classes:
+            self.assertEqual(call_on_class_no_args(cls), (cls, 42))
 
 
 class LoadModuleMethodCacheTests(CinderXTestCase):
