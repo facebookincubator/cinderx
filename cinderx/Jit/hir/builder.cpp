@@ -205,6 +205,7 @@ bool isSupportedOpcode(int opcode) {
     case LOAD_FIELD:
     case LOAD_GLOBAL:
     case LOAD_ITERABLE_ARG:
+    case LOAD_MAPPING_ARG:
     case LOAD_LOCAL:
     case LOAD_METHOD:
     case LOAD_METHOD_STATIC:
@@ -1442,6 +1443,10 @@ void HIRBuilder::translate(
           emitLoadIterableArg(irfunc.cfg, tc, bc_instr);
           break;
         }
+        case LOAD_MAPPING_ARG: {
+          emitLoadMappingArg(tc, bc_instr);
+          break;
+        }
         case DUP_TOP: {
           auto& stack = tc.frame.stack;
           stack.push(stack.top());
@@ -2404,6 +2409,27 @@ void HIRBuilder::emitLoadIterableArg(
       element, BinaryOpKind::kSubscript, tuple, tup_idx, tc.frame);
   tc.frame.stack.push(element);
   tc.frame.stack.push(tuple);
+}
+
+void HIRBuilder::emitLoadMappingArg(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  const int nargs = bc_instr.oparg();
+  JIT_THROW_IF(
+      nargs != 2 && nargs != 3, "Invalid LOAD_MAPPING_ARG oparg {}", nargs);
+  OperandStack& stack = tc.frame.stack;
+  Register* name = stack.pop();
+  Register* mapping = stack.pop();
+  Register* default_value;
+  if (nargs == 3) {
+    default_value = stack.pop();
+  } else {
+    default_value = allocateTemp();
+    tc.emit<LoadConst>(default_value, TNullptr);
+  }
+  Register* out = allocateTemp();
+  tc.emit<LoadMappingArg>(out, mapping, name, default_value, tc.frame);
+  stack.push(out);
 }
 
 bool HIRBuilder::tryEmitDirectMethodCall(

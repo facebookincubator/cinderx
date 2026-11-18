@@ -8,6 +8,7 @@
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h"
 
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
@@ -22,6 +23,7 @@
 #include "cinderx/Jit/lir/interpframe.h"
 // NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/Immortalize/immortalize.h"
+#include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
@@ -2432,6 +2434,29 @@ PyObject* invokeIterNext(PyObject* iterator) {
   }
   Py_INCREF(&iterDoneSentinel);
   return &iterDoneSentinel;
+}
+
+PyObject*
+loadMappingArg(PyObject* mapping, PyObject* name, PyObject* default_value) {
+  if (!PyDict_Check(mapping) && !Ci_CheckedDict_Check(mapping)) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "argument after ** must be a dict, not %.200s",
+        Py_TYPE(mapping)->tp_name);
+    return nullptr;
+  }
+  Ref<> value = getDictRef(mapping, name);
+  if (value != nullptr) {
+    return value.release();
+  }
+  if (PyErr_Occurred()) {
+    return nullptr;
+  }
+  if (default_value == nullptr) {
+    PyErr_Format(PyExc_TypeError, "missing argument %U", name);
+    return nullptr;
+  }
+  return Py_NewRef(default_value);
 }
 
 PyObject* listSubscript(

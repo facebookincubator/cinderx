@@ -302,6 +302,7 @@ static std::string format_immediates(
     case Opcode::kDeopt:
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:
+    case Opcode::kLoadMappingArg:
     case Opcode::kDictUpdate:
     case Opcode::kEndGeneratorFrame:
     case Opcode::kEndInlinedFunction:

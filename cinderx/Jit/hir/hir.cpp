@@ -722,6 +722,7 @@ bool Instr::isReplayable() const {
     case Opcode::kDeoptPatchpoint:
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:
+    case Opcode::kLoadMappingArg:
     case Opcode::kDictUpdate:
     case Opcode::kEagerImportName:
     case Opcode::kEndGeneratorFrame:
@@ -1006,6 +1007,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:
+    case Opcode::kLoadMappingArg:
     case Opcode::kDictUpdate:
     case Opcode::kDoubleBinaryOp:
     case Opcode::kEagerImportName:

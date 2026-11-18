@@ -5407,6 +5407,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             instr->getOperand(1));
         break;
       }
+      case hir::Opcode::kLoadMappingArg: {
+        auto& instr = i.as<LoadMappingArg>();
+        bbb.appendCallInstruction(
+            instr.output(),
+            rt::loadMappingArg,
+            instr.getOperand(0),
+            instr.getOperand(1),
+            instr.getOperand(2));
+        break;
+      }
       case hir::Opcode::kListSubscr: {
         if constexpr (kFreeThreadedBuild) {
           auto instr = &i.as<ListSubscr>();

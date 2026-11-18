@@ -399,6 +399,7 @@ class LiveValuesBase : public Instr {
   X(DeoptPatchpoint)                  \
   X(DictMerge)                        \
   X(DictSubscr)                       \
+  X(LoadMappingArg)                   \
   X(DictUpdate)                       \
   X(EagerImportName)                  \
   X(FillTypeAttrCache)                \
@@ -1011,6 +1012,15 @@ DEFINE_SIMPLE_INSTR(
 
 // Gets a tuple representation from a sequence.
 DEFINE_SIMPLE_INSTR(GetTuple, (TObject), Operands<1>, DeoptBase);
+
+// Load a named argument from **kwargs, using the third operand as its default
+// (nullptr for a required argument). Dict-key equality can reenter Python, so
+// the lookup carries deoptimization state.
+DEFINE_SIMPLE_INSTR(
+    LoadMappingArg,
+    (TObject, TUnicode, TOptObject),
+    Operands<3>,
+    DeoptBase);
 
 // An unconditional branch
 class INSTR_CLASS(Branch, (), Operands<0>) {

@@ -220,6 +220,7 @@ Type outputType(
     case Opcode::kCallIntrinsic:
     case Opcode::kConvertValue:
     case Opcode::kDictSubscr:
+    case Opcode::kLoadMappingArg:
     case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:

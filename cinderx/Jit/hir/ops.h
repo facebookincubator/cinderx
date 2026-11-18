@@ -52,6 +52,7 @@ namespace cinderx::jit::hir {
   V(DeoptPatchpoint)               \
   V(DictMerge)                     \
   V(DictSubscr)                    \
+  V(LoadMappingArg)                \
   V(DictUpdate)                    \
   V(DoubleBinaryOp)                \
   V(EagerImportName)               \
@@ -283,6 +284,7 @@ constexpr size_t numOutputs(Opcode op) {
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:
+    case Opcode::kLoadMappingArg:
     case Opcode::kDictUpdate:
     case Opcode::kDoubleBinaryOp:
     case Opcode::kEagerImportName:

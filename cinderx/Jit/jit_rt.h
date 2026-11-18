@@ -584,6 +584,12 @@ extern PyObject iterDoneSentinel;
  */
 PyObject* invokeIterNext(PyObject* iterator);
 
+// Load a statically bound **kwargs argument by name, or use default_value.
+// A null default_value marks a required argument; the result is an owned
+// reference.
+PyObject*
+loadMappingArg(PyObject* mapping, PyObject* name, PyObject* default_value);
+
 /*
  * FT-safe exact-list subscript used by ListSubscr. Uses PyList_GetItemRef so
  * the result is an owned reference.

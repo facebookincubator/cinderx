@@ -332,6 +332,9 @@ class HIRBuilder {
       CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitLoadMappingArg(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitInvokeFunction(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
