@@ -65,6 +65,8 @@ struct BackgroundCompileTask {
   Ref<CompiledFunction> expected;
   std::unique_ptr<CompiledFunctionData> replacement;
   Profile profile;
+  // Set by the worker when the compiler rejected the code.
+  bool compile_failed{false};
 };
 
 // Process-wide state for background compilation. A pool of long-lived

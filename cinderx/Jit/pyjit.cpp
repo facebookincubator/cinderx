@@ -4831,6 +4831,32 @@ void ensureForkHandlersRegistered() {}
 
 #endif
 
+// Remember that a background compile of code failed, so that new instances of
+// a nested function don't each queue up the same failing compile.  Must be
+// called while attached.
+void recordCompileFailure(BorrowedRef<PyCodeObject> code) {
+  if (NestedCompileData* data = nestedCompileData(code)) {
+    data->markCompileFailed();
+  }
+}
+
+bool hasCompileFailed(BorrowedRef<PyCodeObject> code) {
+  NestedCompileData* data = nestedCompileData(code);
+  return data != nullptr && data->compileFailed();
+}
+
+// Stop routing func through jitVectorcall when no background compile is going
+// to finish it, so later calls don't keep trying to schedule one.  Must be
+// called with the entry lock held.
+void resetToInterpreter(
+    BorrowedRef<PyFunctionObject> func,
+    BorrowedRef<PyCodeObject> code) {
+  // A replaced code object gets its own entry point; leave it alone.
+  if (func->func_code == code.getObj()) {
+    setVectorcall(func, getInterpretedVectorcall(func));
+  }
+}
+
 // Compile a single task.  Called only from the background worker thread w/o
 // the GIL held.
 void processBackgroundCompile(
@@ -4864,6 +4890,7 @@ void processBackgroundCompile(
             "Background compile failed: {} for {}",
             static_cast<int>(result),
             preloader->fullname());
+        task->compile_failed = true;
         return;
       }
     }
@@ -4939,6 +4966,10 @@ void backgroundCompileWorkerLoop(
       // First compilations are published through finalizePendingCompiles().
       if (task->expected != nullptr) {
         jit_ctx->completeRecompile(*task);
+      } else if (task->compile_failed) {
+        // Recorded while the task still holds the admission, so no new compile
+        // of this code can be admitted before the failure is visible.
+        recordCompileFailure(task->code);
       }
     }
     finishBackgroundCompile(*jit_ctx, std::move(task));
@@ -5043,6 +5074,15 @@ void scheduleBackgroundCompile(
     // async iterator".
     constexpr int forbidden_flags = CO_ASYNC_GENERATOR;
     if (code->co_flags & forbidden_flags) {
+      if (expected == nullptr) {
+        resetToInterpreter(func, code);
+      }
+      return;
+    }
+
+    // An earlier instance of this nested function already failed to compile.
+    if (expected == nullptr && hasCompileFailed(code)) {
+      resetToInterpreter(func, code);
       return;
     }
 
@@ -5073,6 +5113,11 @@ void scheduleBackgroundCompile(
       trackEligibleCodeObjects(state, func, code);
       auto admitted =
           admitCompile(jit_ctx, func, CompilationOrigin::kBackground);
+      // An in-flight or finished compile still has to attach func, which
+      // happens on its next trip through jitVectorcall.
+      if (admitted.admission == CompileAdmission::kIneligible) {
+        resetToInterpreter(func, code);
+      }
       if (admitted.admission != CompileAdmission::kCompile) {
         return;
       }
@@ -5124,12 +5169,13 @@ void scheduleBackgroundCompile(
     if (std::none_of(targets.begin(), targets.end(), [&](const auto& target) {
           return target.func == func && target.preloader->code() == code;
         })) {
-      // Target was invalidated during preload; ignore if no exception occurred.
-      if (PyErr_Occurred()) {
+      // Target was invalidated during preload; give up on it, and propagate the
+      // exception if there was one.
+      if (expected == nullptr) {
         FreeThreadedJITEntrypointGuard guard;
-        if (expected == nullptr && func->func_code == code.getObj()) {
-          setVectorcall(func, getInterpretedVectorcall(func));
-        }
+        resetToInterpreter(func, code);
+      }
+      if (PyErr_Occurred()) {
         throw CAPIError();
       }
       return;
@@ -5171,6 +5217,9 @@ void scheduleBackgroundCompile(
       return;
     }
     if (!ensureBackgroundWorkerPool(jit_ctx, *state.code_allocator, *reg)) {
+      if (expected == nullptr) {
+        resetToInterpreter(func, code);
+      }
       return;
     }
     reg->queue.push_back(std::move(task));
@@ -5630,6 +5679,10 @@ inline std::optional<bool> scheduleNestedFunction(
   }
 
   if (eligibility == JitEligibility::Eligible && !shouldScheduleCompile(func)) {
+    return false;
+  }
+
+  if (data->compileFailed()) {
     return false;
   }
 

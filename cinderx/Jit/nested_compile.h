@@ -48,6 +48,18 @@ class NestedCompileData {
     may_own_code_outer_func_entry_.store(true, std::memory_order_release);
   }
 
+  // Set once a background compile of this code has failed.  Later instances
+  // of the nested function stay interpreted instead of each repeating the same
+  // failed compile.  Kept apart from the eligibility, which is recomputed
+  // whenever the JIT list changes.
+  bool compileFailed() const {
+    return compile_failed_.load(std::memory_order_acquire);
+  }
+
+  void markCompileFailed() {
+    compile_failed_.store(true, std::memory_order_release);
+  }
+
   ~NestedCompileData() {
     setCompiledFunction(nullptr);
   }
@@ -105,6 +117,7 @@ class NestedCompileData {
   std::atomic<JitEligibility> eligibility_;
   // Monotonic because false permits skipping ownership cleanup.
   std::atomic<bool> may_own_code_outer_func_entry_{false};
+  std::atomic<bool> compile_failed_{false};
   std::atomic<CompiledFunction*> compiled_function_{nullptr};
   BorrowedRef<PyFunctionObject> outer_func_{nullptr};
 };

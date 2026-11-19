@@ -244,6 +244,53 @@ class BackgroundCompileTest(unittest.TestCase):
                 env=subprocess_env(),
             )
 
+    def test_failed_nested_compile_not_repeated(self) -> None:
+        """Once a nested function's code fails to compile, new instances of it
+        run interpreted instead of each queueing the same failing compile.
+
+        The JIT can't compile DELETE_DEREF, so every compile of inner() fails.
+        """
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            cinderx.jit.background_compile(True)
+
+            def make():
+                x = 1
+
+                def inner():
+                    nonlocal x
+                    del x
+
+                return inner
+
+            for _ in range(5):
+                make()()
+                cinderx.jit.wait_for_background_compiles()
+            print("OK")
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            env = {**subprocess_env(), "CINDERX_JIT_DEBUG": "1"}
+            proc = subprocess.run(
+                [sys.executable, "-X", "cinderx-jit-all", str(test_file)],
+                check=True,
+                capture_output=True,
+                encoding="utf-8",
+                env=env,
+            )
+            self.assertIn("OK", proc.stdout, proc)
+            failures = sum(
+                1
+                for line in proc.stderr.splitlines()
+                if "Background compile failed" in line and "inner" in line
+            )
+            self.assertEqual(failures, 1, proc.stderr)
+
     @passUnless(hasattr(os, "fork"), "requires os.fork()")
     def test_fork_after_background_compile(self) -> None:
         """Forking once the background compile worker thread exists must leave
