@@ -25,8 +25,4 @@ uint32_t StringTable::insert(std::string_view s) {
   return static_cast<uint32_t>(start_off);
 }
 
-std::string_view StringTable::string_at(size_t offset) const {
-  return reinterpret_cast<const char*>(&bytes_[offset]);
-}
-
 } // namespace cinderx::jit::elf

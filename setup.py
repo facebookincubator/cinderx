@@ -462,7 +462,6 @@ class BuildExt(build_ext):
         set_option("ENABLE_ADAPTIVE_STATIC_PYTHON", meta_312)
         set_option("ENABLE_CCACHE", False)
         set_option("ENABLE_DISASSEMBLER", True)
-        set_option("ENABLE_ELF_READER", linux)
         set_option("ENABLE_EVAL_HOOK", meta_312)
         set_option("ENABLE_FREE_THREADING", free_threading)
         set_option("ENABLE_FUNC_EVENT_MODIFY_QUALNAME", meta_312 or is_315)
@@ -477,7 +476,6 @@ class BuildExt(build_ext):
         set_option("ENABLE_SYMBOLIZER", linux)
         set_option("ENABLE_XXCLASSLOADER", False)
         set_option("ENABLE_USDT", linux)
-        set_option("ENABLE_ZLIB", linux or mac)
 
         for name, value in options.items():
             cmake_args.append(f"-D{name}={value}")

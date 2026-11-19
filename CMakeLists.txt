@@ -61,7 +61,6 @@ endmacro()
 
 set_flag(ENABLE_ADAPTIVE_STATIC_PYTHON)
 set_flag(ENABLE_DISASSEMBLER)
-set_flag(ENABLE_ELF_READER)
 set_flag(ENABLE_EVAL_HOOK)
 if (ENABLE_FREE_THREADING)
   set(SHARED_FLAGS "-DPy_GIL_DISABLED=1 ${SHARED_FLAGS}")
@@ -76,7 +75,6 @@ set_flag(ENABLE_PEP523_HOOK)
 set_flag(ENABLE_PERF_TRAMPOLINE)
 set_flag(ENABLE_SYMBOLIZER)
 set_flag(ENABLE_USDT)
-set_flag(ENABLE_ZLIB)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SHARED_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS} ${SHARED_FLAGS}")
@@ -300,18 +298,6 @@ file(MAKE_DIRECTORY ${USDT_DIR})
 file(COPY ${usdt_SOURCE_DIR}/usdt.h DESTINATION ${USDT_DIR})
 
 ########################################
-# zlib
-
-if (${ENABLE_ZLIB})
-    FetchContent_Declare(
-        zlib
-        GIT_REPOSITORY "https://github.com/madler/zlib.git"
-        FIND_PACKAGE_ARGS NAMES ZLIB
-    )
-    find_package(ZLIB REQUIRED)
-endif()
-
-########################################
 # capstone (optional, for JIT disassembly)
 
 if (${ENABLE_DISASSEMBLER})
@@ -358,11 +344,7 @@ include_directories(
 
 file(GLOB_RECURSE COMMON_SOURCES ${PROJECT_SOURCE_DIR}/Common/*.cpp ${PROJECT_SOURCE_DIR}/Common/*.c)
 add_library(common ${COMMON_SOURCES})
-if (${ENABLE_ZLIB})
-    target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt ZLIB::ZLIB)
-else()
-    target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt)
-endif()
+target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt)
 
 ########################################
 # UpstreamBorrow/
@@ -542,10 +524,6 @@ if (BUILD_RUNTIME_TESTS)
     CONFIGURE_DEPENDS
     ${PROJECT_SOURCE_DIR}/RuntimeTests/*.cpp
   )
-
-  if (NOT ENABLE_ELF_READER)
-    list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/elf_test.cpp)
-  endif()
 
   if (NOT ENABLE_SYMBOLIZER)
     list(REMOVE_ITEM RUNTIME_TESTS_SOURCES ${PROJECT_SOURCE_DIR}/RuntimeTests/util_test.cpp)

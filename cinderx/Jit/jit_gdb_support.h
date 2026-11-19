@@ -4,7 +4,20 @@
 
 #include "cinderx/python.h"
 
+#include <cstddef>
+#include <span>
+#include <string_view>
+#include <vector>
+
 namespace cinderx::jit {
+
+// Build the relocatable ELF object consumed by the GDB JIT interface.
+std::vector<std::byte> buildDebugElf(
+    std::string_view function_name,
+    std::string_view filename,
+    int lineno,
+    const void* code_addr,
+    size_t code_size);
 
 struct CompiledFunctionData;
 
