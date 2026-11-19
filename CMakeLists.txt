@@ -125,6 +125,15 @@ endif()
 
 option(ENABLE_LTO "Enable Link-Time Optimization (full)" OFF)
 
+if(ENABLE_PGO_GENERATE AND ENABLE_PGO_USE)
+  message(FATAL_ERROR "PGO profile generation and use cannot be enabled together")
+endif()
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND
+   (ENABLE_PGO_GENERATE OR ENABLE_PGO_USE) AND NOT ENABLE_LTO)
+  message(FATAL_ERROR "MSVC PGO requires ENABLE_LTO=ON (/GL and /LTCG)")
+endif()
+
 if(ENABLE_LTO)
   message(STATUS "LTO: Enabled")
 
@@ -141,18 +150,16 @@ if(ENABLE_LTO)
 
   # For Clang LTO we need an LLVM archiver.  Use llvm-lib on Windows (clang-cl
   # wants MSVC-style /flags, which llvm-ar rejects), and llvm-ar elsewhere.
-  # Both are optional on macOS since AppleClang may work with the system ar.
+  # llvm-ar is optional on macOS since AppleClang may work with the system ar.
   if(USING_CLANG)
-    if(WINDOWS)
-      find_program(LLVM_LIB llvm-lib)
-      if(LLVM_LIB)
-        set(CMAKE_AR ${LLVM_LIB})
-        message(STATUS "LTO: Using llvm-lib: ${CMAKE_AR}")
-      else()
-        message(STATUS
-          "LTO: Using system lib (llvm-lib not found, Clang-CL may work with"
-          " system lib)")
-      endif()
+    if(WINDOWS AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+      get_filename_component(LLVM_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+      find_program(LLVM_LIB llvm-lib HINTS "${LLVM_BIN_DIR}" REQUIRED)
+      find_program(LLVM_LLD_LINK lld-link HINTS "${LLVM_BIN_DIR}" REQUIRED)
+      set(CMAKE_AR "${LLVM_LIB}")
+      # MSVC's link.exe cannot consume the LLVM bitcode produced by -flto.
+      set(CMAKE_LINKER "${LLVM_LLD_LINK}")
+      message(STATUS "LTO: Using llvm-lib and lld-link")
     else()
       find_program(LLVM_AR llvm-ar)
       if(LLVM_AR)
@@ -168,7 +175,11 @@ if(ENABLE_LTO)
     endif()
 
     # Use ThinLTO on macOS for better performance and lower memory usage.
-    if(MACOS)
+    if(WINDOWS AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+      set(LTO_FLAG "-flto")
+      # CMake invokes lld-link directly, which recognizes bitcode without -flto.
+      set(LTO_LINKER_FLAGS "")
+    elseif(MACOS)
       set(LTO_FLAG "-flto=thin")
       set(LTO_LINKER_FLAGS "-flto=thin")
     else()
@@ -179,8 +190,6 @@ if(ENABLE_LTO)
     set(LTO_FLAG "-flto")
     set(LTO_LINKER_FLAGS "-flto -fuse-linker-plugin -ffat-lto-objects")
   elseif(USING_MSVC)
-    # MSVC uses /GL for compilation and /LTCG for linking
-    # Alternatively, we can use CMake's INTERPROCEDURAL_OPTIMIZATION
     set(LTO_FLAG "/GL")
     set(LTO_LINKER_FLAGS "/LTCG")
   endif()
@@ -196,16 +205,47 @@ endif()
 ##############################################################################
 # Apply PGO flags if enabled
 
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND
+   (ENABLE_PGO_GENERATE OR ENABLE_PGO_USE))
+  # Target options come after config-specific defaults such as /INCREMENTAL:YES.
+  add_link_options(/INCREMENTAL:NO)
+endif()
+
+if(ENABLE_PGO_GENERATE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND
+   WINDOWS AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+  # Clang-CL embeds a dependency on the profile runtime in each instrumented
+  # object, but CMake invokes the linker directly so it must be able to find it.
+  execute_process(
+    COMMAND "${CMAKE_CXX_COMPILER}" -print-runtime-dir
+    OUTPUT_VARIABLE LLVM_RUNTIME_DIR
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE LLVM_RUNTIME_RESULT)
+  if(NOT LLVM_RUNTIME_RESULT EQUAL 0 OR NOT IS_DIRECTORY "${LLVM_RUNTIME_DIR}")
+    message(FATAL_ERROR "Cannot locate the Clang-CL profile runtime")
+  endif()
+  link_directories("${LLVM_RUNTIME_DIR}")
+endif()
+
 if(ENABLE_PGO_GENERATE)
   message(STATUS "PGO: Building with profile generation instrumentation")
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-generate")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-instr-generate")
+    if(NOT (WINDOWS AND CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC"))
+      foreach(TYPE SHARED MODULE EXE)
+        set(CMAKE_${TYPE}_LINKER_FLAGS "${CMAKE_${TYPE}_LINKER_FLAGS} -fprofile-instr-generate")
+      endforeach()
+    endif()
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-generate")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-generate")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-generate")
+    foreach(TYPE SHARED MODULE EXE)
+      set(CMAKE_${TYPE}_LINKER_FLAGS "${CMAKE_${TYPE}_LINKER_FLAGS} -fprofile-generate")
+    endforeach()
+  elseif(MSVC)
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /GENPROFILE")
+    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} /GENPROFILE")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /GENPROFILE")
   else()
     message(WARNING "PGO profile generation is not supported with compiler: ${CMAKE_CXX_COMPILER_ID}")
   endif()
@@ -221,12 +261,17 @@ if(ENABLE_PGO_USE)
       message(FATAL_ERROR "PGO profile file does not exist: ${PGO_PROFILE_FILE}")
     endif()
     message(STATUS "PGO: Using profile data from ${PGO_PROFILE_FILE}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-use=${PGO_PROFILE_FILE}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-use=${PGO_PROFILE_FILE}")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-use=\"${PGO_PROFILE_FILE}\"")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-use=\"${PGO_PROFILE_FILE}\"")
   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     message(STATUS "PGO: Using GCC profile data from build directory")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-use -fprofile-correction")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-use -fprofile-correction")
+  elseif(MSVC)
+    message(STATUS "PGO: Using MSVC profile data from build directory")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /USEPROFILE")
+    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} /USEPROFILE")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /USEPROFILE")
   else()
     message(WARNING "PGO profile use is not supported with compiler: ${CMAKE_CXX_COMPILER_ID}")
   endif()
@@ -501,6 +546,13 @@ target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
   cinderx-lib)
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND
+   (ENABLE_PGO_GENERATE OR ENABLE_PGO_USE))
+  file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/pgo_data")
+  target_link_options(${PROJECT_NAME} PRIVATE
+    "/PGD:${CMAKE_BINARY_DIR}/pgo_data/${PROJECT_NAME}.pgd")
+endif()
 
 # macOS doesn't allow depending on other shared libraries by default.
 if (MACOS)

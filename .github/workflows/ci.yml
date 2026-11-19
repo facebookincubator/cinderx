@@ -116,6 +116,16 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
 
+      # Clang-CL PGO needs llvm-profdata, llvm-lib, and lld-link from the same
+      # LLVM installation as the compiler.
+      - name: Install LLVM (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install llvm -y
+          "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
+          "CC=C:\Program Files\LLVM\bin\clang-cl.exe" >> $env:GITHUB_ENV
+          "CXX=C:\Program Files\LLVM\bin\clang-cl.exe" >> $env:GITHUB_ENV
+
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
 

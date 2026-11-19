@@ -65,13 +65,14 @@ def compute_package_version() -> str:
 
 
 @lru_cache(maxsize=1)
-def get_compiler() -> tuple[str, str]:
+def get_compiler() -> tuple[str | None, str | None]:
     """
     Prefers GCC if a new enough version is installed as this is what the
     cibuildwheel environment uses.
 
     Returns:
-        A tuple of (c_compiler, cxx_compiler) paths.
+        A tuple of (c_compiler, cxx_compiler) paths, or (None, None) to use
+        CMake's default compiler detection.
     """
     cc_path = os.environ.get("CC")
     cxx_path = os.environ.get("CXX")
@@ -123,6 +124,12 @@ def get_compiler() -> tuple[str, str]:
         print(f"Using Clang: {clang_path}, {clangxx_path}")
         return (clang_path, clangxx_path)
 
+    # On Windows, if no compiler is explicitly found, let CMake use its default
+    # (which will be MSVC with the appropriate generator)
+    if platform.system() == "Windows":
+        print("No explicit compiler found, using CMake default (MSVC on Windows)")
+        return (None, None)
+
     raise RuntimeError("Cannot find suitable C/C++ compiler (tried gcc and clang)")
 
 
@@ -158,9 +165,6 @@ class BuildCommand(build):
             print(title)
             print(separator)
 
-        cc, _ = get_compiler()
-        is_clang = "clang" in cc
-
         print_section("PGO STAGE 1/3: Building with profile generation instrumentation")
 
         stage1_build_ext_cmd = self.get_finalized_command("build_ext")
@@ -169,18 +173,39 @@ class BuildCommand(build):
         # Run normal build process (BuildPy + BuildExt)
         super().run()
 
+        # Use CMake's detected compiler rather than guessing from a path (which
+        # may be an alias, wrapper, or contain a misleading directory name).
+        compiler_files = glob.glob(
+            os.path.join(self.build_temp, "CMakeFiles", "*", "CMakeCXXCompiler.cmake")
+        )
+        compiler_id = None
+        for compiler_file in compiler_files:
+            with open(compiler_file) as f:
+                match = re.search(r'set\(CMAKE_CXX_COMPILER_ID "([^"]+)"\)', f.read())
+            if match:
+                compiler_id = match.group(1)
+                break
+        if compiler_id not in ("Clang", "AppleClang", "GNU", "MSVC"):
+            raise RuntimeError(f"Unsupported PGO compiler: {compiler_id}")
+        is_clang = "Clang" in compiler_id
+        is_msvc = compiler_id == "MSVC"
+
         print_section("PGO STAGE 2/3: Running profiling workload")
 
         workload_env = os.environ.copy()
 
+        pgo_dir = os.path.abspath(os.path.join(self.build_temp, "pgo_data"))
+        if is_clang or is_msvc:
+            os.makedirs(pgo_dir, exist_ok=True)
+
         if is_clang:
-            clang_pgo_dir = os.path.join(
-                os.getcwd(), os.path.join(self.build_temp, "pgo_data")
-            )
-            os.makedirs(clang_pgo_dir, exist_ok=True)
+            clang_pgo_dir = pgo_dir
             raw_profile_pattern = os.path.join(clang_pgo_dir, "code-%p.profraw")
             clang_merged_profile = os.path.join(clang_pgo_dir, "code.profdata")
             workload_env["LLVM_PROFILE_FILE"] = raw_profile_pattern
+        elif is_msvc:
+            # Keep runtime counters next to the /PGD database used by the linker.
+            workload_env["VCPROFILE_PATH"] = pgo_dir
 
         # Add build output to PYTHONPATH so workload can import cinderx
         cinderx_so_dir = os.path.join(os.getcwd(), self.build_lib)
@@ -197,6 +222,7 @@ class BuildCommand(build):
             "-c",
             """
 import cinderx
+assert cinderx.is_initialized(), cinderx.get_import_error()
 
 def main():
     # This import must not be in the module body as it will start the tests
@@ -215,8 +241,8 @@ if __name__ == "__main__":
             "env": workload_env,
             "check": True,
         }
-        if is_clang:
-            workload_args["cwd"] = clang_pgo_dir
+        if is_clang or is_msvc:
+            workload_args["cwd"] = pgo_dir
 
         subprocess.run(workload_cmd, **workload_args)
         workload_env["CINDERX_JIT_ALL"] = "1"
@@ -230,7 +256,12 @@ if __name__ == "__main__":
         if is_clang:
             print_section("PGO STAGE 2b: Merging profile data")
 
-            llvm_profdata = shutil.which("llvm-profdata")
+            # Prefer the compiler's own tools to avoid profile format mismatches.
+            _, cxx = get_compiler()
+            compiler_dir = os.path.dirname(shutil.which(cxx) or cxx) if cxx else ""
+            llvm_profdata = shutil.which("llvm-profdata", path=compiler_dir)
+            if not llvm_profdata:
+                llvm_profdata = shutil.which("llvm-profdata")
             if not llvm_profdata and sys.platform == "darwin":
                 # Apple Clang ships llvm-profdata in the Xcode toolchain but
                 # doesn't put it on PATH; locate it via xcrun.
@@ -259,6 +290,11 @@ if __name__ == "__main__":
             ] + profraw_files
             subprocess.run(merge_cmd, check=True)
             print(f"Merged profile written to {clang_merged_profile}")
+        elif is_msvc:
+            print_section("PGO STAGE 2b: MSVC profile data")
+            if not glob.glob(os.path.join(pgo_dir, "*.pgc")):
+                raise RuntimeError(f"No MSVC profile data generated in {pgo_dir}")
+            print("The /USEPROFILE link will merge .pgc files into the .pgd database")
 
         print_section("PGO STAGE 3/3: Rebuilding with profile-guided optimizations")
 
@@ -279,12 +315,14 @@ if __name__ == "__main__":
 
         cmake_files = os.path.join(self.build_temp, "CMakeFiles")
         if os.path.exists(cmake_files):
-            print(f"  Cleaning {cmake_files} (preserving .gcda/.gcno for GCC PGO)")
+            print(
+                f"  Cleaning {cmake_files} (preserving .gcda/.gcno for GCC PGO, .pgc/.pgd for MSVC PGO)"
+            )
             for root, _dirs, files in os.walk(cmake_files, topdown=False):
                 for f in files:
                     file_path = os.path.join(root, f)
-                    # Preserve GCC PGO profiling files
-                    if f.endswith((".gcda", ".gcno")):
+                    # Preserve PGO profiling files.
+                    if f.endswith((".gcda", ".gcno", ".pgc", ".pgd")):
                         continue
                     os.remove(file_path)
                 # Remove empty directories, but only if they don't contain
@@ -292,7 +330,7 @@ if __name__ == "__main__":
                 try:
                     os.rmdir(root)  # Only removes if empty
                 except OSError:
-                    pass  # Directory not empty, contains .gcda/.gcno files
+                    pass  # Directory not empty, contains preserved files
 
         # Remove all object files and libraries to force rebuild
         for rm_root in (self.build_temp, self.build_lib):
@@ -302,7 +340,9 @@ if __name__ == "__main__":
                     if "pgo_data" in root:
                         continue
                     for f in files:
-                        if f.endswith((".o", ".so", ".a")):
+                        if f.endswith(
+                            (".o", ".so", ".a", ".obj", ".lib", ".pyd", ".dll", ".exp")
+                        ):
                             file_path = os.path.join(root, f)
                             print(f"  Removing {file_path}")
                             os.remove(file_path)
@@ -397,7 +437,9 @@ class BuildExt(build_ext):
         verbose_makefile = os.environ.get("CMAKE_VERBOSE_MAKEFILE", "OFF")
 
         cmake_generator = os.environ.get("CMAKE_GENERATOR")
-        if not cmake_generator and shutil.which("ninja"):
+        if not cmake_generator and (
+            platform.system() == "Windows" or shutil.which("ninja")
+        ):
             cmake_generator = "Ninja"
 
         cmake_args = []
@@ -406,10 +448,16 @@ class BuildExt(build_ext):
         cmake_args += [
             f"-DCMAKE_BUILD_TYPE={build_type}",
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={ext_dir}",
-            f"-DCMAKE_C_COMPILER={cc}",
-            f"-DCMAKE_CXX_COMPILER={cxx}",
+            # Multi-config generators otherwise append a configuration subdir.
+            f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{build_type.upper()}={ext_dir}",
             f"-DCMAKE_VERBOSE_MAKEFILE:BOOL={verbose_makefile}",
         ]
+
+        # Only pass explicit compiler if specified (None means use CMake defaults).
+        if cc:
+            cmake_args.append(f"-DCMAKE_C_COMPILER={cc}")
+        if cxx:
+            cmake_args.append(f"-DCMAKE_CXX_COMPILER={cxx}")
 
         if self.cinderx_pgo_stage == PgoStage.GENERATE:
             cmake_args.append("-DENABLE_PGO_GENERATE=ON")
@@ -485,13 +533,9 @@ class BuildExt(build_ext):
         build_args = [
             "--config",
             build_type,
-            "--",
-            "-j",
+            "--parallel",
             str(os.cpu_count() or 1),
         ]
-
-        if platform.system() == "Windows":
-            cmake_args.extend(["-G", "Ninja"])
 
         # pyrefly: ignore [missing-attribute]
         self.spawn(["cmake"] + cmake_args + ["-B", build_dir, CHECKOUT_ROOT_DIR])
