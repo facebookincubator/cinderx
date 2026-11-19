@@ -94,10 +94,15 @@ Ci_StrictModule_New(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   }
 
   self->imported_from = PyDict_New();
+  if (self->imported_from == NULL) {
+    Py_DECREF(self);
+    return NULL;
+  }
   if (d != NULL) {
     PyObject* imported_from = PyDict_GetItemString(d, "<imported-from>");
     if (imported_from != NULL) {
       if (PyDict_MergeFromSeq2(self->imported_from, imported_from, 1)) {
+        Py_DECREF(self);
         return NULL;
       }
       PyDict_DelItemString(d, "<imported-from>");
@@ -116,6 +121,7 @@ Ci_StrictModule_New(PyTypeObject* type, PyObject* args, PyObject* kwds) {
 }
 
 static void strictmodule_dealloc(Ci_StrictModuleObject* m) {
+  PyTypeObject* type = Py_TYPE(m);
   PyObject_GC_UnTrack(m);
   Py_XDECREF(m->globals);
   Py_XDECREF(m->global_setter);
@@ -125,11 +131,13 @@ static void strictmodule_dealloc(Ci_StrictModuleObject* m) {
   if (m->weaklist != NULL) {
     PyObject_ClearWeakRefs((PyObject*)m);
   }
-  Py_TYPE(m)->tp_free((PyObject*)m);
+  type->tp_free((PyObject*)m);
+  Py_DECREF(type);
 }
 
 static int
 strictmodule_traverse(Ci_StrictModuleObject* m, visitproc visit, void* arg) {
+  Py_VISIT(Py_TYPE(m));
   Py_VISIT(m->globals);
   Py_VISIT(m->global_setter);
   Py_VISIT(m->originals);
@@ -385,7 +393,8 @@ static PyObject* strictmodule_lookupattro_impl(
     PyObject* name,
     int suppress) {
   PyObject* attr;
-  if (Py_TYPE(m) != &Ci_StrictModule_Type || !PyUnicode_Check(name)) {
+  PyTypeObject* type = Py_TYPE(m);
+  if (!Ci_StrictModule_CheckExact(m) || !PyUnicode_Check(name)) {
     attr = NULL;
   } else if (
       PyUnicode_GET_LENGTH(name) == 9 && PyUnicode_READ_CHAR(name, 0) == '_' &&
@@ -429,13 +438,13 @@ static PyObject* strictmodule_lookupattro_impl(
     }
 
     /* see if we're accessing a descriptor defined on the module type */
-    attr = _PyType_Lookup(&Ci_StrictModule_Type, name);
+    attr = _PyType_Lookup(type, name);
     if (attr != NULL) {
       assert(!PyDescr_IsData(attr)); /* it better not be a data descriptor */
 
       descrgetfunc f = attr->ob_type->tp_descr_get;
       if (f != NULL) {
-        attr = f(attr, (PyObject*)m, (PyObject*)&Ci_StrictModule_Type);
+        attr = f(attr, (PyObject*)m, (PyObject*)type);
         if (attr == NULL && PyErr_ExceptionMatches(PyExc_AttributeError)) {
           PyErr_Clear();
         }
@@ -530,43 +539,26 @@ static PyGetSetDef strict_module_getset[] = {
     {"__patch_enabled__", strict_module_patch_enabled, NULL, NULL, NULL},
     {NULL}};
 
-PyTypeObject Ci_StrictModule_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "StrictModule", /* tp_name */
-    sizeof(Ci_StrictModuleObject), /* tp_basicsize */
-    0, /* tp_itemsize */
-    (destructor)strictmodule_dealloc, /* tp_dealloc */
-    0, /* tp_print */
-    0, /* tp_getattr */
-    0, /* tp_setattr */
-    0, /* tp_reserved */
-    (reprfunc)strictmodule_repr, /* tp_repr */
-    0, /* tp_as_number */
-    0, /* tp_as_sequence */
-    0, /* tp_as_mapping */
-    0, /* tp_hash */
-    0, /* tp_call */
-    0, /* tp_str */
-    (getattrofunc)strictmodule_getattro, /* tp_getattro */
-    (setattrofunc)strictmodule_setattro, /* tp_setattro */
-    0, /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /* tp_flags */
-    0, /* tp_doc */
-    (traverseproc)strictmodule_traverse, /* tp_traverse */
-    (inquiry)strictmodule_clear, /* tp_clear */
-    0, /* tp_richcompare */
-    offsetof(Ci_StrictModuleObject, weaklist), /* tp_weaklistoffset */
-    0, /* tp_iter */
-    0, /* tp_iternext */
-    strictmodule_methods, /* tp_methods */
-    strictmodule_members, /* tp_members */
-    strict_module_getset, /* tp_getset */
-    0, /* tp_base */
-    0, /* tp_dict */
-    0, /* tp_descr_get */
-    0, /* tp_descr_set */
-    0, /* tp_dictoffset */
-    (initproc)strictmodule_init, /* tp_init */
-    PyType_GenericAlloc, /* tp_alloc */
-    Ci_StrictModule_New, /* tp_new */
-    PyObject_GC_Del, /* tp_free */
+static PyType_Slot strictmodule_slots[] = {
+    {Py_tp_dealloc, (void*)strictmodule_dealloc},
+    {Py_tp_repr, (void*)strictmodule_repr},
+    {Py_tp_getattro, (void*)strictmodule_getattro},
+    {Py_tp_setattro, (void*)strictmodule_setattro},
+    {Py_tp_traverse, (void*)strictmodule_traverse},
+    {Py_tp_clear, (void*)strictmodule_clear},
+    {Py_tp_methods, (void*)strictmodule_methods},
+    {Py_tp_members, (void*)strictmodule_members},
+    {Py_tp_getset, (void*)strict_module_getset},
+    {Py_tp_init, (void*)strictmodule_init},
+    {Py_tp_alloc, (void*)PyType_GenericAlloc},
+    {Py_tp_new, (void*)Ci_StrictModule_New},
+    {Py_tp_free, (void*)PyObject_GC_Del},
+    {0, NULL},
+};
+
+PyType_Spec Ci_StrictModule_Spec = {
+    .name = "cinderx.StrictModule",
+    .basicsize = sizeof(Ci_StrictModuleObject),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = strictmodule_slots,
 };

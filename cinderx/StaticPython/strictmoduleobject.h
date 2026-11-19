@@ -7,14 +7,20 @@
 
 #include "internal/pycore_moduleobject.h"
 
+#include "cinderx/module_c_state.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern PyTypeObject Ci_StrictModule_Type;
+extern PyType_Spec Ci_StrictModule_Spec;
 
-#define Ci_StrictModule_Check(op) PyObject_TypeCheck(op, &Ci_StrictModule_Type)
-#define Ci_StrictModule_CheckExact(op) (Py_TYPE(op) == &Ci_StrictModule_Type)
+static inline int Ci_StrictModule_Check(PyObject* op) {
+  PyTypeObject* type = Ci_GetStrictModuleType();
+  return type != NULL && PyObject_TypeCheck(op, type);
+}
+
+#define Ci_StrictModule_CheckExact(op) (Py_TYPE(op) == Ci_GetStrictModuleType())
 
 PyObject* Ci_StrictModule_New(PyTypeObject*, PyObject*, PyObject*);
 

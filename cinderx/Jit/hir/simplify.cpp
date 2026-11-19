@@ -1049,7 +1049,7 @@ Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
     return simplifyLoadTypeMethodCached(env, load_meth);
   }
   BorrowedRef<PyTypeObject> type{ty.runtimePyType()};
-  if (type == &PyModule_Type || type == &Ci_StrictModule_Type) {
+  if (type == &PyModule_Type || type == Ci_GetStrictModuleType()) {
     return simplifyLoadModuleMethodCached(env, load_meth);
   }
   return nullptr;
@@ -2332,7 +2332,7 @@ BorrowedRef<> loadModuleAttrSafe(
   BorrowedRef<PyTypeObject> tp{Py_TYPE(mod)};
   JIT_DCHECK(
       tp->tp_getattro == PyModule_Type.tp_getattro ||
-          tp->tp_getattro == Ci_StrictModule_Type.tp_getattro,
+          tp->tp_getattro == Ci_GetStrictModuleType()->tp_getattro,
       "should be module");
 
   if constexpr (kFreeThreadedBuild) {
@@ -2457,7 +2457,7 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
     Type ty = receiver->type();
     BorrowedRef<PyTypeObject> type{ty.runtimePyType()};
 
-    if (type == &PyModule_Type || type == &Ci_StrictModule_Type) {
+    if (type == &PyModule_Type || type == Ci_GetStrictModuleType()) {
       Register* cached = env.emit<LoadModuleAttrCached>(
           load_attr->getOperand(0),
           load_attr->name(),

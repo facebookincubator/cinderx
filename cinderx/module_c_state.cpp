@@ -298,6 +298,11 @@ void Ci_SetAwaitableWrapperType(PyTypeObject* type) {
       cinderx::Ref<PyTypeObject>::create(type);
 }
 
+PyTypeObject* Ci_GetStrictModuleType(void) {
+  auto state = cinderx::getModuleState();
+  return state != nullptr ? state->strict_module_type.get() : nullptr;
+}
+
 PyTypeObject* Ci_GetAsyncCachedClassPropertyType(void) {
   auto state = cinderx::getModuleState();
   return state != nullptr ? state->async_cached_class_property_type.get()

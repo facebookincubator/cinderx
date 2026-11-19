@@ -114,6 +114,7 @@ ModuleState::ModuleState() = default;
 ModuleState::~ModuleState() = default;
 
 int ModuleState::traverse(visitproc visit, void* arg) {
+  Py_VISIT(strict_module_type);
   Py_VISIT(static_type_error);
   Py_VISIT(genericinst_cache);
   Py_VISIT(classloader_cache);
@@ -139,6 +140,7 @@ int ModuleState::traverse(visitproc visit, void* arg) {
 }
 
 int ModuleState::clear() {
+  strict_module_type.reset();
   static_type_error.reset();
   genericinst_cache.reset();
   classloader_cache.reset();

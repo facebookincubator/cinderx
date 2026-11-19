@@ -98,6 +98,9 @@ struct ModuleState {
   // Type for the awaitable wrapper used by the Static Python classloader.
   Ref<PyTypeObject> awaitable_wrapper_type;
 
+  // Strict module type.
+  Ref<PyTypeObject> strict_module_type;
+
   // Cached property types.
   Ref<PyTypeObject> async_cached_class_property_type;
   Ref<PyTypeObject> async_cached_property_type;

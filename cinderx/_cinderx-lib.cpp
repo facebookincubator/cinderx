@@ -1339,9 +1339,13 @@ int _cinderx_exec_impl(PyObject* m) {
   if (initCachedPropertyTypes(m, state) < 0) {
     return -1;
   }
-  if (PyType_Ready(&Ci_StrictModule_Type) < 0) {
+  state->strict_module_type =
+      Ref<PyTypeObject>::steal(PyType_FromSpec(&Ci_StrictModule_Spec));
+  if (state->strict_module_type == nullptr) {
     return -1;
   }
+  state->strict_module_type->tp_weaklistoffset =
+      offsetof(Ci_StrictModuleObject, weaklist);
   if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
     return -1;
   }
@@ -1354,7 +1358,7 @@ int _cinderx_exec_impl(PyObject* m) {
   ADDITEM("AsyncLazyValue", async_lazy_value->asyncLazyValueType());
   ADDITEM("AwaitableValue", async_lazy_value->awaitableValueType());
   ADDITEM("StaticTypeError", CiExc_StaticTypeError);
-  ADDITEM("StrictModule", &Ci_StrictModule_Type);
+  ADDITEM("StrictModule", state->strict_module_type.get());
 
 #undef ADDITEM
 

@@ -283,8 +283,8 @@ class RuntimeTest : public ::testing::Test {
     if (kwargs == nullptr) {
       return kwargs;
     }
-    auto module = Ref<>::steal(
-        Ci_StrictModule_New(&Ci_StrictModule_Type, args.get(), kwargs.get()));
+    auto module = Ref<>::steal(Ci_StrictModule_New(
+        Ci_GetStrictModuleType(), args.get(), kwargs.get()));
     if (module == nullptr) {
       return module;
     }

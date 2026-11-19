@@ -1,7 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 #
-# pyre-unsafe
-
 from __future__ import annotations
 
 import _imp
@@ -15,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import weakref
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from importlib.abc import Loader
@@ -37,8 +36,15 @@ from cinderx.compiler.strict.loader import (
     StrictSourceFileLoader,
 )
 from cinderx.compiler.strict.runtime import set_freeze_enabled
+from cinderx.jit import jit_suppress
 from cinderx.static import StaticTypeError
-from cinderx.test_support import passIf, skip_unless_lazy_imports, subprocess_env
+from cinderx.test_support import (
+    passIf,
+    skip_if_ft,
+    skip_if_prefork,
+    skip_unless_lazy_imports,
+    subprocess_env,
+)
 
 from . import sandbox as base_sandbox
 from .common import init_cached_properties, StrictTestBase
@@ -261,6 +267,34 @@ class StrictLoaderTest(StrictTestBase):
         # pyrefly: ignore [missing-attribute]
         self.assertIsNotNone(mod.__strict__)
         self.assertEqual(type(mod), StrictModule)
+
+    @jit_suppress
+    @skip_if_ft("Heap types can be immortal in free-threaded builds")
+    @skip_if_prefork()
+    def test_strict_module_type_lifetime(self) -> None:
+        gc.collect()
+        refcount = sys.getrefcount(StrictModule)
+        mod = StrictModule({"__name__": "test"}, False)
+        self.assertEqual(sys.getrefcount(StrictModule), refcount + 1)
+        del mod
+        self.assertEqual(sys.getrefcount(StrictModule), refcount)
+        with self.assertRaises(ValueError):
+            StrictModule({"<imported-from>": [()]}, False)
+        self.assertEqual(sys.getrefcount(StrictModule), refcount)
+
+    def test_strict_module_gc_cycle(self) -> None:
+        namespace: dict[str, object] = {"__name__": "test"}
+        mod = StrictModule(namespace, False)
+        self.assertIn(StrictModule, gc.get_referents(mod))
+        namespace["self"] = mod
+        ref = weakref.ref(mod)
+        del mod, namespace
+        gc.collect()
+        self.assertIsNone(ref())
+
+    def test_strict_module_type_is_immutable(self) -> None:
+        with self.assertRaises(TypeError):
+            StrictModule.patch = StrictModule.patch
 
     def test_bad_not_strict(self) -> None:
         mod = self.sbx.strict_from_code('exec("a=2")')

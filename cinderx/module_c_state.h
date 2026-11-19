@@ -129,6 +129,9 @@ extern bool Ci_code_counters_frozen;
 PyTypeObject* Ci_GetAwaitableWrapperType(void);
 void Ci_SetAwaitableWrapperType(PyTypeObject* type);
 
+// Strict module type.
+PyTypeObject* Ci_GetStrictModuleType(void);
+
 // Cached property types.
 PyTypeObject* Ci_GetAsyncCachedClassPropertyType(void);
 PyTypeObject* Ci_GetAsyncCachedPropertyType(void);

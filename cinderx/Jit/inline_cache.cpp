@@ -1535,7 +1535,7 @@ static BorrowedRef<PyDictObject> getModuleDict(BorrowedRef<> obj) {
 // If we know what a module's getattr is going to do we can cache it.
 static bool isCacheableModuleType(PyTypeObject* type) {
   return type->tp_getattro == PyModule_Type.tp_getattro ||
-      type->tp_getattro == Ci_StrictModule_Type.tp_getattro;
+      type->tp_getattro == Ci_GetStrictModuleType()->tp_getattro;
 }
 
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
