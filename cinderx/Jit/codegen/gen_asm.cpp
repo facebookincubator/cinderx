@@ -29,6 +29,7 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_rt.h"
+#include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/lir/dce.h"
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/linear_scan.h"
@@ -1078,10 +1079,11 @@ void* NativeGenerator::getVectorcallEntry() {
   }
 #endif
 
-  COMPILE_TIMER(
-      getFunction()->compilation_phase_timer,
-      "Lowering into LIR",
-      lir_func = lirgen.translateFunction())
+  {
+    ScopedTimer timer{
+        getFunction()->compilation_phase_timer.get(), "Lowering into LIR"};
+    lir_func = lirgen.translateFunction();
+  }
   env_.code_rt->setDeoptMetadatas(std::move(env_.deopt_metadatas));
   checkLirSize(*lir_func);
 
@@ -1092,10 +1094,11 @@ void* NativeGenerator::getVectorcallEntry() {
       *lir_func);
 
   PostGenerationRewrite post_gen(lir_func.get(), &env_);
-  COMPILE_TIMER(
-      getFunction()->compilation_phase_timer,
-      "LIR transformations",
-      post_gen.run())
+  {
+    ScopedTimer timer{
+        getFunction()->compilation_phase_timer.get(), "LIR transformations"};
+    post_gen.run();
+  }
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
@@ -1103,15 +1106,18 @@ void* NativeGenerator::getVectorcallEntry() {
       getFunction()->fullname,
       *lir_func);
 
-  COMPILE_TIMER(
-      getFunction()->compilation_phase_timer,
-      "DeadCodeElimination",
-      eliminateDeadCode(lir_func.get()))
+  {
+    ScopedTimer timer{
+        getFunction()->compilation_phase_timer.get(), "DeadCodeElimination"};
+    eliminateDeadCode(lir_func.get());
+  }
 
-  COMPILE_TIMER(
-      getFunction()->compilation_phase_timer,
-      "Target Selection and Legalization",
-      selectTargetOpcodes(lir_func.get()))
+  {
+    ScopedTimer timer{
+        getFunction()->compilation_phase_timer.get(),
+        "Target Selection and Legalization"};
+    selectTargetOpcodes(lir_func.get());
+  }
 
   JIT_LOGIF(
       getConfig().log.dump_lir,
@@ -1139,10 +1145,11 @@ void* NativeGenerator::getVectorcallEntry() {
       break;
   }
 
-  COMPILE_TIMER(
-      getFunction()->compilation_phase_timer,
-      "Register Allocation",
-      allocator->run())
+  {
+    ScopedTimer timer{
+        getFunction()->compilation_phase_timer.get(), "Register Allocation"};
+    allocator->run();
+  }
 
   env_.shadow_frames_and_spill_size = allocator->getFrameSize();
   env_.changed_regs = allocator->getChangedRegs();
@@ -1156,18 +1163,21 @@ void* NativeGenerator::getVectorcallEntry() {
       *lir_func);
 
   PostRegAllocRewrite post_rewrite(lir_func.get(), &env_);
-  COMPILE_TIMER(
-      getFunction()->compilation_phase_timer,
-      "Post Reg Alloc Rewrite",
-      post_rewrite.run())
+  {
+    ScopedTimer timer{
+        getFunction()->compilation_phase_timer.get(), "Post Reg Alloc Rewrite"};
+    post_rewrite.run();
+  }
 
 #if defined(CINDER_AARCH64)
   // Peepholes go last, once nothing else will add to or remove from the
   // instruction stream.
-  COMPILE_TIMER(
-      getFunction()->compilation_phase_timer,
-      "Post Reg Alloc Peephole",
-      runPostRegAllocPeephole(lir_func.get()))
+  {
+    ScopedTimer timer{
+        getFunction()->compilation_phase_timer.get(),
+        "Post Reg Alloc Peephole"};
+    runPostRegAllocPeephole(lir_func.get());
+  }
 #endif
 
   JIT_LOGIF(
@@ -1186,10 +1196,9 @@ void* NativeGenerator::getVectorcallEntry() {
   lir_func_ = std::move(lir_func);
 
   try {
-    COMPILE_TIMER(
-        getFunction()->compilation_phase_timer,
-        "Code Generation",
-        generateCode(code, lirgen.frameSetupBlock()))
+    ScopedTimer timer{
+        getFunction()->compilation_phase_timer.get(), "Code Generation"};
+    generateCode(code, lirgen.frameSetupBlock());
   } catch (const AsmJitException& ex) {
     String s;
     FormatOptions formatOptions;

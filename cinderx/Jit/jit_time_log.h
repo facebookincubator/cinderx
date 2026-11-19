@@ -15,15 +15,6 @@ namespace cinderx::jit {
 using Clock = std::chrono::steady_clock;
 using time_point = Clock::time_point;
 
-#define COMPILE_TIMER(com_phase_timer, phase_name, block) \
-  if (nullptr != com_phase_timer) {                       \
-    com_phase_timer->start(phase_name);                   \
-    block;                                                \
-    com_phase_timer->end();                               \
-  } else {                                                \
-    block;                                                \
-  }
-
 // flag_value is expected to be the value associate with a the flag jit-time
 // and represents the function list for which compilation phase times are
 // expected to be captured for such that a breakdown may be presented
@@ -107,6 +98,30 @@ class CompilationPhaseTimer {
   //    manifest as a large Unattributed Time value on the parent phase -
   //    thus indicating a problem.
   void dumpPhaseTimingsAndTidy();
+};
+
+class [[nodiscard]] ScopedTimer final {
+ public:
+  ScopedTimer(CompilationPhaseTimer* timer, std::string_view phase_name)
+      : timer_{timer} {
+    if (timer_ != nullptr) {
+      timer_->start(phase_name);
+    }
+  }
+
+  ~ScopedTimer() {
+    if (timer_ != nullptr) {
+      timer_->end();
+    }
+  }
+
+  ScopedTimer(const ScopedTimer&) = delete;
+  ScopedTimer& operator=(const ScopedTimer&) = delete;
+  ScopedTimer(ScopedTimer&&) = delete;
+  ScopedTimer& operator=(ScopedTimer&&) = delete;
+
+ private:
+  CompilationPhaseTimer* timer_;
 };
 
 } // namespace cinderx::jit

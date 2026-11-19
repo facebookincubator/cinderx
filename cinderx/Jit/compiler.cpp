@@ -70,40 +70,42 @@ void checkHirSize(const hir::Function& func) {
 template <typename T>
 bool runPass(T&& pass, hir::Function& func, const PostPassFunction& callback) {
   bool changed = false;
-  COMPILE_TIMER(func.compilation_phase_timer,
-                pass.name(),
-                DUMP_HIR_IF(
-                    getConfig().log.dump_hir_passes,
-                    "HIR for {} before pass {}:\n{}",
-                    func.fullname,
-                    pass.name(),
-                    func);
+  {
+    ScopedTimer scoped_timer{func.compilation_phase_timer.get(), pass.name()};
 
-                Timer timer;
-                changed = pass.run(func);
-                std::size_t time_ns = timer.finish().count();
-                callback(func, pass.name(), time_ns);
+    DUMP_HIR_IF(
+        getConfig().log.dump_hir_passes,
+        "HIR for {} before pass {}:\n{}",
+        func.fullname,
+        pass.name(),
+        func);
 
-                DUMP_HIR_IF(
-                    getConfig().log.dump_hir_passes,
-                    "HIR for {} after pass {}:\n{}",
-                    func.fullname,
-                    pass.name(),
-                    func);
+    Timer timer;
+    changed = pass.run(func);
+    std::size_t time_ns = timer.finish().count();
+    callback(func, pass.name(), time_ns);
 
-                JIT_DCHECK(
-                    checkFunc(func, std::cerr),
-                    "Function {} failed verification after pass {}:\n{}",
-                    func.fullname,
-                    pass.name(),
-                    func);
+    DUMP_HIR_IF(
+        getConfig().log.dump_hir_passes,
+        "HIR for {} after pass {}:\n{}",
+        func.fullname,
+        pass.name(),
+        func);
 
-                JIT_DCHECK(
-                    funcTypeChecks(func, std::cerr),
-                    "Function {} failed type checking after pass {}:\n{}",
-                    func.fullname,
-                    pass.name(),
-                    func);)
+    JIT_DCHECK(
+        checkFunc(func, std::cerr),
+        "Function {} failed verification after pass {}:\n{}",
+        func.fullname,
+        pass.name(),
+        func);
+
+    JIT_DCHECK(
+        funcTypeChecks(func, std::cerr),
+        "Function {} failed type checking after pass {}:\n{}",
+        func.fullname,
+        pass.name(),
+        func);
+  }
   return changed;
 }
 
@@ -294,10 +296,11 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 
   PassConfig config = createConfig();
-  COMPILE_TIMER(
-      irfunc->compilation_phase_timer,
-      "HIR transformations",
-      Compiler::runPasses(*irfunc, config, profile))
+  {
+    ScopedTimer scoped_timer{
+        irfunc->compilation_phase_timer.get(), "HIR transformations"};
+    Compiler::runPasses(*irfunc, config, profile);
+  }
 
   hir::OpcodeCounts hir_opcode_counts = hir::count_opcodes(*irfunc);
 
@@ -307,10 +310,11 @@ std::optional<CompiledFunctionData> Compiler::compile(
   }
 
   vectorcallfunc entry = nullptr;
-  COMPILE_TIMER(
-      irfunc->compilation_phase_timer,
-      "Native code Generation",
-      entry = reinterpret_cast<vectorcallfunc>(ngen->getVectorcallEntry()))
+  {
+    ScopedTimer scoped_timer{
+        irfunc->compilation_phase_timer.get(), "Native code Generation"};
+    entry = reinterpret_cast<vectorcallfunc>(ngen->getVectorcallEntry());
+  }
   if (entry == nullptr) {
     JIT_DLOG("Generating native code for {} failed", fullname);
     return std::nullopt;
