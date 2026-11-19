@@ -172,6 +172,11 @@ struct MemoryOptions {
   // instruction cache / TLB locality.  Falls back to unhinted allocation when
   // the kernel can't place the allocation near the hint.
   bool hinted_code_allocation{false};
+  // Bytes of address space to reserve at a time for JIT code, which chunks are
+  // then carved out of.  This keeps code within direct branch range of itself
+  // instead of letting unrelated mappings scatter it across the address space.
+  // 0 maps each chunk independently.  Only used on Linux.
+  size_t code_reservation_size{64 * 1024 * 1024};
 };
 
 enum class AsmSyntax : uint8_t {

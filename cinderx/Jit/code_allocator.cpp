@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 #endif
 
+#include <algorithm>
 #include <cstring>
 
 namespace cinderx::jit {
@@ -130,10 +131,111 @@ uint8_t* allocFromCinderJitRegion(size_t size) {
   s_cinder_jit_free -= size;
   return res;
 }
+
+uint8_t* reserveAddressSpace(void* hint, size_t size) {
+  void* res = mmap(
+      hint,
+      size,
+      PROT_NONE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+      -1,
+      0);
+  if (res == MAP_FAILED) {
+    JIT_LOG(
+        "Failed to reserve {} bytes of address space for code, errno={}",
+        size,
+        errno);
+    return nullptr;
+  }
+  return static_cast<uint8_t*>(res);
+}
+
+// Make sure `reservation` has at least `size` bytes left, reserving another
+// mem.code_reservation_size bytes of address space if it doesn't.  Returns
+// false if the address space couldn't be reserved.
+bool ensureReserved(CodeReservation& reservation, size_t size) {
+  if (reservation.remaining() >= size) {
+    return true;
+  }
+
+  // One extra chunk of slack so the start can be aligned to kAllocSize.
+  size_t reserve_size =
+      std::max(getConfig().mem.code_reservation_size, size) + kAllocSize;
+  // Ask for the space right after the current reservation so the two join up;
+  // the kernel picks somewhere else if it's taken.
+  uint8_t* res = reserveAddressSpace(reservation.end, reserve_size);
+  if (res == nullptr) {
+    return false;
+  }
+  if (reservation.end != nullptr && res == reservation.end) {
+    reservation.end += reserve_size;
+  } else {
+    if (reservation.remaining() > 0) {
+      munmap(reservation.cur, reservation.remaining());
+    }
+    auto aligned = reinterpret_cast<uint8_t*>(
+        roundUp(reinterpret_cast<uintptr_t>(res), kAllocSize));
+    if (aligned != res) {
+      munmap(res, aligned - res);
+    }
+    reservation.cur = aligned;
+    reservation.end = res + reserve_size;
+  }
+  JIT_DLOG(
+      "Reserved code address space, now [{}, {})",
+      static_cast<void*>(reservation.cur),
+      static_cast<void*>(reservation.end));
+  return true;
+}
+
+// Stop using `reservation` after a failure, so that every later chunk doesn't
+// retry (and log) the same failure.
+void abandonReservation(CodeReservation& reservation) {
+  JIT_LOG("Mapping JIT code chunks independently from now on");
+  if (reservation.remaining() > 0) {
+    munmap(reservation.cur, reservation.remaining());
+  }
+  reservation.cur = reservation.end;
+  reservation.failed = true;
+}
+
+// Allocate `size` bytes (a multiple of kAllocSize) from `reservation`.  The
+// returned memory is mapped PROT_READ | PROT_WRITE | PROT_EXEC and aligned to
+// kAllocSize so it can be backed by huge pages.  Returns nullptr if the memory
+// couldn't be reserved or made accessible, in which case the caller falls back
+// to mapping the chunk on its own.
+uint8_t* allocFromReservation(CodeReservation& reservation, size_t size) {
+  JIT_DCHECK(size % kAllocSize == 0, "Unaligned code chunk size {}", size);
+
+  if (getConfig().mem.code_reservation_size == 0 || reservation.failed) {
+    return nullptr;
+  }
+  if (!ensureReserved(reservation, size)) {
+    abandonReservation(reservation);
+    return nullptr;
+  }
+
+  uint8_t* res = reservation.cur;
+  if (mprotect(res, size, PROT_READ | PROT_WRITE | PROT_EXEC) != 0) {
+    JIT_LOG(
+        "Failed to make {} bytes of reserved code memory at {} accessible, "
+        "errno={}",
+        size,
+        static_cast<void*>(res),
+        errno);
+    abandonReservation(reservation);
+    return nullptr;
+  }
+  reservation.cur += size;
+  return res;
+}
 #endif // __linux__
 
-// Allocate memory for JIT'd code.
-uint8_t* allocPages(size_t size) {
+// Allocate memory for JIT'd code.  `reservation` is null when the code
+// reservation feature is not used.
+uint8_t* allocPages(
+    [[maybe_unused]] CodeReservation* reservation,
+    size_t size) {
 #if defined(__linux__)
   if (getConfig().mem.hinted_code_allocation) {
     // Prefer the linker-reserved region near .text when it is
@@ -141,6 +243,12 @@ uint8_t* allocPages(size_t size) {
     // build system to reserve this near hot code.
     if (uint8_t* region = allocFromCinderJitRegion(size); region != nullptr) {
       return region;
+    }
+  }
+  if (reservation != nullptr) {
+    if (uint8_t* res = allocFromReservation(*reservation, size);
+        res != nullptr) {
+      return res;
     }
   }
 #endif
@@ -202,9 +310,10 @@ CodeAllocator::CodeAllocator() {
 #endif
 }
 
-CodeAllocator* CodeAllocator::make() {
+CodeAllocator* CodeAllocator::make(
+    std::unique_ptr<CodeReservation> reservation) {
   if (getConfig().mem.huge_pages) {
-    return new CodeAllocatorCinder{};
+    return new CodeAllocatorCinder{std::move(reservation)};
   }
   return new CodeAllocator{};
 }
@@ -320,6 +429,22 @@ void CodeAllocator::atForkChild() {
   resetMutexAfterFork(runtime_mutex_);
 }
 
+CodeReservation::~CodeReservation() {
+#if defined(__linux__)
+  if (remaining() > 0) {
+    munmap(cur, remaining());
+  }
+#endif
+}
+
+CodeAllocatorCinder::CodeAllocatorCinder(
+    std::unique_ptr<CodeReservation> reservation)
+    : reservation_{std::move(reservation)} {}
+
+uint8_t* CodeAllocatorCinder::allocChunk(size_t size) {
+  return allocPages(reservation_.get(), size);
+}
+
 CodeAllocatorCinder::~CodeAllocatorCinder() {
   // Deregister every chunk frame before any chunk is unmapped: after
   // this, no unwinder may observe a registration whose code is gone.
@@ -351,7 +476,7 @@ void CodeAllocatorCinder::ensureSpace(
 
   size_t chunk_size =
       (((size + kChunkHeaderSize) / kAllocSize) + 1) * kAllocSize;
-  uint8_t* res = allocPages(chunk_size);
+  uint8_t* res = allocChunk(chunk_size);
   if (use_huge_pages && setHugePages(res, chunk_size)) {
     huge_allocs_.fetch_add(1, std::memory_order_relaxed);
   } else {
@@ -394,7 +519,7 @@ void CodeAllocatorCinder::ensureSplitSpace(
   size_t total_needed = hot_needed + cold_needed;
   size_t chunk_size =
       (((total_needed + kChunkHeaderSize) / kAllocSize) + 1) * kAllocSize;
-  uint8_t* res = allocPages(chunk_size);
+  uint8_t* res = allocChunk(chunk_size);
   if (setHugePages(res, chunk_size)) {
     huge_allocs_.fetch_add(1, std::memory_order_relaxed);
   } else {
@@ -441,8 +566,8 @@ AllocateResult CodeAllocatorCinder::addSplitCode(asmjit::CodeHolder* code) {
     ensureSplitSpace(
         roundUp(hot_size, kCodeAlignment), roundUp(cold_size, kCodeAlignment));
 #else
-    // On x86-64, RIP-relative addressing has a ±2GB range which is large enough
-    // that independent allocations are unlikely to exceed it in practice.
+    // On x86-64, RIP-relative addressing has a ±2GB range, and on Linux hot
+    // and cold chunks are carved out of the same address space reservation.
     ensureSpace(
         hot_alloc_, hot_alloc_free_, roundUp(hot_size, kCodeAlignment), true);
     ensureSpace(

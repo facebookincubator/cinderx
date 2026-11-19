@@ -603,6 +603,17 @@ FlagProcessor initFlagProcessor() {
       "Allocate JIT code near rt::call to keep helper calls in branch range");
 
   flag_processor.addOption(
+      "cinderx-jit-code-reservation-size",
+      "CINDERX_JIT_CODE_RESERVATION_SIZE",
+      [](const std::string& val) {
+        getMutableConfig().mem.code_reservation_size =
+            parse_sized_argument(val);
+      },
+      "Bytes of address space to reserve at a time for JIT code (no suffix). "
+      "For kilobytes use k or K as a suffix. Megabytes is m or M and "
+      "gigabytes is g or G. 0 maps each chunk of code independently.");
+
+  flag_processor.addOption(
       "cinderx-jit-to-jit-calls",
       "CINDERX_JIT_TO_JIT_CALLS",
       getMutableConfig().use_jit_to_jit_calling_convention,
@@ -5202,7 +5213,8 @@ int initialize(BorrowedRef<> cinderx_module) {
 
   // Create code allocator after jit::Config has been filled out.
   cinderx::ModuleState* mod_state = cinderx::getModuleState(cinderx_module);
-  mod_state->code_allocator.reset(CodeAllocator::make());
+  mod_state->code_allocator.reset(
+      CodeAllocator::make(std::make_unique<CodeReservation>()));
 
   // Discover the TLS offset for PyThreadState so the JIT can load tstate
   // directly from the thread-local segment register instead of calling

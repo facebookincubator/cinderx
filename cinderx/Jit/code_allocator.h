@@ -8,12 +8,37 @@
 
 #include <atomic>
 #include <cstddef>
+#include <memory>
 #include <mutex>
 #include <span>
 #include <unordered_map>
 #include <vector>
 
 namespace cinderx::jit {
+
+// Address space reserved for JIT code as PROT_NONE, which `CodeAllocatorCinder`
+// carves chunks out of so that code allocated over the life of the process
+// stays within direct branch range of itself.  Owned by the allocator and
+// guarded by its mutex.  Any unused tail is unmapped on destruction.
+struct CodeReservation {
+  CodeReservation() = default;
+  ~CodeReservation();
+
+  CodeReservation(const CodeReservation&) = delete;
+  CodeReservation& operator=(const CodeReservation&) = delete;
+  CodeReservation(CodeReservation&&) = delete;
+  CodeReservation& operator=(CodeReservation&&) = delete;
+
+  size_t remaining() const {
+    return end - cur;
+  }
+
+  uint8_t* cur{nullptr};
+  uint8_t* end{nullptr};
+  // Set once reserving or using the address space has failed, after which
+  // chunks are always mapped independently.
+  bool failed{false};
+};
 
 // Resulting address and status code after calling CodeAllocator::addCode().
 struct AllocateResult {
@@ -60,8 +85,11 @@ class CodeAllocator {
   }
 
   // To be called once by JIT initialization after enough configuration has been
-  // loaded to determine which global code allocator type to use.
-  [[nodiscard]] static CodeAllocator* make();
+  // loaded to determine which global code allocator type to use.  Code is
+  // carved out of `reservation` when given, otherwise each chunk is mapped
+  // independently and the code reservation feature is not used.
+  [[nodiscard]] static CodeAllocator* make(
+      std::unique_ptr<CodeReservation> reservation = nullptr);
 
   virtual AllocateResult addCode(asmjit::CodeHolder* code);
   virtual asmjit::Error releaseCode(void* code);
@@ -105,7 +133,7 @@ class CodeAllocator {
 // controlled by the cold_code_huge_pages config).
 class CodeAllocatorCinder : public CodeAllocator {
  public:
-  CodeAllocatorCinder() = default;
+  explicit CodeAllocatorCinder(std::unique_ptr<CodeReservation> reservation);
   ~CodeAllocatorCinder() override;
 
   CodeAllocatorCinder(const CodeAllocatorCinder&) = delete;
@@ -123,6 +151,13 @@ class CodeAllocatorCinder : public CodeAllocator {
 
   size_t hugeAllocs() const {
     return huge_allocs_.load(std::memory_order_relaxed);
+  }
+
+  // Bytes left in the address space reservation that chunks come from,
+  // or 0 when no reservation was supplied.
+  size_t reservedBytesRemaining() const {
+    std::lock_guard lock{allocator_mutex_};
+    return reservation_ != nullptr ? reservation_->remaining() : 0;
   }
 
   // Number of unwind-info registrations held for allocated chunks: one
@@ -168,8 +203,16 @@ class CodeAllocatorCinder : public CodeAllocator {
   // A failed registration is non-fatal and records nothing.
   void registerChunkUnwindInfo(void* chunk_addr, size_t chunk_size);
 
+  // Allocate a chunk of `size` bytes of code memory.  Caller must hold
+  // `allocator_mutex_`.
+  uint8_t* allocChunk(size_t size);
+
   // Protects all allocator-owned state used by addCode()/contains().
   mutable std::mutex allocator_mutex_;
+
+  // Address space that chunks are carved out of, or null when no
+  // reservation was supplied and chunks are mapped independently.
+  std::unique_ptr<CodeReservation> reservation_;
 
   // List of all chunks allocated, for use in deallocation and contains().
   std::vector<std::span<uint8_t>> allocations_;

@@ -7,8 +7,13 @@
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/config.h"
 
+#if defined(__linux__)
+#include <sys/mman.h>
+#endif
+
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -24,7 +29,8 @@ class CodeAllocatorTest : public ::testing::Test {
     saved_config_ = getConfig();
     getMutableConfig().mem.multiple_code_sections = true;
     getMutableConfig().mem.huge_pages = true;
-    code_allocator_ = std::unique_ptr<CodeAllocator>(CodeAllocator::make());
+    code_allocator_ = std::unique_ptr<CodeAllocator>(
+        CodeAllocator::make(std::make_unique<CodeReservation>()));
   }
 
   void TearDown() override {
@@ -251,6 +257,125 @@ TEST_F(CodeAllocatorTest, FunctionUnwindRegistrationsAreReleasedWithCode) {
 
   ASSERT_EQ(code_allocator_->releaseCode(second.addr), asmjit::kErrorOk);
   EXPECT_EQ(fallback->unwindRegistrationCount(), 0u);
+}
+
+TEST_F(CodeAllocatorTest, ChunksComeFromSuppliedReservation) {
+  code_allocator_.reset();
+  code_allocator_ = std::unique_ptr<CodeAllocator>(
+      CodeAllocator::make(std::make_unique<CodeReservation>()));
+  auto* cinder = dynamic_cast<CodeAllocatorCinder*>(code_allocator_.get());
+  ASSERT_NE(cinder, nullptr);
+
+  AllocateResult result;
+  addSplitTestCode(code_allocator_.get(), 64, 64, result);
+
+  EXPECT_GT(cinder->reservedBytesRemaining(), 0u);
+  EXPECT_TRUE(code_allocator_->contains(result.addr));
+  code_allocator_.reset();
+}
+
+TEST_F(CodeAllocatorTest, NoReservationMapsChunksIndependently) {
+  code_allocator_.reset();
+  code_allocator_ = std::unique_ptr<CodeAllocator>(CodeAllocator::make());
+  auto* cinder = dynamic_cast<CodeAllocatorCinder*>(code_allocator_.get());
+  ASSERT_NE(cinder, nullptr);
+
+  AllocateResult result;
+  addSplitTestCode(code_allocator_.get(), 64, 64, result);
+
+  EXPECT_EQ(cinder->reservedBytesRemaining(), 0u);
+  EXPECT_TRUE(code_allocator_->contains(result.addr));
+}
+
+TEST_F(CodeAllocatorTest, ZeroReservationSizeMapsChunksIndependently) {
+  code_allocator_.reset();
+  getMutableConfig().mem.code_reservation_size = 0;
+  code_allocator_ = std::unique_ptr<CodeAllocator>(
+      CodeAllocator::make(std::make_unique<CodeReservation>()));
+  auto* cinder = dynamic_cast<CodeAllocatorCinder*>(code_allocator_.get());
+  ASSERT_NE(cinder, nullptr);
+
+  AllocateResult result;
+  addSplitTestCode(code_allocator_.get(), 64, 64, result);
+
+  EXPECT_EQ(cinder->reservedBytesRemaining(), 0u);
+}
+
+TEST_F(CodeAllocatorTest, FailedReservationFallsBackToIndependentChunks) {
+  code_allocator_.reset();
+  // Far more address space than the process has, so reserving it fails.
+  getMutableConfig().mem.code_reservation_size = size_t{1} << 60;
+  code_allocator_ = std::unique_ptr<CodeAllocator>(
+      CodeAllocator::make(std::make_unique<CodeReservation>()));
+  auto* cinder = dynamic_cast<CodeAllocatorCinder*>(code_allocator_.get());
+  ASSERT_NE(cinder, nullptr);
+
+  AllocateResult result;
+  addSplitTestCode(code_allocator_.get(), 64, 64, result);
+
+  EXPECT_EQ(cinder->reservedBytesRemaining(), 0u);
+  EXPECT_TRUE(code_allocator_->contains(result.addr));
+}
+
+TEST_F(CodeAllocatorTest, FailedReservationIsNotRetried) {
+  code_allocator_.reset();
+  code_allocator_ = std::unique_ptr<CodeAllocator>(
+      CodeAllocator::make(std::make_unique<CodeReservation>()));
+  auto* cinder = dynamic_cast<CodeAllocatorCinder*>(code_allocator_.get());
+  ASSERT_NE(cinder, nullptr);
+  // Each allocation is too big to share a 2 MiB chunk with the previous one,
+  // so every call needs a new chunk.
+  constexpr size_t kCodeSize = 1536 * 1024;
+  AllocateResult result;
+  getMutableConfig().mem.code_reservation_size = size_t{1} << 60;
+  addSplitTestCode(code_allocator_.get(), kCodeSize, 0, result);
+  // The failed reservation is abandoned, leaving nothing reserved.
+  ASSERT_EQ(cinder->reservedBytesRemaining(), 0u);
+
+  // A size that would now succeed isn't tried.
+  getMutableConfig().mem.code_reservation_size = 64 * 1024 * 1024;
+  addSplitTestCode(code_allocator_.get(), kCodeSize, 0, result);
+
+  EXPECT_EQ(cinder->reservedBytesRemaining(), 0u);
+  code_allocator_.reset();
+}
+
+TEST_F(CodeAllocatorTest, ChunksStayTogetherAcrossUnrelatedMappings) {
+  code_allocator_.reset();
+  getMutableConfig().mem.multiple_code_sections = false;
+  code_allocator_ = std::unique_ptr<CodeAllocator>(
+      CodeAllocator::make(std::make_unique<CodeReservation>()));
+
+  // Each allocation is too big to share a 2 MiB chunk with the previous one,
+  // so every call needs a new chunk.
+  constexpr size_t kCodeSize = 1536 * 1024;
+  constexpr size_t kChunkSize = 2 * 1024 * 1024;
+  auto* cinder = dynamic_cast<CodeAllocatorCinder*>(code_allocator_.get());
+  ASSERT_NE(cinder, nullptr);
+  AllocateResult first;
+  addSplitTestCode(code_allocator_.get(), kCodeSize, 0, first);
+  ASSERT_GE(cinder->reservedBytesRemaining(), kChunkSize);
+
+  // An unrelated mapping placed by the kernel where the next chunk would go
+  // if chunks were mapped independently.
+  constexpr size_t kUnrelatedSize = size_t{1} << 30;
+  void* unrelated = mmap(
+      nullptr,
+      kUnrelatedSize,
+      PROT_NONE,
+      MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE,
+      -1,
+      0);
+  ASSERT_NE(unrelated, MAP_FAILED);
+
+  AllocateResult second;
+  addSplitTestCode(code_allocator_.get(), kCodeSize, 0, second);
+  munmap(unrelated, kUnrelatedSize);
+
+  auto distance = static_cast<size_t>(std::abs(
+      reinterpret_cast<intptr_t>(second.addr) -
+      reinterpret_cast<intptr_t>(first.addr)));
+  EXPECT_LT(distance, kUnrelatedSize);
 }
 
 #endif
