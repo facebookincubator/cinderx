@@ -32,8 +32,6 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/deopt.h"
-#include "cinderx/Jit/elf/reader.h"
-#include "cinderx/Jit/elf/writer.h"
 #include "cinderx/Jit/eligibility.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/function_slots.h"
@@ -46,7 +44,6 @@
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/jit_time_log.h"
-#include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/nested_compile.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/threaded_compile.h"
@@ -55,7 +52,6 @@
 #include "cinderx/module_state.h"
 
 #ifndef WIN32
-#include <dlfcn.h>
 #include <pthread.h>
 #endif
 #include <fmt/std.h>
@@ -70,7 +66,6 @@
 #include <cstdlib>
 #include <deque>
 #include <exception>
-#include <fstream>
 #include <functional>
 #include <iostream>
 #include <iterator>
@@ -2877,89 +2872,6 @@ PyObject* force_uncompile(PyObject* mod, PyObject* arg) {
   Py_RETURN_TRUE;
 }
 
-int aot_func_visitor(PyObject* obj, void* arg) {
-  constexpr int kGcVisitContinue = 1;
-
-  auto aot_ctx = reinterpret_cast<AotContext*>(arg);
-  if (!PyFunction_Check(obj)) {
-    return kGcVisitContinue;
-  }
-
-  BorrowedRef<PyFunctionObject> func{obj};
-  auto func_state = aot_ctx->lookupFuncState(func);
-  if (func_state != nullptr) {
-    setVectorcall(func, func_state->normalEntry());
-  }
-  return kGcVisitContinue;
-}
-
-#ifndef WIN32
-PyObject* load_aot_bundle(PyObject* mod, PyObject* arg) {
-  JIT_CHECK(
-      jitCtx(mod) != nullptr,
-      "Loading an AOT bundle currently requires the JIT to be enabled");
-
-  if (!PyUnicode_Check(arg)) {
-    PyErr_SetString(
-        PyExc_ValueError, "load_aot_bundle expects a filename string");
-    return nullptr;
-  }
-
-  const char* filename = PyUnicode_AsUTF8(arg);
-
-  // TASK(T193992967): Verify these options are what we want.
-  auto handle = dlopen(filename, RTLD_NOW | RTLD_GLOBAL);
-  if (handle == nullptr) {
-    std::string msg = fmt::format(
-        "Failed to dlopen() the AOT bundle at {}\n{}", filename, dlerror());
-    PyErr_SetString(PyExc_RuntimeError, msg.c_str());
-    return nullptr;
-  }
-
-  g_aot_ctx.init(handle);
-
-  // TASK(T193608222): It would be great to do something other than mmapping the
-  // entire file into memory, especially since we just loaded it in via
-  // dlopen().
-  MmapFile file;
-  try {
-    file.open(filename);
-  } catch (const std::exception& exn) {
-    PyErr_SetString(PyExc_RuntimeError, exn.what());
-    return nullptr;
-  }
-
-  // Find the function metadata section.
-  std::span<const std::byte> note_span;
-  try {
-    note_span = elf::findSection(file.data(), elf::kFuncNoteSectionName);
-  } catch (const std::exception& exn) {
-    PyErr_SetString(PyExc_RuntimeError, exn.what());
-    return nullptr;
-  }
-  if (note_span.empty()) {
-    PyErr_SetString(
-        PyExc_RuntimeError, "Cannot find note section for function metadata");
-    return nullptr;
-  }
-
-  elf::NoteArray note_array = elf::readNoteSection(note_span);
-
-  // Populate AotContext with data from the note section.
-  for (const elf::Note& note : note_array.notes()) {
-    g_aot_ctx.registerFunc(note);
-  }
-
-  // Now map compiled functions to existing PyFunctionObjects.
-  //
-  // TASK(T193992967): This is terrible and we should be going the other way,
-  // mapping read notes over to function objects.
-  PyUnstable_GC_VisitObjects(aot_func_visitor, &g_aot_ctx);
-
-  Py_RETURN_NONE;
-}
-#endif
-
 PyObject* get_compile_after_n_calls(PyObject* /* self */, PyObject*) {
   auto limit = getConfig().compile_after_n_calls;
   if (limit.has_value()) {
@@ -3082,52 +2994,6 @@ PyObject* disassemble(PyObject* mod, PyObject* func) {
   compiled_func->disassemble();
   Py_RETURN_NONE;
 }
-
-#ifndef WIN32
-PyObject* dump_elf(PyObject* mod, PyObject* arg) {
-  auto* ctx = jitCtx(mod);
-  JIT_CHECK(
-      ctx != nullptr,
-      "JIT context not initialized despite JIT APIs having been registered");
-  if (!PyUnicode_Check(arg)) {
-    PyErr_SetString(PyExc_ValueError, "dump_elf expects a filename string");
-    return nullptr;
-  }
-
-  Py_ssize_t filename_size = 0;
-  const char* filename = PyUnicode_AsUTF8AndSize(arg, &filename_size);
-
-  // Building the entries reads names out of code objects, which allocates, so
-  // only gather the functions during the visit and do the work afterwards.
-  std::vector<elf::CodeEntry> entries;
-  for (auto& func : getCompiledFunctions()) {
-    CompiledFunction* compiled_func = ctx->lookupFunc(func);
-    if (compiled_func == nullptr) {
-      continue;
-    }
-    BorrowedRef<PyCodeObject> code{func->func_code};
-
-    elf::CodeEntry entry;
-    entry.code = code;
-    entry.compiled_code = compiled_func->codeBuffer();
-    entry.normal_entry =
-        reinterpret_cast<void*>(compiled_func->vectorcallEntry());
-    entry.static_entry = compiled_func->staticEntry();
-    entry.func_name = funcFullname(func);
-    if (code->co_filename != nullptr && PyUnicode_Check(code->co_filename)) {
-      entry.file_name = unicodeAsString(code->co_filename);
-    }
-    entry.lineno = code->co_firstlineno;
-
-    entries.emplace_back(std::move(entry));
-  }
-
-  std::ofstream out{filename};
-  elf::writeEntries(out, entries);
-
-  Py_RETURN_NONE;
-}
-#endif
 
 PyObject* get_jit_list(PyObject* mod, PyObject*) {
   if (auto jit_list = cinderx::getModuleState(mod)->jit_list.get()) {
@@ -4156,23 +4022,6 @@ PyMethodDef jit_methods[] = {
          "Test helper: block until all background compiles currently in flight "
          "have completed. Does not shut down the background worker.")},
     {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions."},
-#ifndef WIN32
-    {"dump_elf",
-     dump_elf,
-     METH_O,
-     PyDoc_STR(
-         "Write out all generated code into an ELF file, whose filepath "
-         "is passed as the first argument. This is currently intended for "
-         "debugging purposes.")},
-    {"load_aot_bundle",
-     load_aot_bundle,
-     METH_O,
-     PyDoc_STR(
-         "Load a bundle of ahead-of-time generated code from an ELF "
-         "file, whose filepath is passed as the first argument. Note: "
-         "This does not actually work yet, it's being used for debugging "
-         "purposes.")},
-#endif
     {"get_compile_after_n_calls",
      get_compile_after_n_calls,
      METH_NOARGS,
@@ -5624,10 +5473,6 @@ void finalize(ModuleState& mod_state) {
   jit_code_outer_funcs.clear();
   mod_state.jit_context.reset();
   mod_state.code_allocator.reset();
-
-#ifndef WIN32
-  g_aot_ctx.destroy();
-#endif
 
   restoreSysMonitoringRegisterCallback(mod_state);
   restoreSysSetProfileAndSetTrace(mod_state);

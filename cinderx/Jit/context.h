@@ -16,7 +16,6 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/context_iface.h"
 #include "cinderx/Jit/deopt.h"
-#include "cinderx/Jit/elf/note.h"
 #include "cinderx/Jit/fixed_type_profiler.h"
 #include "cinderx/Jit/func_deopt_patcher.h"
 #include "cinderx/Jit/gen_data_footer.h"
@@ -829,50 +828,6 @@ void retainActiveDeferredData(
         pending,
     std::unordered_multimap<OwnedCompilationKey, Ref<CompiledFunctionData>>&
         still_active);
-
-/*
- * An AotContext is like the JIT context, but it holds onto state for
- * ahead-of-time compiled functions.
- */
-class AotContext {
- public:
-  struct FuncState {
-    elf::CodeNoteData note;
-    BorrowedRef<PyFunctionObject> func;
-    std::span<const std::byte> compiled_code;
-
-    vectorcallfunc normalEntry() const {
-      return reinterpret_cast<vectorcallfunc>(const_cast<std::byte*>(
-          compiled_code.data() + note.normal_entry_offset));
-    }
-  };
-
-  /*
-   * Initialize the context with the handle to the AOT bundle created by
-   * dlopen().
-   */
-  void init(void* bundle_handle);
-
-  /* Clean up the context object. */
-  void destroy();
-
-  /*
-   * Register a new function whose metadata has been parsed out of the AOT
-   * bundle.
-   */
-  void registerFunc(const elf::Note& note);
-
-  /* Look up the state associated with a given Python function. */
-  const FuncState* lookupFuncState(BorrowedRef<PyFunctionObject> func);
-
- private:
-  // The handle to the AOT bundle created by dlopen().
-  void* bundle_handle_{nullptr};
-
-  UnorderedMap<std::string, FuncState> funcs_;
-};
-
-extern AotContext g_aot_ctx;
 
 // Get the global JIT context. Returns nullptr if the JIT is not initialized.
 // This is equivalent to jitCtx() but can be used without depending on pyjit.
