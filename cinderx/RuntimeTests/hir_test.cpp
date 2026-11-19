@@ -2025,26 +2025,39 @@ def test():
 
 class ImportCacheHIRTest : public LoadGlobalGuardTest {
  public:
+  // How the single `from` member of an import, if any, is guarded.
+  enum class FromMember {
+    kNone,
+    // Identity-pinned with a GuardIs.
+    kPinned,
+    // Only checked for being bound, with a Guard.
+    kGuarded,
+  };
+
   void expectCachedImportShape(
       BorrowedRef<PyFunctionObject> pyfunc,
       int expected_loads,
       int expected_import_name_guards,
-      bool has_from_member) {
+      FromMember from_member) {
     std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
     ASSERT_NE(irfunc, nullptr);
 
+    bool has_from_member = from_member != FromMember::kNone;
+    bool pinned = from_member == FromMember::kPinned;
     auto counts = opcodeCounts(*irfunc);
     EXPECT_EQ(counts[Opcode::kLoadGlobalCached], expected_loads);
     EXPECT_EQ(
         counts[Opcode::kGuardIs],
-        expected_import_name_guards + (has_from_member ? 1 : 0));
-    EXPECT_EQ(counts[Opcode::kGuard], has_from_member ? 1 : 0);
+        expected_import_name_guards + (has_from_member ? 1 : 0) +
+            (pinned ? 1 : 0));
+    EXPECT_EQ(counts[Opcode::kGuard], has_from_member && !pinned ? 1 : 0);
     EXPECT_EQ(counts[Opcode::kImportName], 0);
     EXPECT_EQ(counts[Opcode::kEagerImportName], 0);
     EXPECT_EQ(counts[Opcode::kImportFrom], 0);
 
     int import_name_guards = 0;
     int import_from_module_guards = 0;
+    int import_from_member_pins = 0;
     int import_from_member_guards = 0;
     for (const BasicBlock& block : irfunc->cfg.blocks) {
       const FrameState* snapshot = nullptr;
@@ -2071,6 +2084,11 @@ class ImportCacheHIRTest : public LoadGlobalGuardTest {
           EXPECT_EQ(snapshot->stack.size(), 1);
           import_from_module_guards++;
         } else if (
+            instr.isGuardIs() && deopt->descr() == DeoptDescr::kImportFrom) {
+          ASSERT_NE(snapshot, nullptr);
+          EXPECT_EQ(snapshot->stack.size(), 1);
+          import_from_member_pins++;
+        } else if (
             instr.isGuard() && deopt->descr() == DeoptDescr::kImportFrom) {
           ASSERT_NE(deopt->frameState(), nullptr);
           EXPECT_EQ(deopt->frameState()->stack.size(), 1);
@@ -2080,7 +2098,8 @@ class ImportCacheHIRTest : public LoadGlobalGuardTest {
     }
     EXPECT_EQ(import_name_guards, expected_import_name_guards);
     EXPECT_EQ(import_from_module_guards, has_from_member ? 1 : 0);
-    EXPECT_EQ(import_from_member_guards, has_from_member ? 1 : 0);
+    EXPECT_EQ(import_from_member_pins, pinned ? 1 : 0);
+    EXPECT_EQ(import_from_member_guards, has_from_member && !pinned ? 1 : 0);
   }
 
   void expectGenericImport(BorrowedRef<PyFunctionObject> pyfunc) {
@@ -2123,7 +2142,7 @@ test = type(template)(template.__code__.replace(co_code=bytes(code)), globals())
   ASSERT_NE(pyfunc, nullptr);
   ASSERT_TRUE(hasBytecodeOpcode(pyfunc, IMPORT_NAME));
 
-  expectCachedImportShape(pyfunc, 2, 2, false);
+  expectCachedImportShape(pyfunc, 2, 2, FromMember::kNone);
 }
 
 TEST_F(ImportCacheHIRTest, DottedImportGuardsFullAndReturnedModules) {
@@ -2137,10 +2156,10 @@ def test():
   Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
   ASSERT_NE(pyfunc, nullptr);
 
-  expectCachedImportShape(pyfunc, 3, 3, false);
+  expectCachedImportShape(pyfunc, 3, 3, FromMember::kNone);
 }
 
-TEST_F(ImportCacheHIRTest, EligibleImportFromUsesMemberGuardAndSnapshot) {
+TEST_F(ImportCacheHIRTest, ImportFromPinsTypeMember) {
   const char* pycode = R"(
 import types
 
@@ -2151,7 +2170,35 @@ def test():
   Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
   ASSERT_NE(pyfunc, nullptr);
 
-  expectCachedImportShape(pyfunc, 3, 2, true);
+  expectCachedImportShape(pyfunc, 3, 2, FromMember::kPinned);
+}
+
+TEST_F(ImportCacheHIRTest, ImportFromPinsFunctionMember) {
+  const char* pycode = R"(
+import types
+
+def test():
+  from types import new_class
+  return new_class
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+
+  expectCachedImportShape(pyfunc, 3, 2, FromMember::kPinned);
+}
+
+TEST_F(ImportCacheHIRTest, ImportFromGuardsDataMember) {
+  const char* pycode = R"(
+import os
+
+def test():
+  from os import sep
+  return sep
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+
+  expectCachedImportShape(pyfunc, 3, 2, FromMember::kGuarded);
 }
 
 #if PY_VERSION_HEX < 0x030F0000
@@ -2189,8 +2236,8 @@ if has_eager_import_name:
   ASSERT_TRUE(hasBytecodeOpcode(eager_import, EAGER_IMPORT_NAME));
   ASSERT_TRUE(hasBytecodeOpcode(eager_from, EAGER_IMPORT_NAME));
 
-  expectCachedImportShape(eager_import, 2, 2, false);
-  expectCachedImportShape(eager_from, 3, 2, true);
+  expectCachedImportShape(eager_import, 2, 2, FromMember::kNone);
+  expectCachedImportShape(eager_from, 3, 2, FromMember::kPinned);
 }
 #endif
 

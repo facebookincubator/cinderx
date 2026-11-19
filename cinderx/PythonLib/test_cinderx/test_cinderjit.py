@@ -1601,6 +1601,49 @@ def load():
             load()
         self.assertGreater(self._guard_deopts(load), 0)
 
+    def test_import_from_pinned_member_rebinding_deopts(self) -> None:
+        def original() -> int:
+            return 1
+
+        def replacement() -> int:
+            return 2
+
+        for value in (original, int):
+            with self.subTest(value=value):
+                name = "_cinderx_import_cache_pinned_member_rebind"
+                module = types.ModuleType(name)
+                cast(Any, module).value = value
+                self._install_module(name, module)
+                load = self._make_import_from(name)
+                opcodes = self._hir_opcodes(load)
+                self.assertEqual(opcodes.get("ImportFrom", 0), 0)
+                self.assertEqual(opcodes.get("Guard", 0), 0)
+                self.assertIs(load(), value)
+
+                cast(Any, module).value = replacement
+                cinderx.jit.clear_runtime_stats()
+                self.assertIs(load(), replacement)
+                self.assertGreater(self._guard_deopts(load), 0)
+
+    def test_import_from_pinned_member_deletion_deopts_to_import_error(
+        self,
+    ) -> None:
+        def value() -> None:
+            pass
+
+        name = "_cinderx_import_cache_pinned_member_delete"
+        module = types.ModuleType(name)
+        cast(Any, module).value = value
+        self._install_module(name, module)
+        load = self._make_import_from(name)
+        self.assertIs(load(), value)
+
+        del cast(Any, module).value
+        cinderx.jit.clear_runtime_stats()
+        with self.assertRaises(ImportError):
+            load()
+        self.assertGreater(self._guard_deopts(load), 0)
+
     def test_import_from_member_deletion_deopts_to_module_getattr(self) -> None:
         name = "_cinderx_import_cache_module_getattr"
         original = object()

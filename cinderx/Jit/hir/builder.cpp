@@ -303,8 +303,8 @@ bool isBannedZeroArgCallName(std::string_view name) {
   return name == "dir" || name == "vars";
 }
 
-// Whether a LOAD_GLOBAL should pin the value it saw at compile time with a
-// GuardIs.
+// Whether a LOAD_GLOBAL, or an IMPORT_FROM of a preloaded import, should pin
+// the value it saw at compile time with a GuardIs.
 //
 // Pinning is what lets the rest of the compiler treat the global as a constant,
 // which is the enabling step for inlining and devirtualization.  It costs a
@@ -5005,12 +5005,17 @@ void HIRBuilder::emitImportFrom(
       import.source_module_dict,
       static_cast<int>(member->name_idx),
       member->value.cache);
-  auto member_guard = tc.emit<Guard>(res, tc.frame);
-  member_guard->setDescr(
-      DeoptDescr::kImportFrom,
-      PyTuple_GET_ITEM(code_->co_names, member->name_idx),
-      *env_);
-  tc.emit<RefineType>(res, TObject, res);
+  BorrowedRef<PyUnicodeObject> member_name{
+      PyTuple_GET_ITEM(code_->co_names, member->name_idx)};
+  BorrowedRef<> value = member->value.expected;
+  if (shouldPinGlobalValue(value)) {
+    auto member_guard = tc.emit<GuardIs>(res, value, res);
+    member_guard->setDescr(DeoptDescr::kImportFrom, member_name, *env_);
+  } else {
+    auto member_guard = tc.emit<Guard>(res, tc.frame);
+    member_guard->setDescr(DeoptDescr::kImportFrom, member_name, *env_);
+    tc.emit<RefineType>(res, TObject, res);
+  }
   stack.push(res);
 }
 
