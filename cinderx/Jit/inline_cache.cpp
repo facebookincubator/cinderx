@@ -2339,6 +2339,13 @@ LoadMethodResult LoadMethodCache::lookup(
         return {
             Py_NewRef(loadMethodValuePtr(value)),
             Py_NewRef(reinterpret_cast<PyObject*>(tp.get()))};
+      } else if (entry.split_index != -1) {
+        // An attribute absent from the type that instances store in their
+        // dict. If this instance doesn't have it, fall through to the getattr
+        // sentinel handling below.
+        if (Ref<> attr = getInstanceAttr(obj, name, 0, entry.split_index)) {
+          return {Py_None, attr.release()};
+        }
       } else if (value != kLoadMethodGetAttrSentinel) {
         // Tagged pointer that's not a staticmethod (handled in the python
         // descriptor case), so a class variable.
@@ -2501,9 +2508,21 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
   }
 
   if (Ref<> attr = getInstanceAttr(obj, name, 0, -1)) {
-    maybeCollectCacheStats(
-        cache_stats_, tp, name, CacheMissReason::kUncategorized);
-    Py_XDECREF(descr);
+    if (descr == nullptr) {
+      fill(
+          tp,
+          nullptr,
+          name,
+          has_getattr_hook,
+          /*is_bound_method=*/false,
+          /*is_class_method=*/false,
+          /*is_python_descriptor=*/false,
+          /*is_instance_attr=*/true);
+    } else {
+      maybeCollectCacheStats(
+          cache_stats_, tp, name, CacheMissReason::kUncategorized);
+      Py_DECREF(descr);
+    }
     return {Py_None, attr.release()};
   }
 
@@ -2710,7 +2729,8 @@ void LoadMethodCache::fill(
     bool has_getattr_hook,
     bool is_bound_method,
     bool is_class_method,
-    bool is_python_descriptor) {
+    bool is_python_descriptor,
+    bool is_instance_attr) {
   // The type must have a valid version tag in order for us to be able to
   // invalidate the cache when the type is modified. See the comment at the top
   // of `PyType_Modified` for more details.  Assigning rather than only testing
@@ -2724,7 +2744,9 @@ void LoadMethodCache::fill(
   // == kLoadMethodGetAttrSentinel) meaning "the attribute is absent from the
   // type" (see tagLoadMethodValue). This happens for types with a __getattr__
   // hook or an unreplicable lookup (see lookupSlowPath); lookup() turns such a
-  // hit into a __getattr__ / __getattribute__ dispatch.
+  // hit into a __getattr__ / __getattribute__ dispatch. An instance attribute
+  // is cached the same way along with its index in the shared keys, which
+  // lookup() checks first.
   Entry* target = nullptr;
   Entry* replacement = nullptr;
   for (Entry& entry : entries_) {
@@ -2744,7 +2766,10 @@ void LoadMethodCache::fill(
   }
   uint32_t keys_version = 0;
   int16_t split_index = -1;
-  if (!canCacheAttribute(type, name, keys_version, split_index)) {
+  bool can_cache = canCacheAttribute(type, name, keys_version, split_index);
+  if (is_instance_attr ? split_index == -1 ||
+              split_index > std::numeric_limits<int8_t>::max()
+                       : !can_cache) {
     return;
   }
 
@@ -2755,6 +2780,8 @@ void LoadMethodCache::fill(
   target->has_getattr_hook = has_getattr_hook;
   target->is_class_method = is_class_method;
   target->is_python_descriptor = is_python_descriptor;
+  target->split_index =
+      is_instance_attr ? static_cast<int8_t>(split_index) : int8_t{-1};
 }
 
 LoadTypeMethodCache::~LoadTypeMethodCache() {

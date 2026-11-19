@@ -842,6 +842,10 @@ class LoadMethodCache {
     // is read on each hit because descriptor.__init__ can replace it without
     // changing the owning type's version tag.
     bool is_python_descriptor{false};
+    // For an attribute absent from the type but stored on instances, its index
+    // in the type's shared keys; lookup() reads it from the instance before
+    // falling back to the getattr sentinel. -1 for all other entries.
+    int8_t split_index{-1};
 
     bool isValidKeysVersion(BorrowedRef<> obj);
   };
@@ -889,7 +893,8 @@ class LoadMethodCache {
       bool has_getattr_hook,
       bool is_bound_method = true,
       bool is_class_method = false,
-      bool is_python_descriptor = false);
+      bool is_python_descriptor = false,
+      bool is_instance_attr = false);
 
   std::array<Entry, 4> entries_;
   std::unique_ptr<CacheStats> cache_stats_;

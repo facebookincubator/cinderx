@@ -550,6 +550,59 @@ regular_meth = RequestContext.regular_meth
   }
 }
 
+TEST_F(InlineCacheTest, LoadMethodCacheCachesInstanceAttribute) {
+  const char* src = R"(
+class C:
+  def __init__(self, cb=None):
+    if cb is not None:
+      self.cb = cb
+
+def cb():
+  pass
+
+with_cb = C(cb)
+without_cb = C()
+)";
+  Ref<PyObject> globals(MakeGlobals());
+  ASSERT_NE(globals.get(), nullptr) << "Failed creating globals";
+
+  auto st = Ref<>::steal(PyRun_String(src, Py_file_input, globals, globals));
+  ASSERT_NE(st.get(), nullptr) << "Failed executing code";
+
+  PyObject* with_cb = PyDict_GetItemString(globals, "with_cb");
+  PyObject* without_cb = PyDict_GetItemString(globals, "without_cb");
+  PyObject* cb = PyDict_GetItemString(globals, "cb");
+  ASSERT_NE(with_cb, nullptr);
+  ASSERT_NE(without_cb, nullptr);
+  ASSERT_NE(cb, nullptr);
+
+  auto name = Ref<>::steal(PyUnicode_FromString("cb"));
+  LoadMethodCache cache;
+  auto lookupAttr = [&](PyObject* obj) {
+    LoadMethodResult res = cache.lookup(obj, name);
+    if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+      EXPECT_EQ(res.self_or_null, nullptr);
+      return Ref<>::steal(res.callable);
+    } else {
+      EXPECT_TRUE(res.callable == Py_None || res.callable == nullptr);
+      return Ref<>::steal(res.self_or_null);
+    }
+  };
+
+  EXPECT_EQ(lookupAttr(with_cb), cb);
+
+  std::vector<LoadMethodCache::ProfiledEntry> entries = cache.profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries[0].type, Py_TYPE(with_cb));
+  EXPECT_FALSE(entries[0].is_bound_method);
+
+  EXPECT_EQ(lookupAttr(with_cb), cb);
+
+  EXPECT_EQ(lookupAttr(without_cb), nullptr);
+  EXPECT_TRUE(PyErr_ExceptionMatches(PyExc_AttributeError));
+  PyErr_Clear();
+}
+
 TEST_F(InlineCacheTest, LoadModuleMethodCacheLookUp) {
   const char* src = R"(
 import functools

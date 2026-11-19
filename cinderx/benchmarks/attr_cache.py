@@ -308,6 +308,22 @@ def _build_method() -> list[object]:
     return [cls() for _ in range(RECEIVERS)]
 
 
+def _noop() -> None:
+    return None
+
+
+def _build_instcall() -> list[object]:
+    # The callables live in the instances' inline values, so the type has
+    # nothing under these names and the method-call site has to fall back to
+    # the instance.
+    cls = _new_class("InstCall")
+    objs: list[object] = [cls() for _ in range(RECEIVERS)]
+    for obj in objs:
+        for name in METHOD_NAMES:
+            setattr(obj, name, _noop)
+    return objs
+
+
 def _build_typeattr() -> list[object]:
     cls = _new_class("TypeAttr", {name: i for i, name in enumerate(NAMES)})
     return [cls] * RECEIVERS
@@ -490,6 +506,13 @@ LAYOUTS: dict[str, Layout] = {
     "method": Layout(
         "bound-method form of LOAD_ATTR",
         _build_method,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
+    ),
+    "instcall": Layout(
+        "method-call form of LOAD_ATTR on a callable stored in the instance",
+        _build_instcall,
         names=METHOD_NAMES,
         store=False,
         call=True,
