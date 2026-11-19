@@ -1600,34 +1600,116 @@ Register* simplifyUnaryOp(Env& env, const UnaryOp* instr) {
   return nullptr;
 }
 
+// `IntBinaryOp` works on fixed-width integers and wraps on overflow.  Only ops
+// whose low bits depend on nothing but the low bits of their inputs are
+// folded, so computing at 64 bits and truncating to the operand width gives
+// what the generated code computes.  Shifts and divisions are not folded, as
+// that would mean replicating how the generated code handles out-of-range
+// shift counts and zero divisors.
+std::optional<Type> foldIntBinaryOp(BinaryOpKind op, Type left, Type right) {
+  Type type = left.unspecialized();
+  if (!left.hasIntSpec() || !right.hasIntSpec() || !(type <= TCInt)) {
+    return std::nullopt;
+  }
+  auto l = static_cast<uint64_t>(left.intSpec());
+  auto r = static_cast<uint64_t>(right.intSpec());
+  uint64_t result = 0;
+  switch (op) {
+    case BinaryOpKind::kAdd:
+      result = l + r;
+      break;
+    case BinaryOpKind::kSubtract:
+      result = l - r;
+      break;
+    case BinaryOpKind::kMultiply:
+      result = l * r;
+      break;
+    case BinaryOpKind::kAnd:
+      result = l & r;
+      break;
+    case BinaryOpKind::kOr:
+      result = l | r;
+      break;
+    case BinaryOpKind::kXor:
+      result = l ^ r;
+      break;
+    default:
+      return std::nullopt;
+  }
+  return type <= TCSigned
+      ? Type::truncatedCInt(static_cast<int64_t>(result), type)
+      : Type::truncatedCUInt(result, type);
+}
+
+// Whether every value bit of an int-specialized `CInt` or `CBool` type is set.
+bool isAllOnes(Type type) {
+  if (type <= TCBool) {
+    return type.intSpec() == 1;
+  }
+  Type unspecialized = type.unspecialized();
+  if (unspecialized <= TCSigned) {
+    return type.intSpec() == -1;
+  }
+  return type.intSpec() ==
+      Type::truncatedCUInt(~uint64_t{0}, unspecialized).intSpec();
+}
+
 Register* simplifyIntBinaryOp(Env& env, const IntBinaryOp* instr) {
   Register* lhs = instr->left();
   Register* rhs = instr->right();
   BinaryOpKind op = instr->op();
 
-  // CBool & Const.
-  if (op == BinaryOpKind::kAnd && lhs->isA(TCBool) && rhs->isA(TCBool)) {
-    if (lhs->type().hasIntSpec()) {
-      std::swap(lhs, rhs);
-    }
-    if (rhs->type().hasIntSpec()) {
-      env.emit<UseType>(rhs, rhs->type());
-      return rhs->type().intSpec() ? lhs : rhs;
-    }
+  if (auto folded = foldIntBinaryOp(op, lhs->type(), rhs->type())) {
+    env.emit<UseType>(lhs, lhs->type());
+    env.emit<UseType>(rhs, rhs->type());
+    return env.emit<LoadConst>(*folded);
   }
 
-  // CBool | Const.
-  if (op == BinaryOpKind::kOr && lhs->isA(TCBool) && rhs->isA(TCBool)) {
-    if (lhs->type().hasIntSpec()) {
-      std::swap(lhs, rhs);
-    }
-    if (rhs->type().hasIntSpec()) {
-      env.emit<UseType>(rhs, rhs->type());
-      return rhs->type().intSpec() ? rhs : lhs;
-    }
+  // Both operands have the same type, so either one can stand in for the
+  // result.  Normalize constants to the right for commutative ops.
+  bool commutative = op == BinaryOpKind::kAdd ||
+      op == BinaryOpKind::kMultiply || op == BinaryOpKind::kAnd ||
+      op == BinaryOpKind::kOr || op == BinaryOpKind::kXor;
+  if (commutative && lhs->type().hasIntSpec()) {
+    std::swap(lhs, rhs);
   }
+  Type rhs_type = rhs->type();
+  if (!rhs_type.hasIntSpec()) {
+    return nullptr;
+  }
+  intptr_t value = rhs_type.intSpec();
 
-  return nullptr;
+  // Identity and absorbing elements.
+  Register* result = nullptr;
+  switch (op) {
+    case BinaryOpKind::kAdd:
+    case BinaryOpKind::kSubtract:
+    case BinaryOpKind::kXor:
+    case BinaryOpKind::kLShift:
+    case BinaryOpKind::kRShift:
+    case BinaryOpKind::kRShiftUnsigned:
+      result = value == 0 ? lhs : nullptr;
+      break;
+    case BinaryOpKind::kMultiply:
+      result = value == 0 ? rhs : value == 1 ? lhs : nullptr;
+      break;
+    case BinaryOpKind::kFloorDivide:
+    case BinaryOpKind::kFloorDivideUnsigned:
+      result = value == 1 ? lhs : nullptr;
+      break;
+    case BinaryOpKind::kAnd:
+      result = value == 0 ? rhs : isAllOnes(rhs_type) ? lhs : nullptr;
+      break;
+    case BinaryOpKind::kOr:
+      result = value == 0 ? lhs : isAllOnes(rhs_type) ? rhs : nullptr;
+      break;
+    default:
+      break;
+  }
+  if (result != nullptr) {
+    env.emit<UseType>(rhs, rhs_type);
+  }
+  return result;
 }
 
 Register* simplifyPrimitiveUnaryOp(Env& env, const PrimitiveUnaryOp* instr) {
