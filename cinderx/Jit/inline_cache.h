@@ -822,26 +822,30 @@ class LoadMethodCache {
     //     and must be resolved via __getattr__ / __getattribute__ dispatch.
     //   * value > 1: a tagged PyObject* for a staticmethod descriptor or class
     //     variable; untag it and return it as a plain attribute (no self
-    //     binding) -- unless is_class_method is set (see below).
+    //     binding) -- unless kIsClassMethod is set (see below).
     // Use the tag helpers in inline_cache.cpp to read it.
     uintptr_t value{0};
     // Split-key dict version for instances; tp_version_tag for tagged types.
     uint32_t keys_version;
 
-    // For a NULL sentinel entry (value == nullptr), records whether the type
-    // dispatches a genuine miss to __getattr__ (true) or has a lookup we can't
-    // replicate, e.g. a custom __getattribute__ (false). Meaningless when
-    // value != nullptr.
-    bool has_getattr_hook{false};
-
+    // For a getattr sentinel entry, set when the type dispatches a genuine miss
+    // to __getattr__, and clear when it has a lookup we can't replicate, e.g. a
+    // custom __getattribute__.
+    static constexpr uint8_t kHasGetAttrHook = 1 << 0;
     // Set when the entry caches a class method. lookup() binds its callable
     // to the receiving class (or the type of an instance receiver).
-    bool is_class_method{false};
-
+    static constexpr uint8_t kIsClassMethod = 1 << 1;
+    // For a getattr sentinel entry, set when the type has no split keys to
+    // show that instances lack the attribute, so lookup() checks the instance
+    // dict before falling back.
+    static constexpr uint8_t kNonSplitKeys = 1 << 2;
     // value holds a Python staticmethod/classmethod descriptor. Its callable
     // is read on each hit because descriptor.__init__ can replace it without
     // changing the owning type's version tag.
-    bool is_python_descriptor{false};
+    static constexpr uint8_t kIsPythonDescriptor = 1 << 3;
+
+    uint8_t flags{0};
+
     // For an attribute absent from the type but stored on instances, its index
     // in the type's shared keys; lookup() reads it from the instance before
     // falling back to the getattr sentinel. -1 for all other entries.
@@ -890,10 +894,8 @@ class LoadMethodCache {
       BorrowedRef<PyTypeObject> type,
       BorrowedRef<> value,
       BorrowedRef<> name,
-      bool has_getattr_hook,
+      uint8_t flags = 0,
       bool is_bound_method = true,
-      bool is_class_method = false,
-      bool is_python_descriptor = false,
       bool is_instance_attr = false);
 
   std::array<Entry, 4> entries_;

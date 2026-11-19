@@ -163,10 +163,10 @@ BorrowedRef<> classMethodCacheableCallable(BorrowedRef<> descr) {
 
 BorrowedRef<> loadMethodCachedValue(const LoadMethodCache::Entry& entry) {
   BorrowedRef<> value = loadMethodValuePtr(entry.value);
-  if (!entry.is_python_descriptor) {
+  if (!(entry.flags & LoadMethodCache::Entry::kIsPythonDescriptor)) {
     return value;
   }
-  if (entry.is_class_method) {
+  if (entry.flags & LoadMethodCache::Entry::kIsClassMethod) {
     return classMethodCacheableCallable(value);
   }
   return Ci_PyStaticMethod_GetFunc(value);
@@ -238,6 +238,18 @@ void maybeCollectCacheStats(
 bool hookUsesGenericGetAttr(BorrowedRef<PyTypeObject> type) {
   BorrowedRef<> getattribute = _PyType_Lookup(type, &_Py_ID(__getattribute__));
   return getattribute == cinderx::getModuleState()->object_getattribute;
+}
+
+// Whether the type looks up attributes through module's __getattribute__,
+// which like the generic one finds an attribute the type doesn't define in the
+// instance dict before trying anything else.
+bool usesModuleGetAttribute(BorrowedRef<PyTypeObject> type) {
+  if (type->tp_getattro == PyModule_Type.tp_getattro) {
+    return true;
+  }
+  return type->tp_getattro == Ci_tp_getattr_hook &&
+      _PyType_Lookup(type, &_Py_ID(__getattribute__)) ==
+      _PyType_Lookup(&PyModule_Type, &_Py_ID(__getattribute__));
 }
 
 // Check whether a type uses the __getattr__ hook as its tp_getattro.
@@ -903,6 +915,21 @@ static Ref<> getInstanceAttr(
       name,
       keys_version,
       split_index);
+}
+
+// Looks up name in the dict of an object whose type doesn't manage its dict,
+// returning nullptr if it isn't there. The error is left set if the lookup
+// fails.
+static Ref<> getUnmanagedDictAttr(BorrowedRef<> obj, BorrowedRef<> name) {
+  JIT_DCHECK(
+      !PyType_HasFeature(Py_TYPE(obj), Py_TPFLAGS_MANAGED_DICT),
+      "_PyObject_GetDictPtr() would materialize a managed dict");
+  PyObject** dictptr = _PyObject_GetDictPtr(obj);
+  if (dictptr == nullptr || *dictptr == nullptr) {
+    return nullptr;
+  }
+  auto dict = Ref<>::create(*dictptr);
+  return getDictRef(dict, name);
 }
 
 int DescrOrClassVarMutator::setAttr(
@@ -2304,7 +2331,7 @@ LoadMethodResult LoadMethodCache::lookup(
         if (value == nullptr) {
           return lookupTypeReceiverSlowPath(type, name);
         }
-        if (entry.is_class_method) {
+        if (entry.flags & Entry::kIsClassMethod) {
           return {Py_NewRef(value), Py_NewRef(obj)};
         }
         return {Py_None, Py_NewRef(value)};
@@ -2324,16 +2351,16 @@ LoadMethodResult LoadMethodCache::lookup(
         // Bound method (common case): the low bit is clear, so the value is an
         // untagged PyObject* which is a method-like object.
         return {Py_NewRef(reinterpret_cast<PyObject*>(value)), Py_NewRef(obj)};
-      } else if (entry.is_python_descriptor) {
+      } else if (entry.flags & Entry::kIsPythonDescriptor) {
         BorrowedRef<> callable = loadMethodCachedValue(entry);
         if (callable == nullptr) {
           return lookupSlowPath(obj, name);
         }
-        if (entry.is_class_method) {
+        if (entry.flags & Entry::kIsClassMethod) {
           return {Py_NewRef(callable), Py_NewRef(tp.getObj())};
         }
         return {Py_None, Py_NewRef(callable)};
-      } else if (entry.is_class_method) {
+      } else if (entry.flags & Entry::kIsClassMethod) {
         // Class method: the (tagged) value is the underlying callable. Bind it
         // to the receiver's type rather than the receiver itself.
         return {
@@ -2363,8 +2390,20 @@ LoadMethodResult LoadMethodCache::lookup(
       //  * A type with a lookup we can't replicate (custom __getattribute__,
       //    or a metaclass instance using type_getattro): we don't know the
       //    result, so dispatch through the type's own lookup.
-      PyObject* result = entry.has_getattr_hook ? getAttrFallback(obj, name)
-                                                : PyObject_GetAttr(obj, name);
+      //
+      // Either kind may have instance dicts without split keys, in which case
+      // the instance dict is checked first.
+      if (entry.flags & Entry::kNonSplitKeys) {
+        if (Ref<> attr = getUnmanagedDictAttr(obj, name)) {
+          return {Py_None, attr.release()};
+        }
+        if (PyErr_Occurred()) {
+          return {nullptr, nullptr};
+        }
+      }
+      PyObject* result = (entry.flags & Entry::kHasGetAttrHook)
+          ? getAttrFallback(obj, name)
+          : PyObject_GetAttr(obj, name);
       if (result == nullptr) {
         return {nullptr, nullptr};
       }
@@ -2398,8 +2437,8 @@ std::vector<LoadMethodCache::ProfiledEntry> LoadMethodCache::profiledEntries()
     }
     result.push_back(
         {.type = entry.type.get(),
-         .is_bound_method =
-             !loadMethodValueIsUnbound(entry.value) && !entry.is_class_method,
+         .is_bound_method = !loadMethodValueIsUnbound(entry.value) &&
+             !(entry.flags & Entry::kIsClassMethod),
          .is_type_receiver = false});
   }
   if (saw_type_receiver) {
@@ -2427,6 +2466,16 @@ const CacheStats* LoadMethodCache::cacheStats() {
   return cache_stats_.get();
 }
 
+// Flags for a getattr sentinel entry for an attribute the type doesn't define,
+// on a type whose lookup checks the instance dict first.
+static uint8_t getAttrSentinelFlags(bool has_getattr_hook) {
+  uint8_t flags = LoadMethodCache::Entry::kNonSplitKeys;
+  if (has_getattr_hook) {
+    flags |= LoadMethodCache::Entry::kHasGetAttrHook;
+  }
+  return flags;
+}
+
 CINDERX_NOINLINE
 LoadMethodResult LoadMethodCache::lookupSlowPath(
     BorrowedRef<> obj,
@@ -2450,8 +2499,13 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
     // __getattribute__, or a metaclass instance whose __getattribute__ is
     // type_getattro). Cache the getattr sentinel so future lookups hit the
     // cache and dispatch straight through the type's own lookup (see lookup()),
-    // then service this miss now.
-    fill(tp, nullptr, name, /* has_getattr_hook */ false);
+    // then service this miss now. Module's lookup checks the instance dict
+    // first like the generic one, so its instance dict can be checked too.
+    uint8_t flags = 0;
+    if (usesModuleGetAttribute(tp) && _PyType_Lookup(tp, name) == nullptr) {
+      flags |= Entry::kNonSplitKeys;
+    }
+    fill(tp, nullptr, name, flags);
     PyObject* res = PyObject_GetAttr(obj, name);
     if (res != nullptr) {
       maybeCollectCacheStats(
@@ -2513,10 +2567,8 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
           tp,
           nullptr,
           name,
-          has_getattr_hook,
+          getAttrSentinelFlags(has_getattr_hook),
           /*is_bound_method=*/false,
-          /*is_class_method=*/false,
-          /*is_python_descriptor=*/false,
           /*is_instance_attr=*/true);
     } else {
       maybeCollectCacheStats(
@@ -2527,7 +2579,7 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
   }
 
   if (is_method) {
-    fill(tp, descr, name, /* has_getattr_hook */ false);
+    fill(tp, descr, name);
     Py_INCREF(obj);
     return {descr, obj};
   }
@@ -2539,10 +2591,8 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
           tp,
           descr,
           name,
-          /*has_getattr_hook=*/false,
-          /*is_bound_method=*/false,
-          /*is_class_method=*/false,
-          /*is_python_descriptor=*/true);
+          Entry::kIsPythonDescriptor,
+          /*is_bound_method=*/false);
       LoadMethodResult result = {Py_None, Py_NewRef(callable)};
       Py_DECREF(descr);
       return result;
@@ -2556,10 +2606,11 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
           tp,
           descr,
           name,
-          /*has_getattr_hook=*/false,
-          /*is_bound_method=*/false,
-          /*is_class_method=*/true,
-          /*is_python_descriptor=*/Py_TYPE(descr) == &PyClassMethod_Type);
+          Entry::kIsClassMethod |
+              (Py_TYPE(descr) == &PyClassMethod_Type
+                   ? Entry::kIsPythonDescriptor
+                   : 0),
+          /*is_bound_method=*/false);
       LoadMethodResult result = {
           Py_NewRef(callable), Py_NewRef(reinterpret_cast<PyObject*>(tp))};
       Py_DECREF(descr);
@@ -2586,8 +2637,7 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
     // A class variable / non-descriptor attribute found on the type dict and
     // not shadowed by an instance attribute. Cache it and return it as a plain
     // attribute (not bound to the receiver).
-    fill(
-        tp, descr, name, /*has_getattr_hook=*/false, /*is_bound_method=*/false);
+    fill(tp, descr, name, /*flags=*/0, /*is_bound_method=*/false);
     return {Py_None, descr};
   }
 
@@ -2596,7 +2646,7 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
   // lookups hit the cache and dispatch to __getattr__ directly (see lookup()),
   // then service this miss through __getattr__ now.
   if (has_getattr_hook) {
-    fill(tp, nullptr, name, /* has_getattr_hook */ true);
+    fill(tp, nullptr, name, getAttrSentinelFlags(/*has_getattr_hook=*/true));
     PyObject* result = getAttrFallback(obj, name);
     if (result == nullptr) {
       return {nullptr, nullptr};
@@ -2700,8 +2750,9 @@ LoadMethodResult LoadMethodCache::lookupTypeReceiverSlowPath(
           .type = key,
           .value = tagLoadMethodValue(value, /*is_bound_method=*/false),
           .keys_version = type->tp_version_tag,
-          .is_class_method = is_class_method,
-          .is_python_descriptor = is_python_descriptor};
+          .flags = static_cast<uint8_t>(
+              (is_class_method ? Entry::kIsClassMethod : 0) |
+              (is_python_descriptor ? Entry::kIsPythonDescriptor : 0))};
       if (target != nullptr) {
         *target = new_entry;
       }
@@ -2726,10 +2777,8 @@ void LoadMethodCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> value,
     BorrowedRef<> name,
-    bool has_getattr_hook,
+    uint8_t flags,
     bool is_bound_method,
-    bool is_class_method,
-    bool is_python_descriptor,
     bool is_instance_attr) {
   // The type must have a valid version tag in order for us to be able to
   // invalidate the cache when the type is modified. See the comment at the top
@@ -2747,6 +2796,9 @@ void LoadMethodCache::fill(
   // hit into a __getattr__ / __getattribute__ dispatch. An instance attribute
   // is cached the same way along with its index in the shared keys, which
   // lookup() checks first.
+  //
+  // kNonSplitKeys in `flags` means the caller allows the entry to check the
+  // instance dict, for a type with no split keys to rule the attribute out.
   Entry* target = nullptr;
   Entry* replacement = nullptr;
   for (Entry& entry : entries_) {
@@ -2767,9 +2819,17 @@ void LoadMethodCache::fill(
   uint32_t keys_version = 0;
   int16_t split_index = -1;
   bool can_cache = canCacheAttribute(type, name, keys_version, split_index);
-  if (is_instance_attr ? split_index == -1 ||
-              split_index > std::numeric_limits<int8_t>::max()
-                       : !can_cache) {
+  uint8_t entry_flags = flags & ~Entry::kNonSplitKeys;
+  if (is_instance_attr && split_index != -1 &&
+      split_index <= std::numeric_limits<int8_t>::max()) {
+    // lookup() reads the attribute from the instance at split_index.
+  } else if (can_cache) {
+    split_index = -1;
+  } else if (
+      (flags & Entry::kNonSplitKeys) && split_index == -1 &&
+      !PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
+    entry_flags |= Entry::kNonSplitKeys;
+  } else {
     return;
   }
 
@@ -2777,11 +2837,8 @@ void LoadMethodCache::fill(
   target->type = type;
   target->value = tagLoadMethodValue(value, is_bound_method);
   target->keys_version = keys_version;
-  target->has_getattr_hook = has_getattr_hook;
-  target->is_class_method = is_class_method;
-  target->is_python_descriptor = is_python_descriptor;
-  target->split_index =
-      is_instance_attr ? static_cast<int8_t>(split_index) : int8_t{-1};
+  target->flags = entry_flags;
+  target->split_index = static_cast<int8_t>(split_index);
 }
 
 LoadTypeMethodCache::~LoadTypeMethodCache() {

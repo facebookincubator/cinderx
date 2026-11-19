@@ -603,6 +603,64 @@ without_cb = C()
   PyErr_Clear();
 }
 
+TEST_F(InlineCacheTest, LoadMethodCacheCachesModuleSubclassWithGetAttr) {
+  const char* src = R"(
+import types
+
+class M(types.ModuleType):
+  def __getattr__(self, name):
+    return fallback
+
+def f():
+  pass
+
+def fallback():
+  pass
+
+with_f = M("with_f")
+with_f.f = f
+without_f = M("without_f")
+)";
+  Ref<PyObject> globals(MakeGlobals());
+  ASSERT_NE(globals.get(), nullptr) << "Failed creating globals";
+
+  auto st = Ref<>::steal(PyRun_String(src, Py_file_input, globals, globals));
+  ASSERT_NE(st.get(), nullptr) << "Failed executing code";
+
+  PyObject* with_f = PyDict_GetItemString(globals, "with_f");
+  PyObject* without_f = PyDict_GetItemString(globals, "without_f");
+  PyObject* f = PyDict_GetItemString(globals, "f");
+  PyObject* fallback = PyDict_GetItemString(globals, "fallback");
+  ASSERT_NE(with_f, nullptr);
+  ASSERT_NE(without_f, nullptr);
+  ASSERT_NE(f, nullptr);
+  ASSERT_NE(fallback, nullptr);
+
+  auto name = Ref<>::steal(PyUnicode_FromString("f"));
+  LoadMethodCache cache;
+  auto lookupAttr = [&](PyObject* obj) {
+    LoadMethodResult res = cache.lookup(obj, name);
+    if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+      EXPECT_EQ(res.self_or_null, nullptr);
+      return Ref<>::steal(res.callable);
+    } else {
+      EXPECT_EQ(res.callable, Py_None);
+      return Ref<>::steal(res.self_or_null);
+    }
+  };
+
+  EXPECT_EQ(lookupAttr(with_f), f);
+
+  std::vector<LoadMethodCache::ProfiledEntry> entries = cache.profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries[0].type, Py_TYPE(with_f));
+  EXPECT_FALSE(entries[0].is_bound_method);
+
+  EXPECT_EQ(lookupAttr(with_f), f);
+  EXPECT_EQ(lookupAttr(without_f), fallback);
+  EXPECT_EQ(cache.profiledEntries().size(), 1);
+}
+
 TEST_F(InlineCacheTest, LoadModuleMethodCacheLookUp) {
   const char* src = R"(
 import functools

@@ -312,16 +312,50 @@ def _noop() -> None:
     return None
 
 
+def _set_callables(objs: list[object]) -> list[object]:
+    for obj in objs:
+        for name in METHOD_NAMES:
+            setattr(obj, name, _noop)
+    return objs
+
+
 def _build_instcall() -> list[object]:
     # The callables live in the instances' inline values, so the type has
     # nothing under these names and the method-call site has to fall back to
     # the instance.
     cls = _new_class("InstCall")
-    objs: list[object] = [cls() for _ in range(RECEIVERS)]
-    for obj in objs:
-        for name in METHOD_NAMES:
-            setattr(obj, name, _noop)
-    return objs
+    return _set_callables([cls() for _ in range(RECEIVERS)])
+
+
+def _build_instcall_dictoffset() -> list[object]:
+    # A plain instance dict with no shared keys to rule the names out.
+    cls = _new_class("InstCallDictOffset", bases=(Exception,))
+    return _set_callables([cls() for _ in range(RECEIVERS)])
+
+
+def _build_instcall_getattr() -> list[object]:
+    cls = _new_class(
+        "InstCallGetAttr", {"__getattr__": lambda self, name: _noop}, (Exception,)
+    )
+    return _set_callables([cls() for _ in range(RECEIVERS)])
+
+
+def _build_modcall() -> list[object]:
+    return _set_callables([types.ModuleType("attr_cache_call")]) * RECEIVERS
+
+
+def _build_modcall_subclass() -> list[object]:
+    cls = _new_class("ModuleSubclass", bases=(types.ModuleType,))
+    return _set_callables([cls("attr_cache_call")]) * RECEIVERS
+
+
+def _build_modcall_getattr() -> list[object]:
+    cls = _new_class(
+        "ModuleGetAttr",
+        {"__getattr__": lambda self, name: _noop},
+        (types.ModuleType,),
+    )
+    return _set_callables([cls("attr_cache_call")]) * RECEIVERS
 
 
 def _build_typeattr() -> list[object]:
@@ -517,6 +551,41 @@ LAYOUTS: dict[str, Layout] = {
         store=False,
         call=True,
     ),
+    "instcall-dictoffset": Layout(
+        "callable stored in a fixed tp_dictoffset instance dict",
+        _build_instcall_dictoffset,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
+    ),
+    "instcall-getattr": Layout(
+        "callable stored in a tp_dictoffset instance dict, type has __getattr__",
+        _build_instcall_getattr,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
+    ),
+    "modcall": Layout(
+        "method-call form of LOAD_ATTR on a function in a module",
+        _build_modcall,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
+    ),
+    "modcall-subclass": Layout(
+        "function in an instance of a module subclass",
+        _build_modcall_subclass,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
+    ),
+    "modcall-getattr": Layout(
+        "function in an instance of a module subclass with __getattr__",
+        _build_modcall_getattr,
+        names=METHOD_NAMES,
+        store=False,
+        call=True,
+    ),
     "typeattr": Layout(
         "attribute read off a class object",
         _build_typeattr,
@@ -688,7 +757,7 @@ def build_benchmark(name: str) -> Benchmark:
     layout = LAYOUTS[layout_name]
 
     receivers = layout.build()
-    slug = f"{'store' if is_store else 'load'}_{layout_name}"
+    slug = f"{'store' if is_store else 'load'}_{layout_name.replace('-', '_')}"
 
     fn: Callable[..., object]
     if is_store:
