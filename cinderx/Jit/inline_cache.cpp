@@ -20,6 +20,7 @@
 #include "cinderx/module_state.h"
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -812,44 +813,96 @@ PyObject* MemberDescrMutator::getAttr(
   return PyMember_GetOne(reinterpret_cast<char*>(obj), def);
 }
 
+// Reads name out of values laid out by the type's shared keys.
+static Ref<> getSplitValue(
+    PyDictValues* values,
+    PyDictKeysObject* keys,
+    PyObject* name,
+    uint32_t keys_version,
+    int16_t split_index) {
+  Py_ssize_t index = split_index;
+  if (index == -1) {
+    if (keys_version != 0 && keys->dk_version == keys_version) {
+      return nullptr;
+    }
+    index = getDictKeysIndex(keys, name);
+    if (index < 0) {
+      return nullptr;
+    }
+  }
+  // The slot is NULL if this instance never set name; the empty Ref reads as
+  // not found, like PyDict_GetItem() returning NULL.
+  return Ref<>::create(values->values[index]);
+}
+
+static Ref<> getDictAttr(
+    BorrowedRef<PyTypeObject> type,
+    PyDictObject* dict,
+    PyObject* name,
+    uint32_t keys_version,
+    int16_t split_index) {
+  if (dict == nullptr) {
+    return nullptr;
+  }
+  if (split_index != -1 && dict->ma_keys == getSplitKeys(type)) {
+    return Ref<>::create(dict->ma_values->values[split_index]);
+  }
+  if (keys_version != 0 && dict->ma_keys->dk_version == keys_version) {
+    return nullptr;
+  }
+  auto dict_ref = Ref<>::create(reinterpret_cast<PyObject*>(dict));
+  return Ref<>::create(PyDict_GetItem(dict_ref, name));
+}
+
 // Looks up name in obj's instance dict, returning nullptr if it isn't there. A
 // nonzero keys_version is a version of the shared keys known not to hold name.
-static Ref<>
-getInstanceAttr(PyObject* obj, PyObject* name, uint32_t keys_version) {
-#if PY_VERSION_HEX < 0x030E0000
-  // Read inline values in place; _PyObject_GetDictPtr() would materialize them
-  // into a dict, writing to the object.
+// A split_index other than -1 is name's index in the type's shared keys.
+static Ref<> getInstanceAttr(
+    PyObject* obj,
+    PyObject* name,
+    uint32_t keys_version,
+    int16_t split_index) {
+  // Read inline values and managed dicts in place; _PyObject_GetDictPtr()
+  // would materialize them into a dict, writing to the object.
   BorrowedRef<PyTypeObject> type = Py_TYPE(obj);
   if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT) &&
       PyUnicode_CheckExact(name)) {
+#if PY_VERSION_HEX >= 0x030E0000
+    if (PyType_HasFeature(type, Py_TPFLAGS_INLINE_VALUES)) {
+      PyDictValues* values = _PyObject_InlineValues(obj);
+      if (values->valid) {
+        return getSplitValue(
+            values, getSplitKeys(type), name, keys_version, split_index);
+      }
+    }
+    return getDictAttr(
+        type, _PyObject_GetManagedDict(obj), name, keys_version, split_index);
+#else
     PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
     if (_PyDictOrValues_IsValues(dorv)) {
-      PyDictKeysObject* keys = getSplitKeys(type);
-      if (keys_version != 0 && keys->dk_version == keys_version) {
-        return nullptr;
-      }
-      Py_ssize_t index = getDictKeysIndex(keys, name);
-      if (index < 0) {
-        return nullptr;
-      }
-      // The slot is NULL if this instance never set name; the empty Ref reads
-      // as not found, like PyDict_GetItem() returning NULL below.
-      return Ref<>::create(_PyDictOrValues_GetValues(dorv)->values[index]);
+      return getSplitValue(
+          _PyDictOrValues_GetValues(dorv),
+          getSplitKeys(type),
+          name,
+          keys_version,
+          split_index);
     }
-  }
+    return getDictAttr(
+        type,
+        reinterpret_cast<PyDictObject*>(_PyDictOrValues_GetDict(dorv)),
+        name,
+        keys_version,
+        split_index);
 #endif
+  }
 
   PyObject** dictptr = _PyObject_GetDictPtr(obj);
-  if (dictptr == nullptr || *dictptr == nullptr) {
-    return nullptr;
-  }
-  auto dict = Ref<>::create(*dictptr);
-  if (keys_version != 0 &&
-      reinterpret_cast<PyDictObject*>(dict.get())->ma_keys->dk_version ==
-          keys_version) {
-    return nullptr;
-  }
-  return Ref<>::create(PyDict_GetItem(dict, name));
+  return getDictAttr(
+      type,
+      dictptr == nullptr ? nullptr : reinterpret_cast<PyDictObject*>(*dictptr),
+      name,
+      keys_version,
+      split_index);
 }
 
 int DescrOrClassVarMutator::setAttr(
@@ -895,7 +948,8 @@ PyObject* DescrOrClassVarMutator::getAttr(
     return getter(descr, obj, type);
   }
 
-  if (Ref<> attr = getInstanceAttr(obj, name, descr_or_cvar->keys_version)) {
+  if (Ref<> attr = getInstanceAttr(
+          obj, name, descr_or_cvar->keys_version, descr_or_cvar->split_index)) {
     return attr.release();
   }
 
@@ -977,10 +1031,12 @@ void AttributeMutator::setDescrOrClassvar(
     PyTypeObject* type,
     PyObject* descr,
     uint32_t keys_version,
+    int16_t split_index,
     [[maybe_unused]] BorrowedRef<> getattr) {
   setType(type, CINDERX_ATTR_KIND_FOR_GETATTR(kDescrOrClassVar, getattr));
   descr_or_cvar_.descr = descr;
   descr_or_cvar_.keys_version = keys_version;
+  descr_or_cvar_.split_index = split_index;
 }
 
 #undef CINDERX_ATTR_KIND_FOR_GETATTR
@@ -1432,7 +1488,8 @@ static bool isInstanceStore(
 bool canCacheAttribute(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name,
-    uint32_t& keys_version) {
+    uint32_t& keys_version,
+    int16_t& split_index) {
   if (type->tp_dictoffset == 0) {
     return true;
   }
@@ -1446,11 +1503,18 @@ bool canCacheAttribute(
     return false;
   }
 
-  // If we don't have a valid keys version or the key exists in the shared
-  // keys then we can't cache the value as we need to check and see if it's
-  // been overridden.
-  if (dictGetKeysVersion(PyInterpreterState_Get(), keys) == 0 ||
-      getDictKeysIndex(keys, name) != -1) {
+  // If the key exists in the shared keys or we don't have a valid keys version
+  // then we can't cache the value as we need to check and see if it's been
+  // overridden. Shared keys are append-only, so the index of a shadowable key
+  // stays valid for as long as the type does.
+  Py_ssize_t index = getDictKeysIndex(keys, name);
+  if (index != -1) {
+    if (index <= std::numeric_limits<int16_t>::max()) {
+      split_index = static_cast<int16_t>(index);
+    }
+    return false;
+  }
+  if (dictGetKeysVersion(PyInterpreterState_Get(), keys) == 0) {
     return false;
   }
   keys_version = keys->dk_version;
@@ -1617,8 +1681,9 @@ AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
       // dynamically checks tp_descr_set/tp_descr_get at runtime, correctly
       // handling the transition if __set__ is added or removed.
       uint32_t keys_version = 0;
-      canCacheAttribute(type, name, keys_version);
-      mut->setDescrOrClassvar(type, descr, keys_version, getattr);
+      int16_t split_index = -1;
+      canCacheAttribute(type, name, keys_version, split_index);
+      mut->setDescrOrClassvar(type, descr, keys_version, split_index, getattr);
     }
     ac_watcher.watch(type, this);
     return mut;
@@ -2435,7 +2500,7 @@ LoadMethodResult LoadMethodCache::lookupSlowPath(
     }
   }
 
-  if (Ref<> attr = getInstanceAttr(obj, name, 0)) {
+  if (Ref<> attr = getInstanceAttr(obj, name, 0, -1)) {
     maybeCollectCacheStats(
         cache_stats_, tp, name, CacheMissReason::kUncategorized);
     Py_XDECREF(descr);
@@ -2678,7 +2743,8 @@ void LoadMethodCache::fill(
     return;
   }
   uint32_t keys_version = 0;
-  if (!canCacheAttribute(type, name, keys_version)) {
+  int16_t split_index = -1;
+  if (!canCacheAttribute(type, name, keys_version, split_index)) {
     return;
   }
 

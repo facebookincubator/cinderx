@@ -155,6 +155,8 @@ struct DescrOrClassVarMutator {
 
   BorrowedRef<> descr;
   uint32_t keys_version;
+  // Index of the attribute in the type's shared keys, or -1 if it isn't there.
+  int16_t split_index;
 };
 
 // Mutator for attribute lookups on types that define __getattr__.
@@ -365,6 +367,7 @@ class AttributeMutator {
       PyTypeObject* type,
       PyObject* descr,
       uint32_t keys_version,
+      int16_t split_index,
       BorrowedRef<> getattr);
   void setSplit(
       PyTypeObject* type,
