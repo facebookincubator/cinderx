@@ -2488,6 +2488,120 @@ class SpecializeCCallTests(unittest.TestCase):
         self.assertNotIn("CallStatic", opcodes)
 
 
+# Staticmethods held in module globals: calling one forwards to the
+# wrapped callable with no extra argument. The fixtures cover each
+# calling convention the LIR generator specializes for a wrapped
+# PyCFunction (METH_O, METH_NOARGS, METH_FASTCALL, METH_VARARGS), plus
+# wrapped callables that are not PyCFunctions, which must stay on the
+# generic path.
+_STATICMETHOD_LEN = staticmethod(len)
+_STATICMETHOD_GETRECURSIONLIMIT = staticmethod(sys.getrecursionlimit)
+_STATICMETHOD_MAKETRANS = str.__dict__["maketrans"]
+if _VARARGS_INSTANCE is not None:
+    _STATICMETHOD_VARARGS = staticmethod(_VARARGS_INSTANCE.meth_varargs)
+else:
+    _STATICMETHOD_VARARGS = None
+_STATICMETHOD_PYFUNC = staticmethod(lambda x: x * 2)
+_STATICMETHOD_METHOD_DESCR = staticmethod(str.upper)
+_STATICMETHOD_NONCALLABLE = staticmethod(cast(Any, None))
+
+
+class StaticMethodCallTests(unittest.TestCase):
+    """
+    Calls through staticmethod objects held in module globals are not
+    static calls, so the HIR leaves them as VectorCalls and the LIR
+    generator specializes calls to a wrapped PyCFunction directly,
+    passing the wrapped function's bound self.
+    """
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_o(self, s):
+        return _STATICMETHOD_LEN(s)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_o_wrong_count(self):
+        return _STATICMETHOD_LEN()
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_o_kwargs(self):
+        return _STATICMETHOD_LEN("abc", x=1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_noargs(self):
+        return _STATICMETHOD_GETRECURSIONLIMIT()
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_noargs_wrong_count(self):
+        return _STATICMETHOD_GETRECURSIONLIMIT(1)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_fastcall(self, a, b):
+        return _STATICMETHOD_MAKETRANS(a, b)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_fastcall_dict(self, d):
+        return _STATICMETHOD_MAKETRANS(d)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_varargs(self, a, b, c):
+        return _STATICMETHOD_VARARGS(a, b, c)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_pyfunc(self, x):
+        return _STATICMETHOD_PYFUNC(x)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_method_descr(self, s):
+        return _STATICMETHOD_METHOD_DESCR(s)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_noncallable(self):
+        return _STATICMETHOD_NONCALLABLE()
+
+    def test_staticmethod_fixtures(self) -> None:
+        self.assertIs(type(_STATICMETHOD_MAKETRANS), staticmethod)
+        self.assertIs(type(cast(staticmethod, _STATICMETHOD_LEN).__func__), type(len))
+        self.assertIs(
+            type(cast(staticmethod, _STATICMETHOD_GETRECURSIONLIMIT).__func__),
+            type(len),
+        )
+
+    def test_staticmethod_results(self) -> None:
+        self.assertEqual(self._sm_o("abc"), 3)
+        self.assertIsInstance(self._sm_noargs(), int)
+        self.assertEqual(self._sm_fastcall("ab", "cd"), {97: 99, 98: 100})
+        self.assertEqual(self._sm_fastcall_dict({"a": "b"}), {97: "b"})
+        self.assertEqual(self._sm_pyfunc(2), 4)
+        self.assertEqual(self._sm_method_descr("abc"), "ABC")
+
+    @passIf(_testcapi is None, "requires _testcapi")
+    def test_staticmethod_varargs_result(self) -> None:
+        self.assertEqual(
+            self._sm_varargs(None, None, None),
+            (_VARARGS_INSTANCE, (None, None, None)),
+        )
+
+    def test_staticmethod_errors_raise(self) -> None:
+        with self.assertRaises(TypeError):
+            self._sm_o_wrong_count()
+        with self.assertRaises(TypeError):
+            self._sm_o_kwargs()
+        with self.assertRaises(TypeError):
+            self._sm_noargs_wrong_count()
+        with self.assertRaises(TypeError):
+            self._sm_noncallable()
+
+    def test_staticmethod_stays_vector_call(self) -> None:
+        # Staticmethod calls are specialized by the LIR generator, so the
+        # HIR keeps a VectorCall and builds no static call.
+        opcodes = cinderx.jit.get_function_hir_opcode_counts(
+            StaticMethodCallTests._sm_o
+        )
+        self.assertIsNotNone(opcodes)
+        self.assertIn("VectorCall", opcodes)
+        self.assertNotIn("CallStatic", opcodes)
+
+
 def _resolve_varargs_callee(x, *args):
     return (x, args)
 

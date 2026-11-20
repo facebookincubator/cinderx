@@ -25,6 +25,7 @@ extern "C" {
 }
 
 #include "cinderx/Common/containers.h"
+#include "cinderx/Common/func.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/long.h"
 #include "cinderx/Common/py-portability.h"
@@ -2132,7 +2133,8 @@ bool LIRGenerator::translateSpecializedCall(
     return false;
   }
 
-  if (type != &PyCFunction_Type && type != &PyMethodDescr_Type) {
+  if (type != &PyCFunction_Type && type != &PyMethodDescr_Type &&
+      type != &PyStaticMethod_Type) {
     return false;
   }
 
@@ -2146,7 +2148,20 @@ bool LIRGenerator::translateSpecializedCall(
   size_t arg_offset = 0;
   hir::Register* self_reg = nullptr;
   PyObject* self_obj = nullptr;
-  if (type == &PyCFunction_Type) {
+  if (type == &PyStaticMethod_Type) {
+    // A staticmethod forwards its call to the wrapped callable with no
+    // extra argument. METH_STATIC type methods are stored exactly this
+    // way, as a staticmethod wrapping the PyCFunction created by
+    // PyCFunction_NewEx, so specialize the wrapped function directly.
+    // Anything else wrapped in a staticmethod stays on the generic path.
+    PyObject* wrapped = Ci_PyStaticMethod_GetFunc(callee);
+    if (wrapped == nullptr || Py_TYPE(wrapped) != &PyCFunction_Type) {
+      return false;
+    }
+    auto* cfunc = reinterpret_cast<PyCFunctionObject*>(wrapped);
+    def = cfunc->m_ml;
+    self_obj = PyCFunction_GET_SELF(wrapped);
+  } else if (type == &PyCFunction_Type) {
     auto* cfunc = reinterpret_cast<PyCFunctionObject*>(callee);
     def = cfunc->m_ml;
     self_obj = PyCFunction_GET_SELF(callee);

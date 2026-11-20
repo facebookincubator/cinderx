@@ -17,6 +17,7 @@ extern "C" {
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/containers.h"
+#include "cinderx/Common/func.h"
 #include "cinderx/Common/long.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
@@ -314,10 +315,23 @@ bool isBannedZeroArgCallName(std::string_view name) {
 // Mutable data globals are the opposite.  Pinning a bool flag or an int counter
 // buys no optimization, and module-level flags toggled by context managers are
 // a common enough Python idiom that the deopts dominate.
+// A staticmethod wrapping a C function is pinned for the same reason a C
+// function is: it is rebound approximately never, and pinning lets the
+// rest of the compiler treat it as the wrapped function. Other
+// staticmethods are not pinned: nothing downstream specializes them, so
+// pinning would only buy a deopt on rebinding.
+static bool isStaticMethodWrappingCFunction(BorrowedRef<> value) {
+  if (Py_TYPE(value) != &PyStaticMethod_Type) {
+    return false;
+  }
+  PyObject* wrapped = Ci_PyStaticMethod_GetFunc(value);
+  return wrapped != nullptr && Py_TYPE(wrapped) == &PyCFunction_Type;
+}
+
 static bool shouldPinGlobalValue(BorrowedRef<> value) {
   return PyFunction_Check(value) || PyCFunction_Check(value) ||
       PyType_Check(value) || PyModule_Check(value) ||
-      Ci_StrictModule_Check(value);
+      Ci_StrictModule_Check(value) || isStaticMethodWrappingCFunction(value);
 }
 
 // Load the iterator object for a FOR_ITER-like instruction.
