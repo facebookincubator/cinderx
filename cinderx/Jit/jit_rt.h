@@ -99,6 +99,18 @@ PyObject* callWithKeywordArgsSimple(
  */
 PyObject* tupleFromArray(PyObject* const* args, Py_ssize_t nargs);
 
+/*
+ * Call a METH_VARARGS | METH_KEYWORDS method with borrowed arguments.
+ * Positional values precede keyword values in args; nargs counts only
+ * positional values. The temporary tuple and dict are released before return.
+ */
+PyObject* callWithVarargsAndKeywords(
+    PyMethodDef* def,
+    PyObject* self,
+    PyObject* const* args,
+    Py_ssize_t nargs,
+    PyObject* kwnames);
+
 StaticCallReturn callWithIncorrectArgcount(
     PyFunctionObject* func,
     PyObject** args,

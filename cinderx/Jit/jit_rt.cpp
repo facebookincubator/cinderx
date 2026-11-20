@@ -285,6 +285,34 @@ PyObject* tupleFromArray(PyObject* const* args, Py_ssize_t nargs) {
   return Cix_PyTuple_FromArray(args, nargs);
 }
 
+PyObject* callWithVarargsAndKeywords(
+    PyMethodDef* def,
+    PyObject* self,
+    PyObject* const* args,
+    Py_ssize_t nargs,
+    PyObject* kwnames) {
+  auto positional = Ref<>::steal(tupleFromArray(args, nargs));
+  if (positional == nullptr) {
+    return nullptr;
+  }
+  Ref<> kwargs;
+  Py_ssize_t nkwargs = kwnames == nullptr ? 0 : PyTuple_GET_SIZE(kwnames);
+  if (nkwargs > 0) {
+    kwargs = Ref<>::steal(PyDict_New());
+    if (kwargs == nullptr) {
+      return nullptr;
+    }
+    for (Py_ssize_t i = 0; i < nkwargs; i++) {
+      if (PyDict_SetItem(
+              kwargs, PyTuple_GET_ITEM(kwnames, i), args[nargs + i]) < 0) {
+        return nullptr;
+      }
+    }
+  }
+  auto* meth = reinterpret_cast<PyCFunctionWithKeywords*>(&def->ml_meth);
+  return (*meth)(self, positional, kwargs);
+}
+
 // This uses bindKeywordArgs() to get the newly bound keyword arguments.  We
 // then turn around and dispatch to the JITed function with the newly packed
 // args.  Rather than copying over all of the error reporting we instead just

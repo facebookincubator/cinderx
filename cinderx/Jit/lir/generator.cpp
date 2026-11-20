@@ -2200,7 +2200,8 @@ bool LIRGenerator::translateSpecializedCall(
   const int method_flags = def->ml_flags &
       (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS);
   const bool has_kw_args = hir_instr.flags() & CallFlags::KwArgs;
-  if (has_kw_args && method_flags != (METH_FASTCALL | METH_KEYWORDS)) {
+  if (has_kw_args && method_flags != (METH_FASTCALL | METH_KEYWORDS) &&
+      method_flags != (METH_VARARGS | METH_KEYWORDS)) {
     return false;
   }
 
@@ -2232,9 +2233,10 @@ bool LIRGenerator::translateSpecializedCall(
         Imm{reinterpret_cast<uint64_t>(self_obj), DataType::kObject});
   };
 
-  // Build a borrowed array of the call arguments on the stack. The array is
-  // read by C code, so in free-threaded builds the deferred-RC tag is stripped.
-  auto build_args_array = [&](size_t nargs) {
+  // Build a borrowed array of the call arguments on the stack, starting
+  // at argument `first_arg`. The array is read by C code, so in
+  // free-threaded builds the deferred-RC tag is stripped.
+  auto build_args_array = [&](size_t first_arg, size_t nargs) {
     const int aligned_size =
         static_cast<int>((nargs * kPointerSize + 15) & ~15);
     env_->reserve_stack_size = std::max(env_->reserve_stack_size, aligned_size);
@@ -2243,7 +2245,7 @@ bool LIRGenerator::translateSpecializedCall(
         Opcode::kReserveStack,
         Imm{static_cast<uint64_t>(StackRegion::kLongLived)});
     for (size_t i = 0; i < nargs; ++i) {
-      Instruction* value = bbb.getDefInstr(hir_instr.arg(arg_offset + i));
+      Instruction* value = bbb.getDefInstr(hir_instr.arg(first_arg + i));
       if constexpr (kFreeThreadedBuild) {
         // The array only borrows the arguments, so strip the
         // deferred-RC tag: the array is read by C code that expects a
@@ -2332,7 +2334,7 @@ bool LIRGenerator::translateSpecializedCall(
       // METH_VARARGS functions take (self, args), where args is a tuple
       // of the call arguments.
       const size_t nargs = hir_instr.numArgs() - arg_offset;
-      Instruction* args_array = build_args_array(nargs);
+      Instruction* args_array = build_args_array(arg_offset, nargs);
       Instruction* args_tuple = bbb.appendCallInstruction(
           OutVReg{DataType::kObject},
           rt::tupleFromArray,
@@ -2351,6 +2353,47 @@ bool LIRGenerator::translateSpecializedCall(
       // The tuple is owned by this call; release it once ml_meth has
       // read through it.
       makeDecref(bbb, args_tuple, nullptr, PyTuple_Type.tp_dealloc, false);
+      return true;
+    }
+    case METH_VARARGS | METH_KEYWORDS: {
+      // METH_VARARGS | METH_KEYWORDS functions take (self, args, kwargs),
+      // where args is a tuple of the positional arguments and kwargs is a
+      // dict of the keyword arguments, or NULL when the call has none.
+      // The keyword values follow the positional arguments in the call,
+      // with the kwnames tuple as the last operand; the number of keyword
+      // values is the size of that tuple, so it must be a constant.
+      auto operands = hir_instr.getOperands();
+      hir::Register* kwnames_reg = nullptr;
+      size_t nkwargs = 0;
+      if (has_kw_args) {
+        kwnames_reg = operands[operands.size() - 1];
+        Type kwnames_type = kwnames_reg->type();
+        if (!kwnames_type.hasObjectSpec() ||
+            !PyTuple_Check(kwnames_type.objectSpec())) {
+          return false;
+        }
+        nkwargs =
+            static_cast<size_t>(PyTuple_GET_SIZE(kwnames_type.objectSpec()));
+      }
+      const size_t total_args = hir_instr.numArgs() - arg_offset;
+      const size_t trailer = nkwargs + (has_kw_args ? 1 : 0);
+      if (total_args < trailer) {
+        return false;
+      }
+      const size_t nargs = total_args - trailer;
+      Instruction* args_array = build_args_array(arg_offset, nargs + nkwargs);
+      Instruction* method_def = bbb.appendInstr(
+          OutVReg{DataType::k64bit},
+          Opcode::kMove,
+          Imm{reinterpret_cast<uint64_t>(def), DataType::k64bit});
+      bbb.appendCallInstruction(
+          hir_instr.output(),
+          rt::callWithVarargsAndKeywords,
+          method_def,
+          selfInstr(),
+          args_array,
+          static_cast<Py_ssize_t>(nargs),
+          kwnames_reg);
       return true;
     }
   }

@@ -32,6 +32,7 @@ from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.jit import (
     compile_after_n_bytecodes,
     compile_after_n_calls,
+    disable as disable_jit,
     force_compile,
     force_uncompile,
     is_jit_compiled,
@@ -2357,7 +2358,8 @@ class MethodDescrCallTests(unittest.TestCase):
     Calls through method descriptors held in module globals are not
     static calls, so the HIR leaves them as VectorCalls and the LIR
     generator specializes METH_NOARGS/METH_O/METH_FASTCALL/
-    METH_FASTCALL|METH_KEYWORDS/METH_VARARGS calls to them directly,
+    METH_FASTCALL|METH_KEYWORDS/METH_VARARGS/
+    METH_VARARGS|METH_KEYWORDS calls to them directly,
     passing the receiver as the C function's `self` argument.
     """
 
@@ -2450,6 +2452,18 @@ class MethodDescrCallTests(unittest.TestCase):
     def _method_descr_varargs_multi_literal(self):
         return _METHOD_DESCR_SET_UNION({1}, {2}, {3})
 
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_varargs_keywords(self, receiver, a, b):
+        return _METHOD_DESCR_VARARGS_KEYWORDS(receiver, a, x=b)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_varargs_keywords_no_kwargs(self, receiver, a):
+        return _METHOD_DESCR_VARARGS_KEYWORDS(receiver, a)
+
+    @cinder_support.failUnlessJITCompiled
+    def _method_descr_varargs_keywords_wrong_receiver(self):
+        return _METHOD_DESCR_VARARGS_KEYWORDS(123, 1, x=2)
+
     def test_method_descr_results(self) -> None:
         self.assertEqual(self._method_descr_noargs("abc"), "ABC")
         self.assertEqual(self._method_descr_noargs_literal(), "ABC")
@@ -2481,6 +2495,20 @@ class MethodDescrCallTests(unittest.TestCase):
         self.assertEqual(self._method_descr_fastcall_default_literal(), 99)
         self.assertEqual(self._method_descr_varargs_literal(), {1, 2, 3})
         self.assertEqual(self._method_descr_varargs_multi_literal(), {1, 2, 3})
+
+    @passIf(_testcapi is None, "requires _testcapi")
+    def test_method_descr_varargs_keywords_results(self) -> None:
+        self.assertIs(type(_METHOD_DESCR_VARARGS_KEYWORDS), type(str.upper))
+        self.assertEqual(
+            self._method_descr_varargs_keywords(_VARARGS_INSTANCE, 1, 2),
+            (_VARARGS_INSTANCE, (1,), {"x": 2}),
+        )
+        self.assertEqual(
+            self._method_descr_varargs_keywords_no_kwargs(_VARARGS_INSTANCE, 1),
+            (_VARARGS_INSTANCE, (1,), None),
+        )
+        with self.assertRaises(TypeError):
+            self._method_descr_varargs_keywords_wrong_receiver()
 
     def test_method_descr_subclass_receiver(self) -> None:
         class DictSubclass(dict):
@@ -2553,6 +2581,10 @@ class MethodDescrCallTests(unittest.TestCase):
 
 # CPython's calling-convention fixture keeps METH_VARARGS across versions.
 _VARARGS_INSTANCE = _testcapi.MethInstance() if _testcapi is not None else None
+if _VARARGS_INSTANCE is not None:
+    _METHOD_DESCR_VARARGS_KEYWORDS = type(_VARARGS_INSTANCE).meth_varargs_keywords
+else:
+    _METHOD_DESCR_VARARGS_KEYWORDS = None
 _VARARGS_PROPERTY: property = property()
 
 
@@ -2583,6 +2615,34 @@ class SpecializeCCallTests(unittest.TestCase):
         return _VARARGS_INSTANCE.meth_varargs(a=None)
 
     @cinder_support.failUnlessJITCompiled
+    def _varargs_keywords_call(self, a, b, c):
+        return _VARARGS_INSTANCE.meth_varargs_keywords(a, b, c)
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_keywords_no_args(self):
+        return _VARARGS_INSTANCE.meth_varargs_keywords()
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_keywords_kwargs(self, a, b):
+        return _VARARGS_INSTANCE.meth_varargs_keywords(a, x=b)
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_keywords_only_kwargs(self, b):
+        return _VARARGS_INSTANCE.meth_varargs_keywords(x=b)
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_keywords_empty_kwargs(self):
+        return _VARARGS_INSTANCE.meth_varargs_keywords(**{})
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_keywords_unpack(self, d):
+        return _VARARGS_INSTANCE.meth_varargs_keywords(**d)
+
+    @cinder_support.failUnlessJITCompiled
+    def _varargs_keywords_refcount_call(self, key):
+        return _VARARGS_INSTANCE.meth_varargs_keywords(key, x=key)
+
+    @cinder_support.failUnlessJITCompiled
     def _varargs_property_set_name(self, owner, name):
         return _VARARGS_PROPERTY.__set_name__(owner, name)
 
@@ -2611,6 +2671,68 @@ class SpecializeCCallTests(unittest.TestCase):
     def test_varargs_keyword_arg_raises(self) -> None:
         with self.assertRaises(TypeError):
             self._varargs_keyword()
+
+    @passIf(_testcapi is None, "requires _testcapi")
+    def test_varargs_keywords_returns_correct_results(self) -> None:
+        self.assertEqual(
+            self._varargs_keywords_call(None, None, None),
+            (_VARARGS_INSTANCE, (None, None, None), None),
+        )
+        self.assertEqual(
+            self._varargs_keywords_no_args(), (_VARARGS_INSTANCE, (), None)
+        )
+        self.assertEqual(
+            self._varargs_keywords_kwargs(1, 2),
+            (_VARARGS_INSTANCE, (1,), {"x": 2}),
+        )
+        self.assertEqual(
+            self._varargs_keywords_only_kwargs(2),
+            (_VARARGS_INSTANCE, (), {"x": 2}),
+        )
+        # `**{}` passes the empty dict itself, unlike a call with no
+        # keyword arguments at all, which passes no kwargs dict.
+        self.assertEqual(
+            self._varargs_keywords_empty_kwargs(), (_VARARGS_INSTANCE, (), {})
+        )
+        self.assertEqual(
+            self._varargs_keywords_unpack({"x": 1, "y": 2}),
+            (_VARARGS_INSTANCE, (), {"x": 1, "y": 2}),
+        )
+
+    @passIf(_testcapi is None, "requires _testcapi")
+    def test_varargs_keywords_refcounts_stable(self) -> None:
+        # The argument tuple and kwargs dict are built for the call and
+        # released after it, so repeatedly calling with the same argument
+        # must neither leak nor drop a reference.
+        key = "".join(["ab", "c"])
+        before = sys.getrefcount(key)
+        for _ in range(100):
+            self.assertEqual(
+                self._varargs_keywords_refcount_call(key),
+                (_VARARGS_INSTANCE, (key,), {"x": key}),
+            )
+        self.assertEqual(sys.getrefcount(key), before)
+        self.assertEqual(key, "abc")
+
+    def test_varargs_keywords_deopt_releases_arguments(self) -> None:
+        class Flag:
+            def __bool__(self) -> bool:
+                return True
+
+        def disable_and_return(flag):
+            disable_jit(deopt_all=flag)
+            return 7
+
+        force_compile(disable_and_return)
+        self.assertTrue(is_jit_compiled(disable_and_return))
+        flag = Flag()
+        before = sys.getrefcount(flag)
+        try:
+            result = disable_and_return(flag)
+        finally:
+            cinderx.jit.enable()
+        self.assertEqual(result, 7)
+        self.assertEqual(sys.getrefcount(flag), before)
 
     @unittest.skipUnless(_testcapi is not None, "requires _testcapi")
     def test_varargs_arg_refcount_stable(self) -> None:
@@ -2654,16 +2776,20 @@ class SpecializeCCallTests(unittest.TestCase):
 # Staticmethods held in module globals: calling one forwards to the
 # wrapped callable with no extra argument. The fixtures cover each
 # calling convention the LIR generator specializes for a wrapped
-# PyCFunction (METH_O, METH_NOARGS, METH_FASTCALL, METH_VARARGS), plus
-# wrapped callables that are not PyCFunctions, which must stay on the
-# generic path.
+# PyCFunction (METH_O, METH_NOARGS, METH_FASTCALL, METH_VARARGS,
+# METH_VARARGS|METH_KEYWORDS), plus wrapped callables that are not
+# PyCFunctions, which must stay on the generic path.
 _STATICMETHOD_LEN = staticmethod(len)
 _STATICMETHOD_GETRECURSIONLIMIT = staticmethod(sys.getrecursionlimit)
 _STATICMETHOD_MAKETRANS = str.__dict__["maketrans"]
 if _VARARGS_INSTANCE is not None:
     _STATICMETHOD_VARARGS = staticmethod(_VARARGS_INSTANCE.meth_varargs)
+    _STATICMETHOD_VARARGS_KEYWORDS = staticmethod(
+        _VARARGS_INSTANCE.meth_varargs_keywords
+    )
 else:
     _STATICMETHOD_VARARGS = None
+    _STATICMETHOD_VARARGS_KEYWORDS = None
 _STATICMETHOD_PYFUNC = staticmethod(lambda x: x * 2)
 _STATICMETHOD_METHOD_DESCR = staticmethod(str.upper)
 _STATICMETHOD_NONCALLABLE = staticmethod(cast(Any, None))
@@ -2710,6 +2836,14 @@ class StaticMethodCallTests(unittest.TestCase):
         return _STATICMETHOD_VARARGS(a, b, c)
 
     @cinder_support.failUnlessJITCompiled
+    def _sm_varargs_keywords(self, a, b):
+        return _STATICMETHOD_VARARGS_KEYWORDS(a, x=b)
+
+    @cinder_support.failUnlessJITCompiled
+    def _sm_varargs_keywords_no_kwargs(self, a):
+        return _STATICMETHOD_VARARGS_KEYWORDS(a)
+
+    @cinder_support.failUnlessJITCompiled
     def _sm_pyfunc(self, x):
         return _STATICMETHOD_PYFUNC(x)
 
@@ -2742,6 +2876,17 @@ class StaticMethodCallTests(unittest.TestCase):
         self.assertEqual(
             self._sm_varargs(None, None, None),
             (_VARARGS_INSTANCE, (None, None, None)),
+        )
+
+    @passIf(_testcapi is None, "requires _testcapi")
+    def test_staticmethod_varargs_keywords_result(self) -> None:
+        self.assertEqual(
+            self._sm_varargs_keywords(1, 2),
+            (_VARARGS_INSTANCE, (1,), {"x": 2}),
+        )
+        self.assertEqual(
+            self._sm_varargs_keywords_no_kwargs(1),
+            (_VARARGS_INSTANCE, (1,), None),
         )
 
     def test_staticmethod_errors_raise(self) -> None:
