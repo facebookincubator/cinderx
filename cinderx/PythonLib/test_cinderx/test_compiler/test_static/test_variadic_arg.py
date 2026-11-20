@@ -9,6 +9,7 @@ from types import FunctionType
 
 import cinderx.jit
 from cinderx.compiler.errors import TypedSyntaxError
+from cinderx.test_support import no_background_compile
 
 from .common import StaticTestBase
 
@@ -293,7 +294,11 @@ class VariadicArgTests(StaticTestBase):
         self.fail("caller is missing from the lookup exception traceback")
 
     def _assert_reentrant_warmup(self, invoke: FunctionType, nested: bool) -> None:
-        self.assertEqual(invoke({"value": "warmup"}), ("warmup", [42]))
+        # A background compile of `outer` can run after `outer` has been
+        # interpreted once but before `caller` has, and then prunes `caller` as
+        # a cold callee.
+        with no_background_compile():
+            self.assertEqual(invoke({"value": "warmup"}), ("warmup", [42]))
         self.assert_jitted(invoke)
         if (
             nested
