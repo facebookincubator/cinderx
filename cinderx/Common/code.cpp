@@ -104,22 +104,17 @@ int unspecialize(int opcode) {
 int uninstrument(PyCodeObject* code, int index) {
   int opcode = _Py_OPCODE(codeUnit(code)[index]);
 
-  // Check if there's an equivalent opcode without instrumentation.
-  uint8_t base_opcode = Cix_DEINSTRUMENT(static_cast<uint8_t>(opcode));
-  if (base_opcode != 0) {
-    return base_opcode;
-  }
-
-  // Instrumented lines and arbitrary instrumented instructions need to check
-  // different tables.
-  if (opcode == INSTRUMENTED_INSTRUCTION) {
-    return code->_co_monitoring->per_instruction_opcodes[index];
-  }
+  // A line's original opcode can itself be INSTRUMENTED_INSTRUCTION, whose
+  // original opcode can in turn be an instrumented opcode.
   if (opcode == INSTRUMENTED_LINE) {
-    return Cix_GetOriginalOpcode(code->_co_monitoring->lines, index);
+    opcode = Cix_GetOriginalOpcode(code->_co_monitoring->lines, index);
+  }
+  if (opcode == INSTRUMENTED_INSTRUCTION) {
+    opcode = code->_co_monitoring->per_instruction_opcodes[index];
   }
 
-  return opcode;
+  uint8_t base_opcode = Cix_DEINSTRUMENT(static_cast<uint8_t>(opcode));
+  return base_opcode != 0 ? base_opcode : opcode;
 }
 
 const char* opcodeName(int opcode) {

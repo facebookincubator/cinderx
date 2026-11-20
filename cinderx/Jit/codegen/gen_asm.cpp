@@ -46,6 +46,7 @@
 #include <fmt/format.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <iostream>
 #include <iterator>
@@ -377,6 +378,22 @@ PyObject* deoptAndResumeInInterpreter(
     }
     is_instrumentation_deopt =
         (jitFrameGetHeader(outer)->frame_status & JIT_FRAME_DEOPT_PATCHED) != 0;
+  }
+#endif
+
+#if defined(CINDER_X86_64) && defined(_WIN32)
+  std::array<uint64_t, NUM_GP_REGS> send_regs;
+  if (is_instrumentation_deopt &&
+      deopt_meta.reason != DeoptReason::kPeriodicTaskFailure &&
+      deopt_meta.innermostFrame().sendJumpTarget().has_value()) {
+    // Windows returns GenSendRes through a hidden buffer, not RAX:RDX.
+    const auto* result = reinterpret_cast<const rt::GenSendRes*>(
+        regs[arch::reg_general_return_loc.loc]);
+    std::copy_n(regs, NUM_GP_REGS, send_regs.begin());
+    send_regs[arch::reg_general_return_loc.loc] =
+        reinterpret_cast<uint64_t>(result->retval);
+    send_regs[arch::reg_general_auxilary_return_loc.loc] = result->done;
+    regs = send_regs.data();
   }
 #endif
 

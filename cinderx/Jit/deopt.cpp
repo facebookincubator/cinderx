@@ -8,6 +8,7 @@
 
 #include "internal/pycore_ceval.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/type.h"
 #include "cinderx/Common/util.h"
@@ -22,6 +23,7 @@
 #endif
 
 #include <bit>
+#include <optional>
 
 namespace cinderx::jit {
 
@@ -195,6 +197,21 @@ void reifyStack(
   }
 }
 
+// For an instrumentation deopt the innermost frame's call has already returned,
+// leaving its results in the return registers.  A Send whose sub-iterator
+// returned rather than yielded has to continue at SEND's jump target, as the
+// interpreter would; resuming at the next instruction would yield the return
+// value to our caller instead.
+std::optional<BCIndex> completedSendTarget(
+    const DeoptFrameMetadata& frame,
+    const MemoryView& mem) {
+  if (mem.readRegister(codegen::arch::reg_general_return_loc) == 0 ||
+      mem.readRegister(codegen::arch::reg_general_auxilary_return_loc) == 0) {
+    return std::nullopt;
+  }
+  return frame.sendJumpTarget();
+}
+
 // This function handles all computation of the index to resume at for a given
 // deopt.
 //
@@ -211,6 +228,7 @@ BCIndex getDeoptResumeIndex(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame,
     bool forced_deopt,
+    const MemoryView& mem,
     bool is_instrumentation_deopt = false) {
   // We only need to consider guards as the deopt cause in the inner-most
   // inlined location. If we are reifying the conceptual frames for an inlined
@@ -227,7 +245,7 @@ BCIndex getDeoptResumeIndex(
       return frame.causeInstrIdx();
     }
     if (!PyErr_Occurred()) {
-      return frame.nextInstrIdx();
+      return completedSendTarget(frame, mem).value_or(frame.nextInstrIdx());
     }
   }
 
@@ -267,7 +285,7 @@ void reifyFrameImpl(
   // kPeriodicTaskFailure and advances past calls that didn't raise.
   int prev_idx =
       (getDeoptResumeIndex(
-           meta, frame_meta, forced_deopt, is_instrumentation_deopt) -
+           meta, frame_meta, forced_deopt, mem, is_instrumentation_deopt) -
        1)
           .value();
 
@@ -417,6 +435,27 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
     boxed = boxPrimitive(value.value_kind, raw);
   }
   return Ref<>::create(boxed.get());
+}
+
+std::optional<BCIndex> DeoptFrameMetadata::sendJumpTarget() const {
+  // The code may have been instrumented since it was compiled, which
+  // BytecodeInstruction can't decode, so walk the monitoring tables directly.
+  PyCodeObject* code = this->code();
+  int idx = causeInstrIdx().value();
+  int oparg = 0;
+  int opcode;
+  while ((opcode = unspecialize(uninstrument(code, idx))) == EXTENDED_ARG) {
+    oparg = (oparg << 8) | _Py_OPARG(codeUnit(code)[idx++]);
+  }
+  if (opcode != SEND) {
+    return std::nullopt;
+  }
+  oparg = (oparg << 8) | _Py_OPARG(codeUnit(code)[idx]);
+  return nextInstrIdx() + oparg;
+}
+
+uint64_t MemoryView::readRegister(codegen::PhyLocation reg) const {
+  return regs_[reg.loc];
 }
 
 uint64_t MemoryView::readRaw(const LiveValue& value) const {

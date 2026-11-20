@@ -7,7 +7,9 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import types
 import unittest
+from collections.abc import Generator
 from pathlib import Path
 
 from cinderx.jit import (
@@ -145,6 +147,47 @@ class DisableEnableTests(unittest.TestCase):
 
         enable_jit()
         self.assertEqual(foo(3, 4), 12)
+
+    def test_deopt_all_in_awaited_coroutine_that_returns(self) -> None:
+        async def inner() -> int:
+            disable_jit(deopt_all=True)
+            return 1
+
+        async def outer() -> int:
+            return await inner()
+
+        force_compile(inner)
+        force_compile(outer)
+        try:
+            with self.assertRaises(StopIteration) as cm:
+                outer().send(None)
+            self.assertEqual(cm.exception.value, 1)
+        finally:
+            enable_jit()
+
+    def test_deopt_all_in_awaited_coroutine_that_yields(self) -> None:
+        @types.coroutine
+        def suspend() -> Generator[str, None, None]:
+            yield "suspended"
+
+        async def inner() -> int:
+            disable_jit(deopt_all=True)
+            await suspend()
+            return 1
+
+        async def outer() -> int:
+            return await inner()
+
+        force_compile(inner)
+        force_compile(outer)
+        try:
+            coro = outer()
+            self.assertEqual(coro.send(None), "suspended")
+            with self.assertRaises(StopIteration) as cm:
+                coro.send(None)
+            self.assertEqual(cm.exception.value, 1)
+        finally:
+            enable_jit()
 
     def test_suppress_and_reopt(self) -> None:
         def foo(a: int, b: int) -> int:

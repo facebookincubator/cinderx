@@ -166,6 +166,10 @@ struct DeoptFrameMetadata {
     next_instr_idx_ = idx;
   }
 
+  // Jump target of the causing instruction if it is a SEND.  Reads the live
+  // bytecode, so the GIL must be held.
+  std::optional<BCIndex> sendJumpTarget() const;
+
   // The profile cause for this frame, if its guard was emitted
   // from a profile. If the guard deopts, the profile entry that produced it
   // is stale and dropped.
@@ -310,6 +314,7 @@ class MemoryView {
   BorrowedRef<> readBorrowed(const LiveValue& value) const;
   Ref<> readOwned(const LiveValue& value) const;
   uint64_t readRaw(const LiveValue& value) const;
+  uint64_t readRegister(codegen::PhyLocation reg) const;
 
  private:
   const uint64_t* regs_;
