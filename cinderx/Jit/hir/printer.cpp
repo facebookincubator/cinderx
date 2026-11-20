@@ -421,10 +421,11 @@ static std::string format_immediates(
     case Opcode::kVectorCall: {
       const auto& call = static_cast<const VectorCall&>(instr);
       return fmt::format(
-          "{}{}{}",
+          "{}{}{}{}",
           call.numArgs(),
           (call.flags() & CallFlags::KwArgs) ? ", kwnames" : "",
-          (call.flags() & CallFlags::Static) ? ", static" : "");
+          (call.flags() & CallFlags::Static) ? ", static" : "",
+          (call.flags() & CallFlags::NoInline) ? ", noinline" : "");
     }
     case Opcode::kCallCFunc: {
       const auto& call = static_cast<const CallCFunc&>(instr);

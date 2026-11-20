@@ -786,6 +786,9 @@ void collectCalls(
   for (auto& instr : block) {
     if (instr.isVectorCall()) {
       auto call = static_cast<VectorCall*>(&instr);
+      if (call->flags() & CallFlags::NoInline) {
+        continue;
+      }
       maybeAddDynamicCall(irfunc, call, call->func(), call->numArgs(), calls);
     } else if (instr.isCallMethod()) {
       // A CallMethod is a plain (inlinable) function call only when its
@@ -797,6 +800,9 @@ void collectCalls(
       // Simplify yet, so we must recognize the CallMethod form directly to
       // inline transitively.
       auto call = static_cast<CallMethod*>(&instr);
+      if (call->flags() & CallFlags::NoInline) {
+        continue;
+      }
       Register* target = nullptr;
       if constexpr (PY_VERSION_HEX >= 0x030E0000) {
         if (call->self()->type() <= TNullptr) {

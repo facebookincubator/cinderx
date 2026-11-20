@@ -1348,6 +1348,92 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
 
 class CppInlinerTest : public RuntimeTest {};
 
+TEST_F(CppInlinerTest, ConstructorInitializerIsNotInlined) {
+  const char* pycode = R"(
+class C:
+  __slots__ = ("value",)
+
+  def __init__(self, *, value):
+    self.value = value
+
+def test(value):
+  return C(value=value)
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+  ASSERT_NE(irfunc, nullptr);
+  Compiler::runPasses(*irfunc, PassConfig::kAll);
+
+  bool has_alloc = false;
+  bool has_initializer_call = false;
+  for (const BasicBlock& block : irfunc->cfg.blocks) {
+    for (const Instr& instr : block) {
+      has_alloc |= instr.isTpAlloc();
+      if (instr.isVectorCall()) {
+        const auto& call = instr.as<VectorCall>();
+        has_initializer_call |= (call.flags() & CallFlags::NoInline) &&
+            (call.flags() & CallFlags::KwArgs);
+      }
+    }
+  }
+  EXPECT_TRUE(has_alloc);
+  EXPECT_TRUE(has_initializer_call);
+  EXPECT_EQ(irfunc->inline_function_stats.num_inlined_functions, 0);
+}
+
+TEST_F(CppInlinerTest, ConstructorInitializerWithDefaultsIsNotInlined) {
+  const char* pycode = R"(
+class C:
+  __slots__ = ("value",)
+
+  def __init__(self, value=1):
+    self.value = value
+
+def test():
+  return C()
+)";
+  Ref<PyFunctionObject> pyfunc(compileAndGet(pycode, "test"));
+  ASSERT_NE(pyfunc, nullptr);
+  std::unique_ptr<Function> irfunc(buildHIR(pyfunc));
+  ASSERT_NE(irfunc, nullptr);
+  Compiler::runPasses(*irfunc, PassConfig::kAll);
+
+  bool has_alloc = false;
+  bool has_initializer_call = false;
+  for (const BasicBlock& block : irfunc->cfg.blocks) {
+    for (const Instr& instr : block) {
+      has_alloc |= instr.isTpAlloc();
+      if (instr.isVectorCall()) {
+        has_initializer_call |=
+            instr.as<VectorCall>().flags() & CallFlags::NoInline;
+      }
+    }
+  }
+  EXPECT_TRUE(has_alloc);
+  EXPECT_TRUE(has_initializer_call);
+  EXPECT_EQ(irfunc->inline_function_stats.num_inlined_functions, 0);
+}
+
+TEST_F(HIRPrinterTest, VectorCallNoInlineRoundTrip) {
+  const char* source = R"(fun test {
+  bb 0 {
+    v0 = LoadArg<0>
+    v1 = LoadArg<1>
+    v2 = VectorCall<1, kwnames, static, noinline> v0 v1 {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Return v2
+  }
+}
+)";
+  std::unique_ptr<Function> irfunc = HIRParser{}.parseHIR(source);
+  ASSERT_NE(irfunc, nullptr);
+  EXPECT_EQ(fullPrinter().toString(*irfunc), source);
+}
+
 class CppInlinerAnnotationTest : public CppInlinerTest {
  public:
   void SetUp() override {

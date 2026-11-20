@@ -1099,6 +1099,7 @@ enum class CallFlags : uint32_t {
 
   KwArgs = 1 << 0,
   Static = 1 << 1,
+  NoInline = 1 << 2,
 };
 
 constexpr uint32_t raw(CallFlags flags) {

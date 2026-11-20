@@ -1227,6 +1227,169 @@ class TypeCallSimplificationTests(unittest.TestCase):
         self.assertIs(type(ns["make_counted"]()), ns["CountedWidget"])
         self.assertEqual(ns["calls"], ["call"])
 
+    def test_init_with_args_and_kwargs(self) -> None:
+        ns = self._namespace(
+            """
+            class Widget:
+                def __init__(self, x, y=2, *, z=3):
+                    self.values = (x, y, z)
+
+            def make_pos(x):
+                return Widget(x)
+
+            def make_kw(x):
+                return Widget(x, y=20)
+
+            def make_all(x):
+                return Widget(x, 20, z=30)
+
+            def make_kwonly(x):
+                return Widget(x, z=30)
+
+            def make_missing():
+                return Widget()
+        """
+        )
+        for name in ("make_pos", "make_kw", "make_all", "make_kwonly", "make_missing"):
+            self.assertTrue(force_compile(ns[name]))
+        self.assertEqual(ns["make_pos"](1).values, (1, 2, 3))
+        self.assertEqual(ns["make_kw"](1).values, (1, 20, 3))
+        self.assertEqual(ns["make_all"](1).values, (1, 20, 30))
+        self.assertEqual(ns["make_kwonly"](1).values, (1, 2, 30))
+        with self.assertRaises(TypeError):
+            ns["make_missing"]()
+
+    def test_init_returning_non_none_raises(self) -> None:
+        ns = self._namespace(
+            """
+            class Returning:
+                def __init__(self):
+                    return 1
+
+            class Raising:
+                def __init__(self):
+                    raise ValueError("boom")
+
+            def make_returning():
+                return Returning()
+
+            def make_raising():
+                return Raising()
+        """
+        )
+        self.assertTrue(force_compile(ns["make_returning"]))
+        self.assertTrue(force_compile(ns["make_raising"]))
+        with self.assertRaisesRegex(
+            TypeError, "__init__\\(\\) should return None, not 'int'"
+        ):
+            ns["make_returning"]()
+        with self.assertRaisesRegex(ValueError, "boom"):
+            ns["make_raising"]()
+
+    def test_inherited_init(self) -> None:
+        ns = self._namespace(
+            """
+            class Base:
+                def __init__(self, x=7):
+                    self.value = x
+
+            class Sub(Base):
+                pass
+
+            def make():
+                return Sub()
+
+            def make_arg(x):
+                return Sub(x)
+        """
+        )
+        self.assertTrue(force_compile(ns["make"]))
+        self.assertTrue(force_compile(ns["make_arg"]))
+        made = ns["make"]()
+        self.assertIs(type(made), ns["Sub"])
+        self.assertEqual(made.value, 7)
+        self.assertEqual(ns["make_arg"](3).value, 3)
+
+    def test_list_and_tuple_subclass_with_init_override(self) -> None:
+        ns = self._namespace(
+            """
+            class ListWidget(list):
+                def __init__(self, items):
+                    super().__init__(items)
+                    self.tag = "list"
+
+            class TupleWidget(tuple):
+                def __init__(self, items):
+                    self.tag = "tuple"
+
+            def make_list(items):
+                return ListWidget(items)
+
+            def make_tuple(items):
+                return TupleWidget(items)
+        """
+        )
+        self.assertTrue(force_compile(ns["make_list"]))
+        self.assertTrue(force_compile(ns["make_tuple"]))
+        listed = ns["make_list"]([1, 2])
+        self.assertIs(type(listed), ns["ListWidget"])
+        self.assertEqual(listed, [1, 2])
+        self.assertEqual(listed.tag, "list")
+        tupled = ns["make_tuple"]((1, 2))
+        self.assertIs(type(tupled), ns["TupleWidget"])
+        self.assertEqual(tupled, (1, 2))
+        self.assertEqual(tupled.tag, "tuple")
+
+    def test_replacing_init_after_compile(self) -> None:
+        ns = self._namespace(
+            """
+            class Widget:
+                def __init__(self):
+                    self.marker = "v1"
+
+            def make():
+                return Widget()
+        """
+        )
+        make = ns["make"]
+        self.assertTrue(force_compile(make))
+        self.assertTrue(is_jit_compiled(make))
+        self.assertEqual(make().marker, "v1")
+        ns["Widget"].__init__ = lambda self: setattr(self, "marker", "v2")
+        self.assertEqual(make().marker, "v2")
+        del ns["Widget"].__init__
+        self.assertFalse(hasattr(make(), "marker"))
+
+    def test_adding_new_after_compile_with_init(self) -> None:
+        ns = self._namespace(
+            """
+            calls = []
+            SENTINEL = object()
+
+            class Widget:
+                def __init__(self):
+                    calls.append("init")
+
+            def make():
+                return Widget()
+        """
+        )
+        make = ns["make"]
+        self.assertTrue(force_compile(make))
+        self.assertTrue(is_jit_compiled(make))
+        self.assertIs(type(make()), ns["Widget"])
+        self.assertEqual(ns["calls"], ["init"])
+        calls = ns["calls"]
+        sentinel = ns["SENTINEL"]
+
+        def _new(cls):
+            calls.append("new")
+            return sentinel
+
+        ns["Widget"].__new__ = _new
+        self.assertIs(make(), sentinel)
+        self.assertEqual(ns["calls"], ["init", "new"])
+
 
 class DelObserver:
     def __init__(self, id: int, cb: Callable[[int], object]) -> None:
@@ -4715,13 +4878,15 @@ class BadArgumentTests(unittest.TestCase):
     def test_nested_compiled_code_ref_outer_destroyed(self) -> None:
         d = {}
         exec(
-            textwrap.dedent("""
+            textwrap.dedent(
+                """
 def compiled_code_func_with_nested():
     def nested():
         return 42
 
     return nested
-"""),
+"""
+            ),
             d,
             d,
         )

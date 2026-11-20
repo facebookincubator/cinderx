@@ -2148,6 +2148,15 @@ Py_ssize_t checkSequenceBounds(PyObject* s, Py_ssize_t i) {
   return i;
 }
 
+int failedInitResult(PyObject* result) {
+  JIT_DCHECK(result != Py_None, "__init__ result should not be None here");
+  PyErr_Format(
+      PyExc_TypeError,
+      "__init__() should return None, not '%.200s'",
+      Py_TYPE(result)->tp_name);
+  return -1;
+}
+
 PyObject* getLength(PyObject* obj) {
   // Same as GET_LEN handler in Python/ceval.c
   Py_ssize_t len = PyObject_Length(obj);

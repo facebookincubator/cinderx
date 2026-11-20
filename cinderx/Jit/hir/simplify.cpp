@@ -2752,7 +2752,9 @@ static Register* resolveArgs(
 
   // Remaining keywords stay keywords, under the new kwnames tuple when a
   // keyword was bound, or the original tuple when none was.
-  CallFlags new_flags = CallFlags::None;
+  CallFlags new_flags = (instr->flags() & CallFlags::NoInline)
+      ? CallFlags::NoInline
+      : CallFlags::None;
   Register* new_kwnames_reg = nullptr;
   if (!remaining.empty()) {
     for (auto& kw : remaining) {
@@ -2964,16 +2966,65 @@ Register* simplifyGetAttrStr(Env& env, const VectorCall* instr) {
       });
 }
 
-// Calling a type with no arguments whose tp_new and tp_init are object's
-// (i.e. the type has object.__new__ and object.__init__) allocates an
-// instance and does nothing else, so the call is just a TpAlloc. A
-// DeoptPatchpoint watches the type and deopts if it is later modified (e.g.
-// it gains an overriding __new__ or __init__), so the compiled code is
-// recompiled without this optimization.
-Register* simplifyTypeCall(Env& env, const VectorCall* instr) {
-  if (instr->numArgs() != 0) {
-    return nullptr;
+// Emits a DeoptPatchpoint that deopts if the type is modified after
+// compilation, e.g. gains an overriding __new__ or __init__, has its
+// __init__ replaced, or becomes abstract. PyType_Modified() also notifies
+// subclasses, so this covers changes to base classes too. Immutable types
+// cannot change and need no patchpoint. When `attr_name` is set, the
+// compiled code also relies on looking it up on the type resolving to
+// `attr_value`.
+void emitTypeCallPatchpoint(
+    Env& env,
+    Register* target,
+    BorrowedRef<PyTypeObject> type,
+    newfunc tp_new,
+    initproc tp_init,
+    BorrowedRef<> attr_name = nullptr,
+    BorrowedRef<> attr_value = nullptr) {
+  if (_PyClassLoader_IsImmutable(type)) {
+    return;
   }
+  if (attr_value != nullptr) {
+    env.func.env.addReference(attr_value);
+  }
+  auto* patcher = env.func.allocateCodePatcher<TypeDeoptPatcher>(type);
+  auto* patchpoint = env.emitInstr<DeoptPatchpoint>(patcher);
+  // The slot values cannot be re-derived from the patcher, so capture
+  // them for re-validation: a threaded compile installs its watch after
+  // the GIL was released, and a change in between would otherwise go
+  // unnoticed. Watchers are only notified for types with a version tag,
+  // so the tag is re-assigned as well.
+  env.func.env.setWatchValidator(
+      patcher, [type, tp_new, tp_init, attr_name, attr_value] {
+        return type->tp_new == tp_new && type->tp_init == tp_init &&
+            !(type->tp_flags & Py_TPFLAGS_IS_ABSTRACT) &&
+            (attr_name == nullptr ||
+             _PyType_Lookup(type, attr_name) == attr_value) &&
+            PyUnstable_Type_AssignVersionTag(type);
+      });
+  patchpoint->setGuiltyReg(target);
+  patchpoint->setDescr(DeoptDescr::kTypeCall);
+}
+
+// Allocate an instance of `type` with TpAlloc. On Python versions before
+// 3.14 this is only equivalent to object.__new__() for types without an
+// instance dictionary: allocation does not initialize inline values
+// itself there, so a later attribute store would create a plain dict
+// instead of inline values, and method loads specialized on inline
+// values would deopt. simplifyTypeCall gates on tp_dictoffset for those
+// versions.
+Register* emitTypeCallAlloc(
+    Env& env,
+    const VectorCall* instr,
+    BorrowedRef<PyTypeObject> type) {
+  return env.emit<TpAlloc>(type.get(), *instr->frameState());
+}
+
+// Calling a type whose tp_new is object's allocates an instance with
+// TpAlloc. If tp_init is also object's, the call takes no arguments and
+// the allocation is the whole call. If tp_init dispatches to a Python
+// __init__ function, the instance is passed to that function directly.
+Register* simplifyTypeCall(Env& env, const VectorCall* instr) {
   Register* target = instr->func();
   PyObject* callee = target->type().asObject();
   if (callee == nullptr || !PyType_Check(callee)) {
@@ -2987,36 +3038,119 @@ Register* simplifyTypeCall(Env& env, const VectorCall* instr) {
   }
   newfunc tp_new = type->tp_new;
   initproc tp_init = type->tp_init;
-  if (tp_new != PyBaseObject_Type.tp_new ||
-      tp_init != PyBaseObject_Type.tp_init) {
+  if (tp_new != PyBaseObject_Type.tp_new || tp_init == nullptr) {
     return nullptr;
   }
+#if PY_VERSION_HEX < 0x030E0000
+  // _PyObject_InitializeDict() has complex initializing semantics
+  // on 3.12 that includes reducing the number of remaining keys.
+  if (type->tp_dictoffset != 0) {
+    return nullptr;
+  }
+#endif
+  // Type watchers are only notified for types with a version tag.
   if (!_PyClassLoader_IsImmutable(type) && !ensureVersionTag(type)) {
     return nullptr;
   }
+  // The replacement sequence below contains instructions that are not
+  // replayable (TpAlloc, VectorCall, CallStatic), which reset the
+  // guard-binding pass's notion of the dominating FrameState. Re-emit a
+  // Snapshot with the call's dominating FrameState at the end of the
+  // sequence so that guard-like instructions later in the block still
+  // have one to bind to. The state is captured before emitting anything:
+  // walking backwards past the replacement itself finds no Snapshot.
+  const FrameState* dominating_fs = instr->getDominatingFrameState();
+  auto emit_snapshot = [&] {
+    if (dominating_fs != nullptr) {
+      env.emit<Snapshot>(*dominating_fs);
+    }
+  };
 
-  if (!_PyClassLoader_IsImmutable(type)) {
-    auto* patcher = env.func.allocateCodePatcher<TypeDeoptPatcher>(type);
-    auto* patchpoint = env.emitInstr<DeoptPatchpoint>(patcher);
-    // The slot values cannot be re-derived from the patcher, so capture
-    // them for re-validation: a threaded compile installs its watch after
-    // the GIL was released, and a change in between would otherwise go
-    // unnoticed.
-    env.func.env.setWatchValidator(patcher, [type, tp_new, tp_init] {
-      return type->tp_new == tp_new && type->tp_init == tp_init &&
-          !(type->tp_flags & Py_TPFLAGS_IS_ABSTRACT);
-    });
-    patchpoint->setGuiltyReg(target);
-    patchpoint->setDescr(DeoptDescr::kTypeCall);
+  if (tp_init == PyBaseObject_Type.tp_init) {
+    // object.__init__ does nothing, and object.__new__ rejects arguments
+    // when it is in effect, so only a no-argument, keyword-free call can
+    // be just an allocation.
+    if ((instr->flags() & CallFlags::KwArgs) || instr->numArgs() != 0) {
+      return nullptr;
+    }
+    emitTypeCallPatchpoint(env, target, type, tp_new, tp_init);
+    env.emit<UseType>(target, target->type());
+    env.func.env.addReference(
+        BorrowedRef<>{reinterpret_cast<PyObject*>(type.get())});
+    Register* alloc = emitTypeCallAlloc(env, instr, type);
+    emit_snapshot();
+    return alloc;
   }
+
+  // slot_tp_init() calls the __init__ found by looking the name up on the
+  // type, with the instance prepended to the call's arguments, and
+  // requires it to return None. Only a plain Python function found that
+  // way can be called directly; other callables stay on the generic path.
+  // Static calls stay there too: the static compiler already lowers class
+  // construction, and a dynamic __init__ call has not been validated for
+  // static frames.
+  if (instr->flags() & CallFlags::Static) {
+    return nullptr;
+  }
+  BorrowedRef<> init_name{&_Py_ID(__init__)};
+  BorrowedRef<> init_func{typeLookupSafe(type, init_name)};
+  if (init_func == nullptr || !PyFunction_Check(init_func)) {
+    return nullptr;
+  }
+  emitTypeCallPatchpoint(
+      env, target, type, tp_new, tp_init, init_name, init_func);
   env.emit<UseType>(target, target->type());
   env.func.env.addReference(
       BorrowedRef<>{reinterpret_cast<PyObject*>(type.get())});
-  return env.emit<TpAlloc>(type.get(), *instr->frameState());
+  Register* alloc = emitTypeCallAlloc(env, instr, type);
+  // Emit before the __init__ call, not just at the end: guards inserted
+  // for that call itself (e.g. resolveArgs' defaults GuardIs) go before
+  // it, and must still have a dominating Snapshot.
+  emit_snapshot();
+  Register* init_reg = env.emit<LoadConst>(
+      Type::fromObject(env.func.env.addReference(init_func)));
+  auto* init_call = env.emitRawInstr<VectorCall>(
+      instr->numOperands() + 1,
+      env.func.env.allocateRegister(),
+      instr->flags() | CallFlags::NoInline,
+      *instr->frameState());
+  init_call->setOperand(0, init_reg);
+  init_call->setOperand(1, alloc);
+  for (std::size_t i = 1; i < instr->numOperands(); ++i) {
+    init_call->setOperand(i + 1, instr->getOperand(i));
+  }
+  Register* init_result = init_call->output();
+  init_result->setType(outputType(*init_call));
+  // Compare the result against None in HIR and only call the checker
+  // to raise the error on the failure path, instead of calling into C
+  // on every construction. The checker only runs when the result is
+  // not None, so CheckNeg deopts to the exception handler there; the
+  // fast path has no call.
+  Register* none = env.emit<LoadConst>(TNoneType);
+  Register* is_none =
+      env.emit<PrimitiveCompare>(PrimitiveCompareOp::kEqual, init_result, none);
+  return env.emitCond(
+      [&](BasicBlock* is_none_bb, BasicBlock* raise_bb) {
+        env.emit<CondBranch>(is_none, is_none_bb, raise_bb);
+      },
+      [&] { return alloc; },
+      [&] {
+        Register* check = env.emitVariadic<CallStatic>(
+            1,
+            reinterpret_cast<void*>(rt::failedInitResult),
+            TCInt32,
+            "failedInitResult",
+            init_result);
+        env.emit<CheckNeg>(check, *instr->frameState());
+        return alloc;
+      });
 }
 
 Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   if (Register* result = simplifyVectorCallStatic(env, instr)) {
+    return result;
+  }
+  if (Register* result = simplifyTypeCall(env, instr)) {
     return result;
   }
   Register* target = instr->getOperand(0);
@@ -3034,9 +3168,6 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
       return resolveArgs(env, instr, func);
     }
     return nullptr;
-  }
-  if (Register* result = simplifyTypeCall(env, instr)) {
-    return result;
   }
   if (target_type == env.type_object && instr->numOperands() == 2) {
     env.emit<UseType>(target, env.type_object);

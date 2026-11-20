@@ -498,6 +498,12 @@ void batchDecref(TaggedPyObject* args, int nargs);
  **/
 Py_ssize_t checkSequenceBounds(PyObject* seq, Py_ssize_t i);
 
+/* Enforce the slot_tp_init() rule that __init__() must return None:
+ * only called when `result` is not None; sets the same TypeError
+ * slot_tp_init() sets and returns -1. Does not consume the reference to
+ * `result`. */
+int failedInitResult(PyObject* result);
+
 /* Call obj.__len__(). Return LongExact on success or NULL with an exception
  * set if there was an error. */
 PyObject* getLength(PyObject* obj);
