@@ -3,8 +3,10 @@
 
 #include "cinderx/Jit/bitvector.h"
 
+#include <algorithm>
 #include <sstream>
 #include <stdexcept>
+#include <vector>
 
 using namespace cinderx::jit::util;
 
@@ -151,18 +153,11 @@ TEST(BitVectorTest, forEachSetBitShort) {
   shortvec.setBit(2, true);
   shortvec.setBit(7, true);
 
-  int saw_2_n = 0;
-  int saw_7_n = 0;
-  shortvec.forEachSetBit([&](size_t bit) {
-    if (bit == 2) {
-      saw_2_n++;
-    }
-    if (bit == 7) {
-      saw_7_n++;
-    }
-  });
-  EXPECT_EQ(saw_2_n, 1);
-  EXPECT_EQ(saw_7_n, 1);
+  std::vector<size_t> seen;
+  shortvec.forEachSetBit([&](size_t bit) { seen.push_back(bit); });
+  std::sort(seen.begin(), seen.end());
+  const std::vector<size_t> expected = {2, 7};
+  EXPECT_EQ(seen, expected);
 }
 
 TEST(BitVectorTest, forEachSetBitLong) {
@@ -172,26 +167,9 @@ TEST(BitVectorTest, forEachSetBitLong) {
   longvec.setBit(65, true);
   longvec.setBit(122, true);
 
-  int saw_1_n = 0;
-  int saw_3_n = 0;
-  int saw_65_n = 0;
-  int saw_122_n = 0;
-  longvec.forEachSetBit([&](size_t bit) {
-    if (bit == 1) {
-      saw_1_n++;
-    }
-    if (bit == 3) {
-      saw_3_n++;
-    }
-    if (bit == 65) {
-      saw_65_n++;
-    }
-    if (bit == 122) {
-      saw_122_n++;
-    }
-  });
-  EXPECT_EQ(saw_1_n, 1);
-  EXPECT_EQ(saw_3_n, 1);
-  EXPECT_EQ(saw_65_n, 1);
-  EXPECT_EQ(saw_122_n, 1);
+  std::vector<size_t> seen;
+  longvec.forEachSetBit([&](size_t bit) { seen.push_back(bit); });
+  std::sort(seen.begin(), seen.end());
+  const std::vector<size_t> expected = {1, 3, 65, 122};
+  EXPECT_EQ(seen, expected);
 }
