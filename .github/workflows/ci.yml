@@ -47,6 +47,11 @@ jobs:
         echo "CC=gcc-14" >> "$GITHUB_ENV"
         echo "CXX=g++-14" >> "$GITHUB_ENV"
 
+    # LLVM 22 is required on Windows; see .github/actions/install-llvm.
+    - name: Install LLVM 22
+      if: runner.os == 'Windows'
+      uses: ./.github/actions/install-llvm
+
     - name: Create venv
       run: uv venv --python ${{ matrix.python-version }}
 
@@ -113,6 +118,11 @@ jobs:
       # controlled by selecting the docker image version in pyproject.toml.
       - name: Set up Python
         uses: actions/setup-python@v6
+
+      # LLVM 22 is required on Windows; see .github/actions/install-llvm.
+      - name: Install LLVM 22
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/install-llvm
 
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel
