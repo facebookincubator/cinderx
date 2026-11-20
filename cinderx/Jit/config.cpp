@@ -10,24 +10,36 @@ namespace cinderx::jit {
 
 Config s_jit_config;
 
+namespace {
+
+// Kept out of Config, which is copied and reset as a whole, so that every
+// access is atomic.
+std::atomic<State> s_jit_state{State::kNotInitialized};
+
+State loadJitState() {
+  return s_jit_state.load(std::memory_order_seq_cst);
+}
+
+} // namespace
+
 bool isJitInitialized() {
-  return std::atomic_ref{getMutableConfig().state}.load() !=
-      State::kNotInitialized;
+  return loadJitState() != State::kNotInitialized;
 }
 
 bool isJitUsable() {
-  return std::atomic_ref{getMutableConfig().state}.load() == State::kRunning &&
-      !Py_IsFinalizing();
+  return loadJitState() == State::kRunning && !Py_IsFinalizing();
 }
 
 bool isJitFinalizing() {
-  return std::atomic_ref{getMutableConfig().state}.load() ==
-      State::kFinalizing ||
-      Py_IsFinalizing();
+  return loadJitState() == State::kFinalizing || Py_IsFinalizing();
 }
 
 bool isJitPaused() {
-  return std::atomic_ref{getMutableConfig().state}.load() == State::kPaused;
+  return loadJitState() == State::kPaused;
+}
+
+void setJitState(State state) {
+  s_jit_state.store(state, std::memory_order_seq_cst);
 }
 
 } // namespace cinderx::jit

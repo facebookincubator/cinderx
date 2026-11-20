@@ -2125,7 +2125,7 @@ void disable_jit_impl(Context* ctx, bool deopt_all) {
   }
 
   if (isJitUsable()) {
-    std::atomic_ref{getMutableConfig().state}.store(State::kPaused);
+    setJitState(State::kPaused);
 #ifdef ENABLE_PREFORK_MODEL
     Ci_code_counters_frozen = true;
 #endif
@@ -2194,7 +2194,7 @@ bool enable_jit_impl(Context* ctx) {
       ctx->deoptedFuncs().size());
 
   unpatchJitGenAmSendForDeopt();
-  std::atomic_ref{getMutableConfig().state}.store(State::kRunning);
+  setJitState(State::kRunning);
 #ifdef ENABLE_PREFORK_MODEL
   Ci_code_counters_frozen = false;
 #endif
@@ -5253,7 +5253,7 @@ int initialize(BorrowedRef<> cinderx_module) {
             getConfig().perf_map.use_arch_timestamp));
   }
 
-  std::atomic_ref{getMutableConfig().state}.store(State::kRunning);
+  setJitState(State::kRunning);
 #ifdef ENABLE_PREFORK_MODEL
   Ci_code_counters_frozen = false;
 #endif
@@ -5411,7 +5411,7 @@ void beginShutdown(ModuleState& mod_state) {
     if (!isJitInitialized()) {
       return;
     }
-    std::atomic_ref{getMutableConfig().state}.store(State::kFinalizing);
+    setJitState(State::kFinalizing);
   }
 
   // Wait for any multi-threaded compile worker threads to finish before tearing
@@ -5489,7 +5489,7 @@ void finalize(ModuleState& mod_state) {
   restoreSysMonitoringRegisterCallback(mod_state);
   restoreSysSetProfileAndSetTrace(mod_state);
 
-  std::atomic_ref{getMutableConfig().state}.store(State::kNotInitialized);
+  setJitState(State::kNotInitialized);
 }
 
 bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {

@@ -12,8 +12,6 @@
 
 #if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
 #include "internal/pycore_tstate.h"
-
-#include <atomic>
 #endif
 
 namespace cinderx {
@@ -21,16 +19,14 @@ namespace cinderx {
 void incref_total([[maybe_unused]] PyThreadState* tstate) {
 #if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
   _PyThreadStateImpl* tstate_impl = (_PyThreadStateImpl*)tstate;
-  std::atomic_ref<Py_ssize_t>(CiTstatePost(tstate_impl)->reftotal)
-      .fetch_add(1, std::memory_order_relaxed);
+  _Py_atomic_add_ssize(&CiTstatePost(tstate_impl)->reftotal, 1);
 #endif
 }
 
 void decref_total([[maybe_unused]] PyThreadState* tstate) {
 #if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
   _PyThreadStateImpl* tstate_impl = (_PyThreadStateImpl*)tstate;
-  std::atomic_ref<Py_ssize_t>(CiTstatePost(tstate_impl)->reftotal)
-      .fetch_sub(1, std::memory_order_relaxed);
+  _Py_atomic_add_ssize(&CiTstatePost(tstate_impl)->reftotal, -1);
 #endif
 }
 

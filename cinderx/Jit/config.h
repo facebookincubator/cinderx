@@ -203,8 +203,6 @@ constexpr uint32_t kDefaultAutoJitBytecodeThreshold = 100'000;
 // in this.  It is *not fine* to store Python objects in this because it has
 // process lifetime and outlives the Python runtime.
 struct Config {
-  // Current lifetime state of the JIT.
-  State state{State::kNotInitialized};
   // Ignore other CLI arguments and environment variables, force the JIT
   // to be initialized or uninitialized.  Intended for testing.
   std::optional<bool> force_init;
@@ -356,5 +354,8 @@ bool isJitFinalizing();
 
 // Check that the JIT is initialized but currently paused and unusable.
 bool isJitPaused();
+
+// Atomically move the JIT to a new lifetime state.
+void setJitState(State state);
 
 } // namespace cinderx::jit

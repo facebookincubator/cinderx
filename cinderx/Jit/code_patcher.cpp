@@ -132,7 +132,7 @@ void writeCode(uint8_t* dst, std::span<const uint8_t> bytes) {
     // below, and mixing a non-atomic read with that store would be a data race.
     // We only modify the patched bytes; the remaining (high) bytes belong to
     // the following, never-patched instruction, so reading them back is safe.
-    std::atomic_ref<uint64_t> word{*reinterpret_cast<uint64_t*>(dst)};
+    AtomicRef<uint64_t> word{*reinterpret_cast<uint64_t*>(dst)};
     uint64_t qword = word.load(std::memory_order_relaxed);
     std::memcpy(&qword, bytes.data(), bytes.size());
     word.store(qword, std::memory_order_relaxed);
@@ -149,7 +149,7 @@ void writeCode(uint8_t* dst, std::span<const uint8_t> bytes) {
         static_cast<const void*>(dst));
     uint32_t word;
     std::memcpy(&word, bytes.data(), sizeof(word));
-    std::atomic_ref<uint32_t>{*reinterpret_cast<uint32_t*>(dst)}.store(
+    AtomicRef<uint32_t>{*reinterpret_cast<uint32_t*>(dst)}.store(
         word, std::memory_order_relaxed);
   } else {
     // A plain non-atomic copy is only safe when nothing executes the code
@@ -184,7 +184,7 @@ int32_t decodeDisplacement(uintptr_t addr) {
     // offset 1.
     JIT_CHECK(addr % 8 == 0, "Not 8-byte aligned: {:#x}", addr);
     uint64_t qword =
-        std::atomic_ref<uint64_t>{*reinterpret_cast<uint64_t*>(addr)}.load(
+        AtomicRef<uint64_t>{*reinterpret_cast<uint64_t*>(addr)}.load(
             std::memory_order_relaxed);
     std::memcpy(
         &disp, reinterpret_cast<const uint8_t*>(&qword) + 1, sizeof(disp));
@@ -198,7 +198,7 @@ int32_t decodeDisplacement(uintptr_t addr) {
     // A64 instructions are a naturally-aligned 4-byte word patched with a
     // single atomic store; read it back the same way.
     JIT_CHECK(addr % 4 == 0, "Not 4-byte aligned: {:#x}", addr);
-    insn = std::atomic_ref<uint32_t>{*reinterpret_cast<uint32_t*>(addr)}.load(
+    insn = AtomicRef<uint32_t>{*reinterpret_cast<uint32_t*>(addr)}.load(
         std::memory_order_relaxed);
   } else {
     std::memcpy(&insn, reinterpret_cast<const uint8_t*>(addr), sizeof(insn));

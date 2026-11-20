@@ -128,7 +128,7 @@ class RuntimeTest : public ::testing::Test {
     int result = Py_FinalizeEx();
     ASSERT_EQ(result, 0) << "Failed finalizing the interpreter";
 
-    ASSERT_EQ(jit::getConfig().state, jit::State::kNotInitialized);
+    ASSERT_FALSE(jit::isJitInitialized());
     ASSERT_FALSE(jit::isJitUsable())
         << "JIT should be disabled with Py_FinalizeEx";
 
