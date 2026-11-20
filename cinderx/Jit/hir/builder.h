@@ -610,8 +610,9 @@ class HIRBuilder {
       Register* src,
       Type type);
 
-  // Check that a code object can be compiled into HIR.
-  void checkTranslate();
+  // Check that a code object can be compiled into HIR, either as a top-level
+  // function or inlined into another.
+  void checkTranslate(bool inlining);
 
   // Allocate a fresh temporary register from the function's Environment.
   Register* allocateTemp();

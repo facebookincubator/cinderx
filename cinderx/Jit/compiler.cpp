@@ -8,6 +8,7 @@
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/call_site_live_values.h"
+#include "cinderx/Jit/hir/check_banned_calls.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/common_subexpression_elimination.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
@@ -144,6 +145,9 @@ void Compiler::runPassesImpl(
 
   // SSAify must come first; nothing but SSAify should ever see non-SSA HIR.
   runPass(jit::hir::SSAify{}, irfunc, callback);
+
+  // Not optional, this rejects functions that the JIT can't compile correctly.
+  runPass(jit::hir::CheckBannedCalls{}, irfunc, callback);
 
   // Written this way because it's hard to forward the P type variable down to
   // runPass if it's not tied to one of the lambda's arguments.

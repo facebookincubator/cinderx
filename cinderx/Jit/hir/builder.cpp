@@ -294,7 +294,14 @@ bool isSupportedOpcode(int opcode) {
 
 // Check that a symbol/name is one that the JIT has banned.
 bool isBannedName(std::string_view name) {
-  return name == "eval" || name == "exec" || name == "locals";
+  return name == "locals";
+}
+
+// Builtins that read the calling frame's namespaces unless passed explicit
+// globals and locals.  Calls to these are checked by CheckBannedCalls, which
+// only runs on the top-level function, so inlined callees ban them by name.
+bool isBannedInlineName(std::string_view name) {
+  return name == "eval" || name == "exec";
 }
 
 // Builtins that read the calling frame's locals when called without arguments.
@@ -696,7 +703,7 @@ std::unique_ptr<Function> buildHIR(
 // are a few bytecodes that do not (e.g. SETUP_FINALLY). We will need to deal
 // with that if we ever want to support compiling them.
 std::unique_ptr<Function> HIRBuilder::buildHIR() {
-  checkTranslate();
+  checkTranslate(/*inlining=*/false);
 
   is_simple_leaf_function_ = isSimpleLeafFunction(code_);
 
@@ -855,7 +862,7 @@ InlineResult HIRBuilder::inlineHIR(
     Function* caller,
     FrameState* caller_frame_state,
     BorrowedRef<PyFunctionObject> inlined) {
-  checkTranslate();
+  checkTranslate(/*inlining=*/true);
 
   inlined_ = inlined;
 
@@ -5800,13 +5807,13 @@ BorrowedRef<> HIRBuilder::constArg(const BytecodeInstruction& bc_instr) {
   return PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
 }
 
-void HIRBuilder::checkTranslate() {
+void HIRBuilder::checkTranslate(bool inlining) {
   const auto& names = preloader_.names();
   Py_ssize_t num_names = names.size();
 
   std::unordered_set<Py_ssize_t> banned_name_ids;
   for (Py_ssize_t i = 0; i < num_names; i++) {
-    if (isBannedName(names[i])) {
+    if (isBannedName(names[i]) || (inlining && isBannedInlineName(names[i]))) {
       banned_name_ids.insert(i);
     }
   }

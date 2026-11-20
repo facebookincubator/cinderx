@@ -5060,6 +5060,34 @@ class LocalsBuiltinTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(caller))
         self.assertEqual(caller(3), "3-6")
 
+    def test_exec_without_locals_not_compiled(self) -> None:
+        def foo(a: int) -> int:
+            exec("a += 1")
+            return a
+
+        with self.assertRaises(RuntimeError):
+            force_compile(foo)
+        self.assertFalse(is_jit_compiled(foo))
+
+    def test_eval_without_locals_not_compiled(self) -> None:
+        def foo(a: int) -> int:
+            return eval("a + 1", {"a": a})
+
+        with self.assertRaises(RuntimeError):
+            force_compile(foo)
+        self.assertFalse(is_jit_compiled(foo))
+        self.assertEqual(foo(1), 2)
+
+    def test_exec_and_eval_with_globals_and_locals_compiled(self) -> None:
+        def foo(a: int) -> int:
+            ns = {"a": a}
+            exec("b = a + 1", {}, ns)
+            return eval("b * 2", {}, ns)
+
+        self.assertTrue(force_compile(foo))
+        self.assertTrue(is_jit_compiled(foo))
+        self.assertEqual(foo(1), 4)
+
 
 class GetCompiledFunctionTests(unittest.TestCase):
     def test_returns_compile_for_compiled_function(self) -> None:
