@@ -4,7 +4,7 @@
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/symbol.h"
 #include "cinderx/Jit/elf/writer.h"
-#include "cinderx/Jit/jit_gdb_support.h"
+#include "cinderx/Jit/gdb_support.h"
 #include "cinderx/Jit/jit_unwind.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 

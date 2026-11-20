@@ -1,6 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Jit/jit_gdb_support.h"
+#include "cinderx/Jit/gdb_support.h"
 
 #include "cinderx/Common/compiler.h"
 #include "cinderx/Common/define.h"
