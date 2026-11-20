@@ -648,6 +648,15 @@ const Builtins& Context::builtins() {
 void Context::unwatch(TypeDeoptPatcher* patcher) {
   JITCompilationLock lock;
   type_deopt_patchers_[patcher->type()].erase(patcher);
+  // Mirror unwatchFunc(): a released patcher must not leave a deferred watch
+  // behind, or watchPendingTypes() would read it through the default validator
+  // and patch it when validation fails.
+  if (auto it = pending_watches_.find(patcher->type());
+      it != pending_watches_.end()) {
+    std::erase_if(it->second, [&](const PendingTypeWatch& watch) {
+      return watch.patcher == patcher;
+    });
+  }
 }
 
 void Context::watchType(

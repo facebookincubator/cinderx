@@ -1237,9 +1237,9 @@ void* NativeGenerator::getVectorcallEntry() {
 
   JIT_DCHECK(code.codeSize() < INT_MAX, "Code size is larger than INT_MAX");
   compiled_size_ = code.codeSize();
-  JIT_THROW_IF(
-      env_.stack_frame_size > std::numeric_limits<int16_t>::max(),
-      "Frame size {} is too large",
+  JIT_DCHECK(
+      env_.stack_frame_size <= std::numeric_limits<int16_t>::max(),
+      "Frame size {} grew after generateCode() checked it",
       env_.stack_frame_size);
   env_.code_rt->setFrameSize(static_cast<int16_t>(env_.stack_frame_size));
   if (getFunction()->code->co_flags & kCoFlagsAnyGenerator) {
@@ -1597,6 +1597,12 @@ void NativeGenerator::generateCode(
   // during register allocation, which completes before generateCode() is
   // called.
   auto frame_info = computeFrameInfo();
+  // Refuse an oversized frame before linkDeoptPatchers() registers any watch:
+  // a throw after it frees patchers the Context still holds.
+  JIT_THROW_IF(
+      env_.stack_frame_size > std::numeric_limits<int16_t>::max(),
+      "Frame size {} is too large",
+      env_.stack_frame_size);
 
   // Populate frame layout fields on Environ for the kSetupFrame autogen
   // translator. These are computed from FrameInfo after register allocation.

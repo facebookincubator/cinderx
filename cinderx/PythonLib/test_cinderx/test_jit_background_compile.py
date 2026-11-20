@@ -1033,6 +1033,84 @@ def target_func(obj):
         self.assertEqual(result, 7)
         self.assertEqual(test_func(), result)
 
+    @skip_if_ft(
+        "simplifyLoadAttr instance fast path is disabled on free-threaded builds"
+    )
+    def test_failed_background_compile_leaves_no_dangling_type_watch(self) -> None:
+        """A background compile that fails after code generation must not leave
+        a deferred type watch pointing at its freed patcher.
+
+        ``big`` loads a member descriptor off a global of exact type, so codegen
+        registers type deopt patchers (deferred to pending_watches_ on the
+        worker), and holds thousands of values live at once, so its frame
+        exceeds int16 and the compile throws.  When that check ran after the
+        patchers were linked, they died with the failed compile while their
+        watches stayed registered, and the worker's next
+        finalizePendingCompiles() read freed memory: a SIGSEGV in
+        watchPendingTypes() in production.  ASan reports that read; an opt
+        build usually survives it, so there the test can only check that the
+        compile failed for its frame size and that later compiles and a type
+        modification still work.
+
+        Runs out-of-process so -X cinderx-jit-all compiles every call, and with
+        -X cinderx-jit-debug so the compile failure is logged.
+        """
+        code = textwrap.dedent("""
+            import cinderx.jit
+
+            cinderx.jit.background_compile(True)
+
+            class Slotted:
+                __slots__ = ("attr",)
+
+                def __init__(self):
+                    self.attr = 1
+
+            RECEIVER = Slotted()
+
+            # One guarded load off the exact-type global (a TypeAttrDeoptPatcher) and
+            # n cheap loads off the parameter, all live at once: a frame over int16
+            # without the per-guard basic blocks that would hit the block limit first.
+            n = 2000
+            body = "".join(f"    a{i} = obj.attr + {i}\\n" for i in range(n))
+            values = ", ".join(f"a{i}" for i in range(n))
+            exec(f"def big(obj):\\n    g = RECEIVER.attr\\n{body}    return (g, {values},)\\n")
+
+            big(RECEIVER)
+            cinderx.jit.wait_for_background_compiles()
+            assert not cinderx.jit.is_jit_compiled(big), "frame should be too large"
+
+            def small():
+                return RECEIVER.attr
+
+            small()
+            cinderx.jit.wait_for_background_compiles()
+            Slotted.extra = 2
+            assert small() == 1
+            assert big(RECEIVER)[n] == n
+            """)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code, encoding=ENCODING)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "cinderx-jit-all",
+                    "-X",
+                    "cinderx-jit-debug",
+                    str(test_file),
+                ],
+                capture_output=True,
+                encoding=ENCODING,
+                env=subprocess_env(),
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr[-4000:])
+        # The compile must fail on its frame size, not on an earlier limit such
+        # as the LIR basic-block count, or the path under test was not reached.
+        self.assertRegex(proc.stderr, r"Frame size \d+ is too large")
+
     @skip_if_ft("loadModuleAttrSafe returns nullptr on free-threaded builds")
     def test_module_attr_load_background_compile(self) -> None:
         """Resolving a module attribute at compile time (loadModuleAttrSafe) now
