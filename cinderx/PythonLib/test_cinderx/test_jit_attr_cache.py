@@ -10,6 +10,7 @@ import importlib
 import importlib.metadata
 import subprocess
 import sys
+import types
 import unittest
 import weakref
 from dataclasses import dataclass, FrozenInstanceError
@@ -1325,6 +1326,60 @@ LEAF_SOURCE = """
     callable_obj = Callable()
     attr = Klass
     """
+
+
+@cinder_support.failUnlessJITCompiled
+def get_module_name(module):
+    return module.__name__
+
+
+class ModuleReceiverReuseTests(unittest.TestCase):
+    """Module attribute caches don't keep the module alive.  A module can be
+    freed while its dict lives on, as the globals of its functions do when it
+    replaces itself in sys.modules (torch._VF), and the next module allocated
+    at its address must not be served the old dict's attributes.
+    """
+
+    def test_new_module_at_freed_module_address(self):
+        dicts = []
+        for i in range(200):
+            module = types.ModuleType(f"module_{i}")
+            self.assertEqual(get_module_name(module), f"module_{i}")
+            dicts.append(module.__dict__)
+            del module
+
+    @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")
+    def test_new_module_at_freed_module_address_profiled(self):
+        # With a profile the receiver is known to be a module, so the read goes
+        # through LoadModuleAttrCached rather than the attribute cache.
+        source = """
+            import types
+            import cinderx.jit
+
+            def get_name(module):
+                return module.__name__
+
+            dicts = []
+            for i in range(200):
+                module = types.ModuleType(f"module_{i}")
+                name = get_name(module)
+                assert name == f"module_{i}", name
+                dicts.append(module.__dict__)
+                del module
+            print(cinderx.jit.get_function_hir_opcode_counts(get_name))
+        """
+        result = subprocess.run(
+            [sys.executable, "-c", dedent(source)],
+            capture_output=True,
+            encoding=cinder_support.ENCODING,
+            env={
+                **cinder_support.subprocess_env(),
+                "CINDERX_JIT_COMPILE_N_CALLS": "2",
+                "CINDERX_JIT_BACKGROUND_COMPILE": "0",
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("LoadModuleAttrCached", result.stdout)
 
 
 @skip_if_ft("T250369692: LoadModuleAttrCached not supported with free-threading")

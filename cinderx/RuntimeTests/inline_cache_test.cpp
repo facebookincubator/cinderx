@@ -3168,13 +3168,13 @@ TEST_F(InlineCacheTest, LoadAttrProfileRecordsModuleReceivers) {
   ASSERT_NE(locals.get(), nullptr);
   BorrowedRef<> mod = PyDict_GetItemString(locals, "a");
   ASSERT_NE(mod.get(), nullptr);
+  // The profile only names a module that sys.modules holds.
+  ASSERT_EQ(PyDict_SetItemString(PyImport_GetModuleDict(), "a", mod), 0);
   auto name = Ref<>::steal(PyUnicode_FromString("x"));
   ASSERT_NE(name.get(), nullptr);
 
   CacheStorage<LoadAttrCache> cache;
-  auto res = callLoad(cache.get(), mod, name);
-  ASSERT_NE(res.get(), nullptr);
-  EXPECT_EQ(asLong(res), 5);
+  ASSERT_EQ(loadRepeatedly(cache.get(), mod, name), 5);
 
   const std::vector<LoadAttrCache::ProfiledEntry> entries =
       cache->profiledEntries();
@@ -3194,6 +3194,105 @@ TEST_F(InlineCacheTest, LoadAttrProfileRecordsModuleReceivers) {
   EXPECT_EQ(load_attr->receiver_module.get(), mod.get());
   ASSERT_TRUE(load_attr->kind.has_value());
   EXPECT_EQ(*load_attr->kind, AttributeMutator::Kind::kModule);
+}
+
+TEST_F(InlineCacheTest, LoadAttrProfileOmitsModulesItCannotName) {
+  Ref<> locals = runToLocals(this, kTwoModules);
+  ASSERT_NE(locals.get(), nullptr);
+  auto mod = Ref<>::create(PyDict_GetItemString(locals, "a"));
+  ASSERT_NE(mod.get(), nullptr);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), mod, name), 5);
+
+  // Not in sys.modules.
+  std::vector<LoadAttrCache::ProfiledEntry> entries = cache->profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries.front().kind, AttributeMutator::Kind::kModule);
+  EXPECT_EQ(entries.front().module, nullptr);
+
+  // Freed while its dict lives on.
+  auto dict = Ref<>::create(PyModule_GetDict(mod));
+  ASSERT_EQ(PyDict_DelItemString(locals, "a"), 0);
+  mod.reset();
+  entries = cache->profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries.front().module, nullptr);
+
+  ASSERT_EQ(Py_REFCNT(dict.get()), 1);
+  dict.reset();
+  PyGC_Collect();
+  entries = cache->profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries.front().module, nullptr);
+}
+
+TEST_F(InlineCacheTest, LoadAttrProfileOmitsModulesWithoutLiveGlobalCaches) {
+  Ref<> locals = runToLocals(this, kTwoModules);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> mod = PyDict_GetItemString(locals, "a");
+  ASSERT_NE(mod.get(), nullptr);
+  ASSERT_EQ(PyDict_SetItemString(PyImport_GetModuleDict(), "a", mod), 0);
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+  BorrowedRef<PyDictObject> dict{PyModule_GetDict(mod)};
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), mod, name), 5);
+
+  ASSERT_EQ(PyDict_DelItem(dict, name), 0);
+  auto entries = cache->profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries.front().module, nullptr);
+
+  auto value = Ref<>::steal(PyLong_FromLong(7));
+  ASSERT_EQ(PyDict_SetItem(dict, name, value), 0);
+  ASSERT_EQ(loadRepeatedly(cache.get(), mod, name), 7);
+  entries = cache->profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries.front().module, mod.get());
+
+  auto key = Ref<>::steal(PyLong_FromLong(0));
+  ASSERT_EQ(PyDict_SetItem(dict, key, value), 0);
+  ASSERT_EQ(loadRepeatedly(cache.get(), mod, name), 7);
+  entries = cache->profiledEntries();
+  ASSERT_EQ(entries.size(), 1);
+  EXPECT_EQ(entries.front().module, nullptr);
+}
+
+TEST_F(InlineCacheTest, LoadAttrProfileOmitsFreedPolymorphicModules) {
+  getMutableConfig().attr_cache_size = 4;
+  Ref<> locals = runToLocals(this, kTwoModules);
+  ASSERT_NE(locals.get(), nullptr);
+  BorrowedRef<> a = PyDict_GetItemString(locals, "a");
+  BorrowedRef<> b = PyDict_GetItemString(locals, "b");
+  ASSERT_NE(a.get(), nullptr);
+  ASSERT_NE(b.get(), nullptr);
+  auto dict_a = Ref<>::create(PyModule_GetDict(a));
+  auto dict_b = Ref<>::create(PyModule_GetDict(b));
+  auto name = Ref<>::steal(PyUnicode_FromString("x"));
+  ASSERT_NE(name.get(), nullptr);
+
+  CacheStorage<LoadAttrCache> cache;
+  ASSERT_EQ(loadRepeatedly(cache.get(), a, name), 5);
+  ASSERT_EQ(loadRepeatedly(cache.get(), b, name), 11);
+  ASSERT_EQ(cache->profiledEntries().size(), 2);
+
+  locals.reset();
+  ASSERT_EQ(Py_REFCNT(dict_a.get()), 1);
+  ASSERT_EQ(Py_REFCNT(dict_b.get()), 1);
+  dict_a.reset();
+  dict_b.reset();
+  PyGC_Collect();
+
+  const auto entries = cache->profiledEntries();
+  ASSERT_EQ(entries.size(), 2);
+  for (const auto& entry : entries) {
+    EXPECT_EQ(entry.kind, AttributeMutator::Kind::kModule);
+    EXPECT_EQ(entry.module, nullptr);
+  }
 }
 #endif // CINDERX_IC_USE_TARGET_PROMOTION
 
@@ -3797,10 +3896,12 @@ def test(cls):
 TEST_F(InlineCacheTest, RecompileGuardsLoadAttrModuleReceiverFromProfile) {
   getMutableConfig().attr_cache_size = 4;
   const char* src = R"(
+import sys
 import types
 
 a = types.ModuleType("a")
 a.x = 5
+sys.modules["a"] = a
 
 def test(mod):
   return mod.x
@@ -3815,10 +3916,12 @@ def test(mod):
   ASSERT_NE(mod.get(), nullptr);
 
   PyObject* args[] = {mod.get()};
-  auto result = Ref<>::steal(func->vectorcall(
-      reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
-  ASSERT_NE(result, nullptr);
-  EXPECT_EQ(asLong(result), 5);
+  for (int i = 0; i < 3; i++) {
+    auto result = Ref<>::steal(func->vectorcall(
+        reinterpret_cast<PyObject*>(func.get()), args, 1, nullptr));
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(asLong(result), 5);
+  }
 
   Context* ctx = getContext();
   ASSERT_NE(ctx, nullptr);

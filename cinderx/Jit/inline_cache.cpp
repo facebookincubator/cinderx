@@ -1088,12 +1088,14 @@ void AttributeMutator::setGetattr(
 }
 
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
-void AttributeMutator::setModule(PyTypeObject* type, PyObject* module) {
+void AttributeMutator::setModule(
+    PyTypeObject* type,
+    BorrowedRef<PyDictObject> dict) {
   setType(type, Kind::kModule);
-  // Claim the receiver now so invokeModule's identity scan finds this entry,
+  // Claim the receiver now so invokeModule's dict scan finds this entry,
   // but leave the cache empty: the first getAttr fills it, which keeps the dict
   // lookup and the version read in one place instead of two.
-  module_.module = module;
+  module_.dict = dict;
   module_.cache = nullptr;
 }
 
@@ -1375,6 +1377,25 @@ std::span<const AttributeMutator> AttributeCache::entries() const {
   return {entries_, getConfig().attr_cache_size};
 }
 
+static BorrowedRef<PyDictObject> getModuleDict(BorrowedRef<> obj);
+
+#ifdef CINDERX_IC_USE_TARGET_PROMOTION
+// A module entry holds only its module's dict, which can outlive the module.
+// Name the module only if sys.modules still holds one with that dict.
+static BorrowedRef<> importedModuleForDict(BorrowedRef<PyDictObject> dict) {
+  BorrowedRef<> modules = PyImport_GetModuleDict();
+  BorrowedRef<> name = PyDict_GetItem(dict, &_Py_ID(__name__));
+  if (name == nullptr || !PyUnicode_Check(name) || !PyDict_Check(modules)) {
+    return nullptr;
+  }
+  BorrowedRef<> module = PyDict_GetItem(modules, name);
+  if (module == nullptr || getModuleDict(module) != dict) {
+    return nullptr;
+  }
+  return module;
+}
+#endif
+
 std::vector<LoadAttrCache::ProfiledEntry> LoadAttrCache::profiledEntries()
     const {
   std::vector<ProfiledEntry> result;
@@ -1385,7 +1406,12 @@ std::vector<LoadAttrCache::ProfiledEntry> LoadAttrCache::profiledEntries()
     ProfiledEntry profiled{entry.type(), entry.getKind()};
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
     if (entry.getKind() == AttributeMutator::Kind::kModule) {
-      profiled.module = entry.asModule()->module.get();
+      const ModuleMutator* module = entry.asModule();
+      // Dict destruction clears the global cache, not the borrowed dict
+      // pointer.
+      if (module->cache != nullptr && *module->cache != nullptr) {
+        profiled.module = importedModuleForDict(module->dict);
+      }
     }
 #endif
     result.push_back(profiled);
@@ -1632,8 +1658,9 @@ AttributeCache::fill(BorrowedRef<> obj, BorrowedRef<> name, bool is_set) {
   //
   // Only for loads. A store to a module attribute is an ordinary dict store
   // with nothing worth caching, and kModule has no setAttr body.
-  if (!is_set && getModuleDict(obj) != nullptr && isCacheableModuleType(type)) {
-    mut->setModule(type, obj);
+  BorrowedRef<PyDictObject> module_dict = getModuleDict(obj);
+  if (!is_set && module_dict != nullptr && isCacheableModuleType(type)) {
+    mut->setModule(type, module_dict);
     // Watch the module's type, not the module: invalidation on dict mutation
     // is the version tag's job, and this keeps the entry consistent with every
     // other kind for typeChanged purposes. PyModule_Type is immutable, so in
@@ -3033,6 +3060,19 @@ void LoadTypeMethodCache::fill(
   ltm_watcher.watch(type_, this);
 }
 
+#if PY_VERSION_HEX >= 0x030E0000
+// getModuleDict() for the receivers of LoadModuleAttrCached and
+// LoadModuleMethodCached, which are known to be modules or strict modules.
+// Both keep their dict right after the object header.
+static BorrowedRef<PyDictObject> knownModuleDict(BorrowedRef<> module) {
+  static_assert(
+      offsetof(PyModuleObject, md_dict) ==
+      offsetof(Ci_StrictModuleObject, globals));
+  return reinterpret_cast<PyDictObject*>(
+      reinterpret_cast<PyModuleObject*>(module.get())->md_dict);
+}
+#endif
+
 PyObject* LoadModuleAttrCache::lookupHelper(
     LoadModuleAttrCache* cache,
     BorrowedRef<> obj,
@@ -3046,7 +3086,8 @@ PyObject* LoadModuleAttrCache::lookup(
   // First, check if we can use the cached value. If we can, we will return a
   // new reference to it.
 #if PY_VERSION_HEX >= 0x030E0000
-  if (module_ == object && cache_ != nullptr) {
+  if (module_ == object && cache_ != nullptr &&
+      knownModuleDict(object) == dict_) {
     BorrowedRef<> res = *cache_;
     if (res != nullptr) {
       return Py_NewRef(res);
@@ -3103,6 +3144,7 @@ PyObject* LoadModuleAttrCache::lookupSlowPath(
     if (hasOnlyUnicodeKeys(module_dict)) {
       cache_ = cinderx::getModuleState()->cache_manager->getGlobalCache(
           module_dict, module_dict, uname);
+      dict_ = module_dict;
     }
 #else
     value_ = value.get();
@@ -3128,7 +3170,8 @@ LoadMethodResult LoadModuleMethodCache::lookup(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
 #if PY_VERSION_HEX >= 0x030E0000
-  if (module_obj_ == obj && cache_ != nullptr) {
+  if (module_obj_ == obj && cache_ != nullptr &&
+      knownModuleDict(obj) == module_dict_) {
     BorrowedRef<> res = *cache_;
     if (res != nullptr) {
       return {Py_None, Py_NewRef(res)};
@@ -3170,6 +3213,7 @@ LoadMethodResult LoadModuleMethodCache::lookupSlowPath(
       BorrowedRef<PyUnicodeObject> uname{name};
       cache_ = cinderx::getModuleState()->cache_manager->getGlobalCache(
           module_dict, module_dict, uname);
+      module_dict_ = module_dict;
 #else
       module_version_ = Ci_DictVersionTag(module_dict);
       value_ = res.get();
@@ -3203,16 +3247,18 @@ fillModuleMutator(ModuleMutator* mut, PyObject* obj, PyObject* name) {
       ? cinderx::getModuleState()->cache_manager->getGlobalCache(
             module_dict, module_dict, uname)
       : nullptr;
-  mut->module = obj;
+  mut->dict = module_dict;
   return value.release();
 }
 
-PyObject*
-ModuleMutator::getAttr(PyObject* obj, PyObject* name, ModuleMutator* mod) {
-  // The enclosing entry's type guard only established that obj is a module.
-  // Identity says it is *this* module, and the version says its dict has not
-  // moved under us.
-  if (mod->module == obj && mod->cache != nullptr) {
+// `dict` is obj's dict, which says obj is *this* module; the global cache says
+// the dict has not changed under us.
+static PyObject* getModuleMutatorAttr(
+    PyObject* obj,
+    BorrowedRef<PyDictObject> dict,
+    PyObject* name,
+    ModuleMutator* mod) {
+  if (mod->cache != nullptr && dict == mod->dict) {
     BorrowedRef<> res = *mod->cache;
     if (res != nullptr) {
       return Py_NewRef(res);
@@ -3222,10 +3268,17 @@ ModuleMutator::getAttr(PyObject* obj, PyObject* name, ModuleMutator* mod) {
   return fillModuleMutator(mod, obj, name);
 }
 
+PyObject*
+ModuleMutator::getAttr(PyObject* obj, PyObject* name, ModuleMutator* mod) {
+  // The enclosing entry's type guard only established that obj is a module.
+  return getModuleMutatorAttr(obj, getModuleDict(obj), name, mod);
+}
+
 PyObject* LoadAttrCache::invokeModule(
     PyObject* obj,
     PyObject* name,
     LoadAttrCache* cache) {
+  BorrowedRef<PyDictObject> dict = getModuleDict(obj);
   for (auto& entry : cache->entries()) {
     if (!entry.type()) {
       break;
@@ -3234,16 +3287,15 @@ PyObject* LoadAttrCache::invokeModule(
         entry.getKind() == AttributeMutator::Kind::kModule,
         "should only have modules");
     ModuleMutator* module = entry.asModule();
-    if (module->module == obj) {
-      return AttributeMutator::getAttrForKind<AttributeMutator::Kind::kModule>(
-          obj, name, &entry);
+    if (module->dict == dict) {
+      return getModuleMutatorAttr(obj, dict, name, module);
     }
   }
   PyTypeObject* tp = Py_TYPE(obj);
-  if (isCacheableModuleType(tp)) {
+  if (dict != nullptr && isCacheableModuleType(tp)) {
     AttributeMutator* mut = cache->findEmptyEntry();
     if (mut != nullptr) {
-      mut->setModule(tp, obj);
+      mut->setModule(tp, dict);
       return fillModuleMutator(mut->asModule(), obj, name);
     }
   } else {

@@ -175,10 +175,15 @@ struct GetAttrMutator {
 //
 // Unlike every other kind, the enclosing entry's type guard is not enough here:
 // it only proves the receiver is *a* module, and the cached value belongs to
-// one specific module's dict. So this additionally checks object identity, then
-// checks that the dict has not changed under it. A receiver that is a different
-// module, or the same module after a mutation, re-populates in place rather
-// than giving up on the entry.
+// one specific module's dict. So this additionally checks that the receiver's
+// dict is that dict, then that the dict has not changed under it. A receiver
+// with a different dict, or the same dict after a mutation, re-populates in
+// place rather than giving up on the entry.
+//
+// The entry holds no reference, so it is keyed on the dict rather than the
+// module object: a module can be freed while its dict lives on (as the globals
+// of its functions), and a new module allocated at the same address would
+// otherwise read the old module's attributes.
 //
 // Mirrors LoadModuleAttrCache, which does the same job for sites where the
 // compiler already knew the receiver was a module. The validity mechanism
@@ -188,7 +193,7 @@ struct GetAttrMutator {
 struct ModuleMutator {
   static PyObject* getAttr(PyObject* obj, PyObject* name, ModuleMutator* mod);
 
-  BorrowedRef<> module;
+  BorrowedRef<PyDictObject> dict;
   PyObject** cache;
 };
 
@@ -379,8 +384,9 @@ class AttributeMutator {
       PyObject* getattr_method,
       uint32_t keys_version);
 #ifdef CINDERX_IC_USE_TARGET_PROMOTION
-  // `type` is the module's type, not the module. See ModuleMutator.
-  void setModule(PyTypeObject* type, PyObject* module);
+  // `type` is the module's type and `dict` is the module's dict. See
+  // ModuleMutator.
+  void setModule(PyTypeObject* type, BorrowedRef<PyDictObject> dict);
 
   ModuleMutator* asModule() {
     JIT_DCHECK(
@@ -967,6 +973,9 @@ class LoadModuleAttrCache {
 
   BorrowedRef<> module_;
 #if PY_VERSION_HEX >= 0x030E0000
+  // The dict cache_ belongs to.  module_ is borrowed, so a new module can reuse
+  // its address after it is freed; the dict tells them apart.
+  BorrowedRef<PyDictObject> dict_;
   PyObject** cache_;
 #else
   // This corresponds to module __dict__'s version which allows us
@@ -997,6 +1006,8 @@ class LoadModuleMethodCache {
 
   BorrowedRef<> module_obj_;
 #if PY_VERSION_HEX >= 0x030E0000
+  // The dict cache_ belongs to, as in LoadModuleAttrCache.
+  BorrowedRef<PyDictObject> module_dict_;
   PyObject** cache_;
 #else
   // This corresponds to module __dict__'s version which allows us
