@@ -533,8 +533,8 @@ TEST_F(LinearScanAllocatorTest, SpillAllocatorCopiesReturnAcrossFrameBaseLoad) {
   ASSERT_NE(iter, block->instructions().begin());
   const Instruction* load = std::prev(iter)->get();
   const Instruction* store = std::next(iter)->get();
-  ASSERT_TRUE(load->isLoad()) << function;
-  ASSERT_TRUE(store->isStore()) << function;
+  ASSERT_TRUE(load->isLoad()) << lirFuncString(function);
+  ASSERT_TRUE(store->isStore()) << lirFuncString(function);
   EXPECT_EQ(
       load->getInput(0)->getStackSlot(), result->getInput(0)->getStackSlot());
   EXPECT_EQ(
