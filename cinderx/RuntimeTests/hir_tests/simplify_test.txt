@@ -18980,6 +18980,387 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
+PrimitiveUnaryOpNegateIntOfSignedConstantWraps
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadConst<CInt8[-128]>
+    v1 = PrimitiveUnaryOp<NegateInt> v0
+    Return<CInt8> v1
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CInt8[-128] = LoadConst<CInt8[-128]>
+    UseType<CInt8[-128]> v0
+    v2:CInt8[-128] = LoadConst<CInt8[-128]>
+    Return<CInt8> v2
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt8[-128] = LoadConst<CInt8[-128]>
+    UseType<CInt8[-128]> v0
+    v2:CInt8[-128] = LoadConst<CInt8[-128]>
+    Return<CInt8> v2
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CInt8[-128] = LoadConst<CInt8[-128]>
+    UseType<CInt8[-128]> v0
+    v2:CInt8[-128] = LoadConst<CInt8[-128]>
+    Return<CInt8> v2
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CInt8[-128] = LoadConst<CInt8[-128]>
+    UseType<CInt8[-128]> v0
+    v2:CInt8[-128] = LoadConst<CInt8[-128]>
+    Return<CInt8> v2
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CInt8[-128] = LoadConst<CInt8[-128]>
+    UseType<CInt8[-128]> v0
+    v2:CInt8[-128] = LoadConst<CInt8[-128]>
+    Return<CInt8> v2
+  }
+}
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:CInt8[-128] = LoadConst<CInt8[-128]>
+    UseType<CInt8[-128]> v0
+    v2:CInt8[-128] = LoadConst<CInt8[-128]>
+    Return<CInt8> v2
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNegateIntOfUnsignedConstantWraps
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadConst<CUInt16[1]>
+    v1 = PrimitiveUnaryOp<NegateInt> v0
+    Return<CUInt16> v1
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CUInt16[1] = LoadConst<CUInt16[1]>
+    UseType<CUInt16[1]> v0
+    v2:CUInt16[65535] = LoadConst<CUInt16[65535]>
+    Return<CUInt16> v2
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CUInt16[1] = LoadConst<CUInt16[1]>
+    UseType<CUInt16[1]> v0
+    v2:CUInt16[65535] = LoadConst<CUInt16[65535]>
+    Return<CUInt16> v2
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CUInt16[1] = LoadConst<CUInt16[1]>
+    UseType<CUInt16[1]> v0
+    v2:CUInt16[65535] = LoadConst<CUInt16[65535]>
+    Return<CUInt16> v2
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CUInt16[1] = LoadConst<CUInt16[1]>
+    UseType<CUInt16[1]> v0
+    v2:CUInt16[65535] = LoadConst<CUInt16[65535]>
+    Return<CUInt16> v2
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CUInt16[1] = LoadConst<CUInt16[1]>
+    UseType<CUInt16[1]> v0
+    v2:CUInt16[65535] = LoadConst<CUInt16[65535]>
+    Return<CUInt16> v2
+  }
+}
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:CUInt16[1] = LoadConst<CUInt16[1]>
+    UseType<CUInt16[1]> v0
+    v2:CUInt16[65535] = LoadConst<CUInt16[65535]>
+    Return<CUInt16> v2
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpInvertIntOfConstantIsConstantFolded
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadConst<CInt32[5]>
+    v1 = PrimitiveUnaryOp<InvertInt> v0
+    Return<CInt32> v1
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CInt32[5] = LoadConst<CInt32[5]>
+    UseType<CInt32[5]> v0
+    v2:CInt32[-6] = LoadConst<CInt32[-6]>
+    Return<CInt32> v2
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt32[5] = LoadConst<CInt32[5]>
+    UseType<CInt32[5]> v0
+    v2:CInt32[-6] = LoadConst<CInt32[-6]>
+    Return<CInt32> v2
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CInt32[5] = LoadConst<CInt32[5]>
+    UseType<CInt32[5]> v0
+    v2:CInt32[-6] = LoadConst<CInt32[-6]>
+    Return<CInt32> v2
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CInt32[5] = LoadConst<CInt32[5]>
+    UseType<CInt32[5]> v0
+    v2:CInt32[-6] = LoadConst<CInt32[-6]>
+    Return<CInt32> v2
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CInt32[5] = LoadConst<CInt32[5]>
+    UseType<CInt32[5]> v0
+    v2:CInt32[-6] = LoadConst<CInt32[-6]>
+    Return<CInt32> v2
+  }
+}
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:CInt32[5] = LoadConst<CInt32[5]>
+    UseType<CInt32[5]> v0
+    v2:CInt32[-6] = LoadConst<CInt32[-6]>
+    Return<CInt32> v2
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNegateIntOfNegateIntIsRemoved
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0, CInt64>
+    v1 = PrimitiveUnaryOp<NegateInt> v0
+    v2 = PrimitiveUnaryOp<NegateInt> v1
+    Return<CInt64> v2
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<NegateInt> v0
+    Return<CInt64> v0
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<NegateInt> v0
+    Return<CInt64> v0
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<NegateInt> v0
+    Return<CInt64> v0
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<NegateInt> v0
+    Return<CInt64> v0
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<NegateInt> v0
+    Return<CInt64> v0
+  }
+}
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<NegateInt> v0
+    Return<CInt64> v0
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpInvertIntOfInvertIntIsRemoved
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0, CUInt8>
+    v1 = PrimitiveUnaryOp<InvertInt> v0
+    v2 = PrimitiveUnaryOp<InvertInt> v1
+    Return<CUInt8> v2
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CUInt8 = LoadArg<0, CUInt8>
+    v1:CUInt8 = PrimitiveUnaryOp<InvertInt> v0
+    Return<CUInt8> v0
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CUInt8 = LoadArg<0, CUInt8>
+    v1:CUInt8 = PrimitiveUnaryOp<InvertInt> v0
+    Return<CUInt8> v0
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CUInt8 = LoadArg<0, CUInt8>
+    v1:CUInt8 = PrimitiveUnaryOp<InvertInt> v0
+    Return<CUInt8> v0
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CUInt8 = LoadArg<0, CUInt8>
+    v1:CUInt8 = PrimitiveUnaryOp<InvertInt> v0
+    Return<CUInt8> v0
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CUInt8 = LoadArg<0, CUInt8>
+    v1:CUInt8 = PrimitiveUnaryOp<InvertInt> v0
+    Return<CUInt8> v0
+  }
+}
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:CUInt8 = LoadArg<0, CUInt8>
+    v1:CUInt8 = PrimitiveUnaryOp<InvertInt> v0
+    Return<CUInt8> v0
+  }
+}
+--- Test Name ---
+PrimitiveUnaryOpNegateIntOfInvertIntDoesNotSimplify
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0, CInt64>
+    v1 = PrimitiveUnaryOp<InvertInt> v0
+    v2 = PrimitiveUnaryOp<NegateInt> v1
+    Return<CInt64> v2
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<InvertInt> v0
+    v2:CInt64 = PrimitiveUnaryOp<NegateInt> v1
+    Return<CInt64> v2
+  }
+}
+--- Expected 3.14 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<InvertInt> v0
+    v2:CInt64 = PrimitiveUnaryOp<NegateInt> v1
+    Return<CInt64> v2
+  }
+}
+--- Expected 3.15 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<InvertInt> v0
+    v2:CInt64 = PrimitiveUnaryOp<NegateInt> v1
+    Return<CInt64> v2
+  }
+}
+--- Expected 3.16 ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<InvertInt> v0
+    v2:CInt64 = PrimitiveUnaryOp<NegateInt> v1
+    Return<CInt64> v2
+  }
+}
+--- Expected 3.14t ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<InvertInt> v0
+    v2:CInt64 = PrimitiveUnaryOp<NegateInt> v1
+    Return<CInt64> v2
+  }
+}
+--- Expected 3.15t ---
+fun test {
+  bb 0 {
+    v0:CInt64 = LoadArg<0, CInt64>
+    v1:CInt64 = PrimitiveUnaryOp<InvertInt> v0
+    v2:CInt64 = PrimitiveUnaryOp<NegateInt> v1
+    Return<CInt64> v2
+  }
+}
+--- Test Name ---
 LongCompareOfTwoConstantsIsConstantFolded
 --- Input ---
 # HIR

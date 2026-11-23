@@ -1600,6 +1600,13 @@ Register* simplifyUnaryOp(Env& env, const UnaryOp* instr) {
   return nullptr;
 }
 
+// Truncate a 64-bit result to the width of the `CInt` type `type`.
+Type truncateToIntType(uint64_t value, Type type) {
+  return type <= TCSigned
+      ? Type::truncatedCInt(static_cast<int64_t>(value), type)
+      : Type::truncatedCUInt(value, type);
+}
+
 // `IntBinaryOp` works on fixed-width integers and wraps on overflow.  Only ops
 // whose low bits depend on nothing but the low bits of their inputs are
 // folded, so computing at 64 bits and truncating to the operand width gives
@@ -1636,9 +1643,7 @@ std::optional<Type> foldIntBinaryOp(BinaryOpKind op, Type left, Type right) {
     default:
       return std::nullopt;
   }
-  return type <= TCSigned
-      ? Type::truncatedCInt(static_cast<int64_t>(result), type)
-      : Type::truncatedCUInt(result, type);
+  return truncateToIntType(result, type);
 }
 
 // Whether every value bit of an int-specialized `CInt` or `CBool` type is set.
@@ -1712,23 +1717,55 @@ Register* simplifyIntBinaryOp(Env& env, const IntBinaryOp* instr) {
   return result;
 }
 
-Register* simplifyPrimitiveUnaryOp(Env& env, const PrimitiveUnaryOp* instr) {
-  if (instr->op() != PrimitiveUnaryOpKind::kNotInt) {
-    return nullptr;
+// Negation and bitwise inversion wrap like `IntBinaryOp`, so they are computed
+// at 64 bits and truncated to the operand width.
+std::optional<Type> foldIntUnaryOp(PrimitiveUnaryOpKind op, Type value) {
+  Type type = value.unspecialized();
+  if (!value.hasIntSpec() || !(type <= TCInt)) {
+    return std::nullopt;
   }
+  auto v = static_cast<uint64_t>(value.intSpec());
+  switch (op) {
+    case PrimitiveUnaryOpKind::kNegateInt:
+      return truncateToIntType(0 - v, type);
+    case PrimitiveUnaryOpKind::kInvertInt:
+      return truncateToIntType(~v, type);
+    case PrimitiveUnaryOpKind::kNotInt:
+      break;
+  }
+  return std::nullopt;
+}
+
+Register* simplifyPrimitiveUnaryOp(Env& env, const PrimitiveUnaryOp* instr) {
+  PrimitiveUnaryOpKind op = instr->op();
   Register* value = instr->value();
   Type value_type = value->type();
+  const Instr* value_instr = value->instr();
+  std::optional<PrimitiveUnaryOpKind> inner_op;
+  if (value_instr->isPrimitiveUnaryOp()) {
+    inner_op = static_cast<const PrimitiveUnaryOp*>(value_instr)->op();
+  }
+
+  if (op != PrimitiveUnaryOpKind::kNotInt) {
+    if (auto folded = foldIntUnaryOp(op, value_type)) {
+      env.emit<UseType>(value, value_type);
+      return env.emit<LoadConst>(*folded);
+    }
+    // -(-x) --> x and ~(~x) --> x.  Both ops produce a value of the operand's
+    // width, so this holds for every input, including the minimum signed value.
+    if (inner_op == op) {
+      return value_instr->getOperand(0);
+    }
+    return nullptr;
+  }
+
   if (value_type.hasIntSpec()) {
     env.emit<UseType>(value, value_type);
     return env.emit<LoadConst>(Type::fromCBool(value_type.intSpec() == 0));
   }
 
-  const Instr* value_instr = value->instr();
-
   // !!b --> b, when b is already a CBool.
-  if (value_instr->isPrimitiveUnaryOp() &&
-      static_cast<const PrimitiveUnaryOp*>(value_instr)->op() ==
-          PrimitiveUnaryOpKind::kNotInt) {
+  if (inner_op == PrimitiveUnaryOpKind::kNotInt) {
     Register* inner = value_instr->getOperand(0);
     if (inner->isA(TCBool)) {
       return inner;

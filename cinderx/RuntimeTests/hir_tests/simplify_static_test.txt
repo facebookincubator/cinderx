@@ -3629,4 +3629,283 @@ fun jittestmodule:test {
     Return v8
   }
 }
+--- Test Name ---
+NegateAndInvertOfIntConstantAreFolded
+--- Input ---
+from __static__ import box, int64
+def test():
+    x: int64 = 5
+    return box(-x), box(~x)
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    Snapshot
+    v12:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v20:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[5]> v13
+    v21:CInt64[-5] = LoadConst<CInt64[-5]>
+    UseType<CInt64[-5]> v21
+    v22:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    UseType<CInt64[5]> v13
+    v23:CInt64[-6] = LoadConst<CInt64[-6]>
+    UseType<CInt64[-6]> v23
+    v24:MortalLongExact[-6] = LoadConst<MortalLongExact[-6]>
+    v19:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 20
+        Locals<1> v13
+        Stack<2> v22 v24
+      }
+    }
+    InitTupleElements<2> v19 v22 v24
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.14 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    Snapshot
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v20:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[5]> v13
+    v21:CInt64[-5] = LoadConst<CInt64[-5]>
+    UseType<CInt64[-5]> v21
+    v22:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    UseType<CInt64[5]> v13
+    v23:CInt64[-6] = LoadConst<CInt64[-6]>
+    UseType<CInt64[-6]> v23
+    v24:MortalLongExact[-6] = LoadConst<MortalLongExact[-6]>
+    v19:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 34
+        Locals<1> v13
+        Stack<2> v22 v24
+      }
+    }
+    InitTupleElements<2> v19 v22 v24
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.15 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    Snapshot
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v20:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[5]> v13
+    v21:CInt64[-5] = LoadConst<CInt64[-5]>
+    UseType<CInt64[-5]> v21
+    v22:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    UseType<CInt64[5]> v13
+    v23:CInt64[-6] = LoadConst<CInt64[-6]>
+    UseType<CInt64[-6]> v23
+    v24:MortalLongExact[-6] = LoadConst<MortalLongExact[-6]>
+    v19:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 36
+        Locals<1> v13
+        Stack<2> v22 v24
+      }
+    }
+    InitTupleElements<2> v19 v22 v24
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.16 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    Snapshot
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v20:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[5]> v13
+    v21:CInt64[-5] = LoadConst<CInt64[-5]>
+    UseType<CInt64[-5]> v21
+    v22:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    UseType<CInt64[5]> v13
+    v23:CInt64[-6] = LoadConst<CInt64[-6]>
+    UseType<CInt64[-6]> v23
+    v24:MortalLongExact[-6] = LoadConst<MortalLongExact[-6]>
+    v19:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 36
+        Locals<1> v13
+        Stack<2> v22 v24
+      }
+    }
+    InitTupleElements<2> v19 v22 v24
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.14t ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    Snapshot
+    AtQuiescentState
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v20:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[5]> v13
+    v21:CInt64[-5] = LoadConst<CInt64[-5]>
+    UseType<CInt64[-5]> v21
+    v22:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    UseType<CInt64[5]> v13
+    v23:CInt64[-6] = LoadConst<CInt64[-6]>
+    UseType<CInt64[-6]> v23
+    v24:MortalLongExact[-6] = LoadConst<MortalLongExact[-6]>
+    v19:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 34
+        Locals<1> v13
+        Stack<2> v22 v24
+      }
+    }
+    InitTupleElements<2> v19 v22 v24
+    Snapshot
+    Return v19
+  }
+}
+--- Expected 3.15t ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    LoadFrame
+    v11:CInt64[0] = LoadConst<CInt64[0]>
+    Snapshot
+    AtQuiescentState
+    v12:CInt64 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v20:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v11
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:CInt64[5] = LoadConst<CInt64[5]>
+    UseType<CInt64[5]> v13
+    v21:CInt64[-5] = LoadConst<CInt64[-5]>
+    UseType<CInt64[-5]> v21
+    v22:ImmortalLongExact[-5] = LoadConst<ImmortalLongExact[-5]>
+    UseType<CInt64[5]> v13
+    v23:CInt64[-6] = LoadConst<CInt64[-6]>
+    UseType<CInt64[-6]> v23
+    v24:MortalLongExact[-6] = LoadConst<MortalLongExact[-6]>
+    v19:MortalTupleExact = MakeTuple<2> {
+      FrameState {
+        CurInstrOffset 36
+        Locals<1> v13
+        Stack<2> v22 v24
+      }
+    }
+    InitTupleElements<2> v19 v22 v24
+    Snapshot
+    Return v19
+  }
+}
 --- End ---
