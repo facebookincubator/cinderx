@@ -10,9 +10,9 @@
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/postalloc.h"
-#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/RuntimeTests/lir_query.h"
 
 #include <algorithm>
 #include <iostream>
@@ -22,7 +22,27 @@ using namespace cinderx::jit::codegen;
 
 namespace cinderx::jit::lir {
 
-class LIRPostAllocRewriteTest : public RuntimeTest {};
+class LIRPostAllocRewriteTest : public RuntimeTest {
+ protected:
+  void expectConditionalBranch(
+      const Instruction* branch,
+      Condition condition,
+      const BasicBlock* target) {
+    if constexpr (kBuildArch == Arch::kX86_64) {
+      ASSERT_TRUE(branch->isBranchCC());
+      EXPECT_EQ(branch->condition(), condition);
+      ASSERT_EQ(branch->getNumInputs(), 1);
+    } else {
+      ASSERT_EQ(
+          branch->opcode(),
+          condition == Condition::kZero ? Opcode::kCmpBranchZero
+                                        : Opcode::kCmpBranchNonZero);
+      ASSERT_EQ(branch->getNumInputs(), 2);
+    }
+    EXPECT_EQ(
+        branch->getInput(branch->getNumInputs() - 1)->getBasicBlock(), target);
+  }
+};
 
 TEST_F(LIRPostAllocRewriteTest, TestInsertBranchForSuccessorsInCondBranch) {
   Function function;
@@ -37,19 +57,19 @@ TEST_F(LIRPostAllocRewriteTest, TestInsertBranchForSuccessorsInCondBranch) {
   left->addSuccessor(second_exit);
   right->addSuccessor(first_exit);
   right->addSuccessor(second_exit);
-  entry->allocateInstr(
+  Instruction* entry_branch = entry->allocateInstr(
       Opcode::kCondBranch,
       nullptr,
       PhyReg{PhyLocation{0}},
       Lbl{left},
       Lbl{right});
-  left->allocateInstr(
+  Instruction* left_branch = left->allocateInstr(
       Opcode::kCondBranch,
       nullptr,
       PhyReg{PhyLocation{0}},
       Lbl{first_exit},
       Lbl{second_exit});
-  right->allocateInstr(
+  Instruction* right_branch = right->allocateInstr(
       Opcode::kCondBranch,
       nullptr,
       PhyReg{PhyLocation{0}},
@@ -71,70 +91,15 @@ TEST_F(LIRPostAllocRewriteTest, TestInsertBranchForSuccessorsInCondBranch) {
   PostRegAllocRewrite post_rewrite(&function, &env_);
   post_rewrite.run();
 
-  std::stringstream ss;
-  ss << function;
-#if defined(CINDER_AARCH64)
-  auto expected_lir_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %1 %2
-                   CmpBranchNonZero {}:Object, BB%1
-
-BB %2 - preds: %0 - succs: %3 %4
-                   CmpBranchNonZero {}:Object, BB%3
-                   Branch BB%4
-
-BB %1 - preds: %0 - succs: %3 %4
-                   CmpBranchZero {}:Object, BB%4
-
-BB %3 - preds: %1 %2
-{:>9}:Object = Move {}:Object
-
-BB %4 - preds: %1 %2
-{:>9}:Object = Move {}:Object
-
-)",
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{5, 64},
-      PhyLocation{0, 64},
-      PhyLocation{13, 64});
-#else
-  auto expected_lir_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %1 %2
-                   Test {}:Object, {}:Object
-                   BranchNZ BB%1
-
-BB %2 - preds: %0 - succs: %3 %4
-                   Test {}:Object, {}:Object
-                   BranchNZ BB%3
-                   Branch BB%4
-
-BB %1 - preds: %0 - succs: %3 %4
-                   Test {}:Object, {}:Object
-                   BranchZ BB%4
-
-BB %3 - preds: %1 %2
-{:>9}:Object = Move {}:Object
-
-BB %4 - preds: %1 %2
-{:>9}:Object = Move {}:Object
-
-)",
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{5, 64},
-      PhyLocation{0, 64},
-      PhyLocation{13, 64});
-#endif
-  ASSERT_EQ(expected_lir_str, ss.str());
+  EXPECT_EQ(entry->getLastInstr(), entry_branch);
+  EXPECT_EQ(left->getLastInstr(), left_branch);
+  expectConditionalBranch(entry_branch, Condition::kNotZero, left);
+  expectConditionalBranch(left_branch, Condition::kZero, second_exit);
+  expectConditionalBranch(right_branch, Condition::kNotZero, first_exit);
+  Instruction* fallthrough_branch = right->getLastInstr();
+  ASSERT_TRUE(fallthrough_branch->isBranch());
+  ASSERT_EQ(fallthrough_branch->getNumInputs(), 1);
+  EXPECT_EQ(fallthrough_branch->getInput(0)->getBasicBlock(), second_exit);
   ASSERT_TRUE(verifyPostRegAllocInvariants(&function, std::cout));
 }
 
@@ -148,7 +113,7 @@ TEST_F(
   cold_block->setSection(CodeSection::kCold);
   entry->addSuccessor(cold_block);
   entry->addSuccessor(hot_block);
-  entry->allocateInstr(
+  Instruction* cond_branch = entry->allocateInstr(
       Opcode::kCondBranch,
       nullptr,
       PhyReg{PhyLocation{0}},
@@ -170,50 +135,11 @@ TEST_F(
   PostRegAllocRewrite post_rewrite(&function, &env_);
   post_rewrite.run();
 
-  std::stringstream ss;
-  ss << function;
-#if defined(CINDER_AARCH64)
-  auto expected_lir_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %1 %2
-                   CmpBranchZero {}:Object, BB%2
-                   Branch BB%1
-
-BB %1 - preds: %0 - section: .coldtext
-{:>9}:Object = Move {}:Object
-
-BB %2 - preds: %0
-{:>9}:Object = Move {}:Object
-
-)",
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{13, 64},
-      PhyLocation{0, 64},
-      PhyLocation{5, 64});
-#else
-  auto expected_lir_str = fmt::format(
-      R"(Function:
-BB %0 - succs: %1 %2
-                   Test {}:Object, {}:Object
-                   BranchZ BB%2
-                   Branch BB%1
-
-BB %1 - preds: %0 - section: .coldtext
-{:>9}:Object = Move {}:Object
-
-BB %2 - preds: %0
-{:>9}:Object = Move {}:Object
-
-)",
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{0, 64},
-      PhyLocation{13, 64},
-      PhyLocation{0, 64},
-      PhyLocation{5, 64});
-#endif
-  ASSERT_EQ(expected_lir_str, ss.str());
+  expectConditionalBranch(cond_branch, Condition::kZero, hot_block);
+  Instruction* fallthrough_branch = entry->getLastInstr();
+  ASSERT_TRUE(fallthrough_branch->isBranch());
+  ASSERT_EQ(fallthrough_branch->getNumInputs(), 1);
+  EXPECT_EQ(fallthrough_branch->getInput(0)->getBasicBlock(), cold_block);
   ASSERT_TRUE(verifyPostRegAllocInvariants(&function, std::cout));
 }
 

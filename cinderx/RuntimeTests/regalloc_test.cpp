@@ -9,8 +9,8 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/linear_scan.h"
 #include "cinderx/Jit/lir/operand.h"
-#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/spill_alloc.h"
+#include "cinderx/RuntimeTests/lir_query.h"
 
 #include <fmt/ostream.h>
 
@@ -458,7 +458,7 @@ TEST_F(LinearScanAllocatorTest, FullRunHandlesDuplicateEdgePhiSlots) {
     }
     ++trampoline_count;
     EXPECT_EQ(successor->successors(), (std::vector<BasicBlock*>{phi_block}));
-    EXPECT_GT(successor->getNumInstrs(), 0) << function;
+    EXPECT_GT(successor->getNumInstrs(), 0) << lirFuncString(function);
   }
   EXPECT_GT(trampoline_count, 0);
 
