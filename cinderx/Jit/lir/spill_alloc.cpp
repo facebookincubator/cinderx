@@ -177,11 +177,10 @@ void SpillAllocator::rewriteInstr(BasicBlock* block, instr_iter_t iter) {
       !instr->isLoadPair(),
       "load pair can only be generated after register allocation");
 
-  // Generator frame migration: a Move into the frame-pointer register swaps the
-  // frame pointer between the machine stack and the heap-allocated generator
-  // data.  Handle values that must cross the switch, then fall through so the
-  // Move's own operands are still rewritten.
-  if (instr->isMove() && instr->output()->isReg() &&
+  // Generator frame migration swaps the data base between the machine stack
+  // and heap data. Handle values that must cross the switch before rewriting
+  // the switch's own operands.
+  if ((instr->isMove() || instr->isLoad()) && instr->output()->isReg() &&
       instr->output()->getPhyRegister() ==
           codegen::arch::reg_frame_pointer_loc) {
     handleFramePointerSwitch(block, iter);
@@ -322,7 +321,7 @@ void SpillAllocator::handleFramePointerSwitch(
     instr_iter_t iter) {
   Instruction* move = iter->get();
 
-  // Reverse switch: `Move fp, [fp + originalFramePointer]` restores the machine
+  // Reverse switch: `Load fp, [fp + originalFramePointer]` restores the machine
   // stack frame in the epilogue.  The return value (the exit phi) was written
   // in the heap frame that is about to be abandoned, but the epilogue keeps
   // reading it from its slot after the switch -- either directly (EpilogueEnd)

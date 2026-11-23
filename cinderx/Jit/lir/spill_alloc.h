@@ -65,14 +65,14 @@ class SpillAllocator : public RegisterAllocator {
   // value's home slot.
   void rewriteBind(BasicBlock* block, instr_iter_t iter);
 
-  // Handle a generator frame migration `Move` into the frame-pointer register
+  // Handle a generator frame migration into the frame data-base register
   // (`iter`).  There are two kinds:
   //  - Forward (`Move fp, <footer vreg>`): the machine-stack frame is swapped
   //    for the heap generator frame.  The result of the preceding frame-setup
   //    call was spilled to the now-abandoned stack frame (and is stale in the
   //    heap copy), so re-store it -- still live in the return register -- into
   //    its slot after the switch.
-  //  - Reverse (`Move fp, [fp + originalFramePointer]`): the epilogue restores
+  //  - Reverse (`Load fp, [fp + originalFramePointer]`): the epilogue restores
   //    the original stack frame.  The return value (exit phi) still lives in a
   //    heap-frame slot but is read after the switch, so copy that slot across
   //    the switch (load while the heap frame is active, store back afterwards).

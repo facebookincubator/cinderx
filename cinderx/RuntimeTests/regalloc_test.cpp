@@ -505,6 +505,47 @@ TEST_F(LinearScanAllocatorTest, FullRunHandlesLoopPhiSlots) {
   }
 }
 
+TEST_F(LinearScanAllocatorTest, SpillAllocatorCopiesReturnAcrossFrameBaseLoad) {
+  Function function;
+  BasicBlock* block = function.allocateBasicBlock();
+  Instruction* value =
+      block->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{42});
+  Instruction* restore = block->allocateInstr(
+      Opcode::kLoad,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_frame_pointer_loc},
+      Ind{codegen::arch::reg_frame_pointer_loc, 2 * kPointerSize});
+  Instruction* result = block->allocateInstr(
+      Opcode::kMove,
+      nullptr,
+      OutPhyReg{codegen::arch::reg_general_return_loc},
+      VReg{value});
+  block->allocateInstr(Opcode::kEpilogueEnd, nullptr);
+
+  SpillAllocator{&function}.run();
+
+  auto iter = std::find_if(
+      block->instructions().begin(),
+      block->instructions().end(),
+      [restore](const auto& instruction) {
+        return instruction.get() == restore;
+      });
+  ASSERT_NE(iter, block->instructions().begin());
+  const Instruction* load = std::prev(iter)->get();
+  const Instruction* store = std::next(iter)->get();
+  ASSERT_TRUE(load->isLoad()) << function;
+  ASSERT_TRUE(store->isStore()) << function;
+  EXPECT_EQ(
+      load->getInput(0)->getStackSlot(), result->getInput(0)->getStackSlot());
+  EXPECT_EQ(
+      store->output()->getStackSlot(), result->getInput(0)->getStackSlot());
+  EXPECT_EQ(
+      load->output()->getPhyRegister(), codegen::arch::reg_general_return_loc);
+  EXPECT_EQ(
+      store->getInput(0)->getPhyRegister(),
+      codegen::arch::reg_general_return_loc);
+}
+
 TEST_F(LinearScanAllocatorTest, SpillAllocatorHandlesCriticalEdgePhiSlots) {
   Function function;
   BasicBlock* phi_block = buildCriticalEdgePhiLIR(function);
