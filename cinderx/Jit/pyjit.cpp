@@ -2476,6 +2476,20 @@ PyObject* patched_sys_settraceallthreads(
   return callInstrumentedSysFunction(original, args, nargs);
 }
 
+// On free-threaded builds the GC walk stops the world. Take both recursive
+// JIT locks before the walk so scheduling can't wait for a compiler thread
+// that needs to reattach before releasing its locks.
+template <typename Schedule>
+void scheduleExistingFunctions(Schedule schedule) {
+  if constexpr (kFreeThreadedBuild) {
+    FreeThreadedJITEntrypointGuard guard;
+    JITCompilationLock lock;
+    walkFunctionObjects(schedule);
+  } else {
+    walkFunctionObjects(schedule);
+  }
+}
+
 int compile_after_n_calls_impl(ModuleState& state, uint32_t calls) {
   if (isJitFinalizing()) {
     PyErr_SetString(PyExc_RuntimeError, "Cannot configure JIT during shutdown");
@@ -2488,7 +2502,7 @@ int compile_after_n_calls_impl(ModuleState& state, uint32_t calls) {
   getMutableConfig().compile_after_n_calls = calls;
 
   // Schedule all pre-existing functions for compilation.
-  walkFunctionObjects([&state](BorrowedRef<PyFunctionObject> func) {
+  scheduleExistingFunctions([&state](BorrowedRef<PyFunctionObject> func) {
     if (!isJitCompiled(func)) {
       scheduleJitCompile(state, func);
     }
@@ -2509,7 +2523,7 @@ int compile_after_n_bytecodes_impl(ModuleState& state, uint32_t bytecodes) {
   }
 
   getMutableConfig().compile_after_n_bytecodes = bytecodes;
-  walkFunctionObjects([&state](BorrowedRef<PyFunctionObject> func) {
+  scheduleExistingFunctions([&state](BorrowedRef<PyFunctionObject> func) {
     scheduleJitCompile(state, func);
   });
 
@@ -3047,7 +3061,7 @@ int rescheduleJitList(ModuleState& state) {
     ctx->refreshNestedCompileData(state);
   }
 
-  walkFunctionObjects([&state](BorrowedRef<PyFunctionObject> func) {
+  scheduleExistingFunctions([&state](BorrowedRef<PyFunctionObject> func) {
     auto jit_list = state.jit_list.get();
     if (jit_list->lookupFunc(func)) {
       if (!isJitCompiled(func)) {
