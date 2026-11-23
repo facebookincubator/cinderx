@@ -540,6 +540,7 @@ def main() -> None:
         packages=find_packages(where=PYTHON_LIB_DIR, exclude=["test_cinderx*"]),
         package_dir={"": PYTHON_LIB_DIR},
         package_data={
+            "cinderx": ["py.typed"],
             "cinderx.compiler.strict": ["stubs/**/*.pys"],
         },
     )
