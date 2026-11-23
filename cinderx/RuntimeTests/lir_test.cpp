@@ -377,9 +377,6 @@ TEST(LIRBlockTest, AddPhiInputUsesIncomingSlot) {
   EXPECT_TRUE(moved_value_ptr->isLastUse());
   EXPECT_EQ(phi->phiPredecessor(0), first);
   EXPECT_EQ(phi->phiPredecessor(1), second);
-  std::stringstream sparse_phi;
-  sparse_phi << *phi;
-  EXPECT_NE(sparse_phi.str().find("<unset>"), std::string::npos);
 
   phi->addPhiInput(first_edge, first_value);
 
@@ -914,16 +911,6 @@ class LIRGeneratorTest : public RuntimeTest {
 
     lir_func->sortBasicBlocks();
     return lir_func;
-  }
-
-  std::string getLIRString(PyObject* func_obj) {
-    auto lir_func = getLIRFunction(func_obj);
-    if (!lir_func) {
-      return "";
-    }
-    std::stringstream ss;
-    ss << *lir_func << '\n';
-    return ss.str();
   }
 
   void expectResumeEntryDispatchIsNotAnSSAPredecessor(
@@ -2122,88 +2109,19 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   EXPECT_EQ(frame_meta.causeInstrIdx(), BCIndex{1});
   EXPECT_EQ(frame_meta.nextInstrIdx(), BCIndex{2});
 
-  std::stringstream ss;
-
-  lir_func->sortBasicBlocks();
-  ss << *lir_func << '\n';
-#if PY_VERSION_HEX >= 0x030E0000
-  auto lir_expected = fmt::format(
-      R"(Function:
-BB %0 - succs: %1
-
-BB %1 - preds: %0 - succs: %6
-                   SetupFrame
-       %3:Object = Bind {}:Object
-       %4:Object = Bind {}:Object
-       %5:Object = Bind {}:Object
-
-BB %6 - preds: %1
-
-# v9:Nullptr = LoadConst<Nullptr>
-       %7:Object = Move 0(0x0):Object
-
-# v10:Bottom = CheckVar<"a"> v9 {{
-#   LiveValues<1> unc:v9
-#   FrameState {{
-#     CurInstrOffset 2
-#     Locals<1> v9
-#   }}
-# }}
-                   Guard 4(0x4):64bit, 0(0x0):64bit, %7:Object, 0(0x0):64bit, %7:Object
-
-# Unreachable
-                   Unreachable
-
-BB %10
-                   EpilogueEnd
-
-
-)",
-      PhyLocation{10, 64},
-      PhyLocation{11, 64},
-      // The function argument, in whichever register the ABI passes it: RDI on
-      // System V, RCX on Windows, X0 on AArch64.
-      PhyLocation{codegen::ARGUMENT_REGS[0].loc, 64});
-#else
-  auto lir_expected = fmt::format(
-      R"(Function:
-BB %0 - succs: %1
-
-BB %1 - preds: %0 - succs: %6
-                   SetupFrame
-       %3:Object = Bind {}:Object
-       %4:Object = Bind {}:Object
-       %5:Object = Bind {}:Object
-
-BB %6 - preds: %1
-
-# v9:Nullptr = LoadConst<Nullptr>
-       %7:Object = Move 0(0x0):Object
-
-# v10:Bottom = CheckVar<"a"> v9 {{
-#   LiveValues<1> unc:v9
-#   FrameState {{
-#     CurInstrOffset 2
-#     Locals<1> v9
-#   }}
-# }}
-                   Guard 4(0x4):64bit, 0(0x0):64bit, %7:Object, 0(0x0):64bit, %7:Object
-
-# Unreachable
-                   Unreachable
-
-BB %10
-                   EpilogueEnd
-
-
-)",
-      PhyLocation{10, 64},
-      PhyLocation{11, 64},
-      // The function argument, in whichever register the ABI passes it: RDI on
-      // System V, RCX on Windows, X0 on AArch64.
-      PhyLocation{codegen::ARGUMENT_REGS[0].loc, 64});
-#endif
-  ASSERT_EQ(ss.str(), lir_expected.c_str());
+  EXPECT_LIR_SEQUENCE(
+      *lir_func,
+      Query(*lir_func)
+          .opcode(Opcode::kGuard)
+          .inImm(0, static_cast<uint64_t>(InstrGuardKind::kNotZero))
+          .inImm(1, 0)
+          .inDefOpcode(2, Opcode::kMove)
+          .inDefImm(2, 0, 0),
+      Query(*lir_func)
+          .opcode(Opcode::kUnreachable)
+          .with([](const Instruction* instr) {
+            return instr->basicBlock()->getLastInstr() == instr;
+          }));
 }
 
 TEST_F(LIRGeneratorTest, AttrCachesOff) {

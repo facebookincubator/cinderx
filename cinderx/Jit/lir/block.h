@@ -46,10 +46,6 @@ class BasicBlock {
   // Get the unique ID representing this block within its function.
   int id() const;
 
-  // Change the block's ID.  This is only meant to be used by the LIR
-  // parser.  LIR strongly expects unique instruction IDs.
-  void setId(int id);
-
   // Get the function that has this block as part of its CFG.
   Function* function();
   const Function* function() const;

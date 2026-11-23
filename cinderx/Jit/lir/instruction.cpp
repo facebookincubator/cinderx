@@ -55,10 +55,6 @@ int Instruction::id() const {
   return id_;
 }
 
-void Instruction::setId(int id) {
-  id_ = id;
-}
-
 Operand* Instruction::output() {
   return &output_;
 }

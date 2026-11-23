@@ -197,10 +197,6 @@ int Function::allocateId() {
   return next_id_++;
 }
 
-void Function::setNextId(int id) {
-  next_id_ = id;
-}
-
 Function::CopyResult Function::copyFrom(
     const Function* src_func,
     BasicBlock* prev_bb,

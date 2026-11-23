@@ -49,10 +49,6 @@ int BasicBlock::id() const {
   return id_;
 }
 
-void BasicBlock::setId(int id) {
-  id_ = id;
-}
-
 Function* BasicBlock::function() {
   return func_;
 }

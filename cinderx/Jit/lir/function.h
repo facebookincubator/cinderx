@@ -27,10 +27,6 @@ class Function {
   // Allocate a new ID for a basic block or an instruction.
   int allocateId();
 
-  // Set the next ID to return from allocateId().  Only meant to be used by the
-  // LIR parser.
-  void setNextId(int id);
-
   // Deep copy function into dest_func.
   // Insert the blocks between prev_bb and next_bb.
   // Assumes that prev_bb and next_bb appear consecutively

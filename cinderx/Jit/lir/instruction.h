@@ -50,10 +50,6 @@ class Instruction {
   // Get the unique ID representing this instruction within its function.
   int id() const;
 
-  // Change the instruction's ID.  This is only meant to be used by the LIR
-  // parser.  LIR strongly expects unique instruction IDs.
-  void setId(int id);
-
   // Get the output of this function.
   //
   // All functions have an output object, even if they don't use it.

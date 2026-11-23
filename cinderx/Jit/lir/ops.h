@@ -152,7 +152,7 @@ enum class StackRegion : uint64_t {
 //
 // Columns are the condition, the one that holds exactly when it does not, the
 // one testing the same relation with the compared operands swapped, and the
-// name a BranchCC carrying it prints and parses under.  Conditions that test a
+// name a BranchCC carrying it prints under.  Conditions that test a
 // single flag rather than a comparison have no swapped form.
 //
 //    CONDITION     NEGATED       SWAPPED       BRANCH NAME
@@ -176,7 +176,7 @@ enum class StackRegion : uint64_t {
   X(Sign, NotSign, Invalid, BranchS)              \
   X(NotSign, Sign, Invalid, BranchNS)
 
-// The name a Compare carrying each condition prints and parses under.  Only
+// The name a Compare carrying each condition prints under.  Only
 // the conditions that come from comparing two values have one.
 //
 //    COMPARE NAME               CONDITION
@@ -222,14 +222,12 @@ bool carriesMemoryOrder(Opcode opcode);
 // value.
 std::string_view memoryOrderName(MemoryOrder order);
 
-// The names a BranchCC and a Compare carrying the given condition are spelled
-// with.  These are the old per-condition opcode names, kept so that LIR reads
-// and parses the same as it did before the condition became a field.
+// The printed names of a BranchCC and a Compare carrying the given condition.
 std::string_view branchCCName(Condition cond);
 std::string_view compareName(Condition cond);
 
 // The names a Load and a Store carrying the given memory order are spelled
-// with.  A "None" order prints and parses as plain Load/Store; any other
+// with.  A "None" order prints as plain Load/Store; any other
 // order is suffixed, e.g. LoadRelaxed or StoreRelaxed.
 std::string_view loadName(MemoryOrder order);
 std::string_view storeName(MemoryOrder order);
