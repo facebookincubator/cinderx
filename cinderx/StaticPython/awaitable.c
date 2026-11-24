@@ -79,11 +79,13 @@ static PySendResult awaitable_itersend(
     }
     self->iter = iter;
   }
+  Py_INCREF(iter);
 
   if (self->onsend != NULL) {
     awaitable_presend send = self->onsend;
     self->onsend = NULL;
     if (send(self)) {
+      Py_DECREF(iter);
       *pResult = NULL;
       return PYGEN_ERROR;
     }
@@ -92,6 +94,7 @@ static PySendResult awaitable_itersend(
   PyObject* result;
 
   PySendResult status = PyIter_Send(iter, value, &result);
+  Py_DECREF(iter);
   if (status == PYGEN_RETURN) {
     result = self->cb(self, result);
     if (result == NULL) {
@@ -218,9 +221,11 @@ static PyObject* awaitable_close(
     }
     self->iter = iter;
   }
+  Py_INCREF(iter);
   DEFINE_STATIC_STRING(close);
   PyObject* ret = PyObject_CallMethodObjArgs(iter, s_close, val, NULL);
   Py_CLEAR(self->iter);
+  Py_DECREF(iter);
   return ret;
 }
 
