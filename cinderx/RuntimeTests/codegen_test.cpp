@@ -7,6 +7,7 @@
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/tls.h"
+#include "cinderx/Jit/lir/function.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <cstddef>
@@ -208,6 +209,220 @@ TEST_F(CodegenTest, TakeProfileCollectorTwiceThrows) {
   EXPECT_THROW(env.takeProfileCollector(), std::runtime_error);
   EXPECT_THROW(env.profileCollector(), std::runtime_error);
 }
+
+#if defined(CINDER_AARCH64)
+TEST_F(CodegenTest, LargeOffsetMemoryLoadsAndStores) {
+  using namespace asmjit;
+  using namespace cinderx::jit::lir;
+  struct AddressMode {
+    bool indirect;
+    bool sp_relative;
+    bool immediate;
+  };
+  constexpr AddressMode modes[] = {
+      {false, true, false},
+      {false, true, true},
+      {false, false, false},
+      {false, false, true},
+      {true, false, false},
+      {true, false, true}};
+  constexpr DataType types[] = {
+      DataType::k8bit, DataType::k16bit, DataType::k32bit, DataType::k64bit};
+  constexpr uint64_t value = 0xa1b2c3d4e5f6071;
+  constexpr int frame_size = 65536;
+  for (AddressMode mode : modes) {
+    for (DataType type : types) {
+      for (int offset : {18416, 32768}) {
+        SCOPED_TRACE(offset);
+        CodeHolder code;
+        ASSERT_EQ(code.init(Environment::host()), kErrorOk);
+        arch::Builder as{&code};
+        Environ env;
+        env.as = &as;
+        env.sp_to_fp_delta =
+            mode.sp_relative ? frame_size : arch::kSpPositionUnknown;
+        as.stp(a64::x29, a64::x30, a64::ptr_pre(a64::sp, -16));
+        as.mov(a64::x29, a64::sp);
+        as.mov(a64::x13, frame_size);
+        as.sub(a64::sp, a64::sp, a64::x13);
+        as.mov(a64::x2, a64::x0);
+        as.mov(a64::x4, a64::sp);
+        int loc = mode.sp_relative ? offset - frame_size : -offset;
+        as.mov(a64::x5, mode.indirect ? offset : loc);
+        as.add(a64::x5, mode.indirect ? a64::x4 : a64::x29, a64::x5);
+        as.mov(a64::x3, UINT64_MAX);
+        as.str(a64::x3, a64::ptr(a64::x5));
+        as.mov(a64::x1, value);
+
+        Function function;
+        BasicBlock* block = function.allocateBasicBlock();
+        Instruction* store = mode.indirect
+            ? block->allocateInstr(
+                  Opcode::kStore, nullptr, OutInd{X4, offset, type})
+            : block->allocateInstr(
+                  Opcode::kStore, nullptr, OutStk{PhyLocation{loc}, type});
+        if (mode.immediate) {
+          store->allocateImmediateInput(value);
+        } else {
+          store->allocatePhyRegisterInput(X1)->setDataType(type);
+        }
+        autogen::AutoTranslator::getInstance().translateInstr(&env, store);
+        auto emit_load = [&](PhyLocation reg, DataType data_type) {
+          Instruction* load = mode.indirect
+              ? block->allocateInstr(
+                    Opcode::kLoad,
+                    nullptr,
+                    OutPhyReg{reg, data_type},
+                    Ind{X4, offset, data_type})
+              : block->allocateInstr(
+                    Opcode::kLoad,
+                    nullptr,
+                    OutPhyReg{reg, data_type},
+                    Stk{PhyLocation{loc}, data_type});
+          autogen::AutoTranslator::getInstance().translateInstr(&env, load);
+        };
+        emit_load(X1, type);
+        as.str(a64::x1, a64::ptr(a64::x2));
+        emit_load(X0, DataType::k64bit);
+        as.mov(a64::sp, a64::x29);
+        as.ldp(a64::x29, a64::x30, a64::ptr_post(a64::sp, 16));
+        as.ret(a64::x30);
+        ASSERT_EQ(as.finalize(), kErrorOk);
+        JitRuntime runtime;
+        uint64_t (*fn)(uint64_t*) = nullptr;
+        ASSERT_EQ(runtime.add(&fn, &code), kErrorOk);
+        const unsigned bits = 8u << byteShift(type);
+        const uint64_t mask = UINT64_MAX >> (64 - bits);
+        uint64_t loaded = 0;
+        EXPECT_EQ(fn(&loaded), (UINT64_MAX & ~mask) | (value & mask));
+        EXPECT_EQ(loaded, value & mask);
+        EXPECT_EQ(runtime.release(fn), kErrorOk);
+      }
+    }
+  }
+}
+TEST_F(CodegenTest, IndirectMemoryStoresPreserveRegisters) {
+  using namespace asmjit;
+  using namespace cinderx::jit::lir;
+  struct AddressCase {
+    PhyLocation value;
+    PhyLocation base;
+    PhyLocation index;
+    int32_t offset;
+    uint8_t multiplier;
+    bool immediate{false};
+    bool zero{false};
+  };
+  const AddressCase cases[] = {
+      {X1, X4, PhyLocation::REG_INVALID, 8192, 0},
+      {X13, X4, PhyLocation::REG_INVALID, 8192, 0},
+      {X14, X4, PhyLocation::REG_INVALID, 18416, 0},
+      {X13, X4, X14, 8, 3},
+      {X14, X13, X4, 8192, 1},
+      {X1, X13, X14, 18416, 2},
+      {X1, X14, X13, -8192, 3},
+      {X13, X4, X14, 0, 3},
+      {X13, X4, X14, 0, 0},
+      {PhyLocation::REG_INVALID, X14, PhyLocation::REG_INVALID, 8192, 0, true},
+      {PhyLocation::REG_INVALID, X4, X13, 8, 3, true},
+      {PhyLocation::REG_INVALID, X13, X4, -8192, 2, true},
+      {PhyLocation::REG_INVALID, X13, X14, 0, 0, true, true},
+      {PhyLocation::REG_INVALID, X13, X4, 18416, 3, true, true},
+  };
+  constexpr DataType types[] = {
+      DataType::k8bit, DataType::k16bit, DataType::k32bit, DataType::k64bit};
+  constexpr uint64_t value = 0xa1b2c3d4e5f6071;
+  uint64_t memory[8192] = {};
+  for (const AddressCase& test_case : cases) {
+    for (DataType type : types) {
+      SCOPED_TRACE(
+          ::testing::Message()
+          << test_case.value.loc << ":" << test_case.base.loc << ":"
+          << test_case.index.loc << ":" << test_case.offset << ":"
+          << bitSize(type));
+      CodeHolder code;
+      ASSERT_EQ(code.init(Environment::host()), kErrorOk);
+      arch::Builder as{&code};
+      Environ env;
+      env.as = &as;
+      as.mov(a64::x2, a64::x1);
+      auto base = a64::x(test_case.base.loc);
+      as.add(base, a64::x0, 32768);
+      const bool indexed = test_case.index != PhyLocation::REG_INVALID;
+      if (indexed) {
+        as.mov(a64::x(test_case.index.loc), 5);
+      }
+      const uint64_t stored_value = test_case.zero ? 0 : value;
+      if (!test_case.immediate) {
+        as.mov(a64::x(test_case.value.loc), stored_value);
+      }
+      as.mov(a64::x6, test_case.offset);
+      as.add(a64::x5, base, a64::x6);
+      if (indexed) {
+        as.add(
+            a64::x5,
+            a64::x5,
+            a64::x(test_case.index.loc),
+            a64::lsl(test_case.multiplier));
+      }
+      as.mov(a64::x6, UINT64_MAX);
+      as.str(a64::x6, a64::ptr(a64::x5));
+
+      Function function;
+      BasicBlock* block = function.allocateBasicBlock();
+      Instruction* store = block->allocateInstr(
+          Opcode::kStore,
+          nullptr,
+          OutInd{
+              test_case.base,
+              test_case.index,
+              1u << test_case.multiplier,
+              test_case.offset,
+              type});
+      if (test_case.immediate) {
+        store->allocateImmediateInput(stored_value);
+      } else {
+        store->allocatePhyRegisterInput(test_case.value)->setDataType(type);
+      }
+      autogen::AutoTranslator::getInstance().translateInstr(&env, store);
+      as.str(
+          test_case.immediate ? a64::xzr : a64::x(test_case.value.loc),
+          a64::ptr(a64::x2, 16));
+      Instruction* load = block->allocateInstr(
+          Opcode::kLoad,
+          nullptr,
+          OutPhyReg{X0, type},
+          Ind{test_case.base,
+              test_case.index,
+              1u << test_case.multiplier,
+              test_case.offset,
+              type});
+      autogen::AutoTranslator::getInstance().translateInstr(&env, load);
+      as.str(a64::x0, a64::ptr(a64::x2, 24));
+      as.str(base, a64::ptr(a64::x2));
+      as.str(
+          indexed ? a64::x(test_case.index.loc) : a64::xzr,
+          a64::ptr(a64::x2, 8));
+      as.ldr(a64::x0, a64::ptr(a64::x5));
+      as.ret(a64::x30);
+      ASSERT_EQ(as.finalize(), kErrorOk);
+      JitRuntime runtime;
+      uint64_t (*fn)(void*, uint64_t*) = nullptr;
+      ASSERT_EQ(runtime.add(&fn, &code), kErrorOk);
+      const unsigned bits = 8u << byteShift(type);
+      const uint64_t mask = UINT64_MAX >> (64 - bits);
+      uint64_t observed[4] = {};
+      EXPECT_EQ(
+          fn(memory, observed), (UINT64_MAX & ~mask) | (stored_value & mask));
+      EXPECT_EQ(observed[0], reinterpret_cast<uint64_t>(memory + 4096));
+      EXPECT_EQ(observed[1], indexed ? 5 : 0);
+      EXPECT_EQ(observed[2], test_case.immediate ? 0 : stored_value);
+      EXPECT_EQ(observed[3], stored_value & mask);
+      ASSERT_EQ(runtime.release(fn), kErrorOk);
+    }
+  }
+}
+#endif
 
 TEST_F(CodegenTest, DecodeFramelessInitialExecTls) {
   // mrs x8, tpidr_el0

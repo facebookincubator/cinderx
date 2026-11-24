@@ -170,6 +170,10 @@ namespace {
 
 #if defined(CINDER_AARCH64)
 
+arch::AccessSize getAccessSize(DataType data_type) {
+  return static_cast<arch::AccessSize>(1 << byteShift(data_type));
+}
+
 // Address the frame slot at |loc| (a negative offset from FP), preferring
 // SP-relative addressing so that the access usually needs no scratch base.
 asmjit::a64::Mem getStackSlotPtr(
@@ -1736,36 +1740,75 @@ void leaIndirect(
   arch::add_signed_immediate(as, output, base, offset);
 }
 
+PhyLocation indirectScratch(
+    const MemoryIndirect* indirect,
+    std::optional<PhyLocation> protected_reg = std::nullopt) {
+  const auto base = indirect->getBaseRegOperand()->getPhyRegister();
+  const auto* index = indirect->getIndexRegOperand();
+  for (const auto reg :
+       {arch::reg_scratch_0_loc,
+        arch::reg_scratch_1_loc,
+        arch::reg_scratch_br_loc}) {
+    if (reg.loc == base.loc ||
+        (index && reg.loc == index->getPhyRegister().loc) ||
+        (protected_reg && reg.loc == protected_reg->loc)) {
+      continue;
+    }
+    return reg;
+  }
+  JIT_THROW("No reserved scratch register for indirect memory operand");
+}
+
 // Resolve the memory address represented by a MemoryIndirect into an a64::Mem
 // operand suitable for load and store operations.
 arch::Mem ptrIndirect(
     arch::Builder* as,
-    arch::Gp scratch0,
-    arch::Gp scratch1,
     const MemoryIndirect* indirect,
-    DataType data_type) {
-  auto base = getGpOrSP(indirect->getBaseRegOperand());
-  auto indexRegOperand = indirect->getIndexRegOperand();
-  auto offset = indirect->getOffset();
+    DataType data_type,
+    std::optional<PhyLocation> protected_reg = std::nullopt) {
+  const auto base = getGpOrSP(indirect->getBaseRegOperand());
+  const auto* index_operand = indirect->getIndexRegOperand();
+  const auto offset = indirect->getOffset();
+  const auto access_size = getAccessSize(data_type);
 
-  if (indexRegOperand != nullptr) {
-    auto index = AT::getGp(indexRegOperand);
-    auto multiplier = indirect->getMultiplier();
-
-    if (offset == 0) {
-      if (multiplier == 0) {
-        return a64::ptr(base, index);
-      } else if (multiplier == byteShift(data_type)) {
-        return a64::ptr(base, index, a64::lsl(multiplier));
-      }
+  if (index_operand == nullptr) {
+    if (auto ptr = arch::ptr_offset_try(base, offset, access_size)) {
+      return *ptr;
     }
-
-    leaIndex(as, scratch1, base, index, multiplier);
-
-    base = scratch1;
+    return arch::ptr_resolve(
+        as,
+        base,
+        offset,
+        a64::x(indirectScratch(indirect, protected_reg).loc),
+        access_size);
   }
 
-  return arch::ptr_resolve(as, base, offset, scratch0);
+  const auto index = AT::getGp(index_operand);
+  const auto multiplier = indirect->getMultiplier();
+  if (offset == 0) {
+    if (multiplier == 0) {
+      return a64::ptr(base, index);
+    }
+    if (multiplier == byteShift(data_type)) {
+      return a64::ptr(base, index, a64::lsl(multiplier));
+    }
+  }
+
+  const auto scratch = a64::x(indirectScratch(indirect, protected_reg).loc);
+  const uint64_t magnitude = offset >= 0 ? offset : -int64_t{offset};
+  if (arm::Utils::isAddSubImm(magnitude)) {
+    leaIndex(as, scratch, base, index, multiplier);
+    if (offset > 0) {
+      as->add(scratch, scratch, magnitude);
+    } else if (offset < 0) {
+      as->sub(scratch, scratch, magnitude);
+    }
+  } else {
+    as->mov(scratch, offset);
+    as->add(scratch, base, scratch);
+    leaIndex(as, scratch, scratch, index, multiplier);
+  }
+  return a64::ptr(scratch);
 }
 
 void loadToReg(
@@ -1987,7 +2030,11 @@ void translateLoad(Environ* env, const Instruction* instr) {
             getStackSlotPtr(env, input->getStackSlot().loc));
       } else {
         auto dst = a64::x(output->getPhyRegister().loc);
-        auto ptr = getStackSlotPtr(env, input->getStackSlot().loc, dst);
+        auto ptr = getStackSlotPtr(
+            env,
+            input->getStackSlot().loc,
+            dst,
+            getAccessSize(output->dataType()));
         switch (output->dataType()) {
           case lir::Operand::k8bit:
             as->ldrb(AT::getGpOutput(output), ptr);
@@ -2003,12 +2050,8 @@ void translateLoad(Environ* env, const Instruction* instr) {
       break;
     }
     case lir::OperandType::kInd: {
-      auto ptr = ptrIndirect(
-          as,
-          arch::reg_scratch_0,
-          arch::reg_scratch_1,
-          input->getMemoryIndirect(),
-          output->dataType());
+      auto ptr =
+          ptrIndirect(as, input->getMemoryIndirect(), output->dataType());
       loadToReg(as, output, ptr);
       break;
     }
@@ -2060,7 +2103,11 @@ void translateStore(Environ* env, const Instruction* instr) {
       if (!input->isReg()) {
         // For Imm store to stack, we need to materialize via scratch.
         as->mov(scratch1, input->getConstant());
-        auto ptr = getStackSlotPtr(env, output->getStackSlot().loc, scratch1);
+        auto ptr = getStackSlotPtr(
+            env,
+            output->getStackSlot().loc,
+            scratch0,
+            getAccessSize(output->dataType()));
         switch (output->dataType()) {
           case lir::Operand::k8bit:
             as->strb(a64::w(scratch1.id()), ptr);
@@ -2083,7 +2130,11 @@ void translateStore(Environ* env, const Instruction* instr) {
             as,
             input,
             output,
-            getStackSlotPtr(env, output->getStackSlot().loc, scratch));
+            getStackSlotPtr(
+                env,
+                output->getStackSlot().loc,
+                scratch,
+                getAccessSize(output->dataType())));
       }
       break;
     }
@@ -2102,55 +2153,24 @@ void translateStore(Environ* env, const Instruction* instr) {
       break;
     }
     case lir::OperandType::kInd: {
+      const auto* indirect = output->getMemoryIndirect();
       if (input->isReg()) {
-        auto ptr = ptrIndirect(
-            as,
-            scratch0,
-            scratch1,
-            output->getMemoryIndirect(),
-            output->dataType());
+        const auto protected_reg = input->isVecD()
+            ? std::nullopt
+            : std::optional{input->getPhyRegister()};
+        auto ptr = ptrIndirect(as, indirect, output->dataType(), protected_reg);
         storeFromReg(as, input, output, ptr);
       } else {
-        auto ptr = ptrIndirect(
-            as,
-            scratch0,
-            scratch1,
-            output->getMemoryIndirect(),
-            output->dataType());
-        switch (output->dataType()) {
-          case lir::Operand::k8bit:
-            if (input->getConstant()) {
-              as->mov(a64::w(scratch1.id()), input->getConstant());
-              as->strb(a64::w(scratch1.id()), ptr);
-            } else {
-              as->strb(a64::wzr, ptr);
-            }
-            break;
-          case lir::Operand::k16bit:
-            if (input->getConstant()) {
-              as->mov(a64::w(scratch1.id()), input->getConstant());
-              as->strh(a64::w(scratch1.id()), ptr);
-            } else {
-              as->strh(a64::wzr, ptr);
-            }
-            break;
-          case lir::Operand::k32bit:
-            if (input->getConstant()) {
-              as->mov(a64::w(scratch1.id()), input->getConstant());
-              as->str(a64::w(scratch1.id()), ptr);
-            } else {
-              as->str(a64::wzr, ptr);
-            }
-            break;
-          default:
-            if (input->getConstant()) {
-              as->mov(scratch1, input->getConstant());
-              as->str(scratch1, ptr);
-            } else {
-              as->str(a64::xzr, ptr);
-            }
-            break;
+        const auto value_reg =
+            input->getConstant() ? indirectScratch(indirect) : XZR;
+        if (input->getConstant()) {
+          as->mov(a64::x(value_reg.loc), input->getConstant());
         }
+        auto ptr = ptrIndirect(as, indirect, output->dataType(), value_reg);
+        lir::Operand value;
+        value.setPhyRegister(value_reg);
+        value.setDataType(output->dataType());
+        storeFromReg(as, &value, output, ptr);
       }
       break;
     }
