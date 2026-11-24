@@ -40,11 +40,16 @@ TEST(UtilTestNoFixture, Worklist) {
   ASSERT_FALSE(wl.empty());
   EXPECT_EQ(wl.front(), 5);
   wl.pop();
+  wl.push(5);
+  wl.push(5);
   ASSERT_FALSE(wl.empty());
   EXPECT_EQ(wl.front(), 12);
   wl.pop();
   ASSERT_FALSE(wl.empty());
   EXPECT_EQ(wl.front(), 14);
+  wl.pop();
+  ASSERT_FALSE(wl.empty());
+  EXPECT_EQ(wl.front(), 5);
   wl.pop();
   EXPECT_TRUE(wl.empty());
 }
