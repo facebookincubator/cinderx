@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <initializer_list>
 #include <iterator>
+#include <map>
 #include <optional>
 #include <vector>
 
@@ -544,6 +545,300 @@ TEST_F(LinearScanAllocatorTest, SpillAllocatorCopiesReturnAcrossFrameBaseLoad) {
   EXPECT_EQ(
       store->getInput(0)->getPhyRegister(),
       codegen::arch::reg_general_return_loc);
+}
+
+TEST_F(LinearScanAllocatorTest, SpillAllocatorPreservesCyclicPhiValues) {
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* loop = function.allocateBasicBlock();
+  BasicBlock* exit = function.allocateBasicBlock();
+  const IncomingEdge initial = entry->addSuccessor(loop);
+  const IncomingEdge backedge = loop->addSuccessor(loop);
+  loop->addSuccessor(exit);
+  Instruction* first =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{111});
+  Instruction* second =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{222});
+  Instruction* a = loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  Instruction* b = loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  a->addPhiInput(initial, first);
+  b->addPhiInput(initial, second);
+  a->addPhiInput(backedge, b);
+  b->addPhiInput(backedge, a);
+  loop->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{first}, Lbl{loop}, Lbl{exit});
+  Instruction* result_a =
+      exit->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, VReg{a});
+  Instruction* result_b =
+      exit->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, VReg{b});
+
+  SpillAllocator{&function}.run();
+
+  std::map<int, uint64_t> slots;
+  std::map<int, uint64_t> registers;
+  std::vector<uint64_t> stack;
+  auto execute_copies = [&](const BasicBlock* block) {
+    for (const auto& instr : block->instructions()) {
+      const Operand* out = instr->output();
+      if (instr->isMove()) {
+        registers[out->getPhyRegister().loc] =
+            instr->getInput(0)->getConstant();
+      } else if (instr->isLoad()) {
+        registers[out->getPhyRegister().loc] =
+            slots.at(instr->getInput(0)->getStackSlot().loc);
+      } else if (instr->isStore()) {
+        const Operand* in = instr->getInput(0);
+        slots[out->getStackSlot().loc] = in->isImm()
+            ? in->getConstant()
+            : registers.at(in->getPhyRegister().loc);
+      } else if (instr->isPush()) {
+        stack.push_back(slots.at(instr->getInput(0)->getStackSlot().loc));
+      } else if (instr->isPop()) {
+        ASSERT_FALSE(stack.empty());
+        slots[out->getStackSlot().loc] = stack.back();
+        stack.pop_back();
+      }
+    }
+  };
+  execute_copies(entry);
+  execute_copies(loop);
+  EXPECT_EQ(slots.at(result_a->getInput(0)->getStackSlot().loc), 222);
+  EXPECT_EQ(slots.at(result_b->getInput(0)->getStackSlot().loc), 111);
+  EXPECT_TRUE(stack.empty());
+}
+
+TEST_F(LinearScanAllocatorTest, SpillAllocatorPreservesMixedPhiSources) {
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* loop = function.allocateBasicBlock();
+  BasicBlock* exit = function.allocateBasicBlock();
+  const IncomingEdge initial = entry->addSuccessor(loop);
+  const IncomingEdge backedge = loop->addSuccessor(loop);
+  loop->addSuccessor(exit);
+  Instruction* first =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{111});
+  const PhyLocation scratch0 = codegen::arch::reg_scratch_0_loc;
+#if defined(CINDER_AARCH64)
+  const PhyLocation scratch1 = codegen::arch::reg_scratch_1_loc;
+#else
+  const PhyLocation scratch1 = codegen::arch::reg_general_auxilary_return_loc;
+#endif
+  entry->allocateInstr(Opcode::kMove, nullptr, OutPhyReg{scratch0}, Imm{222});
+  entry->allocateInstr(Opcode::kMove, nullptr, OutPhyReg{scratch1}, Imm{333});
+  Instruction* a = loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  Instruction* physical0 =
+      loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  Instruction* physical1 =
+      loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  Instruction* immediate =
+      loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  Instruction* previous = loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  auto add_physical = [](Instruction* phi, IncomingEdge edge, PhyLocation reg) {
+    auto operand = std::make_unique<Operand>();
+    operand->setPhyRegister(reg);
+    operand->setDataType(DataType::k64bit);
+    phi->addPhiInput(edge, std::move(operand));
+  };
+  auto add_immediate = [](Instruction* phi, IncomingEdge edge, uint64_t value) {
+    auto operand = std::make_unique<Operand>();
+    operand->setConstant(value);
+    phi->addPhiInput(edge, std::move(operand));
+  };
+  a->addPhiInput(initial, first);
+  add_physical(physical0, initial, scratch0);
+  add_physical(physical1, initial, scratch1);
+  add_immediate(immediate, initial, 444);
+  previous->addPhiInput(initial, first);
+  a->addPhiInput(backedge, physical0);
+  add_physical(physical0, backedge, scratch0);
+  add_physical(physical1, backedge, scratch1);
+  add_immediate(immediate, backedge, 777);
+  previous->addPhiInput(backedge, immediate);
+  loop->allocateInstr(Opcode::kMove, nullptr, OutPhyReg{scratch0}, Imm{555});
+  loop->allocateInstr(Opcode::kMove, nullptr, OutPhyReg{scratch1}, Imm{666});
+  loop->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{first}, Lbl{loop}, Lbl{exit});
+  std::vector<Instruction*> results;
+  for (Instruction* phi : {a, physical0, physical1, immediate, previous}) {
+    results.push_back(
+        exit->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, VReg{phi}));
+  }
+
+  SpillAllocator{&function}.run();
+
+  std::map<int, uint64_t> slots;
+  std::map<int, uint64_t> registers;
+  std::vector<uint64_t> stack;
+  auto execute_copies = [&](const BasicBlock* block) {
+    for (const auto& instr : block->instructions()) {
+      const Operand* out = instr->output();
+      const Operand* in = instr->getNumInputs() ? instr->getInput(0) : nullptr;
+      if (instr->isMove()) {
+        registers[out->getPhyRegister().loc] = in->getConstant();
+      } else if (instr->isLoad()) {
+        registers[out->getPhyRegister().loc] = slots.at(in->getStackSlot().loc);
+      } else if (instr->isStore()) {
+        slots[out->getStackSlot().loc] = in->isImm()
+            ? in->getConstant()
+            : registers.at(in->getPhyRegister().loc);
+      } else if (instr->isPush()) {
+        stack.push_back(
+            in->isStack() ? slots.at(in->getStackSlot().loc)
+                          : registers.at(in->getPhyRegister().loc));
+      } else if (instr->isPop()) {
+        ASSERT_FALSE(stack.empty());
+        slots[out->getStackSlot().loc] = stack.back();
+        stack.pop_back();
+      }
+    }
+  };
+  auto check_values = [&](std::initializer_list<uint64_t> expected) {
+    size_t index = 0;
+    for (uint64_t value : expected) {
+      SCOPED_TRACE(index);
+      EXPECT_EQ(
+          slots.at(results[index++]->getInput(0)->getStackSlot().loc), value);
+    }
+    EXPECT_TRUE(stack.empty());
+  };
+  execute_copies(entry);
+  check_values({111, 222, 333, 444, 111});
+  execute_copies(loop);
+  check_values({222, 555, 666, 777, 444});
+}
+
+namespace {
+
+struct SpillCopyState {
+  std::map<int, uint64_t> slots;
+  std::map<int, uint64_t> registers;
+  std::vector<uint64_t> stack;
+
+  void execute(const BasicBlock* block) {
+    for (const auto& instr : block->instructions()) {
+      const Operand* out = instr->output();
+      const Operand* in = instr->getNumInputs() ? instr->getInput(0) : nullptr;
+      if (instr->isMove()) {
+        registers[out->getPhyRegister().loc] = in->getConstant();
+      } else if (instr->isLoad()) {
+        registers[out->getPhyRegister().loc] = slots.at(in->getStackSlot().loc);
+      } else if (instr->isStore()) {
+        slots[out->getStackSlot().loc] = in->isImm()
+            ? in->getConstant()
+            : registers.at(in->getPhyRegister().loc);
+      } else if (instr->isPush()) {
+        stack.push_back(
+            in->isStack() ? slots.at(in->getStackSlot().loc)
+                          : registers.at(in->getPhyRegister().loc));
+      } else if (instr->isPop()) {
+        ASSERT_FALSE(stack.empty());
+        slots[out->getStackSlot().loc] = stack.back();
+        stack.pop_back();
+      } else {
+        ASSERT_TRUE(instr->isCondBranch());
+      }
+    }
+  }
+};
+
+} // namespace
+
+TEST_F(
+    LinearScanAllocatorTest,
+    SpillAllocatorPreservesCrossSuccessorPhysicalSource) {
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* first = function.allocateBasicBlock();
+  BasicBlock* second = function.allocateBasicBlock();
+  const IncomingEdge first_edge = entry->addSuccessor(first);
+  const IncomingEdge second_edge = entry->addSuccessor(second);
+  Instruction* condition =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{0});
+  Instruction* value =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{111});
+  const PhyLocation scratch = codegen::arch::reg_scratch_0_loc;
+  entry->allocateInstr(Opcode::kMove, nullptr, OutPhyReg{scratch}, Imm{222});
+  entry->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{condition}, Lbl{first}, Lbl{second});
+  Instruction* a = first->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  Instruction* b = second->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  a->addPhiInput(first_edge, value);
+  auto physical = std::make_unique<Operand>();
+  physical->setPhyRegister(scratch);
+  physical->setDataType(DataType::k64bit);
+  b->addPhiInput(second_edge, std::move(physical));
+  Instruction* result_a =
+      first->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, VReg{a});
+  Instruction* result_b =
+      second->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, VReg{b});
+
+  SpillAllocator{&function}.run();
+
+  SpillCopyState state;
+  state.execute(entry);
+  EXPECT_EQ(state.slots.at(result_a->getInput(0)->getStackSlot().loc), 111);
+  EXPECT_EQ(state.slots.at(result_b->getInput(0)->getStackSlot().loc), 222);
+  EXPECT_TRUE(state.stack.empty());
+}
+
+TEST_F(
+    LinearScanAllocatorTest,
+    SpillAllocatorPreservesCrossSuccessorSlotSource) {
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* loop = function.allocateBasicBlock();
+  BasicBlock* exit = function.allocateBasicBlock();
+  const IncomingEdge initial = entry->addSuccessor(loop);
+  const IncomingEdge backedge = loop->addSuccessor(loop);
+  const IncomingEdge exiting = loop->addSuccessor(exit);
+  Instruction* condition =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{0});
+  Instruction* value =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{111});
+  Instruction* a = loop->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  a->addPhiInput(initial, value);
+  Instruction* next =
+      loop->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{222});
+  a->addPhiInput(backedge, next);
+  loop->allocateInstr(
+      Opcode::kCondBranch, nullptr, VReg{condition}, Lbl{loop}, Lbl{exit});
+  Instruction* b = exit->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  b->addPhiInput(exiting, a);
+  Instruction* result =
+      exit->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, VReg{b});
+
+  SpillAllocator{&function}.run();
+
+  SpillCopyState state;
+  state.execute(entry);
+  state.execute(loop);
+  EXPECT_EQ(state.slots.at(result->getInput(0)->getStackSlot().loc), 111);
+  EXPECT_TRUE(state.stack.empty());
+}
+
+TEST_F(
+    LinearScanAllocatorTest,
+    SpillAllocatorRejectsConflictingSuccessorPhiInputs) {
+  Function function;
+  BasicBlock* entry = function.allocateBasicBlock();
+  BasicBlock* successor = function.allocateBasicBlock();
+  const IncomingEdge first_edge = entry->addSuccessor(successor);
+  const IncomingEdge second_edge = entry->addSuccessor(successor);
+  Instruction* first =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{111});
+  Instruction* second =
+      entry->allocateInstr(Opcode::kMove, nullptr, OutVReg{}, Imm{222});
+  entry->allocateInstr(
+      Opcode::kCondBranch,
+      nullptr,
+      VReg{first},
+      Lbl{successor},
+      Lbl{successor});
+  Instruction* phi = successor->allocateInstr(Opcode::kPhi, nullptr, OutVReg{});
+  phi->addPhiInput(first_edge, first);
+  phi->addPhiInput(second_edge, second);
+
+  EXPECT_THROW((SpillAllocator{&function}.run()), std::runtime_error);
 }
 
 TEST_F(LinearScanAllocatorTest, SpillAllocatorHandlesCriticalEdgePhiSlots) {

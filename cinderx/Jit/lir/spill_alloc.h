@@ -93,9 +93,8 @@ class SpillAllocator : public RegisterAllocator {
   // Delete phi instructions once all their uses have been rewritten.
   void removePhis();
 
-  // Emit the phi copies for the edge from `pred` to `succ` at the end of
-  // `pred`.
-  void emitPhiCopies(BasicBlock* pred, BasicBlock* succ, size_t incoming_slot);
+  // Emit one parallel copy for all real outgoing edges at the end of `pred`.
+  void emitPhiCopies(BasicBlock* pred);
 
   // Reset the per-instruction scratch register counters.
   void resetScratch();

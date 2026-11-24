@@ -2,8 +2,10 @@
 
 #include "cinderx/Jit/lir/spill_alloc.h"
 
+#include "cinderx/Common/containers.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/copy_graph.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/printer.h"
 
@@ -436,30 +438,17 @@ void SpillAllocator::resolveControlFlow() {
     bool yield_with_resume =
         last_op == Opcode::kBranchToYieldExit && succs.size() == 2;
 
-    if (succs.size() == 1 || yield_with_resume) {
-      BasicBlock* successor = succs.front();
-      emitPhiCopies(pred, successor, pred->outgoingEdge(0).incomingSlot());
+    if (yield_with_resume) {
+      pred->popSuccessor();
+    }
+    emitPhiCopies(pred);
 
-      // CFG-only branches and exit pseudo-terminators are removed so
-      // PostRegAllocRewrite can insert a real branch when one is needed.
-      if (last_op == Opcode::kReturn || last_op == Opcode::kBranchToYieldExit ||
-          (last_op == Opcode::kBranch && last->getNumInputs() == 0)) {
-        pred->removeInstr(pred->getLastInstrIter());
-      }
-      if (yield_with_resume) {
-        pred->popSuccessor();
-      }
-    } else {
-      // Conditional branch.  Each phi output has its own slot, so emitting the
-      // copies for both successors at the end of the predecessor is safe: a
-      // successor only ever reads the slots for its own phis.
-      for (size_t outgoing_slot = 0; outgoing_slot < succs.size();
-           ++outgoing_slot) {
-        emitPhiCopies(
-            pred,
-            succs[outgoing_slot],
-            pred->outgoingEdge(outgoing_slot).incomingSlot());
-      }
+    // CFG-only branches and exit pseudo-terminators are removed so
+    // PostRegAllocRewrite can insert a real branch when one is needed.
+    if (succs.size() == 1 &&
+        (last_op == Opcode::kReturn || last_op == Opcode::kBranchToYieldExit ||
+         (last_op == Opcode::kBranch && last->getNumInputs() == 0))) {
+      pred->removeInstr(pred->getLastInstrIter());
     }
   }
 }
@@ -471,36 +460,92 @@ void SpillAllocator::removePhis() {
   }
 }
 
-void SpillAllocator::emitPhiCopies(
-    BasicBlock* pred,
-    BasicBlock* succ,
-    size_t incoming_slot) {
+void SpillAllocator::emitPhiCopies(BasicBlock* pred) {
   instr_iter_t insert_at = pred->instructions().end();
   Instruction* last = pred->getLastInstr();
   if (last != nullptr && isBlockTerminator(last)) {
     insert_at = pred->getLastInstrIter();
   }
 
-  succ->foreachPhiInstr([&](const Instruction* phi) {
-    const Operand* src = phi->phiInput(incoming_slot);
-    if (src == nullptr) {
-      return;
+  struct PhiCopy {
+    const Operand* source;
+    const Operand* destination;
+  };
+  std::vector<PhiCopy> phi_copies;
+  UnorderedSet<const Instruction*> destinations;
+  const auto& successors = pred->successors();
+  for (size_t outgoing_slot = 0; outgoing_slot < successors.size();
+       ++outgoing_slot) {
+    const size_t incoming_slot =
+        pred->outgoingEdge(outgoing_slot).incomingSlot();
+    successors[outgoing_slot]->foreachPhiInstr([&](const Instruction* phi) {
+      const Operand* src = phi->phiInput(incoming_slot);
+      if (src != nullptr) {
+        JIT_THROW_IF(
+            !destinations.insert(phi).second,
+            "Spill phi copies require distinct destinations across successors");
+        phi_copies.push_back({src, phi->output()});
+      }
+    });
+  }
+
+  CopyGraph copies;
+  std::vector<PhyLocation> captured_gp_destinations;
+  for (const auto& [src, dst] : phi_copies) {
+    if (!shouldReplaceOperand(*src)) {
+      if (src->isReg() && !src->isFp()) {
+        pred->allocateInstrBefore(
+            insert_at,
+            Opcode::kPush,
+            PhyReg{src->getPhyRegister(), DataType::k64bit});
+        captured_gp_destinations.push_back(slotFor(dst));
+      }
+      continue;
+    }
+    const int from = slotFor(src->getDefine()).loc;
+    const int to = slotFor(dst).loc;
+    if (from != to) {
+      copies.addEdge(from, to);
+    }
+  }
+  for (const auto& copy : copies.process()) {
+    JIT_DCHECK(
+        copy.kind == CopyGraph::Op::Kind::kCopy,
+        "Spill phi copies cannot exchange registers");
+    if (copy.to == CopyGraph::kTempLoc) {
+      pred->allocateInstrBefore(
+          insert_at,
+          Opcode::kPush,
+          Stk{PhyLocation{copy.from}, DataType::k64bit});
+    } else if (copy.from == CopyGraph::kTempLoc) {
+      pred->allocateInstrBefore(
+          insert_at,
+          Opcode::kPop,
+          OutStk{PhyLocation{copy.to}, DataType::k64bit});
+    } else {
+      pred->allocateInstrBefore(
+          insert_at,
+          Opcode::kLoad,
+          OutPhyReg{arch::reg_scratch_0_loc, DataType::k64bit},
+          Stk{PhyLocation{copy.from}, DataType::k64bit});
+      pred->allocateInstrBefore(
+          insert_at,
+          Opcode::kStore,
+          OutStk{PhyLocation{copy.to}, DataType::k64bit},
+          PhyReg{arch::reg_scratch_0_loc, DataType::k64bit});
+      changed_regs_.set(arch::reg_scratch_0_loc);
+    }
+  }
+
+  for (const auto& [src, destination] : phi_copies) {
+    if (shouldReplaceOperand(*src) || (src->isReg() && !src->isFp())) {
+      continue;
     }
 
-    PhyLocation dst = slotFor(phi->output());
-    DataType dt = phi->output()->dataType();
+    const PhyLocation dst = slotFor(destination);
+    const DataType dt = destination->dataType();
 
-    resetScratch();
-    if (shouldReplaceOperand(*src)) {
-      PhyLocation reg = loadToScratch(
-          pred,
-          insert_at,
-          slotFor(src->getDefine()),
-          dt,
-          phi->output()->isFp());
-      pred->allocateInstrBefore(
-          insert_at, Opcode::kStore, OutStk{dst, dt}, PhyReg{reg, dt});
-    } else if (src->isImm()) {
+    if (src->isImm()) {
       pred->allocateInstrBefore(
           insert_at,
           Opcode::kStore,
@@ -515,7 +560,14 @@ void SpillAllocator::emitPhiCopies(
     } else {
       JIT_THROW("Unsupported phi operand for spill allocation: {}", *src);
     }
-  });
+  }
+
+  for (auto it = captured_gp_destinations.rbegin();
+       it != captured_gp_destinations.rend();
+       ++it) {
+    pred->allocateInstrBefore(
+        insert_at, Opcode::kPop, OutStk{*it, DataType::k64bit});
+  }
 }
 
 } // namespace cinderx::jit::lir
