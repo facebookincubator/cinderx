@@ -168,6 +168,24 @@ static int cached_property_traverse(
   return 0;
 }
 
+/* These types use PyType_GenericNew and set their fields only in tp_init, so
+   `T.__new__(T)` yields an instance whose fields are NULL. Raise instead of
+   dereferencing them. The error path is outlined to keep the check on the
+   descriptor hot path down to one predictable branch. */
+__attribute__((noinline, cold)) static void cached_property_uninitialized(
+    PyObject* self) {
+  PyErr_Format(
+      PyExc_TypeError, "%s object is not initialized", Py_TYPE(self)->tp_name);
+}
+
+static inline int cached_property_check_init(PyObject* self, PyObject* field) {
+  if (__builtin_expect(field == NULL, 0)) {
+    cached_property_uninitialized(self);
+    return -1;
+  }
+  return 0;
+}
+
 static int
 cached_property_init(PyObject* self, PyObject* args, PyObject* kwds) {
   PyCachedPropertyDescrObject* cp = (PyCachedPropertyDescrObject*)self;
@@ -281,6 +299,10 @@ cached_property_get(PyObject* self, PyObject* obj, PyObject* cls) {
     return self;
   }
 
+  if (cached_property_check_init(self, cp->name_or_descr) < 0) {
+    return NULL;
+  }
+
   if (Py_TYPE(cp->name_or_descr) == &PyMemberDescr_Type) {
     PyObject** addr;
     PyMemberDescrObject* descr = (PyMemberDescrObject*)cp->name_or_descr;
@@ -355,6 +377,10 @@ static int cached_property_set(PyObject* self, PyObject* obj, PyObject* value) {
   PyCachedPropertyDescrObject* cp = (PyCachedPropertyDescrObject*)self;
   PyObject** dictptr;
 
+  if (cached_property_check_init(self, cp->name_or_descr) < 0) {
+    return -1;
+  }
+
   if (Py_TYPE(cp->name_or_descr) == &PyMemberDescr_Type) {
     return Py_TYPE(cp->name_or_descr)
         ->tp_descr_set(cp->name_or_descr, obj, value);
@@ -383,6 +409,9 @@ static void cached_property_dealloc(PyCachedPropertyDescrObject* cp) {
 static PyObject* cached_property_get___doc__(
     PyCachedPropertyDescrObject* cp,
     void* closure) {
+  if (cached_property_check_init((PyObject*)cp, cp->func) < 0) {
+    return NULL;
+  }
   PyObject* res = ((PyFunctionObject*)cp->func)->func_doc;
   Py_INCREF(res);
   return res;
@@ -392,6 +421,10 @@ static PyObject* cached_property_get_name(
     PyCachedPropertyDescrObject* cp,
     void* closure) {
   PyObject* res;
+
+  if (cached_property_check_init((PyObject*)cp, cp->name_or_descr) < 0) {
+    return NULL;
+  }
 
   if (Py_TYPE(cp->name_or_descr) != &PyMemberDescr_Type) {
     res = cp->name_or_descr;
@@ -405,6 +438,10 @@ static PyObject* cached_property_get_name(
 static PyObject* cached_property_get_slot(
     PyCachedPropertyDescrObject* cp,
     void* closure) {
+  if (cached_property_check_init((PyObject*)cp, cp->name_or_descr) < 0) {
+    return NULL;
+  }
+
   if (Py_TYPE(cp->name_or_descr) == &PyMemberDescr_Type) {
     PyObject* res = cp->name_or_descr;
 
@@ -419,6 +456,10 @@ static PyObject* cached_property_clear(
     PyObject* obj) {
   PyCachedPropertyDescrObject* cp = (PyCachedPropertyDescrObject*)self;
   PyObject** dictptr;
+
+  if (cached_property_check_init((PyObject*)self, cp->name_or_descr) < 0) {
+    return NULL;
+  }
 
   if (Py_TYPE(cp->name_or_descr) == &PyMemberDescr_Type) {
     if (Py_TYPE(cp->name_or_descr)->tp_descr_set(cp->name_or_descr, obj, NULL) <
@@ -455,6 +496,10 @@ static PyObject* cached_property_has_value(
     PyObject* obj) {
   PyCachedPropertyDescrObject* cp = (PyCachedPropertyDescrObject*)self;
   PyObject** dictptr;
+
+  if (cached_property_check_init((PyObject*)self, cp->name_or_descr) < 0) {
+    return NULL;
+  }
 
   if (Py_TYPE(cp->name_or_descr) == &PyMemberDescr_Type) {
     PyObject* value =
@@ -502,6 +547,10 @@ static PyObject* cached_property___set_name__(
   PyCachedPropertyDescrObject* cp = (PyCachedPropertyDescrObject*)self;
   PyObject* Py_UNUSED(owner) = args[0];
   PyObject* name = args[1];
+
+  if (cached_property_check_init(self, cp->name_or_descr) < 0) {
+    return NULL;
+  }
 
   // Perform error checks if the name wasn't initialized (i.e, not None)
   if (cp->name_or_descr != Py_None) {
@@ -716,6 +765,10 @@ async_cached_property_get(PyObject* self, PyObject* obj, PyObject* cls) {
     return self;
   }
 
+  if (cached_property_check_init(self, cp->name_or_descr) < 0) {
+    return NULL;
+  }
+
   if (Py_TYPE(cp->name_or_descr) == &PyMemberDescr_Type) {
     PyObject** addr;
     PyMemberDescrObject* descr = (PyMemberDescrObject*)cp->name_or_descr;
@@ -782,6 +835,9 @@ static void async_cached_property_dealloc(
 static PyObject* async_cached_property_get___doc__(
     PyAsyncCachedPropertyDescrObject* cp,
     void* closure) {
+  if (cached_property_check_init((PyObject*)cp, cp->func) < 0) {
+    return NULL;
+  }
   PyObject* res = ((PyFunctionObject*)cp->func)->func_doc;
   Py_INCREF(res);
   return res;
@@ -791,6 +847,10 @@ static PyObject* async_cached_property_get_name(
     PyAsyncCachedPropertyDescrObject* cp,
     void* closure) {
   PyObject* res;
+
+  if (cached_property_check_init((PyObject*)cp, cp->name_or_descr) < 0) {
+    return NULL;
+  }
 
   if (Py_TYPE(cp->name_or_descr) != &PyMemberDescr_Type) {
     res = cp->name_or_descr;
@@ -804,6 +864,10 @@ static PyObject* async_cached_property_get_name(
 static PyObject* async_cached_property_get_slot(
     PyAsyncCachedPropertyDescrObject* cp,
     void* closure) {
+  if (cached_property_check_init((PyObject*)cp, cp->name_or_descr) < 0) {
+    return NULL;
+  }
+
   if (Py_TYPE(cp->name_or_descr) == &PyMemberDescr_Type) {
     PyObject* res = cp->name_or_descr;
 
@@ -818,6 +882,10 @@ async_cached_property_set(PyObject* self, PyObject* obj, PyObject* value) {
   PyAsyncCachedPropertyDescrObject* cp =
       (PyAsyncCachedPropertyDescrObject*)self;
   PyObject** dictptr;
+
+  if (cached_property_check_init(self, cp->name_or_descr) < 0) {
+    return -1;
+  }
 
   if (Py_TYPE(cp->name_or_descr) == &PyMemberDescr_Type) {
     return Py_TYPE(cp->name_or_descr)
