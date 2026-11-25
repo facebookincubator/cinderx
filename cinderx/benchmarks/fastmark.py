@@ -1,9 +1,12 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyrefly: ignore-errors
+# Benchmark modules are added to sys.path at runtime; baselines are optional.
+# pyrefly: ignore-errors[missing-import]
 
 # Vendored version of https://github.com/colesbury/fastmark with modifications
 # to work with cinderx
+
+from __future__ import annotations
 
 import argparse
 import inspect
@@ -12,11 +15,24 @@ import os
 import sys
 import time
 import types
+from collections.abc import Awaitable, Callable, Sequence
+from typing import Any, TYPE_CHECKING
 
 import cinderx.jit
 
+if TYPE_CHECKING:
+    from dulwich.repo import Repo
 
-EXCLUDED = {
+    _AsyncBenchmark = Callable[[], Awaitable[None]]
+    _BenchmarkFunc = Callable[..., Any]
+    _Decorator = Callable[[_BenchmarkFunc], _BenchmarkFunc]
+    _Benchmark = (
+        tuple[str, str | Callable[[], _AsyncBenchmark], str, int]
+        | tuple[str, str, str, int, object]
+    )
+
+
+EXCLUDED: set[str] = {
     "asyncio_tcp",
     "asyncio_tcp_ssl",
     "bench_mp_pool",  # uses subprocess
@@ -29,7 +45,7 @@ if sys.version_info >= (3, 13):
     EXCLUDED.add("sqlalchemy_imperative")
 
 
-def ADD_PATH(path):
+def ADD_PATH(path: str) -> None:
     sys.path.append(os.path.join(os.path.dirname(__file__), path))
 
 
@@ -42,9 +58,9 @@ except ImportError:
     )
     sys.exit(1)
 
-PYPERFORMANCE = os.path.dirname(pyperformance.__file__)
+PYPERFORMANCE: str = os.path.dirname(pyperformance.__file__)
 
-BENCHMARKS = os.path.join(PYPERFORMANCE, "data-files", "benchmarks")
+BENCHMARKS: str = os.path.join(PYPERFORMANCE, "data-files", "benchmarks")
 
 ADD_PATH(os.path.join(BENCHMARKS, "bm_regex_compile"))
 ADD_PATH(BENCHMARKS)
@@ -57,7 +73,7 @@ logging.getLogger("RefactoringTool").setLevel(level=logging.ERROR)
 logging.getLogger("websockets.server").setLevel(level=logging.ERROR)
 
 
-def run_2to3(loops):
+def run_2to3(loops: int) -> float:
     import glob
     import lib2to3.main
 
@@ -76,7 +92,7 @@ def run_2to3(loops):
     return end - start
 
 
-def run_bpe_tokeniser(loops):
+def run_bpe_tokeniser(loops: int) -> float:
     # Shorten the data file to speed up the benchmark
     import bm_bpe_tokeniser.run_benchmark as bm_bpe_tokeniser
 
@@ -96,7 +112,7 @@ def run_bpe_tokeniser(loops):
     return end - start
 
 
-def run_chaos(loops):
+def run_chaos(loops: int) -> float:
     import bm_chaos.run_benchmark as bm_chaos
     from benchmarks.bm_chaos.run_benchmark import Chaosgame, GVector, Spline
 
@@ -150,7 +166,7 @@ def run_chaos(loops):
     return end - start
 
 
-def bench_sympy(loops, func_name):
+def bench_sympy(loops: int, func_name: str) -> float:
     import bm_sympy.run_benchmark as bm_sympy
     from sympy.core.cache import clear_cache
 
@@ -169,7 +185,7 @@ def bench_sympy(loops, func_name):
     return dt
 
 
-def bench_tomli_loads(loops):
+def bench_tomli_loads(loops: int) -> float:
     # Shrink data file to speed up the benchmark
     import tomli
 
@@ -185,7 +201,7 @@ def bench_tomli_loads(loops):
     return time.perf_counter() - t0
 
 
-def bench_mako(loops):
+def bench_mako(loops: int) -> float:
     import mako  # noqa
     from mako.lookup import TemplateLookup  # noqa
     from mako.template import Template  # noqa
@@ -218,7 +234,7 @@ def bench_mako(loops):
     return time.perf_counter() - start
 
 
-def run_mdp(loops):
+def run_mdp(loops: int) -> float:
     import bm_mdp.run_benchmark as bm_mdp
 
     # tolerance = 0.192
@@ -232,7 +248,7 @@ def run_mdp(loops):
     return dt
 
 
-def bench_pprint_pformat(loops):
+def bench_pprint_pformat(loops: int) -> float:
     from pprint import PrettyPrinter
 
     # Note: reduced size by 10x to speed up the benchmark
@@ -244,7 +260,7 @@ def bench_pprint_pformat(loops):
     return time.perf_counter() - start
 
 
-def bench_pprint_safe_repr(loops):
+def bench_pprint_safe_repr(loops: int) -> float:
     from pprint import PrettyPrinter
 
     # Note: reduced size by 10x to speed up the benchmark
@@ -252,11 +268,12 @@ def bench_pprint_safe_repr(loops):
     p = PrettyPrinter()
     start = time.perf_counter()
     for _ in range(loops):
-        p._safe_repr(printable, {}, None, 0)
+        # None means unlimited depth, as in PrettyPrinter.format().
+        p._safe_repr(printable, {}, None, 0)  # pyrefly: ignore[bad-argument-type]
     return time.perf_counter() - start
 
 
-def bench_richards(loops):
+def bench_richards(loops: int) -> float:
     import bm_richards.run_benchmark as bm_richards
 
     richard = bm_richards.Richards()
@@ -266,7 +283,7 @@ def bench_richards(loops):
     return end - start
 
 
-def bench_richards_super(loops):
+def bench_richards_super(loops: int) -> float:
     import bm_richards_super.run_benchmark as bm_richards_super
 
     richard = bm_richards_super.Richards()
@@ -276,7 +293,7 @@ def bench_richards_super(loops):
     return end - start
 
 
-def bench_docutils(loops):
+def bench_docutils(loops: int) -> float:
     import contextlib
 
     import docutils
@@ -317,36 +334,36 @@ def bench_docutils(loops):
     return time.perf_counter() - start
 
 
-def dulwich_get_repo():
+def dulwich_get_repo() -> Repo:
     import benchmarks.bm_dulwich_log.run_benchmark as bm_dulwich_log
     import dulwich.repo
 
     repo_path = os.path.join(BENCHMARKS, "bm_dulwich_log", "data", "asyncio.git")
     repo = dulwich.repo.Repo(repo_path)
     head = repo.head()
-    bm_dulwich_log.head = head  # oof
+    bm_dulwich_log.head = head  # pyrefly: ignore[missing-attribute]
     return repo
 
 
-def genshi_text_args():
+def genshi_text_args() -> tuple[type[object], str]:
     import bm_genshi.run_benchmark as bm_genshi
 
     return bm_genshi.NewTextTemplate, bm_genshi.BIGTABLE_TEXT
 
 
-def genshi_xml_args():
+def genshi_xml_args() -> tuple[type[object], str]:
     import bm_genshi.run_benchmark as bm_genshi
 
     return bm_genshi.MarkupTemplate, bm_genshi.BIGTABLE_XML
 
 
-def html5lib_args():
+def html5lib_args() -> io.BytesIO:
     filename = os.path.join(BENCHMARKS, "bm_html5lib", "data", "w3_tr_html5.html")
     with open(filename, "rb") as fp:
         return io.BytesIO(fp.read())
 
 
-def json_dumps_args():
+def json_dumps_args() -> list[tuple[object, range]]:
     import bm_json_dumps.run_benchmark as bm_json_dumps
 
     data = []
@@ -356,7 +373,7 @@ def json_dumps_args():
     return data
 
 
-def json_loads_args():
+def json_loads_args() -> tuple[tuple[str, str, str]]:
     import json
 
     import bm_json_loads.run_benchmark as bm_json_loads
@@ -368,7 +385,7 @@ def json_loads_args():
     return (objs,)
 
 
-def logging_args():
+def logging_args() -> tuple[logging.Logger, io.StringIO]:
     stream = io.StringIO()
 
     import logging
@@ -381,7 +398,13 @@ def logging_args():
     return logger, stream
 
 
-def meteor_contest_args():
+def meteor_contest_args() -> tuple[
+    list[int],
+    list[list[list[float]]],
+    int,
+    list[list[list[frozenset[int]]]],
+    list[frozenset[int]],
+]:
     from benchmarks.bm_meteor_contest.run_benchmark import (
         get_footprints,
         get_puzzle,
@@ -397,7 +420,7 @@ def meteor_contest_args():
     return board, pieces, SOLVE_ARG, fps, se_nh
 
 
-def pathlib_args():
+def pathlib_args() -> str:
     import shutil
 
     import bm_pathlib.run_benchmark as bm_pathlib
@@ -405,13 +428,13 @@ def pathlib_args():
     tmp_path = bm_pathlib.setup(bm_pathlib.NUM_FILES)
 
     class DeletePathOnExit(str):
-        def __del__(self):
+        def __del__(self) -> None:
             shutil.rmtree(self)
 
     return DeletePathOnExit(tmp_path)
 
 
-def pickle_args():
+def pickle_args() -> tuple[types.ModuleType, argparse.Namespace]:
     import pickle
 
     options = argparse.Namespace()
@@ -419,14 +442,14 @@ def pickle_args():
 
     # Use Python versions
     pickle_mod = types.ModuleType("pickle")
-    pickle_mod.dumps = pickle._dumps
-    pickle_mod.loads = pickle._loads
+    pickle_mod.dumps = pickle._dumps  # pyrefly: ignore[missing-attribute]
+    pickle_mod.loads = pickle._loads  # pyrefly: ignore[missing-attribute]
 
     return pickle_mod, options
 
 
-def etree_args(func_name):
-    def get_args():
+def etree_args(func_name: str) -> Callable[[], tuple[types.ModuleType, _BenchmarkFunc]]:
+    def get_args() -> tuple[types.ModuleType, _BenchmarkFunc]:
         import xml.etree.ElementTree as etree
 
         import bm_xml_etree.run_benchmark as bm_xml_etree
@@ -436,18 +459,18 @@ def etree_args(func_name):
     return get_args
 
 
-def pyflate_args():
+def pyflate_args() -> str:
     filename = os.path.join(BENCHMARKS, "bm_pyflate", "data", "interpreter.tar.bz2")
     return filename
 
 
-def regex_compile_args():
+def regex_compile_args() -> list[tuple[str | bytes, int]]:
     import bm_regex_compile.run_benchmark as bm_regex_compile
 
     return bm_regex_compile.capture_regexes()
 
 
-def regex_dna_args():
+def regex_dna_args() -> tuple[bytes, tuple[list[int], int, int, int]]:
     import bm_regex_dna.run_benchmark as bm_regex_dna
 
     expected_res = ([6, 26, 86, 58, 113, 31, 31, 32, 43], 1016745, 1000000, 1336326)
@@ -457,14 +480,16 @@ def regex_dna_args():
     return seq, expected_res
 
 
-def scimark_sor_args():
+def scimark_sor_args() -> tuple[int, int, type[object]]:
     import bm_scimark.run_benchmark as bm_scimark
 
     return 100, 10, bm_scimark.Array2D
 
 
-def async_tree(benchmark_name, use_task_groups=False):
-    def get_func():
+def async_tree(
+    benchmark_name: str, use_task_groups: bool = False
+) -> Callable[[], _AsyncBenchmark]:
+    def get_func() -> _AsyncBenchmark:
         import bm_async_tree.run_benchmark as bm_async_tree
 
         async_tree_class = bm_async_tree.BENCHMARKS[benchmark_name]
@@ -474,10 +499,10 @@ def async_tree(benchmark_name, use_task_groups=False):
     return get_func
 
 
-def asyncio_tcp(use_ssl):
+def asyncio_tcp(use_ssl: bool) -> Callable[[], _AsyncBenchmark]:
     import functools
 
-    def get_func():
+    def get_func() -> _AsyncBenchmark:
         import bm_asyncio_tcp.run_benchmark as bm_asyncio_tcp
 
         bm_asyncio_tcp.CHUNK_SIZE = 1024**2 * 2  # 10x smaller
@@ -486,7 +511,7 @@ def asyncio_tcp(use_ssl):
     return get_func
 
 
-ALL_BENCHMARKS = {
+ALL_BENCHMARKS: dict[str, _Benchmark | tuple[()]] = {
     "2to3": ("bm_2to3", "run_2to3", "custom", 110),
     "async_generators": ("bm_async_generators", "bench_async_generators", "async", 54),
     "async_tree_cpu_io_mixed": (
@@ -733,14 +758,14 @@ ALL_BENCHMARKS = {
 }
 
 
-def import_benchmark(module_name):
+def import_benchmark(module_name: str) -> types.ModuleType:
     import importlib
 
     mod = importlib.import_module(f"benchmarks.{module_name}.run_benchmark")
     return mod
 
 
-async def wrap_async_func(func, loops):
+async def wrap_async_func(func: Callable[[], Awaitable[object]], loops: int) -> float:
     t0 = time.perf_counter()
     for _ in range(loops):
         await func()
@@ -748,8 +773,10 @@ async def wrap_async_func(func, loops):
     return dt
 
 
-def run_one_benchmark(name, scale, decorate):
+def run_one_benchmark(name: str, scale: int, decorate: _Decorator) -> float | None:
     info = ALL_BENCHMARKS[name]
+    if not info:
+        raise ValueError(f"Benchmark is not available: {name}")
     module_name, func_name, kind, loops, *extra = info
     if extra:
         args = extra[0]
@@ -766,6 +793,19 @@ def run_one_benchmark(name, scale, decorate):
     if loops < 1:
         loops = 1
 
+    if kind == "async":
+        import asyncio
+
+        mod = import_benchmark(module_name)
+        if isinstance(func_name, str):
+            func = getattr(mod, func_name)
+        else:
+            func = func_name()
+        func = decorate(func)
+        dt = asyncio.run(wrap_async_func(func, loops))
+        return dt
+
+    assert isinstance(func_name, str)
     if kind == "custom":
         func = decorate(globals()[func_name])
         return func(loops, *args)
@@ -781,47 +821,36 @@ def run_one_benchmark(name, scale, decorate):
         mod = import_benchmark(module_name)
         func = decorate(getattr(mod, func_name))
         return func(loops, *args)
-    elif kind == "async":
-        import asyncio
-
-        mod = import_benchmark(module_name)
-        if isinstance(func_name, str):
-            func = getattr(mod, func_name)
-        else:
-            func = func_name()
-        func = decorate(func)
-        dt = asyncio.run(wrap_async_func(func, loops))
-        return dt
 
 
-def identity(func):
+def identity(func: _BenchmarkFunc) -> _BenchmarkFunc:
     return func
 
 
-def record_stats(func):
+def record_stats(func: _BenchmarkFunc) -> _BenchmarkFunc:
     if inspect.iscoroutinefunction(func):
 
-        async def record_stats_async(*args, **kwargs):
-            sys._stats_on()
+        async def record_stats_async(*args: object, **kwargs: object) -> object:
+            sys._stats_on()  # pyrefly: ignore[missing-attribute]
             try:
                 return await func(*args, **kwargs)
             finally:
-                sys._stats_off()
+                sys._stats_off()  # pyrefly: ignore[missing-attribute]
 
         return record_stats_async
     else:
 
-        def record_stats_sync(*args, **kwargs):
-            sys._stats_on()
+        def record_stats_sync(*args: object, **kwargs: object) -> object:
+            sys._stats_on()  # pyrefly: ignore[missing-attribute]
             try:
                 return func(*args, **kwargs)
             finally:
-                sys._stats_off()
+                sys._stats_off()  # pyrefly: ignore[missing-attribute]
 
         return record_stats_sync
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:  # noqa: C901
     if args.cinderx:
         print("Enabling the CinderX JIT")
         cinderx.jit.auto()
@@ -834,15 +863,21 @@ def main(args):
             if len(value) > 0 and name not in EXCLUDED
         ]
 
+    selected: list[tuple[str, _Benchmark]] = []
     for benchmark in benchmarks:
-        if benchmark not in ALL_BENCHMARKS:
+        info = ALL_BENCHMARKS.get(benchmark)
+        if info is None:
             print(f"Unknown benchmark: {benchmark}", file=sys.stderr)
             sys.exit(1)
+        if not info:
+            print(f"Benchmark is not available: {benchmark}", file=sys.stderr)
+            sys.exit(1)
+        selected.append((benchmark, info))
 
     decorator = identity
     if args.record_py_stats:
         try:
-            sys._stats_clear()
+            sys._stats_clear()  # pyrefly: ignore[missing-attribute]
         except AttributeError as exc:
             print(
                 f"ERROR: {exc} -- did you forget to configure Python with --enable-pystats?",
@@ -853,14 +888,14 @@ def main(args):
 
     print("Benchmark                     Time      Useful Work")
     results = {}
-    for benchmark in benchmarks:
-        module_name, func_name, kind, loops, *extra = ALL_BENCHMARKS[benchmark]
-        if kind == "pyston":
+    for benchmark, info in selected:
+        if info[2] == "pyston":
             continue
 
         start = time.perf_counter()
         time_sec = run_one_benchmark(benchmark, args.scale, decorator)
         true_time = time.perf_counter() - start
+        assert time_sec is not None
         pct = (time_sec / true_time) * 100
 
         results[benchmark] = time_sec * 1000
@@ -868,8 +903,8 @@ def main(args):
         print(f"{benchmark:<28} {time_sec * 1000:6.1f} ms      ({pct:3.0f}%)")
 
     if args.record_py_stats:
-        sys._stats_dump()
-        sys._stats_clear()
+        sys._stats_dump()  # pyrefly: ignore[missing-attribute]
+        sys._stats_clear()  # pyrefly: ignore[missing-attribute]
 
     if not args.benchmarks:
         # Compute score
@@ -912,7 +947,7 @@ def main(args):
             json.dump(results, f, indent=2)
 
 
-def cli(argv=None):
+def cli(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cinderx", action="store_true", help="Enable the cinderx JIT")
     parser.add_argument(
