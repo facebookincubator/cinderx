@@ -1545,7 +1545,13 @@ void LIRGenerator::generateExitBlocks() {
     exec_dtor = PyCode_Type.tp_dealloc;
 #endif
     emitUnlinkFrame(
-        bbb, has_freevars, is_gen_, env_->asm_func, executable, exec_dtor);
+        bbb,
+        has_freevars,
+        is_gen_,
+        env_->asm_func,
+        executable,
+        func_->executable_is_immortal,
+        exec_dtor);
 
     // EpilogueEnd goes on the builder's current block which may differ
     // from exit_block_ when inline code created additional blocks.
@@ -5932,7 +5938,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             code->co_nlocalsplus);
         plan.emit(bbb, callee_frame);
 #if PY_VERSION_HEX < 0x030E0000
-        if (!_Py_IsImmortal(executable_obj))
+        if (!instr->executableImmortal())
 #endif
         {
           bbb.annotateNext("Incref executable/reifier");
@@ -5989,13 +5995,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
         exec_dtor = PyCode_Type.tp_dealloc;
 #endif
 
-        Instruction* func_reg = nullptr;
-        PyFunctionObject* func = instr.matchingBegin()->func();
-        if (!_Py_IsImmortal(func)) {
-          func_reg = bbb.appendInstr(OutVReg{}, Opcode::kMove, func);
-        }
-
         bool is_generator = code->co_flags & kCoFlagsAnyGenerator;
+        // Only a generator frame's unlink releases the function.
+        Instruction* func_reg = is_generator
+            ? bbb.appendInstr(
+                  OutVReg{}, Opcode::kMove, instr.matchingBegin()->func().get())
+            : nullptr;
         // An inlined frame never owns cell references (cells flow through
         // HIR registers; deopt materialization installs owned cells itself
         // and the fast unlink below delegates to the full unlink for
@@ -6010,6 +6015,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
             is_generator,
             func_reg,
             executable,
+            instr.matchingBegin()->executableImmortal(),
             exec_dtor,
             callee_frame);
         break;
@@ -6921,7 +6927,7 @@ void LIRGenerator::emitLoadFrame(BasicBlockBuilder& bbb) {
     // Incref fields that need it.
     bbb.annotateNext("Incref executable / reifier");
     JIT_DCHECK(executable_or_reifier_obj != nullptr, "should have reifier");
-    if (!_Py_IsImmortal(executable_or_reifier_obj)) {
+    if (!func_->executable_is_immortal) {
       makeIncref(bbb, executable_or_reifier, false);
     }
     if (is_gen_) {
@@ -6946,7 +6952,7 @@ void LIRGenerator::emitDecrefExecutable(BasicBlockBuilder& bbb) {
   executable = reinterpret_cast<PyObject*>(func_->code.get());
   dtor = PyCode_Type.tp_dealloc;
 #endif
-  if (!_Py_IsImmortal(executable)) {
+  if (!func_->executable_is_immortal) {
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Opcode::kMove, executable);
     makeDecref(bbb, exec_reg, nullptr, dtor, false);
@@ -6959,6 +6965,7 @@ void LIRGenerator::emitUnlinkFrame(
     bool is_generator,
     Instruction* func_reg,
     PyObject* executable,
+    bool executable_immortal,
     std::optional<destructor> exec_dtor,
     Instruction* callee_frame) {
   if (has_freevars) {
@@ -6966,10 +6973,22 @@ void LIRGenerator::emitUnlinkFrame(
     bbb.appendInvokeInstruction(rt::unlinkFrame, env_->asm_tstate);
   } else if (!env_->can_deopt) {
     emitInlineUnlinkLeafFrame(
-        bbb, is_generator, func_reg, executable, exec_dtor, callee_frame);
+        bbb,
+        is_generator,
+        func_reg,
+        executable,
+        executable_immortal,
+        exec_dtor,
+        callee_frame);
   } else {
     emitInlineUnlinkFastFrame(
-        bbb, is_generator, func_reg, executable, exec_dtor, callee_frame);
+        bbb,
+        is_generator,
+        func_reg,
+        executable,
+        executable_immortal,
+        exec_dtor,
+        callee_frame);
   }
 }
 
@@ -6978,6 +6997,7 @@ void LIRGenerator::emitInlineUnlinkLeafFrame(
     bool is_generator,
     Instruction* func_reg,
     PyObject* executable,
+    bool executable_immortal,
     std::optional<destructor> exec_dtor,
     Instruction* callee_frame) {
   CurrentFrameAccessor cfa = makeCurrentFrameAccessor(bbb);
@@ -7000,7 +7020,7 @@ void LIRGenerator::emitInlineUnlinkLeafFrame(
         std::optional<destructor>(PyFunction_Type.tp_dealloc),
         false);
   }
-  if (!_Py_IsImmortal(executable)) {
+  if (!executable_immortal) {
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Opcode::kMove, executable);
     makeDecref(bbb, exec_reg, nullptr, exec_dtor, false);
@@ -7012,6 +7032,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
     bool is_generator,
     Instruction* func_reg,
     PyObject* executable,
+    bool executable_immortal,
     std::optional<destructor> exec_dtor,
     Instruction* callee_frame) {
   CurrentFrameAccessor cfa = makeCurrentFrameAccessor(bbb);
@@ -7074,7 +7095,7 @@ void LIRGenerator::emitInlineUnlinkFastFrame(
         std::optional<destructor>(PyFunction_Type.tp_dealloc),
         false);
   }
-  if (!_Py_IsImmortal(executable)) {
+  if (!executable_immortal) {
     emitAnnotation(bbb.curBlock(), "Decref executable");
     Instruction* exec_reg =
         bbb.appendInstr(OutVReg{}, Opcode::kMove, executable);

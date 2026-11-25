@@ -689,6 +689,7 @@ std::unique_ptr<Function> Preloader::makeFunction() const {
   irfunc->prim_args_info = prim_args_info_;
   irfunc->return_type = returnType();
   irfunc->has_primitive_args = hasPrimitiveArgs();
+  irfunc->executable_is_immortal = executableIsImmortal();
   irfunc->env.reifier = reifier();
   for (auto& [local, preloaded_type] : check_arg_types_) {
     irfunc->typed_args.emplace_back(
@@ -743,6 +744,10 @@ BorrowedRef<> Preloader::reifier() const {
   return reifier_;
 }
 
+bool Preloader::executableIsImmortal() const {
+  return executable_immortal_;
+}
+
 BorrowedRef<PyTupleObject> Preloader::funcDefaults() const {
   return func_defaults_;
 }
@@ -779,6 +784,13 @@ bool Preloader::preload(BorrowedRef<> module, bool register_code) {
     names_.emplace_back(utf8 != nullptr ? utf8 : "");
     PyErr_Clear();
   }
+
+#if PY_VERSION_HEX >= 0x030E0000 && defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  BorrowedRef<> executable = reifier_;
+#else
+  BorrowedRef<> executable = code_.getObj();
+#endif
+  executable_immortal_ = executable != nullptr && _Py_IsImmortal(executable);
 
   bool is_static = code_->co_flags & CI_CO_STATICALLY_COMPILED;
   if (is_static && !preloadStatic()) {

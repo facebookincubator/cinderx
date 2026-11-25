@@ -681,6 +681,8 @@ std::optional<InlineResult> inlineFunctionCall(
       std::move(caller_frame_state),
       preloader.fullname(),
       preloader.reifier());
+  begin_inlined_function->setExecutableImmortal(
+      preloader.executableIsImmortal());
   auto callee_branch = Branch::create(result.entry);
   if (call_instr.target != nullptr) {
     // Not a static call. Guard against __code__ being swapped out after the

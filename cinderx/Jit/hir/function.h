@@ -41,6 +41,9 @@ class Function {
   // Does this function have primitive args?
   bool has_primitive_args{false};
 
+  // See Preloader::executableIsImmortal().
+  bool executable_is_immortal{false};
+
   struct InlineFunctionStats {
     int num_inlined_functions{0};
     // map of {inline_failure_type -> function_names}

@@ -1834,7 +1834,8 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
         builtins_(other.builtins()),
         globals_(other.globals()),
         reifier_(other.reifier()),
-        fullname_(other.fullname()) {
+        fullname_(other.fullname()),
+        executable_immortal_(other.executableImmortal()) {
     caller_state_ = std::make_unique<FrameState>(*other.callerFrameState());
   }
 
@@ -1882,6 +1883,16 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
     lazy_frames_ = lazy_frames;
   }
 
+  // Whether the callee frame's executable (code object or reifier) is
+  // immortal, as recorded by the callee's preloader.
+  bool executableImmortal() const {
+    return executable_immortal_;
+  }
+
+  void setExecutableImmortal(bool executable_immortal) {
+    executable_immortal_ = executable_immortal;
+  }
+
  private:
   // BeginInlinedFunction must own the FrameState that is used for building the
   // linked list of FrameStates as well as its parent FrameState. The parent is
@@ -1895,6 +1906,7 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   std::unique_ptr<FrameState> caller_state_{nullptr};
   std::string fullname_;
   bool lazy_frames_{false};
+  bool executable_immortal_{false};
 };
 
 class INSTR_CLASS(EndInlinedFunction, (), Operands<0>), public InlineBase {

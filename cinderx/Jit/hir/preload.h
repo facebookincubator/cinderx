@@ -215,6 +215,11 @@ class Preloader {
 
   BorrowedRef<> reifier() const;
 
+  // Whether the frame's executable (reifier on 3.14+ with lightweight frames,
+  // the code object otherwise) was immortal when preloaded.  Codegen can run
+  // without the GIL, when it must not read refcounts.
+  bool executableIsImmortal() const;
+
   // func_defaults captured while attached. Background workers use this
   // because they run detached.
   BorrowedRef<PyTupleObject> funcDefaults() const;
@@ -260,6 +265,7 @@ class Preloader {
   std::unique_ptr<AnnotationIndex> annotations_;
   std::string fullname_;
   Ref<> reifier_;
+  bool executable_immortal_{false};
   std::vector<std::string> names_;
 
   DescrMap<OwnedType> types_;

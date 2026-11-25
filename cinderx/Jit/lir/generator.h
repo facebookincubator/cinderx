@@ -417,6 +417,7 @@ class LIRGenerator {
       bool is_generator,
       Instruction* func_reg,
       PyObject* executable,
+      bool executable_immortal,
       std::optional<destructor> exec_dtor,
       Instruction* callee_frame = nullptr);
   void emitInlineUnlinkLeafFrame(
@@ -424,6 +425,7 @@ class LIRGenerator {
       bool is_generator,
       Instruction* func_reg,
       PyObject* executable,
+      bool executable_immortal,
       std::optional<destructor> exec_dtor,
       Instruction* callee_frame = nullptr);
   void emitInlineUnlinkFastFrame(
@@ -431,6 +433,7 @@ class LIRGenerator {
       bool is_generator,
       Instruction* func_reg,
       PyObject* executable,
+      bool executable_immortal,
       std::optional<destructor> exec_dtor,
       Instruction* callee_frame = nullptr);
 
