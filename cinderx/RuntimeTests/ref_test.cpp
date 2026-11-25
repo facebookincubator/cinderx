@@ -117,6 +117,20 @@ TEST_F(RefTest, MoveAssignment) {
   list2 = std::move(*listp);
   ASSERT_NE(list2, nullptr);
   EXPECT_EQ(Py_REFCNT(list2), refcnt);
+
+  auto old_list = Ref<>::create(list2.get());
+  const Py_ssize_t old_refcnt = Py_REFCNT(old_list);
+  auto dict = Ref<>::steal(PyDict_New());
+  ASSERT_NE(dict, nullptr);
+  PyObject* dict_ptr = dict.get();
+  const Py_ssize_t dict_refcnt = Py_REFCNT(dict);
+
+  list2 = std::move(dict);
+  // NOLINTNEXTLINE(bugprone-use-after-move)
+  EXPECT_EQ(dict, nullptr);
+  ASSERT_EQ(list2, dict_ptr);
+  EXPECT_EQ(Py_REFCNT(list2), dict_refcnt);
+  EXPECT_EQ(Py_REFCNT(old_list), old_refcnt - 1);
 }
 
 TEST_F(RefTest, StolenRefs) {
