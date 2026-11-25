@@ -6523,6 +6523,18 @@
                 PyTypeObject* type =
                 _PyClassLoader_ResolveType(list_type, &optional, &exact);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (type == NULL) {
+                    stack_pointer += -(oparg >> 2) + (oparg & 0x03);
+                    ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg >> 2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg & 0x03);
+                    ASSERT_WITHIN_STACK_BOUNDS(__FILE__, __LINE__);
+                    JUMP_TO_LABEL(error);
+                }
                 assert(!optional);
                 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
                 if (CI_ADAPTIVE_ENABLED()) {

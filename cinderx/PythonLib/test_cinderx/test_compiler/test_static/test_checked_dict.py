@@ -2,7 +2,10 @@
 
 # pyre-strict
 
+import __static__
 from __static__ import chkdict
+
+from unittest.mock import patch
 
 import cinderx.jit
 from cinderx.compiler.static.types import FAST_LEN_DICT, TypedSyntaxError
@@ -624,6 +627,30 @@ class CheckedDictTests(StaticTestBase):
             r"reveal_type\(d\): 'Exact\[chkdict\[dynamic, str\]\]'",
         ):
             self.compile(codestr)
+
+    def test_checked_dict_literal_unresolvable_type(self) -> None:
+        codestr = """
+        from __static__ import CheckedDict
+        freed = []
+        class C:
+            def __del__(self):
+                freed.append(1)
+        def mk() -> C:
+            return C()
+        def testfunc() -> int:
+            a: CheckedDict[str, C] = {"a": mk(), "b": mk()}
+            return len(a)
+        """
+        with self.in_module(codestr) as mod:
+            self.assertInBytecode(mod.testfunc, "BUILD_CHECKED_MAP")
+            # Break the container type before the first call so that it is not
+            # cached. The JIT resolves the type when compiling; test the
+            # interpreter.
+            with patch.object(__static__, "chkdict", None), cinderx.jit.pause():
+                for _ in range(10):
+                    with self.assertRaisesRegex(TypeError, "not a class"):
+                        mod.testfunc()
+            self.assertEqual(len(mod.freed), 20)
 
     def test_checked_dict_literal_unpack(self) -> None:
         codestr = """

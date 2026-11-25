@@ -2,10 +2,13 @@
 
 # pyre-strict
 
+import __static__
 from __static__ import CheckedList
 
 import sys
+from unittest.mock import patch
 
+import cinderx.jit
 from cinderx.static import SEQ_CHECKED_LIST, SEQ_SUBSCR_UNCHECKED
 
 from .common import bad_ret_type, StaticTestBase, type_mismatch
@@ -481,6 +484,30 @@ class CheckedListTests(StaticTestBase):
             self.assertEqual(sys.getrefcount(x), before + 2)
             del li
             self.assertEqual(sys.getrefcount(x), before)
+
+    def test_checked_list_literal_unresolvable_type(self) -> None:
+        codestr = """
+            from __static__ import CheckedList
+            freed = []
+            class C:
+                def __del__(self):
+                    freed.append(1)
+            def mk() -> C:
+                return C()
+            def testfunc() -> int:
+                a: CheckedList[C] = [mk(), mk()]
+                return len(a)
+        """
+        with self.in_module(codestr) as mod:
+            self.assertInBytecode(mod.testfunc, "BUILD_CHECKED_LIST")
+            # Break the container type before the first call so that it is not
+            # cached. The JIT resolves the type when compiling; test the
+            # interpreter.
+            with patch.object(__static__, "chklist", None), cinderx.jit.pause():
+                for _ in range(10):
+                    with self.assertRaisesRegex(TypeError, "not a class"):
+                        mod.testfunc()
+            self.assertEqual(len(mod.freed), 20)
 
     def test_checked_list_literal_type_error(self) -> None:
         codestr = """

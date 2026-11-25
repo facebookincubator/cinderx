@@ -1124,6 +1124,9 @@ dummy_func(
             int exact;
             PyTypeObject* type =
                 _PyClassLoader_ResolveType(list_type, &optional, &exact);
+            if (type == NULL) {
+                goto error;
+            }
             assert(!optional);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
@@ -1181,6 +1184,9 @@ dummy_func(
             int exact;
             PyTypeObject* type =
                 _PyClassLoader_ResolveType(map_type, &optional, &exact);
+            if (type == NULL) {
+                goto error;
+            }
             assert(!optional);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)

@@ -507,6 +507,10 @@ pop_1_error:
         int exact;
         PyTypeObject* type =
             _PyClassLoader_ResolveType(list_type, &optional, &exact);
+        if (type == NULL) {
+          DECREF_INPUTS();
+          ERROR_IF(true);
+        }
         assert(!optional);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
