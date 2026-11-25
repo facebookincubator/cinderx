@@ -741,8 +741,17 @@ void jitFrameClearExceptCode(
 #if PY_VERSION_HEX < 0x030E0000
   // We can't leave our reifier dangling here otherwise we may
   // continue to get callbacks, instead leave the function dangling.
-  frame->f_funcobj =
-      reinterpret_cast<PyObject*>(header->frame_status & ~JIT_FRAME_MASK);
+  auto func = reinterpret_cast<PyFunctionObject*>(
+      header->frame_status & ~JIT_FRAME_MASK);
+  frame->f_funcobj = reinterpret_cast<PyObject*>(func);
+  // With a function in f_funcobj CPython treats the frame as initialized and
+  // reads it directly, e.g. an async stack walk that reaches the frame of a
+  // finished coroutine through its awaiter.
+  frame->f_globals = func->func_globals;
+  frame->f_builtins = func->func_builtins;
+  for (int i = 0; i < free_offset; i++) {
+    frame->localsplus[i] = nullptr;
+  }
   // function isn't incref'd for inline frames, it's kept alive
   // by the code runtime.
   if (!isInlinedFrame(frame)) {

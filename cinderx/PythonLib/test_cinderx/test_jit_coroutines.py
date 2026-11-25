@@ -4,11 +4,37 @@
 
 import asyncio
 import ctypes
+import functools
 import gc
+import types
 import unittest
 
 import cinderx.jit
-from cinderx.test_support import failUnlessJITCompiled
+from cinderx.test_support import failUnlessJITCompiled, passUnless
+
+
+async def _return_one():
+    one = 1
+    return one
+
+
+# Runs with globals of its own, so leftover memory in a finished frame cannot
+# pass for them.
+_return_one_own_globals = failUnlessJITCompiled(
+    types.FunctionType(_return_one.__code__, {})
+)
+
+
+@functools.cache
+def _finished_coroutine():
+    # Only one per process: walking the async stack gives the finished
+    # coroutine's frame a frame object, which leaks when the coroutine is freed.
+    coro = _return_one_own_globals()
+    try:
+        coro.send(None)
+    except StopIteration:
+        pass
+    return coro
 
 
 class CoroutinesTest(unittest.TestCase):
@@ -101,6 +127,26 @@ class CoroutinesTest(unittest.TestCase):
         with self.assertRaises(StopIteration):
             coro.send(None)
         self.assertEqual(v1, "hello, bob")
+
+    @passUnless(hasattr(asyncio, "ci_get_async_stack"), "requires ci_get_async_stack")
+    def test_async_stack_reaches_finished_awaiter(self):
+        # contextlib.asynccontextmanager leaves __aenter__ as its generator's
+        # awaiter after __aenter__ finishes, so the async stack walk can reach
+        # the frame of a finished coroutine.
+        async def walk():
+            return [
+                (f.f_globals, f.f_builtins, f.f_locals)
+                for f in asyncio.ci_get_async_stack()
+            ]
+
+        walker = walk()
+        walker.__set_awaiter__(_finished_coroutine())
+        with self.assertRaises(StopIteration) as exc:
+            walker.send(None)
+        globals_, builtins, locals_ = exc.exception.value[-1]
+        self.assertIs(globals_, _return_one_own_globals.__globals__)
+        self.assertIs(builtins, _return_one_own_globals.__builtins__)
+        self.assertEqual(locals_, {})
 
     def assert_already_awaited(self, coro):
         with self.assertRaisesRegex(RuntimeError, "coroutine is being awaited already"):
