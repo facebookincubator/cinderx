@@ -6,6 +6,20 @@
 
 namespace cinderx::jit::codegen {
 
+// Decode the x86-64 initial-exec / local-exec forms of
+// _PyThreadState_GetCurrent:
+//   push %rbp; mov %rsp,%rbp
+//   mov %fs:OFFSET,%rax
+//   pop %rbp; ret
+// or, with the thread pointer loaded first:
+//   push %rbp; mov %rsp,%rbp
+//   mov %fs:0x0,%rax
+//   mov OFFSET(%rax),%rax
+//   pop %rbp; ret
+// Returns the %fs-relative OFFSET, or -1 if `code` doesn't match. Pure byte
+// matching, so it is testable on any host.
+int32_t decodeInitialExecOffset(const uint8_t* code);
+
 // Decode the frameless initial-exec form of _PyThreadState_GetCurrent:
 //   mrs x?, tpidr_el0
 //   add x?, x?, #hi, lsl #12   (optional)

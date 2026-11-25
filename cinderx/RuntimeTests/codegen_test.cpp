@@ -424,6 +424,70 @@ TEST_F(CodegenTest, IndirectMemoryStoresPreserveRegisters) {
 }
 #endif
 
+TEST_F(CodegenTest, DecodeX86InitialExecTls) {
+  // push %rbp; mov %rsp,%rbp
+  // mov %fs:0xfffffffffffffff0,%rax
+  // pop %rbp; ret
+  const uint8_t direct[] = {
+      0x55,
+      0x48,
+      0x89,
+      0xe5,
+      0x64,
+      0x48,
+      0x8b,
+      0x04,
+      0x25,
+      0xf0,
+      0xff,
+      0xff,
+      0xff,
+      0x5d,
+      0xc3};
+  EXPECT_EQ(decodeInitialExecOffset(direct), -0x10);
+
+  // The thread pointer loaded first, from an aps_ads_vm Python 3.14 build:
+  // push %rbp; mov %rsp,%rbp
+  // mov %fs:0x0,%rax
+  // mov -0x31ff0(%rax),%rax
+  // pop %rbp; ret
+  const uint8_t via_thread_ptr[] = {
+      0x55, 0x48, 0x89, 0xe5, 0x64, 0x48, 0x8b, 0x04, 0x25, 0x00, 0x00,
+      0x00, 0x00, 0x48, 0x8b, 0x80, 0x10, 0xe0, 0xfc, 0xff, 0x5d, 0xc3};
+  EXPECT_EQ(decodeInitialExecOffset(via_thread_ptr), -0x31ff0);
+
+  // A second load after a nonzero %fs displacement isn't a known shape.
+  const uint8_t nonzero_then_load[] = {
+      0x55, 0x48, 0x89, 0xe5, 0x64, 0x48, 0x8b, 0x04, 0x25, 0xf0, 0xff,
+      0xff, 0xff, 0x48, 0x8b, 0x80, 0x10, 0xe0, 0xfc, 0xff, 0x5d, 0xc3};
+  EXPECT_EQ(decodeInitialExecOffset(nonzero_then_load), -1);
+
+  // The %fs load must be followed by the epilogue or the second load.
+  const uint8_t no_epilogue[] = {
+      0x55,
+      0x48,
+      0x89,
+      0xe5,
+      0x64,
+      0x48,
+      0x8b,
+      0x04,
+      0x25,
+      0x00,
+      0x00,
+      0x00,
+      0x00,
+      0x90,
+      0x90,
+      0x90};
+  EXPECT_EQ(decodeInitialExecOffset(no_epilogue), -1);
+
+  // No frame-pointer prologue.
+  const uint8_t no_prologue[] = {
+      0x64, 0x48, 0x8b, 0x04, 0x25, 0xf0, 0xff, 0xff, 0xff, 0xc3};
+  EXPECT_EQ(decodeInitialExecOffset(no_prologue), -1);
+}
+
 TEST_F(CodegenTest, DecodeFramelessInitialExecTls) {
   // mrs x8, tpidr_el0
   // add x8, x8, #0x0, lsl #12

@@ -11,6 +11,8 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/module_state.h"
 
+#include <cstring>
+
 namespace cinderx::jit::codegen {
 
 namespace {
@@ -18,6 +20,18 @@ namespace {
 #if defined(CINDER_X86_64) && defined(__linux__)
 // __tls_get_addr is provided by the dynamic loader and has no public header.
 extern "C" void* __tls_get_addr(void* tls_index);
+
+// Whether the thread-pointer-relative `offset` holds the current thread state.
+bool readsCurrentThreadState(int32_t offset) {
+  PyThreadState* current = _PyThreadState_GetCurrent();
+  if (current == nullptr) {
+    return false;
+  }
+  // On x86-64 the %fs base is the thread pointer, and %fs:0 holds its value.
+  uintptr_t thread_ptr;
+  asm volatile("mov %%fs:0, %0" : "=r"(thread_ptr));
+  return *reinterpret_cast<PyThreadState**>(thread_ptr + offset) == current;
+}
 
 // When libpython is a shared library, `_PyThreadState_GetCurrent` is compiled
 // with the general-dynamic TLS model and looks like:
@@ -53,21 +67,42 @@ int32_t decodeGeneralDynamicTstateOffset(const uint8_t* ts_func) {
   const uintptr_t tls_block =
       reinterpret_cast<uintptr_t>(__tls_get_addr(tls_index));
 
-  // On x86-64 the %fs base is the thread pointer, and %fs:0 holds its value.
   uintptr_t thread_ptr;
   asm volatile("mov %%fs:0, %0" : "=r"(thread_ptr));
 
   const int32_t offset =
       static_cast<int32_t>(tls_block - thread_ptr) + member_disp;
-
-  // Verify the computed offset reads back the real tstate before trusting it.
-  PyThreadState* from_offset =
-      *reinterpret_cast<PyThreadState**>(thread_ptr + offset);
-  return from_offset == _PyThreadState_GetCurrent() ? offset : -1;
+  return readsCurrentThreadState(offset) ? offset : -1;
 }
 #endif
 
 } // namespace
+
+int32_t decodeInitialExecOffset(const uint8_t* code) {
+  // Checked a byte at a time so a mismatch never reads past the function.
+  if (!(code[0] == 0x55 && // push %rbp
+        code[1] == 0x48 && code[2] == 0x89 &&
+        code[3] == 0xe5 && // mov %rsp,%rbp
+        code[4] == 0x64 && code[5] == 0x48 && code[6] == 0x8b &&
+        code[7] == 0x04 && code[8] == 0x25)) { // mov %fs:disp32,%rax
+    return -1;
+  }
+  int32_t fs_disp;
+  std::memcpy(&fs_disp, code + 9, sizeof(fs_disp));
+
+  const uint8_t* next = code + 13;
+  if (next[0] == 0x5d && next[1] == 0xc3) { // pop %rbp; ret
+    return fs_disp;
+  }
+  if (fs_disp == 0 && next[0] == 0x48 && next[1] == 0x8b &&
+      next[2] == 0x80 && // mov disp32(%rax),%rax
+      next[7] == 0x5d && next[8] == 0xc3) { // pop %rbp; ret
+    int32_t disp;
+    std::memcpy(&disp, next + 3, sizeof(disp));
+    return disp;
+  }
+  return -1;
+}
 
 // Decode the frameless initial-exec form of _PyThreadState_GetCurrent (see
 // tls.h). Some ARM builds omit the frame-pointer prologue, leaving just an
@@ -117,14 +152,12 @@ void initThreadStateOffset() {
 #if defined(CINDER_X86_64)
   uint8_t* ts_func = reinterpret_cast<uint8_t*>(&_PyThreadState_GetCurrent);
 
-  if (ts_func[0] == 0x55 && // push rbp
-      ts_func[1] == 0x48 && ts_func[2] == 0x89 &&
-      ts_func[3] == 0xe5 && // mov rsp, rbp
-      ts_func[4] == 0x64 && ts_func[5] == 0x48 && ts_func[6] == 0x8b &&
-      ts_func[7] == 0x04 && ts_func[8] == 0x25) { // movq   %fs:OFFSET, %rax
-    module_state->tstate_offset = *reinterpret_cast<int32_t*>(ts_func + 9);
-  }
+  module_state->tstate_offset = decodeInitialExecOffset(ts_func);
 #ifdef __linux__
+  if (module_state->tstate_offset != -1 &&
+      !readsCurrentThreadState(module_state->tstate_offset)) {
+    module_state->tstate_offset = -1;
+  }
   // General-dynamic TLS fallback (the form used when libpython is a shared
   // library), so JIT code can load tstate with a direct %fs access rather than
   // calling _PyThreadState_GetCurrent / __tls_get_addr on every use.
