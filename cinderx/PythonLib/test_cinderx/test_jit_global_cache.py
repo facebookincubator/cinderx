@@ -5,6 +5,7 @@
 # pyre-unsafe
 
 import builtins
+import subprocess
 import sys
 import types
 import unittest
@@ -420,6 +421,61 @@ class LoadGlobalCacheTests(unittest.TestCase):
             self.assertTrue(
                 not cinderx.jit.is_enabled() or cinderx.jit.is_jit_compiled(tmp_a.get_a)
             )
+
+    @cinder_support.passIf(
+        sys.platform == "win32" and not getattr(sys, "_is_gil_enabled", lambda: True)(),
+        "On Windows 3.14t JIT-all, later subprocess.run calls here see cwd=False",
+    )
+    def test_builtins_mapping_proxy_not_compiled(self):
+        source = dedent("""
+            import builtins, types
+            import cinderx.jit
+
+            for name in ("f", "outer", "outer.<locals>.inner"):
+                cinderx.jit.append_jit_list(f"mpmod:{name}")
+            globals_ = {
+                "__name__": "mpmod",
+                "__builtins__": types.MappingProxyType(dict(builtins.__dict__)),
+            }
+            exec(
+                "def f():\\n"
+                "    return len([1, 2, 3])\\n"
+                "def outer():\\n"
+                "    def inner():\\n"
+                "        return len([1, 2])\\n"
+                "    return inner()\\n",
+                globals_,
+            )
+            f = globals_["f"]
+            outer = globals_["outer"]
+            for _ in range(3):
+                assert f() == 3
+                assert outer() == 2
+            cinderx.jit.precompile_all()
+            if cinderx.jit.is_enabled():
+                try:
+                    cinderx.jit.force_compile(f)
+                except RuntimeError:
+                    pass
+                else:
+                    raise AssertionError("compiled")
+            assert not cinderx.jit.is_jit_compiled(f)
+            assert f() == 3
+            assert outer() == 2
+        """)
+        # Compiled on first call (in the foreground or the background), or from
+        # the JIT list by precompile_all, including the nested function's code.
+        for flags in (
+            ["-X", "cinderx-jit-all"],
+            ["-X", "cinderx-jit-all", "-X", "cinderx-jit-background-compile"],
+            ["-X", "jit"],
+        ):
+            with self.subTest(flags=flags):
+                subprocess.run(
+                    [sys.executable, *flags, "-c", source],
+                    check=True,
+                    env=cinder_support.subprocess_env(),
+                )
 
     @skip_unless_lazy_imports()
     @run_in_fork

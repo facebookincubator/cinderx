@@ -136,6 +136,12 @@ bool shouldAlwaysScheduleCompile(BorrowedRef<PyCodeObject> code) {
   return is_static && getConfig().compile_all_static_functions;
 }
 
+// The JIT only compiles functions whose builtins and globals are exact dicts.
+bool hasDictNamespaces(BorrowedRef<PyFunctionObject> func) {
+  return PyDict_CheckExact(func->func_builtins) &&
+      PyDict_CheckExact(func->func_globals);
+}
+
 // Check if a function has been preloaded.
 bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
   return hir::preloaderManager().find(func) != nullptr;
@@ -1374,20 +1380,7 @@ hir::Preloader* preload(
           code->co_qualname);
       return nullptr;
     }
-    // Assuming the builtins + globals will always be a dictionary goes way back
-    // in the JIT's history. I'm not sure what guarantees this though. Tread
-    // carefully but try not to blow things up if this happens in production
-    // code.
-    JIT_DCHECK(
-        PyDict_CheckExact(outer_func->func_builtins),
-        "Unexpected type for builtins ({}) on function {}",
-        Py_TYPE(outer_func->func_builtins)->tp_name,
-        funcFullname(outer_func));
-    JIT_DCHECK(
-        PyDict_CheckExact(outer_func->func_globals),
-        "Unexpected type for globals ({}) on function {}",
-        Py_TYPE(outer_func->func_globals)->tp_name,
-        funcFullname(outer_func));
+    // Preloader::make() refuses builtins or globals that aren't dicts.
     auto module = Ref<>::create(outer_func->func_module);
     preloader = hir::Preloader::make(
         Ref<PyCodeObject>::create(code),
@@ -5633,6 +5626,9 @@ bool scheduleJitCompile(
 //
 // Failing to compile a dependent function is a soft failure, and is ignored.
 Result compileFunction(BorrowedRef<PyFunctionObject> func) {
+  if (!hasDictNamespaces(func)) {
+    return Result::CANNOT_SPECIALIZE;
+  }
   auto* module_state = cinderx::getModuleState();
   if (module_state == nullptr) {
     return Result::NOT_INITIALIZED;
@@ -5736,6 +5732,9 @@ Result compileFunction(BorrowedRef<PyFunctionObject> func) {
 std::vector<CompilationUnit> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func,
     bool forcePreload) {
+  if (!hasDictNamespaces(func)) {
+    return {};
+  }
   auto* module_state = cinderx::getModuleState();
   if (module_state == nullptr) {
     return {};
@@ -5755,7 +5754,7 @@ std::vector<CompilationUnit> preloadFuncAndDeps(
   worklist.push_back(Ref<PyFunctionObject>::create(func));
 
   auto shouldPreload = [&](BorrowedRef<PyFunctionObject> f) {
-    return !isPreloaded(f) &&
+    return hasDictNamespaces(f) && !isPreloaded(f) &&
         (forcePreload ||
          getCompilationEligibility(state, f) != JitEligibility::Ineligible);
   };

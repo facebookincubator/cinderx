@@ -521,6 +521,13 @@ std::unique_ptr<Preloader> Preloader::makeImpl(
     const std::string& fullname,
     Ref<> reifier,
     bool register_code) {
+  // Preloading reads both as dicts. CPython accepts any mapping as builtins.
+  JIT_THROW_IF(
+      !PyDict_CheckExact(builtins) || !PyDict_CheckExact(globals),
+      "Cannot preload {}: builtins is a {:.200} and globals a {:.200}",
+      fullname,
+      Py_TYPE(builtins)->tp_name,
+      Py_TYPE(globals)->tp_name);
   auto preloader = std::unique_ptr<Preloader>(new Preloader(
       std::move(code),
       std::move(builtins),
@@ -1212,8 +1219,10 @@ Preloader* PreloaderManager::find(
 
 Preloader* PreloaderManager::find(BorrowedRef<PyFunctionObject> func) {
   JIT_DCHECK(PyCode_Check(func->func_code), "always code");
-  JIT_DCHECK(PyDict_Check(func->func_builtins), "always dict");
-  if (!PyDict_Check(func->func_builtins)) {
+  // CPython accepts any mapping as builtins; such functions are never
+  // preloaded.
+  if (!PyDict_CheckExact(func->func_builtins) ||
+      !PyDict_CheckExact(func->func_globals)) {
     return nullptr;
   }
   return find(
