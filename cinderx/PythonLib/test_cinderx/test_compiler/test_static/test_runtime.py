@@ -2245,6 +2245,53 @@ class StaticRuntimeTests(StaticTestBase):
             ):
                 f(1, j=2)
 
+    def test_unresolved_type_descr_in_untaken_branch(self) -> None:
+        codestr = """
+            from __static__ import CheckedList
+
+            def f(x: bool) -> int:
+                if x:
+                    CheckedList[T]()
+                return 1
+
+            result = f(False)
+
+            class T:
+                pass
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.result, 1)
+
+    def test_unresolved_field_descr_in_untaken_branch(self) -> None:
+        codestr = """
+            class C:
+                def __init__(self) -> None:
+                    self.x: int = 1
+
+            def f(c: C, read: bool) -> int:
+                if read:
+                    return c.x
+                return 2
+
+            del C.x
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.f(mod.C.__new__(mod.C), False), 2)
+
+    def test_unresolved_invoke_target_in_untaken_branch(self) -> None:
+        codestr = """
+            def g() -> int:
+                return 1
+
+            def f(x: bool) -> int:
+                if x:
+                    return g()
+                return 2
+        """
+        with self.in_module(codestr) as mod:
+            delattr(mod, "g")
+            self.assertEqual(mod.f(False), 2)
+
     def test_bad_classloader_type(self):
         codestr = """
         class A:

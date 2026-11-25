@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 import cinderx.jit
 from cinderx import cached_property
-from cinderx.test_support import passIf
+from cinderx.test_support import passIf, skip_unless_jit
 
 from .common import StaticTestBase
 
@@ -1335,3 +1335,27 @@ class InvokeTests(StaticTestBase):
             self.assertTrue(cinderx.jit.is_jit_compiled(mod.C.__init__))
             result = mod.caller()
             self.assertEqual(result, mod.__name__)
+
+    @skip_unless_jit("Compiles the function on its first call")
+    def test_failed_compile_on_call_leaves_no_error_pending(self) -> None:
+        # Preloading resolves every static call, also one this call doesn't
+        # reach, and the v-table lookup in the nested class fails.
+        codestr = """
+            class Outer:
+                class Inner:
+                    def p(self) -> int:
+                        return 4
+
+                    def callp(self, flag: bool) -> int:
+                        if flag:
+                            return self.p()
+                        return 1
+        """
+        with self.in_module(codestr) as mod:
+            callp = mod.Outer.Inner.callp
+            cinderx.jit.lazy_compile(callp)
+            self.assertEqual(callp(mod.Outer.Inner(), False), 1)
+            with self.assertRaisesRegex(
+                RuntimeError, "unable to resolve v-table slot 'p'"
+            ):
+                callp(mod.Outer.Inner(), True)

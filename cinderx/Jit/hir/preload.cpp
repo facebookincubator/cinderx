@@ -36,6 +36,11 @@ OwnedType resolve_type_descr(BorrowedRef<> descr) {
   int optional, exact;
   auto type = Ref<PyTypeObject>::steal(
       _PyClassLoader_ResolveType(descr, &optional, &exact));
+  if (type == nullptr) {
+    // Callers give up on compiling; the function then runs in the interpreter,
+    // which must not start with this error pending.
+    PyErr_Clear();
+  }
 
   return {
       std::move(type), static_cast<bool>(optional), static_cast<bool>(exact)};
@@ -44,7 +49,9 @@ OwnedType resolve_type_descr(BorrowedRef<> descr) {
 FieldInfo resolve_field_descr(BorrowedRef<PyTupleObject> descr) {
   int field_type;
   Py_ssize_t offset = _PyClassLoader_ResolveFieldOffset(descr, &field_type);
-
+  if (offset == -1) {
+    PyErr_Clear();
+  }
   JIT_THROW_IF(offset == -1, "Failed to resolve field {}", repr(descr));
   JIT_DCHECK(!PyErr_Occurred(), "shouldn't preload with an error set");
 
@@ -110,7 +117,9 @@ std::unique_ptr<NativeTarget> resolve_native_target(
   void* raw_ptr = _PyClassloader_LookupSymbol(
       PyTuple_GET_ITEM(native_descr.get(), 0),
       PyTuple_GET_ITEM(native_descr.get(), 1));
-
+  if (raw_ptr == nullptr) {
+    PyErr_Clear();
+  }
   JIT_THROW_IF(
       raw_ptr == nullptr,
       "Invalid address {} for native function descr {}",
@@ -943,6 +952,9 @@ bool Preloader::preload(BorrowedRef<> module, bool register_code) {
         BorrowedRef<PyTupleObject> index_and_descr{constArg(bc_instr)};
         BorrowedRef<> descr = PyTuple_GET_ITEM(index_and_descr, 1);
         int prim_type = _PyClassLoader_ResolvePrimitiveType(descr);
+        if (prim_type == -1) {
+          PyErr_Clear();
+        }
         JIT_THROW_IF(
             prim_type == -1,
             "Unknown local type descr {} during preloading of {}",
@@ -1102,11 +1114,18 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
   PyObject* container;
   auto callable =
       Ref<>::steal(_PyClassLoader_ResolveFunction(descr, &container));
+  if (callable == nullptr) {
+    PyErr_Clear();
+  }
   JIT_THROW_IF(
       callable == nullptr,
       "Unknown invoke target {} during preloading {}",
       repr(descr),
       fullname());
+  // _PyClassLoader_ResolveFunction() returned a new reference to the
+  // container. Release it if preloading gives up below; a successful preload
+  // keeps it, as before.
+  auto container_ref = Ref<>::steal(container);
 
   int optional, exact, func_flags;
   auto return_pytype =
@@ -1150,6 +1169,9 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
 
   if (opcode == LOAD_METHOD_STATIC) {
     target->slot = _PyClassLoader_ResolveMethod(descr);
+    if (target->slot == -1) {
+      PyErr_Clear();
+    }
     JIT_THROW_IF(
         target->slot == -1,
         "Method lookup failed for descr {} in function {}",
@@ -1158,6 +1180,9 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
   } else { // the rest of this only used by INVOKE_FUNCTION currently
     if (!target->container_is_immutable) {
       target->indirect_ptr = _PyClassLoader_ResolveIndirectPtr(descr);
+      if (target->indirect_ptr == nullptr) {
+        PyErr_Clear();
+      }
       JIT_THROW_IF(
           target->indirect_ptr == nullptr,
           "Indirect ptr null for {} in {} (stale bytecode?)",
@@ -1180,6 +1205,7 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
     fill_primitive_arg_types_thunk(
         target->callable.get(), target->primitive_arg_types, container);
   }
+  (void)container_ref.release();
   return target;
 }
 
