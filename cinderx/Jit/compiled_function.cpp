@@ -706,9 +706,16 @@ void CompiledFunction::clear(bool context_finalizing) {
     owner->forgetCompiledFunction(*this);
   }
 
+  // An immortal compile's code is never freed, so frames already running it
+  // and suspended generators can keep using it for as long as the process
+  // lives.  Keep what it borrows from the runtime alive just as long.
+  if (contiguous_data_ && !context_finalizing) {
+    return;
+  }
+
   bool deferred = false;
-  if (!contiguous_data_ && !context_finalizing && owner != nullptr &&
-      data_ != nullptr && data_->runtime != nullptr) {
+  if (!context_finalizing && owner != nullptr && data_ != nullptr &&
+      data_->runtime != nullptr) {
     deferred = data_->defer();
   }
 

@@ -28,6 +28,20 @@ _HUGE_PAGES_OFF: dict[str, str] = {
 }
 
 
+def _run_subprocess(code: str) -> subprocess.CompletedProcess[str]:
+    with tempfile.TemporaryDirectory() as tmp:
+        mod = Path(tmp) / "mod.py"
+        mod.write_text(textwrap.dedent(code))
+        return subprocess.run(
+            [sys.executable, str(mod)],
+            cwd=tmp,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding=ENCODING,
+            env=_HUGE_PAGES_OFF,
+        )
+
+
 @skip_unless_jit("Exercises JIT-compiled code lifetime")
 @skip_if_prefork(
     "Prefork builds always immortalize compiled functions, so the mortal "
@@ -46,19 +60,6 @@ class DeferredCleanupTest(unittest.TestCase):
     Context::processDeferredCleanup() and Jit/pyjit.cpp's gc_callback().
     """
 
-    def _run_subprocess(self, code: str) -> subprocess.CompletedProcess[str]:
-        with tempfile.TemporaryDirectory() as tmp:
-            mod = Path(tmp) / "mod.py"
-            mod.write_text(textwrap.dedent(code))
-            return subprocess.run(
-                [sys.executable, str(mod)],
-                cwd=tmp,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                encoding=ENCODING,
-                env=_HUGE_PAGES_OFF,
-            )
-
     def test_deopt_during_recursion_defers_code(self) -> None:
         """
         De-opt a JIT-compiled function from the bottom of a deep recursion, so
@@ -66,7 +67,7 @@ class DeferredCleanupTest(unittest.TestCase):
         the way out.  The deferred-cleanup mechanism must keep the code alive
         until the frames unwind, otherwise we crash on the return path.
         """
-        proc = self._run_subprocess("""
+        proc = _run_subprocess("""
             import cinderx.jit
 
             DEPTH = 100
@@ -107,7 +108,7 @@ class DeferredCleanupTest(unittest.TestCase):
         Context::processDeferredCleanup()).  Running the whole cycle repeatedly
         and forcing full collections must reclaim the code without crashing.
         """
-        proc = self._run_subprocess("""
+        proc = _run_subprocess("""
             import gc
 
             import cinderx.jit
@@ -161,7 +162,7 @@ class DeferredCleanupTest(unittest.TestCase):
         function does NOT free the code.  Resuming the generator afterwards must
         run the still-live code and produce correct results without crashing.
         """
-        proc = self._run_subprocess("""
+        proc = _run_subprocess("""
             import gc
 
             import cinderx.jit
@@ -215,7 +216,7 @@ class DeferredCleanupTest(unittest.TestCase):
         the code out from under any of the live suspended frames, and every
         generator must resume to completion without crashing.
         """
-        proc = self._run_subprocess("""
+        proc = _run_subprocess("""
             import gc
 
             import cinderx.jit
@@ -253,6 +254,106 @@ class DeferredCleanupTest(unittest.TestCase):
 
             print("OK")
         """)
+        self.assertEqual(proc.returncode, 0, proc)
+        self.assertIn("OK", proc.stdout, proc)
+
+
+@skip_unless_jit("Exercises JIT-compiled code lifetime")
+class RetiredRuntimeReferencesTest(unittest.TestCase):
+    """
+    Compiled code borrows objects that only its compile's runtime owns.
+    Uncompiling a function while its code can still run - in a live frame or a
+    suspended generator - must keep them alive.  Prefork builds make every
+    compile immortal, so these are the immortal-compile counterparts of
+    DeferredCleanupTest.
+    """
+
+    def test_uncompile_keeps_inlined_function_alive(self) -> None:
+        proc = _run_subprocess(
+            """
+            import gc
+            import sys
+            import weakref
+
+            import cinderx.jit
+
+            SOURCE = (
+                "def g(cb):\\n"
+                "    cb()\\n"
+                "    {tail}\\n"
+                "def f(cb):\\n"
+                "    return g(cb)\\n"
+            )
+
+            def check(tail):
+                ns = {"sys": sys}
+                exec(SOURCE.format(tail=tail), ns)
+                f = ns["f"]
+                g_ref = weakref.ref(ns["g"])
+                assert cinderx.jit.force_compile(f)
+                assert cinderx.jit.get_num_inlined_functions(f) == 1
+                alive_in_frame = []
+
+                def cb():
+                    # Leave g's live inlined frame as the only user of g.
+                    del ns["g"]
+                    cinderx.jit.force_uncompile(f)
+                    gc.collect()
+                    alive_in_frame.append(g_ref() is not None)
+
+                # Reifying the inlined frame, by sys._getframe() or by the
+                # deopt that raising forces, reads the function.
+                try:
+                    frame = f(cb)
+                except ValueError:
+                    pass
+                else:
+                    assert frame.f_code.co_name == "g", frame
+                    del frame
+                assert alive_in_frame == [True], tail
+
+            cinderx.jit.enable_hir_inliner()
+            check("return sys._getframe()")
+            check("raise ValueError('boom')")
+            print("OK")
+            """
+        )
+        self.assertEqual(proc.returncode, 0, proc)
+        self.assertIn("OK", proc.stdout, proc)
+
+    def test_uncompile_keeps_suspended_generator_references_alive(self) -> None:
+        proc = _run_subprocess(
+            """
+            import gc
+
+            import cinderx.jit
+
+            class C:
+                def m(self):
+                    return "old"
+
+            x = C()
+
+            def gen():
+                yield 0
+                yield x.m()
+
+            assert cinderx.jit.force_compile(gen)
+            it = gen()
+            assert next(it) == 0
+            cinderx.jit.force_uncompile(gen)
+            # The suspended generator is on no thread's stack, so the
+            # collection cannot see that its code still calls C.m directly.
+            gc.collect()
+
+            def m(self):
+                return "new"
+
+            C.m = m
+            assert next(it) == "new"
+            print("OK")
+            """
+        )
         self.assertEqual(proc.returncode, 0, proc)
         self.assertIn("OK", proc.stdout, proc)
 
