@@ -606,6 +606,15 @@ class Context : public IJitContext, public CompiledFunctionOwner {
     return code_outer_funcs_;
   }
 
+  // The nested code objects registered in codeOuterFunctions() as found in each
+  // function.
+  UnorderedMap<
+      BorrowedRef<PyFunctionObject>,
+      std::vector<BorrowedRef<PyCodeObject>>>&
+  outerFuncNestedCodes() {
+    return outer_func_nested_codes_;
+  }
+
 #ifdef ENABLE_PREFORK_MODEL
   ContextStableStorage stable_storage_;
 #endif
@@ -792,6 +801,18 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   // Map of all code objects to the functions that they were found in.
   UnorderedMap<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
       code_outer_funcs_;
+
+  // The nested code objects registered in code_outer_funcs_ as found in each
+  // function, kept so that they are unregistered exactly when it dies:
+  // searching its code again by then can miss some, since its __module__ may
+  // have been reassigned or cleared by the GC, or the JIT list changed. Keys
+  // and codes are only compared, never dereferenced. A recorded code can't
+  // dangle: it is reachable from its function's func_code->co_consts, and
+  // funcModified() drops the record before func_code changes.
+  UnorderedMap<
+      BorrowedRef<PyFunctionObject>,
+      std::vector<BorrowedRef<PyCodeObject>>>
+      outer_func_nested_codes_;
 
   UnorderedMap<BorrowedRef<PyCodeObject>, std::unique_ptr<NestedCompileData>>
       nested_compile_data_;

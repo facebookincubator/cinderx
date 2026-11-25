@@ -4325,6 +4325,7 @@ bool trackNestedCode(
       !ctx->codeOuterFunctions().try_emplace(code, outer_func).second) {
     return false;
   }
+  ctx->outerFuncNestedCodes()[outer_func].emplace_back(code);
   // Give the nested code somewhere to keep a compile of its own, so that the
   // compile outlives any single instance of the nested function.  Preloading
   // makes these entries too, but only ever for an outer function that is itself
@@ -4479,35 +4480,32 @@ constexpr std::string_view getCpuArchName() {
 #endif
 }
 
-// Unregister a function and its nested code objects from
-// jit_code_outer_funcs. Called when a function is destroyed or its code object
-// is being replaced.
+// Unregister a function and the nested code objects registered as found in it
+// from jit_code_outer_funcs. Called when a function is destroyed or its code
+// object is being replaced.
 void unregisterFunctionCodes(
     CompilerContext<Compiler>& ctx,
     BorrowedRef<PyFunctionObject> func) {
   auto& jit_code_outer_funcs = ctx.codeOuterFunctions();
+  auto unregister = [&](BorrowedRef<PyCodeObject> code) {
+    auto it = jit_code_outer_funcs.find(code);
+    if (it != jit_code_outer_funcs.end() && it->second == func) {
+      jit_code_outer_funcs.erase(it);
+    }
+  };
+
+  auto& nested_codes = ctx.outerFuncNestedCodes();
+  if (auto it = nested_codes.find(func); it != nested_codes.end()) {
+    for (BorrowedRef<PyCodeObject> code : it->second) {
+      unregister(code);
+    }
+    nested_codes.erase(it);
+  }
 
   BorrowedRef<PyCodeObject> top_code{func->func_code};
   NestedCompileData* nested_data = nestedCompileData(top_code);
   if (nested_data == nullptr || nested_data->mayOwnCodeOuterFuncEntry()) {
-    auto it = jit_code_outer_funcs.find(top_code);
-    if (it != jit_code_outer_funcs.end() && it->second == func) {
-      jit_code_outer_funcs.erase(it);
-      PyObject* module = func->func_module;
-      BorrowedRef<> top_consts{top_code->co_consts};
-      auto* state = cinderx::getModuleState();
-      if (state == nullptr) {
-        return;
-      }
-      for (BorrowedRef<PyCodeObject> code :
-           findNestedCodes(*state, module, top_consts)) {
-        auto existing = jit_code_outer_funcs.find(code);
-        if (existing != jit_code_outer_funcs.end() &&
-            existing->second == func) {
-          jit_code_outer_funcs.erase(code);
-        }
-      }
-    }
+    unregister(top_code);
   }
 }
 
@@ -5497,6 +5495,7 @@ void finalize(ModuleState& mod_state) {
   // Clear some global maps that reference Python data.
   auto& jit_code_outer_funcs = ctx->codeOuterFunctions();
   jit_code_outer_funcs.clear();
+  ctx->outerFuncNestedCodes().clear();
   mod_state.jit_context.reset();
   mod_state.code_allocator.reset();
 

@@ -371,6 +371,99 @@ assert not cinderx.jit.is_jit_compiled(to_compile)
   EXPECT_EQ(PyThreadState_GetUnchecked(), attached);
 }
 
+// Defines `outer`, with a nested `inner`, in a module named "mymod" and
+// compiles it, which records inner's code as found in outer.
+constexpr const char* kOuterWithNestedCode = R"(
+import gc
+import types
+import weakref
+
+import cinderx.jit
+
+g = {"__name__": "mymod"}
+exec("def outer():\n    def inner():\n        return 42\n    return inner\n", g)
+outer = g.pop("outer")
+assert cinderx.jit.force_compile(outer)
+inner_code = next(
+    c for c in outer.__code__.co_consts if isinstance(c, types.CodeType)
+)
+outer_ref = weakref.ref(outer)
+)";
+
+// Compiling a function made from the nested code looks up the function the
+// code was found in.
+constexpr const char* kCompileFromNestedCode = R"(
+f = types.FunctionType(inner_code, g)
+cinderx.jit.force_compile(f)
+assert f() == 42
+)";
+
+bool isFoundIn(
+    Context* ctx,
+    BorrowedRef<PyCodeObject> code,
+    BorrowedRef<> outer) {
+  auto& outer_funcs = ctx->codeOuterFunctions();
+  auto it = outer_funcs.find(code);
+  return it != outer_funcs.end() && it->second.getObj() == outer.get();
+}
+
+// When a function dies, the nested code registered as found in it must be
+// unregistered even if the nested code the JIT would find in it now is
+// different, e.g. after its __module__ changes to one the JIT never compiles.
+// (gc.collect() is only for free-threaded builds, which defer the
+// function's reference count.)
+TEST_F(JITContextTest, CodeOuterFuncDroppedAfterModuleChange) {
+  runCode(kOuterWithNestedCode);
+  Ref<> inner_code = getGlobal("inner_code");
+  BorrowedRef<PyCodeObject> code{inner_code.get()};
+  Ref<> outer = getGlobal("outer");
+  ASSERT_TRUE(isFoundIn(getContext(), code, outer));
+  // Only compared once outer is freed.
+  BorrowedRef<PyFunctionObject> dead_outer{outer.get()};
+  outer.reset();
+
+  runCode(R"(
+outer.__module__ = "cinderx"
+del outer
+gc.collect()
+assert outer_ref() is None
+)");
+  EXPECT_FALSE(getContext()->codeOuterFunctions().contains(code));
+  EXPECT_FALSE(getContext()->outerFuncNestedCodes().contains(dead_outer));
+  runCode(kCompileFromNestedCode);
+}
+
+// The same for a function freed by the cyclic GC, which clears its __module__
+// before the function watcher reports its destruction. A module:qualname JIT
+// list then no longer matches the nested code.
+TEST_F(JITContextTest, CodeOuterFuncDroppedAfterCycleCollection) {
+  runCode(R"(
+import cinderx.jit
+
+cinderx.jit.append_jit_list("mymod:outer")
+cinderx.jit.append_jit_list("mymod:outer.<locals>.inner")
+)");
+  runCode(kOuterWithNestedCode);
+  Ref<> inner_code = getGlobal("inner_code");
+  BorrowedRef<PyCodeObject> code{inner_code.get()};
+  Ref<> outer = getGlobal("outer");
+  ASSERT_TRUE(isFoundIn(getContext(), code, outer));
+  // Only compared once outer is freed.
+  BorrowedRef<PyFunctionObject> dead_outer{outer.get()};
+  outer.reset();
+
+  runCode(R"(
+# A tuple has no tp_clear, so the collector has to clear outer itself.
+outer.__defaults__ = (outer,)
+del outer
+gc.collect()
+assert outer_ref() is None
+)");
+  EXPECT_FALSE(getContext()->codeOuterFunctions().contains(code));
+  EXPECT_FALSE(getContext()->outerFuncNestedCodes().contains(dead_outer));
+  runCode(kCompileFromNestedCode);
+}
+
 // A watch deferred during threaded compilation must be validated before it is
 // installed: the type may have changed after the compile checked its
 // assumptions but before the watch was installed, in which case the watch
