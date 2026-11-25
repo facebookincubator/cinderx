@@ -523,8 +523,9 @@ class Context : public IJitContext, public CompiledFunctionOwner {
   //
   // Takes over `func`, an owned reference the caller acquired while it held
   // the GIL.  Referencing the function here instead would poke a refcount with
-  // the GIL released and race the interpreter.
-  void addDeferredFinalization(
+  // the GIL released and race the interpreter.  Returns it again, for the
+  // caller to release, if the function is already waiting for this compile.
+  Ref<PyFunctionObject> addDeferredFinalization(
       const CompilationKey& key,
       Ref<PyFunctionObject>&& func);
 

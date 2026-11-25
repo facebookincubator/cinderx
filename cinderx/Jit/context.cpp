@@ -810,12 +810,18 @@ bool Context::hasCompletedCompile(const CompilationKey& key) {
   return completed_compiles_.contains(key);
 }
 
-void Context::addDeferredFinalization(
+Ref<PyFunctionObject> Context::addDeferredFinalization(
     const CompilationKey& key,
     Ref<PyFunctionObject>&& func) {
   JITCompilationLock lock;
+  for (const auto& [deferred_func, deferred_key] : deferred_finalizations_) {
+    if (deferred_func.get() == func.get() && deferred_key == key) {
+      return std::move(func);
+    }
+  }
   deferred_finalizations_.emplace_back(
       Ref<PyFunctionObject>::steal(func.release()), key);
+  return nullptr;
 }
 
 void Context::finalizePendingCompiles() {

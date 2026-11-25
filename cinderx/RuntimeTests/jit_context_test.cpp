@@ -503,6 +503,72 @@ TEST_F(JITContextTest, PendingTypeWatchPatchedWhenStale) {
   EXPECT_TRUE(patcher.isPatched());
 }
 
+// A function can be called while its compile has finished but isn't published
+// yet: a batch or background compile publishes in finalizePendingCompiles(),
+// and Python code (a finalizer, say) can run on that thread first. Through the
+// JIT entry, the call has to run in the interpreter until then.
+TEST_F(JITContextTest, CallBeforeCompileIsPublishedRunsInterpreted) {
+  Ref<PyFunctionObject> func{
+      compileAndGet("def func():\n    return 42\n", "func")};
+  auto* ctx =
+      static_cast<CompilerContext<Compiler>*>(moduleState()->jit_context.get());
+  std::unique_ptr<hir::Preloader> preloader{
+      hir::Preloader::make(func, makeFrameReifier(func->func_code))};
+  ASSERT_NE(preloader, nullptr);
+  ASSERT_TRUE(ctx->addActiveCompile(
+      CompilationKey{
+          preloader->code(), preloader->builtins(), preloader->globals()}));
+  // Calls go through the JIT entry, as with jit-all.
+  runCode("import cinderx.jit\nassert cinderx.jit.lazy_compile(func)\n");
+
+  ThreadedCompileContext compile;
+  auto func_arg = Ref<PyFunctionObject>::create(func);
+  PyThreadState* saved = PyEval_SaveThread();
+  auto [comp_result, unclaimed] =
+      compilePreloaderImpl(ctx, *preloader, std::move(func_arg));
+  PyEval_RestoreThread(saved);
+  ASSERT_EQ(comp_result, Result::OK);
+  ASSERT_FALSE(isJitCompiled(func));
+
+  auto result = Ref<>::steal(PyObject_CallNoArgs(func));
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(PyLong_AsLong(result), 42);
+
+  ctx->finalizePendingCompiles();
+  EXPECT_TRUE(isJitCompiled(func));
+}
+
+// Likewise on a compile thread for a function whose code is already compiled:
+// attaching the code to it is deferred to the next finalizePendingCompiles().
+TEST_F(JITContextTest, CallOfDeferredFinalizationRunsInterpreted) {
+  runCode(R"(
+import cinderx.jit
+
+def func():
+    return 42
+
+other = type(func)(func.__code__, globals())
+assert cinderx.jit.lazy_compile(other)
+assert cinderx.jit.force_compile(func)
+assert not cinderx.jit.is_jit_compiled(other)
+)");
+  Ref<> other = getGlobal("other");
+  ASSERT_NE(other, nullptr);
+
+  ThreadedCompileContext compile;
+  Py_ssize_t refs = Py_REFCNT(other.get());
+  for (int i = 0; i < 10; ++i) {
+    auto result = Ref<>::steal(PyObject_CallNoArgs(other));
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(PyLong_AsLong(result), 42);
+  }
+  // Waiting for the attach holds one reference, however many calls queue it.
+  EXPECT_EQ(Py_REFCNT(other.get()), refs + 1);
+
+  getContext()->finalizePendingCompiles();
+  EXPECT_TRUE(isJitCompiled(BorrowedRef<PyFunctionObject>{other.get()}));
+}
+
 TEST_F(JITContextTest, PendingTypeWatchInstalledWhenValid) {
   runCode("class Bar:\n    x = 1\n");
   Ref<> bar_obj = getGlobal("Bar");

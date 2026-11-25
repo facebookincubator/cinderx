@@ -177,18 +177,14 @@ PyObject* forcedJitVectorcall(
   }
 
   if (result == Result::OK) {
-    if constexpr (!kFreeThreadedBuild) {
-      JIT_DCHECK(
-          isJitCompiled(func),
-          "JIT succeeded for function {} but it is not recognized as compiled",
-          funcFullname(func));
-      return func->vectorcall(func_obj, stack, nargsf, kwnames);
-    }
-
     vectorcallfunc entry;
     {
       FreeThreadedJITEntrypointGuard guard;
-      // Recheck in case another thread invalidated compilation while waiting.
+      // A successful compile isn't attached to the function yet if a batch or
+      // background compile has still to publish it, or if this is a compile
+      // thread, which defers attaching already-compiled code; run this call in
+      // the interpreter until then. On free-threaded builds another thread may
+      // also have invalidated the compilation while waiting.
       entry = isJitCompiled(func) ? ftAtomicLoadPtrAcquire(func->vectorcall)
                                   : getInterpretedVectorcall(func);
     }
@@ -1170,9 +1166,11 @@ AdmitResult admitCompile(
         // Can't call finalizeFunc on a worker thread - it does Python
         // allocations (PyDict_New, etc.) which require the GIL. Defer
         // finalization to after multi-threaded compile completes, handing
-        // our reference over to keep the function alive until then.
-        jit_ctx->addDeferredFinalization(key, std::move(func));
-        return {CompileAdmission::kAlreadyCompiled, nullptr};
+        // our reference over to keep the function alive until then (or back,
+        // if the function is already waiting).
+        return {
+            CompileAdmission::kAlreadyCompiled,
+            jit_ctx->addDeferredFinalization(key, std::move(func))};
       }
       if (!isJitCompiled(func)) {
         jit_ctx->finalizeFunc(func, compiled);
