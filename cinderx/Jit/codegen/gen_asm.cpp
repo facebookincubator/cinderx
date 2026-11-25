@@ -1064,6 +1064,25 @@ void* NativeGenerator::getVectorcallEntry() {
   }
 #endif
 
+  // Arguments that do not fit in registers are read at the same offsets from
+  // INITIAL_EXTRA_ARGS_REG whether they come in on the stack (static entry) or
+  // in the vectorcall argument array, which only works when they are
+  // consecutive arguments.  A register-bound double between them leaves the
+  // function to the interpreter.
+  auto first_extra = std::find(
+      env_.arg_locations.begin(),
+      env_.arg_locations.end(),
+      PhyLocation::REG_INVALID);
+  JIT_THROW_IF(
+      std::find(
+          std::find_if(
+              first_extra,
+              env_.arg_locations.end(),
+              [](PhyLocation loc) { return loc != PhyLocation::REG_INVALID; }),
+          env_.arg_locations.end(),
+          PhyLocation::REG_INVALID) != env_.arg_locations.end(),
+      "Arguments passed on the stack must be consecutive");
+
   auto func = getFunction();
 
   env_.ctx = getContext();

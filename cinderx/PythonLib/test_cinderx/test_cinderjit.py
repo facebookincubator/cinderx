@@ -5502,5 +5502,27 @@ class CodeChangeDeoptTests(unittest.TestCase):
         force_uncompile(foo)
 
 
+class StackArgumentAfterDoubleTest(StaticTestBase):
+    @skip_if_ft("T250369696: Static Python not yet supported with free-threading")
+    def test_stack_argument_with_double_in_register(self) -> None:
+        codestr = """
+            from __static__ import double, int64
+
+            def f(
+                a0: int64, a1: int64, a2: int64, a3: int64, a4: int64, o: object, d: double
+            ) -> object:
+                return o
+
+            def caller() -> object:
+                return f(0, 1, 2, 3, 4, "o", 0.5)
+        """
+        with self.in_module(codestr) as mod:
+            self.assertTrue(force_compile(mod.f))
+            # Through the vectorcall entry, then the static entry.
+            self.assertEqual(mod.f(0, 1, 2, 3, 4, "o", 0.5), "o")
+            self.assertTrue(force_compile(mod.caller))
+            self.assertEqual(mod.caller(), "o")
+
+
 if __name__ == "__main__":
     unittest.main()

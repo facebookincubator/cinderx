@@ -772,10 +772,12 @@ void PopulateEntryBlock(
   }
   flushPending();
   if (has_extra_args) {
-    // Point extra_args register past the register-bound args to the
-    // start of the overflow args in the vectorcall array.
+    // Point the extra_args register at the first argument passed on the stack,
+    // as the static entry point does.
+    auto first_extra = std::find(
+        arg_locations.begin(), arg_locations.end(), PhyLocation::REG_INVALID);
     auto offset = static_cast<int32_t>(
-        (codegen::ARGUMENT_REGS.size() - 1) * kPointerSize);
+        (first_extra - arg_locations.begin()) * kPointerSize);
     entry_block->allocateInstr(
         Opcode::kLea, nullptr, OutPhyReg(args_reg), Ind(args_reg, offset));
   }
@@ -2996,14 +2998,18 @@ LIRGenerator::TranslatedBlock LIRGenerator::translateOneBasicBlock(
               instr->output(), Opcode::kLoadArg, Imm{instr->argIdx()});
           break;
         }
-        size_t reg_count = env_->arg_locations.size();
-        for (auto loc : env_->arg_locations) {
-          if (loc == PhyLocation::REG_INVALID) {
-            reg_count--;
-          }
+        // Its position among the arguments passed on the stack.
+        auto arg_idx = static_cast<size_t>(instr->argIdx());
+        size_t num_locations = env_->arg_locations.size();
+        size_t extra_idx = std::count(
+            env_->arg_locations.begin(),
+            env_->arg_locations.begin() + std::min(arg_idx, num_locations),
+            PhyLocation::REG_INVALID);
+        if (arg_idx > num_locations) {
+          extra_idx += arg_idx - num_locations;
         }
         Instruction* extra_args = env_->asm_extra_args;
-        int32_t offset = (instr->argIdx() - reg_count) * kPointerSize;
+        int32_t offset = static_cast<int32_t>(extra_idx * kPointerSize);
         bbb.appendInstr(
             instr->output(), Opcode::kLoad, Ind{extra_args, offset});
         break;
