@@ -771,6 +771,7 @@ static PySendResult AsyncLazyValue_itersend(
     case ALV_NOT_STARTED:
     case ALV_RUNNING: {
       PyErr_SetString(PyExc_TypeError, "AsyncLazyValue needs to be awaited");
+      *pResult = nullptr;
       return PYGEN_ERROR;
     }
     case ALV_DONE: {

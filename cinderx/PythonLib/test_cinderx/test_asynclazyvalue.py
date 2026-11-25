@@ -1,9 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import asyncio
+import ctypes
 import inspect
 import unittest
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, Generator
 
 try:
     from _cinderx import AsyncLazyValue
@@ -167,6 +168,52 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
             AsyncLazyValue(X().m, 2, 3, 4).__await__().send(None)
 
         self.assertEqual(ctx.exception.value, (1, 2, 3, 4))
+
+    def assert_iteration_raises_type_error(self, alv: AsyncLazyValue) -> None:
+        with self.assertRaisesRegex(TypeError, "needs to be awaited"):
+            next(alv)
+
+        with self.assertRaisesRegex(TypeError, "needs to be awaited"):
+            for _ in alv:
+                self.fail("iteration should not produce a value")
+
+        def delegate() -> Generator[Any, None, Any]:
+            return (yield from alv)
+
+        with self.assertRaisesRegex(TypeError, "needs to be awaited"):
+            next(delegate())
+
+        py_iter_send = ctypes.PYFUNCTYPE(
+            ctypes.c_int,
+            ctypes.py_object,
+            ctypes.py_object,
+            ctypes.POINTER(ctypes.c_void_p),
+        )(("PyIter_Send", ctypes.pythonapi))
+        result = ctypes.c_void_p(1)
+        with self.assertRaisesRegex(TypeError, "needs to be awaited"):
+            py_iter_send(alv, None, ctypes.byref(result))
+        self.assertIsNone(result.value)
+
+    def test_iterate_not_started(self) -> None:
+        async def g() -> int:
+            return 1
+
+        alv = AsyncLazyValue(g)
+        # pyrefly: ignore [missing-attribute]
+        self.assertEqual(alv.alv_state, "not_started")
+        self.assert_iteration_raises_type_error(alv)
+
+    def test_iterate_running(self) -> None:
+        async def g(fut: "asyncio.Future[Any]") -> None:
+            await fut
+
+        alv = AsyncLazyValue(g, asyncio.Future())
+        compute = alv.__await__()
+        self.addCleanup(compute.close)
+        compute.send(None)
+        # pyrefly: ignore [missing-attribute]
+        self.assertEqual(alv.alv_state, "running")
+        self.assert_iteration_raises_type_error(alv)
 
 
 class AsyncLazyValueTest(unittest.TestCase):
