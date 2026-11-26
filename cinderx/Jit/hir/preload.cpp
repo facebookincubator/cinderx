@@ -1144,6 +1144,9 @@ std::unique_ptr<InvokeTarget> Preloader::resolveTargetDescr(
           static_cast<bool>(exact)};
       target->return_type = target->return_type_owned.toHir();
     }
+  } else {
+    // An unresolvable return type leaves the target's return type unknown.
+    PyErr_Clear();
   }
   target->is_statically_typed = _PyClassLoader_IsStaticCallable(callable);
   PyMethodDef* def;

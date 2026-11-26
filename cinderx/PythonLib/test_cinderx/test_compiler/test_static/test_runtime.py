@@ -2292,6 +2292,23 @@ class StaticRuntimeTests(StaticTestBase):
             delattr(mod, "g")
             self.assertEqual(mod.f(False), 2)
 
+    def test_unresolved_callee_return_type_in_untaken_branch(self) -> None:
+        codestr = """
+            class C:
+                pass
+
+            def g() -> C:
+                return C()
+
+            def f(x: bool) -> int:
+                if x:
+                    g()
+                return 2
+        """
+        with self.in_module(codestr) as mod:
+            delattr(mod, "C")
+            self.assertEqual(mod.f(False), 2)
+
     def test_bad_classloader_type(self):
         codestr = """
         class A:
