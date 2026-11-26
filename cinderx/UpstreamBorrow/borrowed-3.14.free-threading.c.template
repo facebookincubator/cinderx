@@ -387,6 +387,9 @@ error:
 
 
 // @Borrow CPP directives noinclude from Objects/typeobject.c
+#ifdef Py_GIL_DISABLED
+// @Borrow function types_world_is_stopped from Objects/typeobject.c
+#endif
 // @Borrow function managed_static_type_index_is_set from Objects/typeobject.c
 // @Borrow function managed_static_type_index_get from Objects/typeobject.c
 // @Borrow function managed_static_type_state_get from Objects/typeobject.c
