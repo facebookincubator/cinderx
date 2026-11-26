@@ -2,8 +2,11 @@
 
 import asyncio
 import ctypes
+import functools
+import gc
 import inspect
 import unittest
+import weakref
 from typing import Any, Callable, Coroutine, Generator
 
 try:
@@ -26,6 +29,15 @@ def async_test(
         asyncio.run(f(*args, **kwargs))
 
     return impl
+
+
+def make_task(
+    task_type: type[asyncio.Task[Any]],
+    loop: asyncio.AbstractEventLoop,
+    coro: Any,
+    **kwargs: Any,
+) -> asyncio.Task[Any]:
+    return task_type(coro, loop=loop, **kwargs)
 
 
 class AsyncLazyValueCoroTest(unittest.TestCase):
@@ -239,6 +251,122 @@ class AsyncLazyValueTest(unittest.TestCase):
 
         alv = AsyncLazyValue(async_func, 1000, 2000)
         self.assertEqual(await alv, 3000)
+
+    def test_ensure_future_with_loop(self) -> None:
+        async def async_func(arg1: int, arg2: int) -> int:
+            return arg1 + arg2
+
+        self.loop.set_debug(True)
+        self.addCleanup(self.loop.set_debug, False)
+        alv = AsyncLazyValue(async_func, 1, 2)
+        # pyrefly: ignore [missing-attribute]
+        task = alv.ensure_future(self.loop)
+        self.assertIsInstance(task, asyncio.Task)
+        self.assertEqual(self.loop.run_until_complete(task), 3)
+
+    def test_ensure_future_reuses_task_type(self) -> None:
+        async def async_func(x: int) -> int:
+            return x
+
+        for i in range(2):
+            # pyrefly: ignore [missing-attribute]
+            task = AsyncLazyValue(async_func, i).ensure_future(self.loop)
+            self.assertEqual(self.loop.run_until_complete(task), i)
+
+    def test_ensure_future_task_type_can_be_collected(self) -> None:
+        async def async_func(x: int) -> int:
+            return x
+
+        def run_with_custom_task_type() -> "weakref.ref[type[asyncio.Task]]":
+            class CustomTask(asyncio.Task):
+                pass
+
+            self.loop.set_task_factory(functools.partial(make_task, CustomTask))
+            # pyrefly: ignore [missing-attribute]
+            task = AsyncLazyValue(async_func, 1).ensure_future(self.loop)
+            self.assertIs(type(task), CustomTask)
+            self.assertEqual(self.loop.run_until_complete(task), 1)
+            self.loop.set_task_factory(None)
+            return weakref.ref(CustomTask)
+
+        custom_task_type = run_with_custom_task_type()
+        # A different task type replaces CustomTask as the last one used.
+        # pyrefly: ignore [missing-attribute]
+        task = AsyncLazyValue(async_func, 2).ensure_future(self.loop)
+        self.assertEqual(self.loop.run_until_complete(task), 2)
+        gc.collect()
+        self.assertIsNone(custom_task_type())
+
+    def test_ensure_future_task_type_address_reuse(self) -> None:
+        async def async_func(x: int) -> int:
+            return x
+
+        traceback_reads = []
+
+        class FutureLike:
+            @property
+            def _source_traceback(self) -> None:
+                traceback_reads.append(self)
+
+        def make_future_like(
+            task_type: type[FutureLike],
+            loop: asyncio.AbstractEventLoop,
+            coro: Any,
+            **kwargs: Any,
+        ) -> Any:
+            coro.close()
+            return task_type()
+
+        # Alternates asyncio.Task subclasses, whose method table reads the
+        # traceback straight from the Future, with future-like classes, whose
+        # table looks it up as an attribute. Each round's type dies once
+        # collected and the next type usually reuses its address, which must
+        # not find the dead type's table.
+        for i in range(20):
+            if i % 2 == 0:
+                task_type = type("T", (asyncio.Task,), {})
+                factory = functools.partial(make_task, task_type)
+            else:
+                task_type = type("F", (FutureLike,), {})
+                factory = functools.partial(make_future_like, task_type)
+            self.loop.set_task_factory(factory)
+            # pyrefly: ignore [missing-attribute]
+            task = AsyncLazyValue(async_func, i).ensure_future(self.loop)
+            self.assertIs(type(task), task_type)
+            if i % 2 == 0:
+                self.assertEqual(self.loop.run_until_complete(task), i)
+            self.loop.set_task_factory(None)
+            del task_type, factory, task
+            gc.collect()
+        self.assertEqual(len(traceback_reads), 10)
+
+    def test_ensure_future_survives_method_table_callback_call(self) -> None:
+        async def async_func(x: int) -> int:
+            return x
+
+        task_type = type("CallbackTask", (asyncio.Task,), {})
+        self.loop.set_task_factory(functools.partial(make_task, task_type))
+        # pyrefly: ignore [missing-attribute]
+        task = AsyncLazyValue(async_func, 1).ensure_future(self.loop)
+        self.assertEqual(self.loop.run_until_complete(task), 1)
+
+        # The method table's weakref callback is reachable from Python, and
+        # calling it drops the table's own reference while the type is alive.
+        tables = [w for w in weakref.getweakrefs(task_type) if w.__callback__]
+        self.assertEqual(len(tables), 1)
+        tables[0].__callback__(tables[0])
+        del tables
+
+        # pyrefly: ignore [missing-attribute]
+        task = AsyncLazyValue(async_func, 2).ensure_future(self.loop)
+        self.assertEqual(self.loop.run_until_complete(task), 2)
+
+        self.loop.set_task_factory(None)
+        # pyrefly: ignore [missing-attribute]
+        task = AsyncLazyValue(async_func, 3).ensure_future(self.loop)
+        self.assertEqual(self.loop.run_until_complete(task), 3)
+        del task_type, task
+        gc.collect()
 
     @async_test
     async def test_two_tasks(self) -> None:

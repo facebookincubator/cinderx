@@ -7,6 +7,8 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/async_lazy_value_iface.h"
 
+#include <utility>
+
 /*
   Unboxed result of calling _asyncio_future_blocking
   Normally we'd use int with commit convention to indicate:
@@ -62,16 +64,21 @@ class AsyncLazyValueState : public IAsyncLazyValueState {
     return last_used_task_type_table_ref_;
   }
 
-  void setLastUsedTaskTypeTableRef(BorrowedRef<PyMethodTableRef> tableref) {
-    last_used_task_type_table_ref_ = tableref;
-  }
-
   BorrowedRef<PyTypeObject> lastUsedTaskType() {
     return last_used_task_type_;
   }
 
-  void setLastUsedTaskType(BorrowedRef<PyTypeObject> type) {
-    last_used_task_type_ = type;
+  void setLastUsedTaskType(
+      BorrowedRef<PyTypeObject> type,
+      BorrowedRef<PyMethodTableRef> tableref) {
+    // The old entries are released only after the new ones are in place, the
+    // table before its type, so code run by a release never sees a stale
+    // entry and a dying type's callback finds its table already gone.
+    Ref<PyTypeObject> old_type = std::move(last_used_task_type_);
+    Ref<PyMethodTableRef> old_tableref =
+        std::move(last_used_task_type_table_ref_);
+    last_used_task_type_ = Ref<PyTypeObject>::create(type);
+    last_used_task_type_table_ref_ = Ref<PyMethodTableRef>::create(tableref);
   }
 
   BorrowedRef<PyObject> methodRefCallback() {
@@ -100,10 +107,12 @@ class AsyncLazyValueState : public IAsyncLazyValueState {
   Ref<PyGetSetDescrObject> future_source_traceback_;
   Ref<PyMethodTableRef> future_table_ref_;
 
-  // borrowed reference to the last task type that was created in create_task
-  BorrowedRef<PyTypeObject> last_used_task_type_;
-  // method table for the last used task type
-  BorrowedRef<PyMethodTableRef> last_used_task_type_table_ref_;
+  // The last task type that was created in create_task, and its method table.
+  // Both are owned so that neither can be freed, nor the type's address
+  // reused, while they are cached. Not used on free-threaded builds, where the
+  // cache is not synchronized.
+  Ref<PyTypeObject> last_used_task_type_;
+  Ref<PyMethodTableRef> last_used_task_type_table_ref_;
 };
 
 } // namespace cinderx

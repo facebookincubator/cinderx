@@ -8,6 +8,7 @@
 // atomics breaking things.
 // clang-format off
 #include "cinderx/module_state.h"
+#include "cinderx/Common/define.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/Common/py-portability.h"
 // clang-format on
@@ -162,7 +163,7 @@ BorrowedRef<PyGetSetDescrObject> AsyncLazyValueState::futureSourceTraceback() {
   if (future_source_traceback_ != nullptr) {
     return future_source_traceback_;
   }
-  future_source_traceback_ = lookupFutureGetSet("source_traceback");
+  future_source_traceback_ = lookupFutureGetSet("_source_traceback");
   return future_source_traceback_;
 }
 
@@ -216,17 +217,21 @@ static Ref<PyMethodTableRef> create_method_table(PyTypeObject* type) {
     return nullptr;
   }
   populate_method_table(tableref, type);
-  return Ref<PyMethodTableRef>::steal(tableref);
+  // The new reference stays with the table so it lives as long as `type`;
+  // methodtable_callback_impl() drops it when `type` dies.
+  return Ref<PyMethodTableRef>::create(tableref);
 }
 
 static Ref<PyMethodTableRef> get_or_create_method_table(PyTypeObject* type) {
   if (type == get_state()->futureType()) {
     return Ref<PyMethodTableRef>::create(get_state()->futureTableRef());
   }
-  // if we saw this exact task type before - we have method table for it
-  if (type == get_state()->lastUsedTaskType()) {
-    return Ref<PyMethodTableRef>::create(
-        get_state()->lastUsedTaskTypeTableRef());
+  if constexpr (!kFreeThreadedBuild) {
+    // if we saw this exact task type before - we have method table for it
+    if (type == get_state()->lastUsedTaskType()) {
+      return Ref<PyMethodTableRef>::create(
+          get_state()->lastUsedTaskTypeTableRef());
+    }
   }
   BorrowedRef<PyMethodTableRef> tableref = get_method_table(type);
   if (tableref != nullptr) {
@@ -640,12 +645,13 @@ static PyObject* create_task(PyObject* coro, PyObject* loop) {
     Py_DECREF(task);
     return nullptr;
   }
-  if (get_state()->lastUsedTaskType() != Py_TYPE(task)) {
-    // keep track of last used task type
-    // applications typically don't use multiple task type
-    // so we can avoid lookups in case if the same type is used all the time
-    get_state()->setLastUsedTaskType(Py_TYPE(task));
-    get_state()->setLastUsedTaskTypeTableRef(t);
+  if constexpr (!cinderx::kFreeThreadedBuild) {
+    if (get_state()->lastUsedTaskType() != Py_TYPE(task)) {
+      // keep track of last used task type
+      // applications typically don't use multiple task type
+      // so we can avoid lookups in case if the same type is used all the time
+      get_state()->setLastUsedTaskType(Py_TYPE(task), t);
+    }
   }
   PyObject* tb = t->source_traceback(task);
   if (tb == nullptr) {
