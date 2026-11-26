@@ -5,6 +5,9 @@ import ctypes
 import functools
 import gc
 import inspect
+import os
+import subprocess
+import sys
 import unittest
 import weakref
 from typing import Any, Callable, Coroutine, Generator
@@ -16,7 +19,10 @@ except ImportError:
     from _asyncio import AsyncLazyValue
 
 from functools import wraps
+from textwrap import dedent
 from time import time
+
+from cinderx.test_support import ENCODING, subprocess_env
 
 
 def async_test(
@@ -263,6 +269,116 @@ class AsyncLazyValueTest(unittest.TestCase):
         task = alv.ensure_future(self.loop)
         self.assertIsInstance(task, asyncio.Task)
         self.assertEqual(self.loop.run_until_complete(task), 3)
+
+    def test_ensure_future_without_asyncio(self) -> None:
+        # A fresh process has not imported `_asyncio` yet, so making that
+        # import fail leaves ensure_future() without an event loop getter,
+        # a future type or a method table. Each must raise, and must not
+        # leave a broken method table behind for when the import works.
+        source = """
+            import sys
+            from _cinderx import AsyncLazyValue
+
+            async def compute():
+                return 1
+
+            class Pending:
+                def __await__(self):
+                    yield
+
+            async def blocked():
+                await Pending()
+
+            class Task:
+                @property
+                def _source_traceback(self):
+                    print("traceback read")
+
+            class Loop:
+                def create_task(self, coro):
+                    coro.close()
+                    return Task()
+
+            running = AsyncLazyValue(blocked)
+            running.__await__().send(None)
+            sys.modules["_asyncio"] = None
+            for alv, loop in (
+                (AsyncLazyValue(compute), None),
+                (running, object()),
+                (AsyncLazyValue(compute), Loop()),
+            ):
+                try:
+                    alv.ensure_future(loop)
+                except ImportError:
+                    print("ImportError")
+
+            del sys.modules["_asyncio"]
+            AsyncLazyValue(compute).ensure_future(Loop())
+        """
+        result = subprocess.run(
+            [sys.executable, "-c", dedent(source)],
+            capture_output=True,
+            encoding=ENCODING,
+            # The whole environment, because Windows cannot initialize
+            # sockets for asyncio without SYSTEMROOT.
+            env={**os.environ, **subprocess_env()},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(), ["ImportError"] * 3 + ["traceback read"]
+        )
+
+    def test_ensure_future_with_broken_asyncio_future(self) -> None:
+        # `_asyncio.Future` that is not a type, then one without the
+        # `_source_traceback` getset: each must raise and leave no method
+        # table behind, so the task type reads its traceback as an attribute
+        # once the getset is there.
+        source = """
+            import sys
+            import types
+            import _asyncio
+            from _cinderx import AsyncLazyValue
+
+            async def compute():
+                return 1
+
+            class Task:
+                @property
+                def _source_traceback(self):
+                    print("traceback read")
+
+            class Loop:
+                def create_task(self, coro):
+                    coro.close()
+                    return Task()
+
+            class Future:
+                pass
+
+            fake = types.ModuleType("_asyncio")
+            sys.modules["_asyncio"] = fake
+            for future in (42, Future):
+                fake.Future = future
+                try:
+                    AsyncLazyValue(compute).ensure_future(Loop())
+                except (AttributeError, TypeError) as e:
+                    print(type(e).__name__)
+
+            getset = _asyncio.Future.__dict__["_source_traceback"]
+            Future._source_traceback = getset
+            AsyncLazyValue(compute).ensure_future(Loop())
+        """
+        result = subprocess.run(
+            [sys.executable, "-c", dedent(source)],
+            capture_output=True,
+            encoding=ENCODING,
+            env={**os.environ, **subprocess_env()},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stdout.splitlines(),
+            ["TypeError", "AttributeError", "traceback read"],
+        )
 
     def test_ensure_future_reuses_task_type(self) -> None:
         async def async_func(x: int) -> int:

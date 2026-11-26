@@ -39,7 +39,7 @@ extern "C" {
 
 static cinderx::AsyncLazyValueState* get_state();
 
-static void populate_method_table(
+static int populate_method_table(
     PyMethodTableRef* tableref,
     PyTypeObject* type);
 
@@ -104,7 +104,18 @@ BorrowedRef<PyTypeObject> AsyncLazyValueState::futureType() {
   if (asyncio == nullptr) {
     return nullptr;
   }
-  future_type_ = Ref<>::steal(PyObject_GetAttrString(asyncio, "Future"));
+  Ref<> future_type = Ref<>::steal(PyObject_GetAttrString(asyncio, "Future"));
+  if (future_type == nullptr) {
+    return nullptr;
+  }
+  if (!PyType_Check(future_type)) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "_asyncio.Future must be a type, not %s",
+        Py_TYPE(future_type)->tp_name);
+    return nullptr;
+  }
+  future_type_ = std::move(future_type);
   return future_type_;
 }
 
@@ -216,14 +227,21 @@ static Ref<PyMethodTableRef> create_method_table(PyTypeObject* type) {
   if (tableref == nullptr) {
     return nullptr;
   }
-  populate_method_table(tableref, type);
+  if (populate_method_table(tableref, type) < 0) {
+    Py_DECREF(tableref);
+    return nullptr;
+  }
   // The new reference stays with the table so it lives as long as `type`;
   // methodtable_callback_impl() drops it when `type` dies.
   return Ref<PyMethodTableRef>::create(tableref);
 }
 
 static Ref<PyMethodTableRef> get_or_create_method_table(PyTypeObject* type) {
-  if (type == get_state()->futureType()) {
+  BorrowedRef<PyTypeObject> future_type = get_state()->futureType();
+  if (future_type == nullptr) {
+    return nullptr;
+  }
+  if (type == future_type) {
     return Ref<PyMethodTableRef>::create(get_state()->futureTableRef());
   }
   if constexpr (!kFreeThreadedBuild) {
@@ -258,7 +276,11 @@ static cinderx::AsyncLazyValueState* get_state() {
 }
 
 static PyObject* get_event_loop() {
-  return PyObject_CallNoArgs(get_state()->getEventLoop());
+  cinderx::BorrowedRef<> getter = get_state()->getEventLoop();
+  if (getter == nullptr) {
+    return nullptr;
+  }
+  return PyObject_CallNoArgs(getter);
 }
 
 typedef enum {
@@ -423,7 +445,7 @@ lookup_attr(PyTypeObject* type, PyObject* name, PyTypeObject* attr_type) {
   return t;
 }
 
-static void populate_method_table(
+static int populate_method_table(
     PyMethodTableRef* tableref,
     PyTypeObject* type) {
   PyGetSetDescrObject* source_traceback = nullptr;
@@ -434,11 +456,17 @@ static void populate_method_table(
         type, PyId__source_traceback, &PyGetSetDescr_Type);
   }
 
-  if (source_traceback == get_state()->futureSourceTraceback()) {
+  cinderx::BorrowedRef<PyGetSetDescrObject> future_source_traceback =
+      get_state()->futureSourceTraceback();
+  if (future_source_traceback == nullptr) {
+    return -1;
+  }
+  if (source_traceback == future_source_traceback) {
     tableref->source_traceback = FutureObj_get_traceback;
   } else {
     tableref->source_traceback = FutureLike_get_traceback;
   }
+  return 0;
 }
 
 /******************** AsyncLazyValue ************************/
@@ -556,6 +584,10 @@ AsyncLazyValue_init(AsyncLazyValueObj* self, PyObject* args, PyObject* kwargs) {
 }
 
 static PyObject* future_new(PyObject* loop) {
+  cinderx::BorrowedRef<PyTypeObject> future_type = get_state()->futureType();
+  if (future_type == nullptr) {
+    return nullptr;
+  }
   DEFINE_STATIC_STRING(loop)
   PyObject* kwnames = PyTuple_New(1);
   if (kwnames == nullptr) {
@@ -564,8 +596,7 @@ static PyObject* future_new(PyObject* loop) {
   PyTuple_SET_ITEM(kwnames, 0, s_loop);
   Py_INCREF(s_loop);
 
-  FutureObj* fut =
-      PyObject_Vectorcall(get_state()->futureType(), &loop, 0, kwnames);
+  FutureObj* fut = PyObject_Vectorcall(future_type, &loop, 0, kwnames);
   Py_DECREF(kwnames);
   return fut;
 }
