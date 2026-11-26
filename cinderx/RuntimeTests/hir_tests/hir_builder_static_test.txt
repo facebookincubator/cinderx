@@ -451,7 +451,6 @@ fun jittestmodule:test {
   }
 
   bb 9 (preds 8, 10) {
-    Snapshot
     v14 = LoadConst<Nullptr>
     v15 = LoadConst<ImmortalNoneType>
     v16 = Assign v11
@@ -464,7 +463,7 @@ fun jittestmodule:test {
     Snapshot
     v19, v20 = Send v16 v18 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 20
         Locals<1> v0
         Stack<2> v16 v17
       }
@@ -484,7 +483,7 @@ fun jittestmodule:test {
     Snapshot
     v21 = YieldValue v18 {
       FrameState {
-        CurInstrOffset 28
+        CurInstrOffset 24
         Locals<1> v0
         Stack<2> v16 v17
       }
@@ -2078,7 +2077,6 @@ fun jittestmodule:test {
   }
 
   bb 9 (preds 8, 10) {
-    Snapshot
     v11 = LoadConst<Nullptr>
     v12 = LoadConst<ImmortalNoneType>
     v13 = Assign v8
@@ -2091,7 +2089,7 @@ fun jittestmodule:test {
     Snapshot
     v16, v17 = Send v13 v15 {
       FrameState {
-        CurInstrOffset 22
+        CurInstrOffset 18
         Stack<2> v13 v14
       }
     }
@@ -2110,7 +2108,7 @@ fun jittestmodule:test {
     Snapshot
     v18 = YieldValue v15 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 22
         Stack<2> v13 v14
       }
     }

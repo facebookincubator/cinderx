@@ -392,6 +392,11 @@ class MultiWorkerCinderRegrtest:
             extra_opts["single_process_per_case"] = False
             extra_opts["case_groups"] = None
             extra_opts["final_run"] = no_retry_on_test_errors
+        if any(
+            field.name == "match_labels"
+            for field in dataclasses.fields(libregrtest_runtests.RunTests)
+        ):
+            extra_opts["match_labels"] = []
 
         self._runtests_config = libregrtest_runtests.RunTests(
             tests=tuple(tests),

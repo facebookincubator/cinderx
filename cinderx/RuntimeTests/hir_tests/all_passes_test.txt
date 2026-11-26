@@ -2651,11 +2651,11 @@ fun jittestmodule:test {
 
   bb 1 (preds 2, 9) {
     v38:Object = Phi<2, 9> v42 v34
-    UpdatePrevInstr<idx:24 line_no:3: no parent>
+    UpdatePrevInstr<idx:22 line_no:3: no parent>
     v39:Object, v40:CInt64 = Send v30 v38 {
       LiveValues<4> unc:v21 unc:v24 o:v30 b:v38
       FrameState {
-        CurInstrOffset 48
+        CurInstrOffset 44
         Locals<1> v24
         Stack<2> v30 v21
       }
@@ -2664,7 +2664,7 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    UpdatePrevInstr<idx:31 line_no:3: no parent>
+    UpdatePrevInstr<idx:29 line_no:3: no parent>
     Decref v30
     EndGeneratorFrame
     UseObj v24
@@ -2672,11 +2672,11 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1) {
-    UpdatePrevInstr<idx:26 line_no:3: no parent>
+    UpdatePrevInstr<idx:24 line_no:3: no parent>
     v42:Object = YieldValue v39 {
       LiveValues<4> unc:v21 unc:v24 o:v30 b:v39
       FrameState {
-        CurInstrOffset 52
+        CurInstrOffset 48
         Locals<1> v24
         Stack<2> v30 v21
       }

@@ -4830,6 +4830,13 @@ void HIRBuilder::emitGetANext(TranslationContext& tc) {
   Register* out = allocateTemp();
   tc.emit<GetANext>(out, obj, tc.frame);
   tc.frame.stack.push(out);
+  if constexpr (PY_VERSION_HEX >= 0x03100000) {
+    // 3.16 GET_ANEXT pushes the SEND null/None slots itself.
+    emitPushNull(tc);
+    Register* none = allocateTemp();
+    tc.emit<LoadConst>(none, Type::fromObject(Py_None));
+    tc.frame.stack.push(none);
+  }
 }
 
 Register* HIRBuilder::emitSetupWithCommon(
@@ -5338,6 +5345,13 @@ void HIRBuilder::emitGetAwaitable(
   stack.push(iter);
 
   tc.block = block_done;
+  if constexpr (PY_VERSION_HEX >= 0x03100000) {
+    // 3.16 GET_AWAITABLE pushes the SEND null/None slots itself.
+    emitPushNull(tc);
+    Register* none = allocateTemp();
+    tc.emit<LoadConst>(none, Type::fromObject(Py_None));
+    stack.push(none);
+  }
 }
 
 void HIRBuilder::emitBuildString(

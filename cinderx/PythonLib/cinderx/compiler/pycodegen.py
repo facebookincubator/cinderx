@@ -800,8 +800,7 @@ class CodeGenerator(ASTVisitor):
 
         self.push_loop(FOR_LOOP, start, end)
         self.emit("SETUP_FINALLY", except_)
-        self.emit("GET_ANEXT")
-        self.emit("LOAD_CONST", None)
+        self.emit_get_anext()
         self.emit_yield_from(await_=True)
         self.emit("POP_BLOCK")
         self.visit(node.target)
@@ -981,6 +980,9 @@ class CodeGenerator(ASTVisitor):
     def emit_get_awaitable(self, kind: AwaitableKind) -> None:
         raise NotImplementedError()
 
+    def emit_get_anext(self) -> None:
+        raise NotImplementedError()
+
     def visitGeneratorExp(self, node: ast.GeneratorExp) -> None:
         self.compile_comprehension(node, sys.intern("<genexpr>"), node.elt, None, None)
 
@@ -1028,7 +1030,6 @@ class CodeGenerator(ASTVisitor):
 
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
             self.emit_get_awaitable(AwaitableKind.Default)
-            self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
     def compile_comprehension_iter(self, gen: ast.comprehension) -> None:
@@ -1133,7 +1134,6 @@ class CodeGenerator(ASTVisitor):
                 self.set_pos(item.context_expr)
             self.emit_before_async_with()
             self.emit_get_awaitable(AwaitableKind.AsyncEnter)
-            self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
         self.emit_setup_with(item, finally_, kind == ASYNC_WITH)
@@ -1168,7 +1168,6 @@ class CodeGenerator(ASTVisitor):
 
         if kind == ASYNC_WITH:
             self.emit_get_awaitable(AwaitableKind.AsyncExit)
-            self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
         self.emit("POP_TOP")
         if kind == ASYNC_WITH:
@@ -1181,7 +1180,6 @@ class CodeGenerator(ASTVisitor):
 
         if kind == ASYNC_WITH:
             self.emit_get_awaitable(AwaitableKind.AsyncExit)
-            self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
         self.emit_with_except_finish(cleanup)
@@ -1681,7 +1679,6 @@ class CodeGenerator(ASTVisitor):
     def visitAwait(self, node: ast.Await) -> None:
         self.visit(node.value)
         self.emit_get_awaitable(AwaitableKind.Default)
-        self.emit("LOAD_CONST", None)
         self.emit_yield_from(await_=True)
 
     # slice and subscript stuff
@@ -2935,6 +2932,11 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_get_awaitable(self, kind: AwaitableKind) -> None:
         self.emit("GET_AWAITABLE", int(kind))
+        self.emit("LOAD_CONST", None)
+
+    def emit_get_anext(self) -> None:
+        self.emit("GET_ANEXT")
+        self.emit("LOAD_CONST", None)
 
     def visitAssert(self, node: ast.Assert) -> None:
         if not self.optimization_lvl:
@@ -4576,7 +4578,6 @@ class CodeGenerator312(CodeGenerator):
             self.emit_call_exit_with_nones()
             if e.kind == ASYNC_WITH:
                 self.emit_get_awaitable(AwaitableKind.AsyncExit)
-                self.emit("LOAD_CONST", None)
                 self.emit_yield_from(await_=True)
             self.emit("POP_TOP")
             self.set_no_pos()
@@ -4712,8 +4713,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(start)
         self.emit("SETUP_FINALLY", except_)
-        self.emit("GET_ANEXT")
-        self.emit("LOAD_CONST", None)
+        self.emit_get_anext()
         self.emit_yield_from(await_=True)
         self.emit("POP_BLOCK")
         self.visit(gen.target)
@@ -5489,8 +5489,7 @@ class CodeGenerator314(CodeGenerator312):
 
             self.push_async_for_loop(start, end)
             self.emit("SETUP_FINALLY", except_)
-            self.emit("GET_ANEXT")
-            self.emit("LOAD_CONST", None)
+            self.emit_get_anext()
             self.nextBlock(send)
             self.emit_yield_from(await_=True)
             self.emit("POP_BLOCK")
@@ -5638,8 +5637,7 @@ class CodeGenerator314(CodeGenerator312):
 
         self.nextBlock(start)
         self.emit("SETUP_FINALLY", except_)
-        self.emit("GET_ANEXT")
-        self.emit("LOAD_CONST", None)
+        self.emit_get_anext()
         self.nextBlock(send)
         self.emit_yield_from(await_=True)
         self.emit("POP_BLOCK")
@@ -6382,8 +6380,14 @@ class CodeGenerator315(CodeGenerator314):
         return True
 
     def emit_get_awaitable(self, kind: AwaitableKind) -> None:
-        super().emit_get_awaitable(kind)
+        self.emit("GET_AWAITABLE", int(kind))
         self.emit("PUSH_NULL")
+        self.emit("LOAD_CONST", None)
+
+    def emit_get_anext(self) -> None:
+        self.emit("GET_ANEXT")
+        self.emit("PUSH_NULL")
+        self.emit("LOAD_CONST", None)
 
     def visitYieldFrom(self, node: ast.YieldFrom) -> None:
         if not isinstance(
@@ -6635,9 +6639,7 @@ class CodeGenerator315(CodeGenerator314):
 
         self.nextBlock(start)
         self.emit("SETUP_FINALLY", except_)
-        self.emit("GET_ANEXT")
-        self.emit("PUSH_NULL")
-        self.emit("LOAD_CONST", None)
+        self.emit_get_anext()
         self.nextBlock(send)
         self.emit_yield_from(await_=True)
         self.emit("POP_BLOCK")
@@ -6854,9 +6856,7 @@ class CodeGenerator315(CodeGenerator314):
 
             self.push_async_for_loop(start, end)
             self.emit("SETUP_FINALLY", except_)
-            self.emit("GET_ANEXT")
-            self.emit("PUSH_NULL")
-            self.emit("LOAD_CONST", None)
+            self.emit_get_anext()
             self.nextBlock(send)
             self.emit_yield_from(await_=True)
             self.emit("POP_BLOCK")
@@ -6932,6 +6932,12 @@ class CodeGenerator316(CodeGenerator315):
         # gh-154902: 3.16 registers a conditional annotation's index via the new
         # INTRINSIC_ADD_CONDITIONAL_ANNOTATION binary intrinsic instead of SET_ADD.
         self.emit_call_intrinsic_2("INTRINSIC_ADD_CONDITIONAL_ANNOTATION")
+
+    def emit_get_awaitable(self, kind: AwaitableKind) -> None:
+        self.emit("GET_AWAITABLE", int(kind))
+
+    def emit_get_anext(self) -> None:
+        self.emit("GET_ANEXT")
 
     def visitMatchClass(self, node: ast.MatchClass, pc: PatternContext) -> None:
         if node.patterns or node.kwd_attrs or node.kwd_patterns:

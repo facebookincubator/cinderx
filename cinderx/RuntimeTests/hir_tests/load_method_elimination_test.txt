@@ -1918,7 +1918,6 @@ fun jittestmodule:test {
   }
 
   bb 9 (preds 8, 10) {
-    Snapshot
     v30:Nullptr = LoadConst<Nullptr>
     v31:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
@@ -1929,7 +1928,7 @@ fun jittestmodule:test {
     Snapshot
     v36:Object, v37:CInt64 = Send v27 v35 {
       FrameState {
-        CurInstrOffset 44
+        CurInstrOffset 40
         Stack<2> v27 v30
       }
     }
@@ -1946,7 +1945,7 @@ fun jittestmodule:test {
     Snapshot
     v39:Object = YieldValue v36 {
       FrameState {
-        CurInstrOffset 48
+        CurInstrOffset 44
         Stack<2> v27 v30
       }
     }
