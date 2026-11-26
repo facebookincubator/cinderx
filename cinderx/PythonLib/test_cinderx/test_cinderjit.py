@@ -5133,6 +5133,79 @@ class CompileTimeTests(unittest.TestCase):
         self.assertIn("COMPILE_TIME_OK", proc.stdout)
 
 
+# Profile-driven recompilation gives the property load an exact receiver type,
+# so Simplify turns it into a direct call of the property's getter. The getter
+# is a callable instance: the interpreter does not specialize those, and the
+# HIR inliner does not inline them.
+_PROPERTY_REINIT = """
+import cinderx.jit
+
+
+class Getter:
+    def __call__(self, obj):
+        return 42
+
+
+class C:
+    prop = property(Getter())
+
+
+def get_prop(o):
+    return o.prop
+
+
+c = C()
+for _ in range(3):
+    for _ in range(1000):
+        get_prop(c)
+    cinderx.jit.wait_for_background_compiles()
+assert cinderx.jit.is_jit_compiled(get_prop)
+opcodes = cinderx.jit.get_function_hir_opcode_counts(get_prop)
+assert "LoadAttr" not in opcodes, opcodes
+assert get_prop(c) == 42
+
+# property.__init__ replaces the getter in place without modifying the type,
+# and frees the Getter instance, which nothing else references.
+C.__dict__["prop"].__init__(lambda self: 43)
+assert get_prop(c) == 43, get_prop(c)
+C.__dict__["prop"].__init__(None)
+try:
+    get_prop(c)
+except AttributeError:
+    pass
+else:
+    raise AssertionError("expected AttributeError")
+print("PROPERTY_REINIT_OK")
+"""
+
+
+class PropertyReinitTests(unittest.TestCase):
+    @skip_if_prefork("No profile-driven recompilation in prefork builds")
+    @skip_if_ft("No profile-driven recompilation in free-threaded builds")
+    def test_property_reinit_calls_new_getter(self) -> None:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "cinderx-jit-all",
+                "-X",
+                "cinderx-jit-recompile-threshold=100",
+                "-c",
+                _PROPERTY_REINIT,
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding=ENCODING,
+            env=subprocess_env(),
+        )
+        self.assertEqual(
+            proc.returncode,
+            0,
+            f"child failed\nstdout={proc.stdout!r}\nstderr={proc.stderr!r}",
+        )
+        self.assertIn("PROPERTY_REINIT_OK", proc.stdout)
+
+
 def _call_freeze_type(cls: type[object]) -> object:
     return freeze_type(cls)
 

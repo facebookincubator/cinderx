@@ -2243,10 +2243,22 @@ Register* simplifyLoadAttrProperty(Env& env, const DescrInfo& info) {
 
   emitTypeAttrDeoptPatcher(env, info, DeoptDescr::kPropertyAttribute);
   env.emit<UseType>(info.receiver, info.type);
-  Register* getter_obj = env.emit<LoadConst>(Type::fromObject(getter));
+  // property.__init__() replaces the getter without modifying the type, so the
+  // type watch doesn't cover it: re-read the getter and guard its identity.
+  Register* property_obj = env.emit<LoadConst>(
+      Type::fromObject(env.func.env.addReference(info.descr)));
+  Register* current_getter = env.emit<LoadField>(
+      property_obj,
+      "prop_get",
+      offsetof(Ci_propertyobject, prop_get),
+      TOptObject);
+  auto guard =
+      env.emitInstr<GuardIs>(env.func.env.addReference(getter), current_getter);
+  guard->setGuiltyReg(info.receiver);
+  guard->setDescr(DeoptDescr::kPropertyAttribute);
   auto call = env.emitRawInstr<VectorCall>(
       2, env.func.env.allocateRegister(), CallFlags::None, *info.frame_state);
-  call->setOperand(0, getter_obj);
+  call->setOperand(0, guard->output());
   call->setOperand(1, info.receiver);
   return call->output();
 }
