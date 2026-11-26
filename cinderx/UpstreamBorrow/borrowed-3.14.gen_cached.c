@@ -2348,7 +2348,7 @@ error:
     Py_BEGIN_CRITICAL_SECTION2_MUTEX(TYPE_LOCK, &_PyObject_CAST(d)->ob_mutex)
 #define END_TYPE_DICT_LOCK() Py_END_CRITICAL_SECTION2()
 #define ASSERT_TYPE_LOCK_HELD() \
-    _Py_CRITICAL_SECTION_ASSERT_MUTEX_LOCKED(TYPE_LOCK)
+    if (!types_world_is_stopped()) { _Py_CRITICAL_SECTION_ASSERT_MUTEX_LOCKED(TYPE_LOCK); }
 #else
 #define BEGIN_TYPE_LOCK()
 #define END_TYPE_LOCK()
@@ -2357,8 +2357,7 @@ error:
 #define ASSERT_TYPE_LOCK_HELD()
 #define types_stop_world()
 #define types_start_world()
-#define type_lock_prevent_release()
-#define type_lock_allow_release()
+#define types_world_is_stopped() 1
 #endif
 #define PyTypeObject_CAST(op)   ((PyTypeObject *)(op))
 #define SIGNATURE_END_MARKER         ")\n--\n\n"
