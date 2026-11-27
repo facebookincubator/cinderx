@@ -126,11 +126,12 @@ TEST(IntrusiveListTest, IsForwardIterable) {
 
   auto it = entries.begin();
   ASSERT_EQ(it->value, 100);
-  it++;
+  ASSERT_EQ(it++, entries.begin());
   ASSERT_EQ(it->value, 200);
-  ++it;
+  ASSERT_EQ(&(++it), &it);
   ASSERT_EQ(it->value, 300);
-  it++;
+  const auto last = it;
+  ASSERT_EQ(it++, last);
   ASSERT_EQ(it, entries.end());
 }
 
@@ -163,11 +164,12 @@ TEST(IntrusiveListTest, IsDecrementable) {
   entries.pushBack(entry3);
 
   auto it = entries.end();
-  it--;
+  ASSERT_EQ(it--, entries.end());
   ASSERT_EQ(it->value, 300);
-  --it;
+  ASSERT_EQ(&(--it), &it);
   ASSERT_EQ(it->value, 200);
-  it--;
+  const auto second = it;
+  ASSERT_EQ(it--, second);
   ASSERT_EQ(it->value, 100);
   ASSERT_EQ(it, entries.begin());
 }
